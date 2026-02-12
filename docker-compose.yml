@@ -1,4 +1,31 @@
 services:
+  app:
+    build: .
+    container_name: stockpulse-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      # Wewnątrz Docker network hosty to nazwy serwisów, nie localhost
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stockpulse-net
+    # Montuj src/ dla rozwoju — rebuild nie potrzebny przy zmianie kodu
+    volumes:
+      - ./src:/app/src
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.build.json:/app/tsconfig.build.json
+    # W trybie dev: buduj i uruchom
+    command: sh -c "npx tsc -p tsconfig.build.json && node dist/main.js"
+
   postgres:
     image: timescale/timescaledb:latest-pg16
     container_name: stockpulse-postgres

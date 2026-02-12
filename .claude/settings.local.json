@@ -6,7 +6,9 @@
       "Bash(tail:*)",
       "Bash(grep:*)",
       "Bash(docker compose:*)",
-      "Bash(wsl:*)"
+      "Bash(wsl:*)",
+      "Bash(npm install:*)",
+      "Bash(git add:*)"
     ]
   }
 }

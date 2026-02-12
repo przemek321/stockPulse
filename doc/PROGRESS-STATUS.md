@@ -4,27 +4,29 @@
 
 ## Gdzie jesteśmy
 
-**Faza 0 — Setup i walidacja API** (w trakcie)
+**Faza 0 — Setup i walidacja API** (prawie ukończona)
 
-Projekt jest na samym początku. Mamy szkielet repo z dokumentacją, infrastrukturę Docker i skrypty testowe do integracji z zewnętrznymi API. Na razie skonfigurowaliśmy i przetestowaliśmy **tylko Finnhub API** — działa poprawnie.
+Repo jest na GitHubie, mamy działające integracje z Finnhub, SEC EDGAR, StockTwits i Telegram. Czekamy na dostęp do Reddit API.
 
 ## Co jest zrobione
 
 - [x] Repo zainicjalizowane z `package.json` (jedyna zależność: `dotenv`)
+- [x] Repo na GitHubie: github.com/przemek321/stockPulse
+- [x] `.gitignore` chroni `.env` z kluczami API
 - [x] Docker Compose z PostgreSQL + TimescaleDB i Redis (kontenery gotowe do startu)
 - [x] `.env.example` z opisami wszystkich zmiennych środowiskowych
 - [x] Dokumentacja architektury w `doc/` (opis warstw, healthcare universe, setup guide)
 - [x] `CLAUDE.md` z kontekstem projektu
 - [x] Skrypty testowe dla 5 API (Reddit, Finnhub, SEC EDGAR, StockTwits, Telegram)
-- [x] **Finnhub API — skonfigurowane i działa** (quotes, news, profile, insider sentiment, financials)
+- [x] **Finnhub API — działa** (quotes, news, profile, insider sentiment, financials)
+- [x] **SEC EDGAR — skonfigurowane** (User-Agent ustawiony)
+- [x] **Telegram Bot — działa** (@stockpulse_alerts_bot, alerty MarkdownV2 + plain text)
+- [x] **StockTwits — gotowe** (publiczne, bez auth, 200 req/hour)
 
-## Co jeszcze nie działa / nie skonfigurowane
+## Co czeka
 
-- [ ] Reddit API — skrypt gotowy, brak kluczy OAuth2 w `.env`
-- [ ] SEC EDGAR — skrypt gotowy, brak User-Agent w `.env`
-- [ ] StockTwits — skrypt gotowy, nie testowane (publiczne, bez auth)
-- [ ] Telegram Bot — skrypt gotowy, brak tokena bota w `.env`
-- [ ] Anthropic Claude API — klucz potrzebny dopiero od Fazy 2
+- [ ] Reddit API — formularz wysłany, czekamy na zatwierdzenie dostępu
+- [ ] Anthropic Claude API — płatny, potrzebny dopiero od Fazy 2
 
 ## Co robimy teraz (bieżące zadania)
 
@@ -55,9 +57,9 @@ stockPulse/
 │   ├── test-all.js          # Orchestrator wszystkich testów
 │   ├── test-finnhub.js      # ✅ DZIAŁA — quotes, news, profile, insider
 │   ├── test-reddit.js       # ⏳ Czeka na klucze OAuth2
-│   ├── test-sec-edgar.js    # ⏳ Czeka na User-Agent
-│   ├── test-stocktwits.js   # ⏳ Nie testowane
-│   └── test-telegram.js     # ⏳ Czeka na token bota
+│   ├── test-sec-edgar.js    # ✅ Skonfigurowane
+│   ├── test-stocktwits.js   # ✅ Gotowe (publiczne)
+│   └── test-telegram.js     # ✅ DZIAŁA — alerty wysyłane
 ├── doc/
 │   ├── PROGRESS-STATUS.md   # ← TEN PLIK
 │   ├── stockpulse-architecture.jsx

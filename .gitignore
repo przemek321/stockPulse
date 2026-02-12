@@ -1,6 +1,9 @@
 # Zależności
 node_modules/
 
+# Build output (NestJS / TypeScript)
+dist/
+
 # Zmienne środowiskowe (zawierają klucze API i hasła)
 .env
 .env.local
