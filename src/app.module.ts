@@ -2,16 +2,24 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { EventsModule } from './events/events.module';
+import { QueuesModule } from './queues/queues.module';
+import { CollectorsModule } from './collectors/collectors.module';
+import { AlertsModule } from './alerts/alerts.module';
+import { ApiModule } from './api/api.module';
 
 /**
  * Główny moduł aplikacji StockPulse.
- * Importuje wszystkie podmoduły — konfiguracja, baza danych, eventy.
+ * Wszystkie podmoduły: konfiguracja, baza danych, eventy, kolejki, kolektory, alerty, API.
  */
 @Module({
   imports: [
     ConfigModule,
     DatabaseModule,
     EventsModule,
+    QueuesModule,
+    CollectorsModule,
+    AlertsModule,
+    ApiModule,
   ],
 })
 export class AppModule {}
