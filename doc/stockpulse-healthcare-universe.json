@@ -1,0 +1,750 @@
+{
+  "meta": {
+    "name": "StockPulse Healthcare Universe",
+    "version": "1.0.0",
+    "created": "2026-02-08",
+    "author": "Przemek",
+    "description": "Kompletna konfiguracja monitoringu healthcare sector dla StockPulse",
+    "total_tickers": 32,
+    "total_keywords": 180,
+    "total_people": 65,
+    "total_subreddits": 18,
+    "total_regulatory_sources": 12
+  },
+
+  "tickers": {
+    "managed_care_insurers": {
+      "description": "Core — Managed Care Organizations. Najwyższy priorytet. Bezpośrednio ze sobą skorelowane.",
+      "priority": "CRITICAL",
+      "companies": [
+        {
+          "ticker": "UNH",
+          "name": "UnitedHealth Group",
+          "cik": "0000731766",
+          "subsector": "Managed Care + PBM + Provider",
+          "market_cap_tier": "mega",
+          "aliases": ["UnitedHealth", "United Health", "UHG", "Optum", "OptumRx", "OptumHealth", "UnitedHealthcare", "UHC"],
+          "key_metrics": ["MCR", "medical_cost_ratio", "membership", "OptumHealth_revenue"],
+          "ceo": "Andrew Witty",
+          "cfo": "John Rex",
+          "notes": "Largest US insurer. Owns Optum (PBM + care delivery). ~400K employees."
+        },
+        {
+          "ticker": "ELV",
+          "name": "Elevance Health",
+          "cik": "0001156039",
+          "subsector": "Managed Care",
+          "market_cap_tier": "mega",
+          "aliases": ["Elevance", "Anthem", "Blue Cross Blue Shield", "BCBS", "Carelon", "CarelonRx"],
+          "key_metrics": ["MCR", "premium_yield", "Carelon_revenue"],
+          "ceo": "Gail Boudreaux",
+          "cfo": "Mark Kaye",
+          "notes": "Formerly Anthem. Operates BCBS in 14 states. 45.6M medical members."
+        },
+        {
+          "ticker": "CI",
+          "name": "Cigna Group",
+          "cik": "0001739940",
+          "subsector": "Managed Care + PBM",
+          "market_cap_tier": "mega",
+          "aliases": ["Cigna", "Cigna Healthcare", "Evernorth", "Express Scripts", "ESI", "Accredo"],
+          "key_metrics": ["MCR", "pharmacy_revenue", "Evernorth_revenue"],
+          "ceo": "David Cordani",
+          "cfo": "Brian Evanko",
+          "notes": "Owns Express Scripts (PBM). 17M US + 2M intl medical members."
+        },
+        {
+          "ticker": "HUM",
+          "name": "Humana",
+          "cik": "0000049071",
+          "subsector": "Managed Care (Medicare focus)",
+          "market_cap_tier": "large",
+          "aliases": ["Humana", "CenterWell"],
+          "key_metrics": ["MCR", "Medicare_Advantage_membership", "star_ratings"],
+          "ceo": "Jim Rechtin",
+          "cfo": "Celeste Mellet",
+          "notes": "Medicare Advantage specialist. 14.8M medical members. CenterWell = care delivery."
+        },
+        {
+          "ticker": "CNC",
+          "name": "Centene Corporation",
+          "cik": "0001071739",
+          "subsector": "Managed Care (Medicaid focus)",
+          "market_cap_tier": "large",
+          "aliases": ["Centene", "Ambetter", "WellCare", "Peach State", "Sunshine Health", "Fidelis"],
+          "key_metrics": ["MCR", "Medicaid_membership", "marketplace_membership"],
+          "ceo": "Sarah London",
+          "cfo": "Drew Asher",
+          "notes": "Largest Medicaid MCO in US. 28M+ members. Ambetter = marketplace brand."
+        },
+        {
+          "ticker": "MOH",
+          "name": "Molina Healthcare",
+          "cik": "0001179929",
+          "subsector": "Managed Care (Medicaid/Medicare)",
+          "market_cap_tier": "mid",
+          "aliases": ["Molina", "Molina Health"],
+          "key_metrics": ["MCR", "Medicaid_membership", "embedded_premium"],
+          "ceo": "Joseph Zubretsky",
+          "cfo": "Mark Keim",
+          "notes": "Government-sponsored plans specialist. 5M+ members. 85% Medicaid."
+        },
+        {
+          "ticker": "ALHC",
+          "name": "Alignment Healthcare",
+          "cik": "0001832835",
+          "subsector": "Managed Care (Medicare focus)",
+          "market_cap_tier": "small",
+          "aliases": ["Alignment", "Alignment Health"],
+          "key_metrics": ["health_plan_membership", "MCR"],
+          "ceo": "John Kao",
+          "cfo": "Thomas Freeman",
+          "notes": "Tech-enabled Medicare Advantage. Smaller player, high growth."
+        },
+        {
+          "ticker": "OSCR",
+          "name": "Oscar Health",
+          "cik": "0001568651",
+          "subsector": "Managed Care (ACA marketplace)",
+          "market_cap_tier": "small",
+          "aliases": ["Oscar", "Oscar Health Insurance"],
+          "key_metrics": ["MCR", "membership", "direct_policy_premiums"],
+          "ceo": "Mark Bertolini",
+          "cfo": "Scott Blackley",
+          "notes": "Tech-first insurer. ACA marketplace focus. Founded by Josh Kushner."
+        }
+      ]
+    },
+
+    "hospitals_health_systems": {
+      "description": "Hospital operators and health systems. React to CMS reimbursement changes.",
+      "priority": "HIGH",
+      "companies": [
+        {
+          "ticker": "HCA",
+          "name": "HCA Healthcare",
+          "cik": "0000860730",
+          "subsector": "Hospitals",
+          "market_cap_tier": "mega",
+          "aliases": ["HCA", "Hospital Corporation of America"],
+          "key_metrics": ["same_facility_revenue", "admissions", "ER_visits", "payer_mix"],
+          "ceo": "Sam Hazen",
+          "cfo": "Mike Marks",
+          "notes": "Largest US hospital operator. 190 hospitals, 2500 outpatient facilities."
+        },
+        {
+          "ticker": "THC",
+          "name": "Tenet Healthcare",
+          "cik": "0000070318",
+          "subsector": "Hospitals + ASCs",
+          "market_cap_tier": "mid",
+          "aliases": ["Tenet", "USPI", "United Surgical Partners"],
+          "key_metrics": ["same_hospital_revenue", "ASC_revenue", "admissions"],
+          "ceo": "Saum Sutaria",
+          "cfo": "Sun Park",
+          "notes": "Hospitals + ambulatory surgery centers (USPI). Shifting to outpatient."
+        },
+        {
+          "ticker": "UHS",
+          "name": "Universal Health Services",
+          "cik": "0000352915",
+          "subsector": "Hospitals (Behavioral Health)",
+          "market_cap_tier": "mid",
+          "aliases": ["Universal Health", "UHS"],
+          "key_metrics": ["behavioral_health_revenue", "acute_care_revenue", "patient_days"],
+          "ceo": "Marc Miller",
+          "cfo": "Steve Filton",
+          "notes": "Major behavioral health operator. Also acute care hospitals."
+        },
+        {
+          "ticker": "CYH",
+          "name": "Community Health Systems",
+          "cik": "0001108109",
+          "subsector": "Hospitals (Rural/Community)",
+          "market_cap_tier": "small",
+          "aliases": ["Community Health", "CHS"],
+          "key_metrics": ["same_store_admissions", "net_revenue", "adjusted_EBITDA"],
+          "ceo": "Tim Hingtgen",
+          "cfo": "Kevin Hammons",
+          "notes": "Rural and community hospital operator. Volatile. High debt."
+        },
+        {
+          "ticker": "ENSG",
+          "name": "Ensign Group",
+          "cik": "0001300514",
+          "subsector": "Post-Acute / Skilled Nursing",
+          "market_cap_tier": "mid",
+          "aliases": ["Ensign", "Ensign Group"],
+          "key_metrics": ["occupancy_rate", "skilled_mix", "revenue_per_patient_day"],
+          "ceo": "Barry Port",
+          "cfo": "Suzanne Snapper",
+          "notes": "Skilled nursing facilities + senior living. 300+ facilities."
+        },
+        {
+          "ticker": "SEM",
+          "name": "Select Medical Holdings",
+          "cik": "0001320414",
+          "subsector": "Specialty Hospitals / Rehab",
+          "market_cap_tier": "mid",
+          "aliases": ["Select Medical", "Concentra"],
+          "key_metrics": ["critical_illness_revenue", "rehab_revenue", "occupancy"],
+          "ceo": "David Chernow",
+          "cfo": "Martin Jackson",
+          "notes": "Long-term acute care + rehab hospitals + occupational health (Concentra)."
+        }
+      ]
+    },
+
+    "pbm_pharmacy": {
+      "description": "Pharmacy Benefit Managers and pharmacy chains. PBM reform = big catalyst.",
+      "priority": "HIGH",
+      "companies": [
+        {
+          "ticker": "CVS",
+          "name": "CVS Health",
+          "cik": "0000064803",
+          "subsector": "PBM + Pharmacy + Insurance",
+          "market_cap_tier": "mega",
+          "aliases": ["CVS", "CVS Health", "CVS Caremark", "Aetna", "Oak Street Health", "Signify Health", "MinuteClinic", "HealthHUB"],
+          "key_metrics": ["pharmacy_revenue", "Aetna_MCR", "Caremark_revenue", "store_count"],
+          "ceo": "David Joyner",
+          "cfo": "Tom Cowhey",
+          "notes": "Triple play: Caremark (PBM) + Aetna (insurer) + CVS stores. 36M Aetna members."
+        },
+        {
+          "ticker": "WBA",
+          "name": "Walgreens Boots Alliance",
+          "cik": "0001618673",
+          "subsector": "Pharmacy Retail + Healthcare",
+          "market_cap_tier": "mid",
+          "aliases": ["Walgreens", "Boots", "VillageMD", "Summit Health", "Shields Health"],
+          "key_metrics": ["pharmacy_revenue", "store_count", "script_volume"],
+          "ceo": "Tim Wentworth",
+          "cfo": "Manmohan Mahajan",
+          "notes": "Pharmacy retail. VillageMD = primary care. Under restructuring."
+        },
+        {
+          "ticker": "HIMS",
+          "name": "Hims & Hers Health",
+          "cik": "0001773751",
+          "subsector": "DTC Telehealth + Pharmacy",
+          "market_cap_tier": "mid",
+          "aliases": ["Hims", "Hers", "Hims and Hers"],
+          "key_metrics": ["subscribers", "revenue_per_subscriber", "online_revenue"],
+          "ceo": "Andrew Dudum",
+          "cfo": "Yemi Okupe",
+          "notes": "Direct-to-consumer telehealth + pharmacy. GLP-1 compounding exposure."
+        }
+      ]
+    },
+
+    "health_it_digital": {
+      "description": "Health IT, EHR, digital health platforms. Tech-driven healthcare.",
+      "priority": "MEDIUM",
+      "companies": [
+        {
+          "ticker": "VEEV",
+          "name": "Veeva Systems",
+          "cik": "0001393052",
+          "subsector": "Life Sciences Cloud / CRM",
+          "market_cap_tier": "large",
+          "aliases": ["Veeva", "Veeva Systems", "Veeva CRM", "Veeva Vault"],
+          "key_metrics": ["subscription_revenue", "billings", "retention_rate"],
+          "ceo": "Peter Gassner",
+          "cfo": "Brent Bowman",
+          "notes": "Cloud software for life sciences / pharma. Dominant in pharma CRM."
+        },
+        {
+          "ticker": "DOCS",
+          "name": "Doximity",
+          "cik": "0001833708",
+          "subsector": "Physician Network / Telehealth",
+          "market_cap_tier": "mid",
+          "aliases": ["Doximity"],
+          "key_metrics": ["net_revenue_retention", "unique_users", "telehealth_visits"],
+          "ceo": "Jeff Tangney",
+          "cfo": "Anna Googol",
+          "notes": "LinkedIn for doctors. 80%+ US physicians on platform. Pharma marketing."
+        },
+        {
+          "ticker": "GDRX",
+          "name": "GoodRx Holdings",
+          "cik": "0001809519",
+          "subsector": "Prescription Savings / Price Transparency",
+          "market_cap_tier": "small",
+          "aliases": ["GoodRx", "Good Rx"],
+          "key_metrics": ["monthly_active_consumers", "prescription_transactions", "revenue_per_MAC"],
+          "ceo": "Scott Wagner",
+          "cfo": "Andrew Slutsky",
+          "notes": "Prescription price comparison. PBM reform could impact positively."
+        },
+        {
+          "ticker": "TDOC",
+          "name": "Teladoc Health",
+          "cik": "0001477449",
+          "subsector": "Telehealth / Virtual Care",
+          "market_cap_tier": "small",
+          "aliases": ["Teladoc", "BetterHelp", "Livongo"],
+          "key_metrics": ["visits", "integrated_care_revenue", "BetterHelp_revenue", "members"],
+          "ceo": "Chuck Divita",
+          "cfo": "Mala Murthy",
+          "notes": "Largest virtual care provider. 93M+ members access. BetterHelp = behavioral."
+        },
+        {
+          "ticker": "CERT",
+          "name": "Certara",
+          "cik": "0001827090",
+          "subsector": "Drug Development Technology",
+          "market_cap_tier": "small",
+          "aliases": ["Certara", "Simcyp"],
+          "key_metrics": ["software_revenue", "services_revenue", "bookings"],
+          "ceo": "William Feehery",
+          "cfo": "John Gallagher",
+          "notes": "Biosimulation software for drug development. FDA uses their tech."
+        },
+        {
+          "ticker": "HCAT",
+          "name": "Health Catalyst",
+          "cik": "0001636422",
+          "subsector": "Healthcare Analytics",
+          "market_cap_tier": "small",
+          "aliases": ["Health Catalyst"],
+          "key_metrics": ["platform_revenue", "contracted_customers", "dollar_retention"],
+          "ceo": "Dan Burton",
+          "cfo": "Jason Alger",
+          "notes": "Data analytics platform for hospitals. Data-as-a-service model."
+        }
+      ]
+    },
+
+    "medical_devices_diagnostics": {
+      "description": "Medical devices and diagnostics. FDA approvals = binary catalysts.",
+      "priority": "MEDIUM",
+      "companies": [
+        {
+          "ticker": "ISRG",
+          "name": "Intuitive Surgical",
+          "cik": "0001035267",
+          "subsector": "Surgical Robotics",
+          "market_cap_tier": "mega",
+          "aliases": ["Intuitive", "Intuitive Surgical", "da Vinci", "Ion"],
+          "key_metrics": ["procedures", "system_placements", "instrument_revenue"],
+          "ceo": "Gary Guthart",
+          "cfo": "Jamie Samath",
+          "notes": "da Vinci robot dominance. Ion = lung biopsy. Procedures = key metric."
+        },
+        {
+          "ticker": "DXCM",
+          "name": "DexCom",
+          "cik": "0001093557",
+          "subsector": "Continuous Glucose Monitoring",
+          "market_cap_tier": "large",
+          "aliases": ["DexCom", "Dexcom", "G7", "Stelo"],
+          "key_metrics": ["sensor_revenue", "new_patient_starts", "international_growth"],
+          "ceo": "Kevin Sayer",
+          "cfo": "Jereme Sylvain",
+          "notes": "CGM leader for diabetes. G7 sensor. Stelo = OTC CGM."
+        },
+        {
+          "ticker": "PODD",
+          "name": "Insulet Corporation",
+          "cik": "0001145197",
+          "subsector": "Insulin Delivery",
+          "market_cap_tier": "mid",
+          "aliases": ["Insulet", "Omnipod", "Omnipod 5"],
+          "key_metrics": ["Omnipod_revenue", "new_customer_starts", "US_vs_intl_split"],
+          "ceo": "Jim Hollingshead",
+          "cfo": "Ana Maria Chadwick",
+          "notes": "Omnipod insulin pump. Tubeless design. Competing with Medtronic."
+        },
+        {
+          "ticker": "DVA",
+          "name": "DaVita",
+          "cik": "0000927066",
+          "subsector": "Dialysis / Kidney Care",
+          "market_cap_tier": "mid",
+          "aliases": ["DaVita", "DaVita Kidney Care"],
+          "key_metrics": ["treatments", "revenue_per_treatment", "center_count"],
+          "ceo": "Javier Rodriguez",
+          "cfo": "Joel Ackerman",
+          "notes": "Largest US dialysis provider. 2800+ centers. CMS reimbursement dependent."
+        }
+      ]
+    }
+  },
+
+  "search_keywords": {
+    "financial_metrics": [
+      "medical cost ratio", "MCR", "medical loss ratio", "MLR",
+      "benefit expense ratio", "BER",
+      "premium revenue", "premium yield",
+      "membership growth", "enrollment", "lives covered",
+      "days claims payable", "DCP",
+      "adjusted EPS", "guidance", "outlook",
+      "prior period development", "PPD",
+      "risk adjustment", "risk corridor",
+      "embedded premium", "premium PMPM",
+      "SG&A ratio", "operating margin",
+      "star ratings", "quality bonus"
+    ],
+
+    "regulatory_events": [
+      "CMS", "Centers for Medicare and Medicaid",
+      "Medicare Advantage rate", "MA rate notice", "advance notice",
+      "Medicaid redetermination", "Medicaid unwinding",
+      "Medicaid expansion", "Medicaid contract",
+      "ACA subsidy", "premium tax credit", "marketplace enrollment",
+      "PBM reform", "pharmacy benefit manager reform",
+      "drug pricing", "IRA drug negotiation",
+      "prior authorization reform", "surprise billing",
+      "mental health parity", "behavioral health mandate",
+      "Medicaid work requirements", "Medicaid per capita cap",
+      "managed care contract award", "RFP", "procurement",
+      "state Medicaid rate", "actuarial soundness",
+      "MLR rebate", "80/20 rule",
+      "network adequacy", "provider directory",
+      "value-based care", "ACO", "accountable care",
+      "MSSP", "Medicare Shared Savings Program",
+      "MA star rating", "quality withhold",
+      "risk adjustment data validation", "RADV audit"
+    ],
+
+    "market_moving_events": [
+      "earnings", "earnings miss", "earnings beat",
+      "guidance cut", "guidance raised", "lowered outlook",
+      "CEO resignation", "CFO departure", "executive change",
+      "merger", "acquisition", "M&A", "takeover", "buyout",
+      "divestiture", "spin-off", "split",
+      "stock buyback", "share repurchase",
+      "dividend cut", "dividend increase",
+      "analyst upgrade", "analyst downgrade",
+      "price target", "rating change",
+      "insider buying", "insider selling", "Form 4",
+      "10-K", "10-Q", "8-K", "proxy statement",
+      "DOJ investigation", "FTC review", "antitrust",
+      "class action", "lawsuit", "settlement",
+      "cybersecurity breach", "data breach", "HIPAA violation",
+      "credit rating", "debt downgrade", "refinancing"
+    ],
+
+    "clinical_operational": [
+      "hospital admission", "readmission rate",
+      "patient volume", "census", "occupancy rate",
+      "length of stay", "ALOS",
+      "surgical volume", "procedure volume",
+      "telehealth visit", "virtual care",
+      "behavioral health", "mental health",
+      "substance abuse", "opioid",
+      "staffing shortage", "nurse shortage", "burnout",
+      "labor cost", "contract labor",
+      "supply chain", "medical supply",
+      "flu season", "COVID", "RSV", "pandemic",
+      "utilization", "utilization management",
+      "prior authorization", "claim denial",
+      "provider network", "narrow network",
+      "GLP-1", "Ozempic", "Wegovy", "Mounjaro", "Zepbound",
+      "weight loss drug", "obesity treatment",
+      "gene therapy", "cell therapy",
+      "biosimilar", "generic drug"
+    ],
+
+    "sentiment_phrases_bearish": [
+      "medical cost ratio deterioration",
+      "unfavorable prior period development",
+      "membership attrition",
+      "adverse selection",
+      "inadequate rate",
+      "rate cut", "reimbursement cut",
+      "margin compression", "margin pressure",
+      "elevated utilization", "higher acuity",
+      "guidance withdrawal", "suspended guidance",
+      "going concern", "liquidity risk",
+      "regulatory penalty", "CMS sanction",
+      "enrollment pause", "suspension",
+      "whistleblower", "qui tam",
+      "fraud investigation", "False Claims Act",
+      "executive indictment", "SEC investigation"
+    ],
+
+    "sentiment_phrases_bullish": [
+      "favorable prior period development",
+      "rate increase", "rate improvement",
+      "membership growth", "new contract win",
+      "Medicaid expansion", "new state entry",
+      "star rating improvement", "5-star plan",
+      "margin expansion", "beat and raise",
+      "synergy realization", "integration on track",
+      "new product launch", "FDA approval",
+      "patent granted", "exclusivity",
+      "strategic partnership", "joint venture",
+      "value-based care growth", "risk-based revenue",
+      "digital transformation", "AI deployment"
+    ]
+  },
+
+  "people_to_monitor": {
+    "description": "Key executives and influencers. Insider trades and public statements move stocks.",
+    "executives": [
+      {"name": "Andrew Witty", "role": "CEO", "company": "UNH", "sec_insider": true},
+      {"name": "John Rex", "role": "CFO", "company": "UNH", "sec_insider": true},
+      {"name": "Gail Boudreaux", "role": "CEO", "company": "ELV", "sec_insider": true},
+      {"name": "David Cordani", "role": "CEO", "company": "CI", "sec_insider": true},
+      {"name": "Jim Rechtin", "role": "CEO", "company": "HUM", "sec_insider": true},
+      {"name": "Sarah London", "role": "CEO", "company": "CNC", "sec_insider": true},
+      {"name": "Joseph Zubretsky", "role": "CEO", "company": "MOH", "sec_insider": true},
+      {"name": "Mark Keim", "role": "CFO", "company": "MOH", "sec_insider": true},
+      {"name": "Sam Hazen", "role": "CEO", "company": "HCA", "sec_insider": true},
+      {"name": "David Joyner", "role": "CEO", "company": "CVS", "sec_insider": true},
+      {"name": "Tim Wentworth", "role": "CEO", "company": "WBA", "sec_insider": true},
+      {"name": "Gary Guthart", "role": "CEO", "company": "ISRG", "sec_insider": true},
+      {"name": "Kevin Sayer", "role": "CEO", "company": "DXCM", "sec_insider": true},
+      {"name": "Andrew Dudum", "role": "CEO", "company": "HIMS", "sec_insider": true},
+      {"name": "Mark Bertolini", "role": "CEO", "company": "OSCR", "sec_insider": true},
+      {"name": "Saum Sutaria", "role": "CEO", "company": "THC", "sec_insider": true},
+      {"name": "Marc Miller", "role": "CEO", "company": "UHS", "sec_insider": true},
+      {"name": "Javier Rodriguez", "role": "CEO", "company": "DVA", "sec_insider": true},
+      {"name": "Peter Gassner", "role": "CEO", "company": "VEEV", "sec_insider": true},
+      {"name": "Jeff Tangney", "role": "CEO", "company": "DOCS", "sec_insider": true}
+    ],
+
+    "government_officials": [
+      {"name": "Chiquita Brooks-LaSure", "role": "CMS Administrator", "org": "CMS", "notes": "Medicare/Medicaid rate decisions"},
+      {"name": "Robert F. Kennedy Jr.", "role": "HHS Secretary", "org": "HHS", "notes": "Policy direction, FDA oversight"},
+      {"name": "Xavier Becerra", "role": "Former HHS Secretary", "org": "HHS", "notes": "Reference for policy continuity"},
+      {"name": "Liz Fowler", "role": "CMMI Director", "org": "CMS/CMMI", "notes": "Value-based care innovation"}
+    ],
+
+    "analysts_influencers": [
+      {"name": "A.J. Rice", "role": "Healthcare Analyst", "org": "UBS", "notes": "MCO specialist"},
+      {"name": "Lance Wilkes", "role": "Healthcare Analyst", "org": "Bernstein", "notes": "Insurance sector"},
+      {"name": "Stephen Baxter", "role": "Healthcare Analyst", "org": "Wells Fargo", "notes": "MCO coverage"},
+      {"name": "Justin Lake", "role": "Healthcare Analyst", "org": "Wolfe Research", "notes": "Managed care"},
+      {"name": "Joshua Raskin", "role": "Healthcare Analyst", "org": "Nephron Research", "notes": "Deep MCO analysis"},
+      {"name": "Larry Levitt", "role": "EVP Health Policy", "org": "KFF", "notes": "Policy expert, Twitter active"},
+      {"name": "Bob Herman", "role": "Health Reporter", "org": "Stat News", "notes": "Breaking healthcare business news"}
+    ]
+  },
+
+  "reddit_sources": {
+    "primary_subreddits": [
+      {"name": "r/healthcare", "description": "General healthcare discussion", "priority": "HIGH", "avg_posts_day": 50},
+      {"name": "r/healthinsurance", "description": "Insurance questions and complaints", "priority": "HIGH", "avg_posts_day": 80},
+      {"name": "r/medicine", "description": "Medical professionals discussion", "priority": "HIGH", "avg_posts_day": 100},
+      {"name": "r/nursing", "description": "Nurse workforce, staffing, burnout", "priority": "HIGH", "avg_posts_day": 200},
+      {"name": "r/pharmacy", "description": "Pharmacy, PBM issues, drug pricing", "priority": "HIGH", "avg_posts_day": 60},
+      {"name": "r/stocks", "description": "General stock discussion", "priority": "MEDIUM", "avg_posts_day": 300},
+      {"name": "r/wallstreetbets", "description": "Retail sentiment, meme potential", "priority": "MEDIUM", "avg_posts_day": 500},
+      {"name": "r/investing", "description": "Value investing discussion", "priority": "MEDIUM", "avg_posts_day": 150}
+    ],
+    "secondary_subreddits": [
+      {"name": "r/hospital", "description": "Hospital worker discussion", "priority": "LOW", "avg_posts_day": 15},
+      {"name": "r/Medicaid", "description": "Medicaid enrollment issues", "priority": "MEDIUM", "avg_posts_day": 10},
+      {"name": "r/Medicare", "description": "Medicare questions and policy", "priority": "MEDIUM", "avg_posts_day": 20},
+      {"name": "r/mentalhealth", "description": "Mental health access issues", "priority": "LOW", "avg_posts_day": 100},
+      {"name": "r/diabetes", "description": "Diabetes community (DXCM, PODD relevant)", "priority": "LOW", "avg_posts_day": 50},
+      {"name": "r/HealthIT", "description": "Health IT professionals", "priority": "LOW", "avg_posts_day": 5},
+      {"name": "r/telehealth", "description": "Telehealth policy and experience", "priority": "LOW", "avg_posts_day": 5},
+      {"name": "r/physicianassistant", "description": "PA workforce issues", "priority": "LOW", "avg_posts_day": 30},
+      {"name": "r/residency", "description": "Medical residents — staffing signal", "priority": "LOW", "avg_posts_day": 80},
+      {"name": "r/insurance", "description": "General insurance (some health)", "priority": "LOW", "avg_posts_day": 40}
+    ]
+  },
+
+  "regulatory_calendar": {
+    "description": "Recurring regulatory events that move healthcare stocks. SET ALERTS.",
+    "annual_events": [
+      {"event": "CMS Medicare Advantage Advance Notice", "typical_date": "February 1", "impact": "HIGH", "tickers_affected": ["UNH", "HUM", "ELV", "CI", "MOH", "CNC", "ALHC"], "notes": "Preliminary MA rates for next year. Market reacts immediately."},
+      {"event": "CMS Medicare Advantage Final Rate Notice", "typical_date": "April 1", "impact": "CRITICAL", "tickers_affected": ["UNH", "HUM", "ELV", "CI", "MOH", "CNC", "ALHC"], "notes": "Final MA rates. THE most important annual event for MCOs."},
+      {"event": "CMS Star Ratings Release", "typical_date": "October", "impact": "HIGH", "tickers_affected": ["UNH", "HUM", "ELV", "CI"], "notes": "Quality ratings affect bonus payments. HUM most exposed."},
+      {"event": "ACA Open Enrollment Period", "typical_date": "November 1 - January 15", "impact": "MEDIUM", "tickers_affected": ["CNC", "MOH", "OSCR", "ELV"], "notes": "Marketplace enrollment numbers signal revenue."},
+      {"event": "Medicare Part D Bid Deadline", "typical_date": "June", "impact": "MEDIUM", "tickers_affected": ["CVS", "CI", "UNH"], "notes": "PBM bids for next year Part D contracts."},
+      {"event": "State Medicaid Rate Renewals", "typical_date": "Rolling (varies by state)", "impact": "HIGH", "tickers_affected": ["CNC", "MOH", "UNH", "ELV"], "notes": "Each state negotiates separately. CA, NY, TX, FL = biggest."},
+      {"event": "Medicaid Contract RFPs/Awards", "typical_date": "Rolling", "impact": "HIGH", "tickers_affected": ["CNC", "MOH", "UNH", "ELV", "HUM"], "notes": "New state contracts = membership jumps."},
+      {"event": "CMS Hospital Outpatient Prospective Payment", "typical_date": "November (proposed), January (final)", "impact": "MEDIUM", "tickers_affected": ["HCA", "THC", "UHS", "CYH"], "notes": "Hospital reimbursement rates."},
+      {"event": "CMS Inpatient Prospective Payment Final Rule", "typical_date": "August", "impact": "MEDIUM", "tickers_affected": ["HCA", "THC", "UHS", "CYH", "SEM"], "notes": "Inpatient hospital payment rates."},
+      {"event": "CMS ESRD (Dialysis) Payment Rule", "typical_date": "November", "impact": "HIGH", "tickers_affected": ["DVA"], "notes": "Directly sets DaVita reimbursement."},
+      {"event": "Congressional Budget / ACA Subsidy Votes", "typical_date": "Varies", "impact": "CRITICAL", "tickers_affected": ["ALL"], "notes": "ACA subsidy expiration 2026 = existential for marketplace plans."}
+    ],
+
+    "quarterly_events": [
+      {"event": "Earnings Season", "months": [1, 4, 7, 10], "notes": "MCR is THE metric. Every quarter."},
+      {"event": "CMS Enrollment Data Release", "frequency": "Monthly", "notes": "Medicare/Medicaid enrollment numbers."},
+      {"event": "State Medicaid Enrollment Reports", "frequency": "Monthly/Quarterly", "notes": "Watch for redetermination impacts."}
+    ]
+  },
+
+  "sec_edgar_config": {
+    "monitored_form_types": [
+      {"form": "4", "description": "Insider trades", "priority": "CRITICAL", "alert_threshold": "Any trade > $100K"},
+      {"form": "3", "description": "Initial insider holdings", "priority": "MEDIUM", "alert_threshold": "New executive filing"},
+      {"form": "8-K", "description": "Material events", "priority": "CRITICAL", "alert_threshold": "All filings"},
+      {"form": "10-Q", "description": "Quarterly report", "priority": "HIGH", "alert_threshold": "Filing date"},
+      {"form": "10-K", "description": "Annual report", "priority": "HIGH", "alert_threshold": "Filing date"},
+      {"form": "SC 13D", "description": "Activist investor >5% stake", "priority": "CRITICAL", "alert_threshold": "Any filing"},
+      {"form": "SC 13G", "description": "Passive investor >5% stake", "priority": "MEDIUM", "alert_threshold": "Any filing"},
+      {"form": "DEF 14A", "description": "Proxy statement", "priority": "LOW", "alert_threshold": "Annual"},
+      {"form": "S-1", "description": "IPO registration", "priority": "MEDIUM", "alert_threshold": "New healthcare IPO"},
+      {"form": "13F-HR", "description": "Institutional holdings", "priority": "LOW", "alert_threshold": "Quarterly"}
+    ],
+
+    "cik_numbers": {
+      "UNH": "0000731766", "ELV": "0001156039", "CI": "0001739940",
+      "HUM": "0000049071", "CNC": "0001071739", "MOH": "0001179929",
+      "ALHC": "0001832835", "OSCR": "0001568651",
+      "HCA": "0000860730", "THC": "0000070318", "UHS": "0000352915",
+      "CYH": "0001108109", "ENSG": "0001300514", "SEM": "0001320414",
+      "CVS": "0000064803", "WBA": "0001618673", "HIMS": "0001773751",
+      "VEEV": "0001393052", "DOCS": "0001833708", "GDRX": "0001809519",
+      "TDOC": "0001477449", "CERT": "0001827090", "HCAT": "0001636422",
+      "ISRG": "0001035267", "DXCM": "0001093557", "PODD": "0001145197",
+      "DVA": "0000927066"
+    }
+  },
+
+  "news_query_templates": {
+    "finnhub": {
+      "description": "Finnhub company-news endpoint per ticker",
+      "example": "GET /company-news?symbol=MOH&from=2026-02-01&to=2026-02-08"
+    },
+    "gnews": {
+      "description": "GNews search queries (Boolean)",
+      "templates": [
+        "\"Molina Healthcare\" OR \"MOH\" OR \"Zubretsky\"",
+        "\"Medicare Advantage\" AND (rate OR cut OR increase)",
+        "\"Medicaid\" AND (enrollment OR redetermination OR expansion)",
+        "\"managed care\" AND (earnings OR guidance OR MCR)",
+        "\"hospital\" AND (admission OR staffing OR closure)",
+        "\"PBM reform\" OR \"pharmacy benefit manager\"",
+        "(\"UnitedHealth\" OR \"Elevance\" OR \"Cigna\" OR \"Humana\" OR \"Centene\" OR \"Molina\") AND (earnings OR guidance)",
+        "\"CMS\" AND (\"final rule\" OR \"proposed rule\" OR \"rate notice\")",
+        "\"health insurance\" AND (premium OR deductible OR copay) AND (increase OR hike)",
+        "\"GLP-1\" OR \"Ozempic\" OR \"Wegovy\" AND (insurance OR coverage OR cost)"
+      ]
+    },
+    "webz_io": {
+      "description": "Webz.io News API Lite queries",
+      "templates": [
+        "title:(Molina OR UnitedHealth OR Elevance OR Cigna OR Humana OR Centene) category:business",
+        "title:(Medicare OR Medicaid) AND (rate OR funding OR enrollment)",
+        "title:(hospital OR HCA OR Tenet) AND (earnings OR closure OR staffing)"
+      ]
+    },
+    "reddit_search": {
+      "description": "Reddit search within subreddits",
+      "templates": [
+        "subreddit:healthinsurance (UnitedHealthcare OR Anthem OR Cigna OR Molina OR Centene OR Humana)",
+        "subreddit:healthcare (CMS OR Medicare OR Medicaid) (rate OR change OR ruling)",
+        "subreddit:nursing (staffing OR burnout OR shortage OR quit)",
+        "subreddit:pharmacy (PBM OR Express Scripts OR CVS Caremark OR prior authorization)",
+        "subreddit:stocks ($UNH OR $MOH OR $HCA OR $CVS OR $ELV OR $CI OR $HUM OR $CNC)"
+      ]
+    }
+  },
+
+  "correlation_matrix": {
+    "description": "Cross-stock correlations. When one moves, check these.",
+    "groups": [
+      {
+        "name": "Medicaid MCOs",
+        "tickers": ["CNC", "MOH", "UNH", "ELV"],
+        "catalyst": "Medicaid rate changes, redeterminations, state contract awards",
+        "correlation": "HIGH"
+      },
+      {
+        "name": "Medicare Advantage MCOs",
+        "tickers": ["HUM", "UNH", "ELV", "CI", "ALHC"],
+        "catalyst": "CMS MA rate notice, star ratings, risk adjustment",
+        "correlation": "VERY HIGH"
+      },
+      {
+        "name": "PBM Trio",
+        "tickers": ["CVS", "CI", "UNH"],
+        "catalyst": "PBM reform legislation, drug pricing, Part D",
+        "correlation": "HIGH"
+      },
+      {
+        "name": "Hospital Operators",
+        "tickers": ["HCA", "THC", "UHS", "CYH"],
+        "catalyst": "CMS hospital payment rules, uninsured rate, volume trends",
+        "correlation": "HIGH"
+      },
+      {
+        "name": "Diabetes Devices",
+        "tickers": ["DXCM", "PODD"],
+        "catalyst": "FDA approvals, reimbursement, GLP-1 impact on diabetes",
+        "correlation": "MEDIUM"
+      },
+      {
+        "name": "ACA Marketplace",
+        "tickers": ["OSCR", "CNC", "MOH"],
+        "catalyst": "ACA subsidy extension/expiration, enrollment periods",
+        "correlation": "HIGH"
+      },
+      {
+        "name": "Telehealth / Digital Health",
+        "tickers": ["TDOC", "DOCS", "HIMS"],
+        "catalyst": "Telehealth policy, reimbursement parity, tech regulation",
+        "correlation": "MEDIUM"
+      }
+    ]
+  },
+
+  "alert_rules": {
+    "description": "Default alert rules for Telegram notifications",
+    "rules": [
+      {
+        "name": "Sentiment Crash",
+        "condition": "sentiment_score < -0.5 AND ticker IN managed_care_insurers",
+        "priority": "CRITICAL",
+        "throttle_minutes": 15
+      },
+      {
+        "name": "Mention Volume Spike",
+        "condition": "mention_volume > 3 * stddev(baseline)",
+        "priority": "HIGH",
+        "throttle_minutes": 30
+      },
+      {
+        "name": "Insider Trade Large",
+        "condition": "form_type = '4' AND transaction_value > 100000",
+        "priority": "CRITICAL",
+        "throttle_minutes": 0
+      },
+      {
+        "name": "8-K Material Event",
+        "condition": "form_type = '8-K' AND ticker IN all_tickers",
+        "priority": "HIGH",
+        "throttle_minutes": 0
+      },
+      {
+        "name": "Cross-Sector Correlation",
+        "condition": "anomaly_detected IN correlation_group AND count_affected >= 2",
+        "priority": "HIGH",
+        "throttle_minutes": 15
+      },
+      {
+        "name": "CMS Regulatory Event",
+        "condition": "keyword_match IN regulatory_events AND source = 'SEC_EDGAR' OR source = 'FINNHUB_NEWS'",
+        "priority": "CRITICAL",
+        "throttle_minutes": 0
+      },
+      {
+        "name": "Earnings Date Approaching",
+        "condition": "days_to_earnings <= 3",
+        "priority": "MEDIUM",
+        "throttle_minutes": 1440
+      }
+    ]
+  },
+
+  "etfs_benchmarks": {
+    "description": "Healthcare ETFs for sector-level monitoring and comparison",
+    "etfs": [
+      {"ticker": "XLV", "name": "Health Care Select Sector SPDR", "focus": "Broad healthcare"},
+      {"ticker": "IHF", "name": "iShares U.S. Healthcare Providers ETF", "focus": "MCOs + hospitals"},
+      {"ticker": "XHS", "name": "SPDR S&P Health Care Services ETF", "focus": "Healthcare services"},
+      {"ticker": "IHI", "name": "iShares U.S. Medical Devices ETF", "focus": "Medical devices"},
+      {"ticker": "IBB", "name": "iShares Biotechnology ETF", "focus": "Biotech (sentiment proxy)"}
+    ]
+  }
+}

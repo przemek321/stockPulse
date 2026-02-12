@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: stockpulse-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stockpulse}
+      POSTGRES_USER: ${POSTGRES_USER:-stockpulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockpulse_dev_2026}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockpulse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stockpulse-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: stockpulse-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stockpulse-net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  stockpulse-net:
+    driver: bridge

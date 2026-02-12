@@ -1,0 +1,16 @@
+{
+  "name": "stockpulse-setup",
+  "version": "1.0.0",
+  "description": "StockPulse API setup & testing scripts",
+  "scripts": {
+    "test:all": "node scripts/test-all.js",
+    "test:reddit": "node scripts/test-reddit.js",
+    "test:finnhub": "node scripts/test-finnhub.js",
+    "test:edgar": "node scripts/test-sec-edgar.js",
+    "test:stocktwits": "node scripts/test-stocktwits.js",
+    "test:telegram": "node scripts/test-telegram.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  }
+}

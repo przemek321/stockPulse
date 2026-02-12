@@ -1,0 +1,17 @@
+# Zależności
+node_modules/
+
+# Zmienne środowiskowe (zawierają klucze API i hasła)
+.env
+.env.local
+
+# Zone.Identifier (Windows/WSL artefakty)
+*Zone.Identifier
+
+# System
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
