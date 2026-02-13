@@ -11,6 +11,7 @@ services:
       # Wewnątrz Docker network hosty to nazwy serwisów, nie localhost
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
+      FINBERT_SIDECAR_URL: http://finbert:8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -21,6 +22,7 @@ services:
     # Montuj src/ dla rozwoju — rebuild nie potrzebny przy zmianie kodu
     volumes:
       - ./src:/app/src
+      - ./doc:/app/doc
       - ./tsconfig.json:/app/tsconfig.json
       - ./tsconfig.build.json:/app/tsconfig.build.json
     # W trybie dev: buduj i uruchom
@@ -62,9 +64,75 @@ services:
     networks:
       - stockpulse-net
 
+  frontend:
+    build: ./frontend
+    container_name: stockpulse-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      API_URL: http://app:3000
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+    depends_on:
+      - app
+    networks:
+      - stockpulse-net
+
+  # ── FinBERT Sidecar — analiza sentymentu tekstów finansowych ──
+  # GPU (CUDA):  FINBERT_DOCKERFILE=Dockerfile docker compose up finbert
+  # CPU (laptop): FINBERT_DOCKERFILE=Dockerfile.cpu docker compose up finbert
+  finbert:
+    build:
+      context: ./finbert-sidecar
+      dockerfile: ${FINBERT_DOCKERFILE:-Dockerfile}
+    container_name: stockpulse-finbert
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_NAME: ${FINBERT_MODEL_NAME:-ProsusAI/finbert}
+      BATCH_SIZE: ${FINBERT_BATCH_SIZE:-16}
+      MAX_TOKEN_LENGTH: ${FINBERT_MAX_TOKEN_LENGTH:-512}
+    volumes:
+      # Cache modelu HuggingFace — nie pobiera ponownie przy restart
+      - finbert_cache:/app/model_cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - stockpulse-net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: stockpulse-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@stockpulse.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Auto-rejestracja serwera PostgreSQL
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stockpulse-net
+
 volumes:
   postgres_data:
   redis_data:
+  pgadmin_data:
+  finbert_cache:
 
 networks:
   stockpulse-net:

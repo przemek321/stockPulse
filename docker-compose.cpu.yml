@@ -1,0 +1,20 @@
+# Docker Compose override dla trybu CPU (laptop bez GPU)
+#
+# Użycie: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up
+#
+# Nadpisuje serwis finbert:
+#   - Dockerfile.cpu zamiast Dockerfile (bez CUDA runtime)
+#   - Usuwa rezerwację GPU
+#   - Mniejszy batch size (8)
+
+services:
+  finbert:
+    build:
+      context: ./finbert-sidecar
+      dockerfile: Dockerfile.cpu
+    environment:
+      BATCH_SIZE: 8
+    deploy:
+      resources:
+        reservations:
+          devices: []

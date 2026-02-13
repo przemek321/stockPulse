@@ -9,8 +9,11 @@ import {
   SentimentScore,
   RawMention,
   NewsArticle,
+  SecFiling,
+  InsiderTrade,
   Alert,
   AlertRule,
+  CollectionLog,
 } from '../entities';
 import { CollectorsModule } from '../collectors/collectors.module';
 import { AlertsModule } from '../alerts/alerts.module';
@@ -26,8 +29,11 @@ import { AlertsModule } from '../alerts/alerts.module';
       SentimentScore,
       RawMention,
       NewsArticle,
+      SecFiling,
+      InsiderTrade,
       Alert,
       AlertRule,
+      CollectionLog,
     ]),
     CollectorsModule,
     AlertsModule,

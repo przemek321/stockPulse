@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "StockPulse PostgreSQL",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "stockpulse",
+      "Username": "stockpulse",
+      "SSLMode": "prefer"
+    }
+  }
+}

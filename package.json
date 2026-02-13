@@ -15,7 +15,8 @@
     "test:finnhub": "node scripts/test-finnhub.js",
     "test:edgar": "node scripts/test-sec-edgar.js",
     "test:stocktwits": "node scripts/test-stocktwits.js",
-    "test:telegram": "node scripts/test-telegram.js"
+    "test:telegram": "node scripts/test-telegram.js",
+    "seed": "node node_modules/typescript/bin/tsc -p tsconfig.build.json && node dist/database/seeds/seed.js"
   },
   "dependencies": {
     "@nestjs/bullmq": "^10.2.0",

@@ -1,12 +1,12 @@
 # StockPulse — Status projektu i plan działania
 
-> Ostatnia aktualizacja: 2026-02-12
+> Ostatnia aktualizacja: 2026-02-13
 
 ## Gdzie jesteśmy
 
-**Faza 1 — Backend NestJS MVP** (ukończona)
+**Faza 2 — Analiza AI sentymentu** (w trakcie)
 
-Pełny backend NestJS działa w kontenerze Docker. Mamy kolektory danych, kolejki BullMQ, alerty Telegram i REST API. Baza PostgreSQL z 9 tabelami, Redis dla kolejek.
+Pełny pipeline sentymentu działa end-to-end: kolektory zbierają dane → eventy → kolejka BullMQ → FinBERT na GPU → wyniki w bazie → alerty na Telegramie. FinBERT sidecar (ProsusAI/finbert) działa w kontenerze Docker z GPU passthrough (NVIDIA Container Toolkit w WSL2). Backend NestJS z 4 kolektorami, 6 kolejkami, REST API. Frontend React z dashboardem. Baza PostgreSQL z 9 tabelami, Redis dla kolejek.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -61,56 +61,158 @@ Pełny backend NestJS działa w kontenerze Docker. Mamy kolektory danych, kolejk
 - [x] `GET /api/alerts` — historia alertów (filtrowanie po symbol)
 - [x] `GET /api/alerts/rules` — lista reguł alertów
 
+## Faza 1.5 — Seed + monitoring (ukończona)
+
+- [x] **Seed tickerów** — 27 spółek healthcare z `healthcare-universe.json` (5 ETF-ów osobno)
+- [x] **Seed reguł alertów** — 7 reguł z `healthcare-universe.json`
+- [x] Komenda `npm run seed` / `docker exec stockpulse-app npm run seed`
+- [x] Weryfikacja kolektorów — dane zbierają się do bazy
+- [x] **Fix alert spam** — naprawiony podwójny trigger Form 4 + minimalny throttle 1 min
+- [x] **Nowe endpointy REST**:
+  - `GET /api/sentiment/news` — newsy ze wszystkich tickerów
+  - `GET /api/sentiment/mentions` — wzmianki social media
+  - `GET /api/sentiment/filings` — filingi SEC
+  - `GET /api/health/stats` — totale per tabela + interwały + countdown
+- [x] **pgAdmin** — przeglądarka bazy na `localhost:5050`
+- [x] **Frontend React** — dashboard na `localhost:3001` (MUI 5, dark theme)
+  - Karty kolektorów z countdown do następnego pobrania
+  - Rozwijane panele z tabelami danych (lazy loading)
+  - Totale per tabela i rozmiar bazy
+
+## Faza 2 — Analiza AI (w trakcie)
+
+### Sprint 2a: FinBERT Sidecar (ukończony 2026-02-13)
+- [x] **FinBERT sidecar** — Python FastAPI mikroserwis w kontenerze Docker
+  - `finbert-sidecar/app/main.py` — FastAPI server (3 endpointy)
+  - `finbert-sidecar/app/model.py` — wrapper na ProsusAI/finbert z batch inference
+  - `finbert-sidecar/Dockerfile` — NVIDIA CUDA 12.4 runtime + Python 3.11
+  - `finbert-sidecar/Dockerfile.cpu` — wersja CPU-only (lżejsza)
+  - `docker-compose.cpu.yml` — override dla trybu CPU (laptop)
+- [x] **Endpointy FinBERT**:
+  - `GET /health` — status modelu, GPU info, VRAM usage
+  - `POST /api/sentiment` — analiza pojedynczego tekstu
+  - `POST /api/sentiment/batch` — batch analiza (do BATCH_SIZE tekstów)
+- [x] **GPU passthrough** — NVIDIA Container Toolkit w WSL2
+- [x] **Przetestowany** na RTX 1000 Ada (6GB VRAM):
+  - Score: -0.97 (negative, 97.4% confidence) dla katastrofy wynikowej Molina
+  - Score: +0.93 (positive, 95.2% confidence) dla earnings beat NVIDIA
+  - Latency: ~67ms per request na GPU
+- [x] **Cache modelu** — volume `finbert_cache` (model nie jest pobierany ponownie)
+- [x] **Konfiguracja env**: `FINBERT_SIDECAR_URL`, `FINBERT_BATCH_SIZE`, `FINBERT_MODEL_NAME`
+
+### Sprint 2b: Sentiment Pipeline NestJS (ukończony 2026-02-13)
+- [x] **SentimentModule** (`src/sentiment/sentiment.module.ts`)
+  - Podłączony do AppModule
+  - Importuje TypeORM (SentimentScore, RawMention, NewsArticle) + BullMQ
+- [x] **FinbertClientService** (`src/sentiment/finbert-client.service.ts`)
+  - HTTP klient do sidecar (single + batch + health check)
+  - Timeout konfigurowalny (`FINBERT_REQUEST_TIMEOUT_MS`)
+- [x] **SentimentListenerService** (`src/sentiment/sentiment-listener.service.ts`)
+  - `@OnEvent(NEW_MENTION)` → job do kolejki `sentiment-analysis`
+  - `@OnEvent(NEW_ARTICLE)` → job do kolejki `sentiment-analysis`
+  - Priority: artykuły news > wzmianki social
+- [x] **SentimentProcessorService** (`src/sentiment/sentiment-processor.service.ts`)
+  - BullMQ processor: pobiera tekst → FinBERT → zapis do `sentiment_scores`
+  - Obsługuje oba typy: mention (title+body) i article (headline+summary)
+  - Emituje `SENTIMENT_SCORED` po zapisie
+  - Aktualizuje `sentimentScore` w `news_articles`
+- [x] **AlertEvaluator rozszerzony** — nowy handler `@OnEvent(SENTIMENT_SCORED)`
+  - Alert "Sentiment Crash" gdy score < -0.5 i confidence > 0.7
+  - Throttling per ticker (reguła w bazie)
+- [x] **Endpoint** `GET /api/sentiment/scores` — lista wyników sentymentu (wszystkie tickery)
+- [x] **Frontend** — panel "Wyniki sentymentu FinBERT" na dashboardzie (kolorowe score, confidence %, tekst)
+
 ## Co czeka — Następne kroki
 
-### Faza 1.5 — Uruchomienie zbierania danych
-- [ ] **Seed tickerów** — import 32 spółek healthcare z `healthcare-universe.json` do tabeli `tickers`
-- [ ] **Seed reguł alertów** — import reguł z `healthcare-universe.json`
-- [ ] Weryfikacja że kolektory zbierają dane do bazy
-- [ ] Weryfikacja że alerty Telegram wysyłają się przy spełnionych regułach
+### Sprint 2c: Backfill historycznych danych (priorytet WYSOKI)
+- [ ] Przeanalizować istniejące dane FinBERT-em (1198 wzmianek + 774 artykuły bez sentymentu)
+- [ ] Komenda `npm run backfill:sentiment` — batch processing istniejących rekordów
+- [ ] Pozwoli od razu mieć pełny obraz sentymentu bez czekania na nowe dane
 
-### Faza 2 — Analiza AI (planowana)
-- [ ] FinBERT sidecar (Python) — szybki sentyment
-- [ ] Claude Haiku API — analiza niuansowa
-- [ ] spaCy NER — ekstrakcja encji
+### Sprint 2d: Claude Haiku — analiza niuansowa (priorytet ŚREDNI)
+- [ ] Anthropic Claude API — 2-etapowy pipeline: FinBERT (szybki bulk) → Claude (high-priority)
+- [ ] Eskalacja do Claude gdy: confidence < 0.6 lub score bliski zeru (niezdecydowany)
+- [ ] Analiza kontekstu: sarkasm, porównania, złożone zdania finansowe
 
-### Faza 3 — Frontend React (planowana)
-- [ ] Dashboard z wykresami sentymentu (Recharts)
-- [ ] WebSocket do real-time updates
+### Faza 1.6 — Naprawić insider trades parser (priorytet ŚREDNI)
+- [ ] Form 4 XML parsing — wyciąganie shares, pricePerShare, totalValue, transactionType
+- [ ] Aktualne dane mają totalValue=0 i transactionType=UNKNOWN
+
+### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
+GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
+- [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
+- [ ] **GKG API** — tematy, osoby, organizacje z wbudowaną tonalnością (-10 do +10)
+- [ ] **TV API** — monitoring wzmianek healthcare w CNBC, CNN, Fox Business
+- **Rekomendacja**: uzupełnienie Finnhub, nie zamiennik. Interwał: co 15 min
+
+### Faza 3 — Frontend React rozbudowa (planowana)
+- [ ] Wykresy sentymentu per ticker (Recharts) — timeline score'ów
+- [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
+- [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami
 
-### Oczekujące
+### Oczekujące (niski priorytet)
 - [ ] Reddit API — czeka na zatwierdzenie formularza
-- [ ] Anthropic Claude API — płatny, potrzebny od Fazy 2
+- [ ] spaCy NER — ekstrakcja encji (osoby, firmy, produkty)
 - [ ] TimescaleDB hypertable — konwersja `sentiment_scores` na hypertable
 - [ ] Migracje TypeORM (zamiast synchronize w produkcji)
+- [ ] ETF-y benchmarkowe (XLV, IHF, XHS, IHI, IBB) — dodać do seeda
+- [ ] Swagger/OpenAPI — dokumentacja REST API
+- [ ] API key auth — zabezpieczenie endpointów
 
 ## Komendy
 
 ```bash
 # Infrastruktura — start / stop / rebuild
-docker compose up -d              # Start (postgres, redis, app)
-docker compose down               # Stop
-docker compose up -d --build app  # Rebuild po zmianach w src/
-docker compose logs app --tail 50 # Logi aplikacji
+docker compose up -d                        # Start cały stack (postgres, redis, app, finbert, frontend)
+docker compose down                         # Stop
+docker compose up -d --build app            # Rebuild backend po zmianach w src/
+docker compose up -d --build app frontend   # Rebuild backend + frontend
+docker compose logs app --tail 50           # Logi aplikacji NestJS
+docker compose logs finbert --tail 20       # Logi FinBERT sidecar
+
+# Tryb CPU (bez GPU) — dla maszyn bez NVIDIA
+docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d
+
+# Seed bazy danych
+docker exec stockpulse-app npm run seed
 
 # Weryfikacja
-curl http://localhost:3000/api/health       # Status systemu
-curl http://localhost:3000/api/tickers      # Lista tickerów
-curl http://localhost:3000/api/alerts       # Historia alertów
-curl http://localhost:3000/api/alerts/rules # Reguły alertów
+curl http://localhost:3000/api/health           # Status systemu
+curl http://localhost:3000/api/health/stats      # Totale per tabela + interwały
+curl http://localhost:3000/api/tickers           # Lista tickerów
+curl http://localhost:3000/api/sentiment/scores  # Wyniki sentymentu FinBERT
+curl http://localhost:3000/api/alerts            # Historia alertów
+curl http://localhost:3000/api/alerts/rules      # Reguły alertów
+
+# FinBERT sidecar bezpośrednio
+curl http://localhost:8000/health                                              # Status modelu
+curl -X POST http://localhost:8000/api/sentiment -H "Content-Type: application/json" -d '{"text":"stock crashed"}'
 
 # Testy integracji API (Faza 0)
 npm run test:all
 ```
 
+## Usługi i porty
+
+| Usługa | Port | URL |
+|--------|------|-----|
+| NestJS API | 3000 | http://localhost:3000/api/ |
+| Frontend React | 3001 | http://localhost:3001/ |
+| FinBERT sidecar | 8000 | http://localhost:8000/ |
+| pgAdmin | 5050 | http://localhost:5050/ |
+| PostgreSQL | 5432 | — |
+| Redis | 6379 | — |
+
 ## Kluczowe liczby
 
-- **Tickery do monitorowania**: 32 (healthcare, zdefiniowane w healthcare-universe.json)
+- **Tickery do monitorowania**: 27 healthcare (zdefiniowane w healthcare-universe.json)
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
-- **Pliki źródłowe**: 49 plików TypeScript w `src/`
+- **Pliki źródłowe**: ~55 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/`
 - **Encje bazy danych**: 9 tabel
-- **Kolejki BullMQ**: 6
-- **Endpointy REST**: 6
+- **Kolejki BullMQ**: 6 (4 kolektory + sentiment-analysis + alerts)
+- **Endpointy REST**: 11 (health x2, tickers x2, sentiment x5, alerts x2)
 - **Źródła danych**: 4 kolektory (StockTwits, Finnhub, SEC EDGAR, Reddit)
+- **Modele AI**: 1 aktywny (FinBERT), 2 planowane (Claude Haiku, spaCy NER)
+- **Kontenery Docker**: 6 (app, finbert, frontend, postgres, redis, pgadmin)

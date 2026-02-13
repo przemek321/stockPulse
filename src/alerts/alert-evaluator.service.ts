@@ -82,11 +82,11 @@ export class AlertEvaluatorService {
       `Filing event: ${payload.symbol} — ${payload.formType}`,
     );
 
-    // Tylko 8-K i Form 4 generują alerty
-    if (!['8-K', '4'].includes(payload.formType)) return;
+    // Tylko 8-K generuje alert z filingów.
+    // Form 4 jest obsługiwany przez onInsiderTrade — nie duplikujemy.
+    if (payload.formType !== '8-K') return;
 
-    const ruleName =
-      payload.formType === '8-K' ? '8-K Material Event' : 'Insider Trade Large';
+    const ruleName = '8-K Material Event';
     const rule = await this.ruleRepo.findOne({
       where: { name: ruleName, isActive: true },
     });
@@ -104,6 +104,52 @@ export class AlertEvaluatorService {
       companyName: payload.symbol,
       formType: payload.formType,
       priority: rule.priority,
+    });
+
+    await this.sendAlert(payload.symbol, rule, message);
+  }
+
+  /**
+   * Reaguje na wynik analizy sentymentu.
+   * Alert gdy score < -0.5 i confidence > 0.7 (silny negatywny sygnał).
+   */
+  @OnEvent(EventType.SENTIMENT_SCORED)
+  async onSentimentScored(payload: {
+    scoreId: number;
+    symbol: string;
+    score: number;
+    confidence: number;
+    label: string;
+    source: string;
+    model: string;
+  }): Promise<void> {
+    // Tylko silne negatywne sygnały z wysoką pewnością
+    if (payload.score >= -0.5 || payload.confidence < 0.7) return;
+
+    this.logger.debug(
+      `Negatywny sentyment: ${payload.symbol} score=${payload.score} (${payload.model})`,
+    );
+
+    const ruleName = 'Sentiment Crash';
+    const rule = await this.ruleRepo.findOne({
+      where: { name: ruleName, isActive: true },
+    });
+    if (!rule) return;
+
+    const isThrottled = await this.isThrottled(
+      rule.name,
+      payload.symbol,
+      rule.throttleMinutes,
+    );
+    if (isThrottled) return;
+
+    const message = this.formatter.formatSentimentAlert({
+      symbol: payload.symbol,
+      companyName: payload.symbol,
+      priority: rule.priority,
+      ruleName,
+      sentimentScore: payload.score,
+      details: `Model: ${payload.model}, Źródło: ${payload.source}, Confidence: ${payload.confidence.toFixed(2)}`,
     });
 
     await this.sendAlert(payload.symbol, rule, message);
@@ -143,7 +189,9 @@ export class AlertEvaluatorService {
     symbol: string,
     throttleMinutes: number,
   ): Promise<boolean> {
-    const cutoff = new Date(Date.now() - throttleMinutes * 60 * 1000);
+    // Minimalny throttle 1 min — zapobiega spamowi przy batch importach
+    const effectiveMinutes = Math.max(throttleMinutes, 1);
+    const cutoff = new Date(Date.now() - effectiveMinutes * 60 * 1000);
 
     const recentAlert = await this.alertRepo.findOne({
       where: {
