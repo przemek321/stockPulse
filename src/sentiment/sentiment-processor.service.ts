@@ -12,6 +12,9 @@ import { NewsArticle } from '../entities/news-article.entity';
 import { FinbertClientService } from './finbert-client.service';
 import { DataSource } from '../common/interfaces/data-source.enum';
 
+/** Minimalna długość tekstu do analizy sentymentu (krótsze = szum) */
+const MIN_TEXT_LENGTH = 20;
+
 /** Dane jobu w kolejce sentiment-analysis */
 interface SentimentJobData {
   type: 'mention' | 'article';
@@ -53,6 +56,14 @@ export class SentimentProcessorService extends WorkerHost {
     const textData = await this.extractText(type, entityId);
     if (!textData) {
       this.logger.warn(`Nie znaleziono ${type} #${entityId} — pomijam`);
+      return null;
+    }
+
+    // Filtruj za krótkie teksty (sam ticker, emoji, "wow" itp.)
+    if (textData.text.length < MIN_TEXT_LENGTH) {
+      this.logger.debug(
+        `Pomijam ${symbol} ${type} #${entityId} — za krótki tekst (${textData.text.length} znaków): "${textData.text}"`,
+      );
       return null;
     }
 
