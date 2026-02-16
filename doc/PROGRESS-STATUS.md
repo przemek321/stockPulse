@@ -124,10 +124,11 @@ Pełny pipeline sentymentu działa end-to-end: kolektory zbierają dane → even
 
 ## Co czeka — Następne kroki
 
-### Sprint 2c: Backfill historycznych danych (priorytet WYSOKI)
-- [ ] Przeanalizować istniejące dane FinBERT-em (1198 wzmianek + 774 artykuły bez sentymentu)
-- [ ] Komenda `npm run backfill:sentiment` — batch processing istniejących rekordów
-- [ ] Pozwoli od razu mieć pełny obraz sentymentu bez czekania na nowe dane
+### Sprint 2c: Backfill historycznych danych (ukończony 2026-02-13)
+- [x] Przeanalizować istniejące dane FinBERT-em (1837 rekordów przetworzonych w 36s, 0 błędów)
+- [x] Komenda `npm run backfill:sentiment` — batch processing istniejących rekordów (batche po 16)
+- [x] Filtrowanie krótkich tekstów < 20 znaków (MIN_TEXT_LENGTH — odrzuca szum)
+- [x] Skrypt idempotentny — pomija rekordy z istniejącym wynikiem w sentiment_scores
 
 ### Sprint 2d: Claude Haiku — analiza niuansowa (priorytet ŚREDNI)
 - [ ] Anthropic Claude API — 2-etapowy pipeline: FinBERT (szybki bulk) → Claude (high-priority)
@@ -145,8 +146,8 @@ GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza AP
 - [ ] **TV API** — monitoring wzmianek healthcare w CNBC, CNN, Fox Business
 - **Rekomendacja**: uzupełnienie Finnhub, nie zamiennik. Interwał: co 15 min
 
-### Faza 3 — Frontend React rozbudowa (planowana)
-- [ ] Wykresy sentymentu per ticker (Recharts) — timeline score'ów
+### Faza 3 — Frontend React rozbudowa (w trakcie)
+- [x] Wykres sentymentu per ticker (Recharts) — linia score w czasie, dropdown tickerów, statystyki (avg, pos/neg/neutral), kolorowe kropki, tooltip z tekstem
 - [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
 - [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami

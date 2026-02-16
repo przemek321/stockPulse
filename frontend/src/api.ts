@@ -69,9 +69,23 @@ export interface Alert {
   sentAt: string;
 }
 
+export interface SentimentScore {
+  id: number;
+  symbol: string;
+  score: number;
+  confidence: number;
+  source: string;
+  model: string;
+  rawText: string;
+  externalId: string;
+  timestamp: string;
+}
+
 /* ── Endpointy ──────────────────────────────── */
 
 export const fetchHealth = () => get<HealthData>('/health');
 export const fetchTickers = () => get<{ count: number; tickers: Ticker[] }>('/tickers');
 export const fetchAlertRules = () => get<{ count: number; rules: AlertRule[] }>('/alerts/rules');
 export const fetchAlerts = () => get<{ count: number; alerts: Alert[] }>('/alerts');
+export const fetchSentimentScores = (limit = 500) =>
+  get<{ count: number; scores: SentimentScore[] }>(`/sentiment/scores?limit=${limit}`);

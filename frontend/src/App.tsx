@@ -10,6 +10,7 @@ import PsychologyIcon from '@mui/icons-material/Psychology';
 import CollectorStatus from './components/CollectorStatus';
 import DataPanel from './components/DataPanel';
 import DbSummary from './components/DbSummary';
+import SentimentChart from './components/SentimentChart';
 import { fetchTickers, fetchAlertRules, fetchAlerts } from './api';
 
 /** Formatowanie daty do czytelnej formy */
@@ -45,6 +46,11 @@ export default function App() {
 
       {/* Status kolektorów */}
       <CollectorStatus />
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* Wykres sentymentu per ticker */}
+      <SentimentChart />
 
       <Divider sx={{ my: 3 }} />
 

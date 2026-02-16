@@ -9,4 +9,4 @@ COPY . .
 
 EXPOSE 3001
 
-CMD ["npx", "vite", "--host", "0.0.0.0"]
+CMD ["./node_modules/.bin/vite", "--host", "0.0.0.0"]
