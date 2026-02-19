@@ -1,6 +1,8 @@
 # StockPulse — Status projektu i plan działania
 
-> Ostatnia aktualizacja: 2026-02-13
+> **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
+
+> Ostatnia aktualizacja: 2026-02-16
 
 ## Gdzie jesteśmy
 

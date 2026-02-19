@@ -696,7 +696,7 @@
         "name": "Sentiment Crash",
         "condition": "sentiment_score < -0.5 AND ticker IN managed_care_insurers",
         "priority": "CRITICAL",
-        "throttle_minutes": 15
+        "throttle_minutes": 120
       },
       {
         "name": "Mention Volume Spike",
