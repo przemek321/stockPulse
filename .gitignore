@@ -35,5 +35,9 @@ __pycache__/
 # Logi autostartu (lokalne per maszyna)
 logs/
 
-# Claude Code
+# Claude Code (lokalne per maszyna)
 .claude/settings.local.json
+.claude/
+
+# Artefakty Windows/WSL
+nul
