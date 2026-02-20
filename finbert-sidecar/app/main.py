@@ -13,6 +13,8 @@ Konfiguracja przez zmienne środowiskowe:
   PORT             — port serwera (default: 8000)
 """
 
+from __future__ import annotations
+
 import os
 import time
 import logging

@@ -6,6 +6,8 @@ Zwraca sentiment: positive/negative/neutral z confidence score.
 Działa na GPU (CUDA) jeśli dostępne, w przeciwnym razie na CPU.
 """
 
+from __future__ import annotations
+
 import os
 import logging
 from typing import Optional

@@ -1,0 +1,38 @@
+# FinBERT Sidecar — wersja dla NVIDIA Jetson (JetPack 5.x, L4T R35, CUDA 11.4)
+#
+# Obraz bazowy: L4T PyTorch od NVIDIA z wbudowanym PyTorch 2.0 + CUDA 11.4
+# Kompatybilny z Jetson NX/Xavier/Orin na JetPack 5.1.x (L4T R35.x)
+#
+# Użycie: docker compose -f docker-compose.yml -f docker-compose.jetson.yml up
+
+FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3
+
+WORKDIR /app
+
+# Upgrade pip — obraz L4T ma pip 21.x, potrzebujemy nowszego dla wheel'i
+RUN pip3 install --no-cache-dir --upgrade pip
+
+# Zainstaluj zależności (bez torch — jest w obrazie bazowym)
+COPY requirements-jetson.txt .
+RUN pip3 install --no-cache-dir -r requirements-jetson.txt
+
+# Kopiuj kod aplikacji
+COPY app/ ./app/
+
+EXPOSE 8000
+
+# Katalog cache modelu HuggingFace
+ENV HF_HOME=/app/model_cache
+ENV TRANSFORMERS_CACHE=/app/model_cache
+
+# Konfiguracja domyślna (Jetson NX: mniejszy batch niż desktop GPU)
+ENV MODEL_NAME=ProsusAI/finbert
+ENV BATCH_SIZE=8
+ENV MAX_TOKEN_LENGTH=512
+ENV PORT=8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

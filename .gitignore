@@ -8,6 +8,10 @@ dist/
 .env
 .env.local
 
+# Backupy bazy danych (mogą być duże, trzymamy lokalnie)
+backups/
+*.dump
+
 # Zone.Identifier (Windows/WSL artefakty)
 *Zone.Identifier
 
@@ -18,3 +22,18 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Docker volumes / cache (lokalne per maszyna)
+postgres_data/
+redis_data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logi autostartu (lokalne per maszyna)
+logs/
+
+# Claude Code
+.claude/settings.local.json

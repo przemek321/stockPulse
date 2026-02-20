@@ -10,32 +10,44 @@ StockPulse to system analizy sentymentu rynku akcji w czasie rzeczywistym z aler
 
 **Aktualny stan projektu**: Faza 2 — Analiza AI sentymentu (w trakcie). Pełny pipeline działa end-to-end: kolektory → eventy → BullMQ → FinBERT na GPU → wyniki w bazie → alerty Telegram. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
 
-## Komendy
+## Komendy (Makefile — autodetekcja środowiska)
 
 ```bash
-# Cały stack (postgres, redis, app, finbert, frontend, pgadmin)
-docker compose up -d                        # start
-docker compose down                         # stop
-docker compose up -d --build app            # rebuild backend po zmianach w src/
-docker compose up -d --build app frontend   # rebuild backend + frontend
-docker compose logs app --tail 50           # logi NestJS
-docker compose logs finbert --tail 20       # logi FinBERT sidecar
+# Makefile automatycznie wykrywa: jetson (aarch64) / gpu (x86+nvidia) / cpu (x86)
+make up              # start całego stacku
+make down            # stop
+make rebuild         # rebuild po zmianach kodu
+make rebuild-app     # rebuild tylko backendu NestJS
+make rebuild-finbert # rebuild FinBERT sidecar
+make status          # status kontenerów + health check
+make logs            # logi (follow)
+make log S=finbert   # logi konkretnego serwisu
+make seed            # seed bazy (tickery + reguły)
+make backfill        # backfill sentymentu FinBERTem
+make backup          # backup bazy do backups/
+make restore         # restore z najnowszego backupu
+make stats           # statystyki bazy
+make shell-app       # shell do kontenera app
+make shell-db        # shell psql
+make help            # lista komend
+```
 
-# Tryb CPU (bez GPU) — dla maszyn bez NVIDIA
+Alternatywnie docker compose bezpośrednio:
+
+```bash
+# Laptop z GPU
+docker compose up -d
+
+# Laptop bez GPU
 docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d
 
-# Seed bazy danych (tickery + reguły alertów)
-docker exec stockpulse-app npm run seed
-
-# Backfill sentymentu (analiza istniejących danych FinBERT-em)
-docker exec stockpulse-app npm run backfill:sentiment
+# Jetson (aarch64)
+docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d
 
 # Weryfikacja
 curl http://localhost:3000/api/health           # status systemu
 curl http://localhost:3000/api/health/stats      # totale per tabela
-curl http://localhost:3000/api/tickers           # lista tickerów
 curl http://localhost:3000/api/sentiment/scores  # wyniki sentymentu FinBERT
-curl http://localhost:3000/api/alerts            # historia alertów
 
 # Testy integracji API (Faza 0)
 npm run test:all
@@ -44,8 +56,8 @@ npm run test:all
 ## Setup
 
 1. `cp .env.example .env` i uzupełnij klucze API
-2. `docker compose up -d` — start całego stacku
-3. `docker exec stockpulse-app npm run seed` — seed tickerów i reguł alertów
+2. `make up` — start stacku (autodetekcja środowiska)
+3. `make seed` — seed tickerów i reguł alertów
 4. Otwórz `http://localhost:3001` — dashboard React
 
 ## Architektura
@@ -87,9 +99,70 @@ Działający system end-to-end w 6 kontenerach Docker:
 - **Struktura plików**: [doc/schematy.md](doc/schematy.md)
 - **Architektura (wizualizacja)**: [doc/stockpulse-architecture.jsx](doc/stockpulse-architecture.jsx)
 
+## Multi-środowisko: Laptop ↔ Jetson
+
+Projekt działa na dwóch maszynach. Kod jest wspólny (git), konfiguracja osobna per maszynę.
+
+### Środowiska
+
+| Środowisko | Architektura | GPU / CUDA | FinBERT Dockerfile | Python |
+|------------|-------------|------------|-------------------|--------|
+| **Laptop z GPU** | x86_64 | NVIDIA desktop / CUDA 12.x | `Dockerfile` | 3.11 |
+| **Laptop bez GPU** | x86_64 | brak | `Dockerfile.cpu` | 3.11 |
+| **Jetson Orin NX** | aarch64 | Orin / CUDA 11.4 (L4T) | `Dockerfile.jetson` | 3.8 |
+
+### Pliki per środowisko
+
+```
+docker-compose.yml              ← bazowy (wspólny, NIE edytuj per-maszynę)
+docker-compose.cpu.yml          ← override: laptop bez GPU
+docker-compose.jetson.yml       ← override: Jetson (L4T + runtime nvidia)
+
+finbert-sidecar/
+  Dockerfile                    ← laptop z GPU (nvidia/cuda:12.4, Python 3.11)
+  Dockerfile.cpu                ← laptop bez GPU (python:3.11-slim)
+  Dockerfile.jetson             ← Jetson (L4T PyTorch r35.2.1, Python 3.8)
+  requirements.txt              ← laptop (torch==2.5.1)
+  requirements-jetson.txt       ← Jetson (bez torch — wbudowany w obraz L4T)
+```
+
+### Workflow
+
+```
+Laptop (dev)  ──git push──→  GitHub  ──git pull──→  Jetson (prod, autostart po reboot)
+```
+
+- **Rozwijasz kod na laptopie**, commitujesz, pushujesz
+- **Jetson po restarcie** automatycznie robi `git pull` + `make up` (crontab @reboot, skrypt `scripts/autostart.sh`)
+- `.env` jest **gitignored** — każda maszyna ma swoje klucze API
+- `make up` / `make rebuild` — Makefile sam wykrywa środowisko po `uname -m`
+
+### Zasady przy edycji kodu FinBERT
+
+- **NIE usuwaj** `from __future__ import annotations` z plików `finbert-sidecar/app/*.py` — zapewnia kompatybilność z Python 3.8 na Jetsonie
+- Jeśli dodajesz nową zależność do `requirements.txt`, dodaj też kompatybilną wersję do `requirements-jetson.txt` (bez torch, wersje dla Python 3.8)
+- Pakiet `eval_type_backport` w requirements-jetson.txt jest potrzebny dla Pydantic v2 na Python 3.8
+
+### Transfer bazy między maszynami
+
+```bash
+# Na źródłowej maszynie
+make backup
+scp backups/stockpulse_*.dump user@<cel-ip>:~/stockPulse/backups/
+
+# Na docelowej maszynie
+make restore
+```
+
+### Dokumentacja Jetson
+
+Pełna dokumentacja setupu Jetsona: [doc/JETSON-SETUP.md](doc/JETSON-SETUP.md)
+
 ## Zmienne środowiskowe
 
-Patrz `.env.example`. Główne grupy:
+Patrz `.env.example`. Plik `.env` jest **gitignored** — osobny na każdej maszynie.
+
+Główne grupy:
 - **Reddit**: OAuth2 (client ID, secret, username, password)
 - **Finnhub**: klucz API (free tier, 60 req/min)
 - **SEC EDGAR**: User-Agent z emailem (bez klucza, 10 req/sec)

@@ -1,0 +1,29 @@
+# Docker Compose override dla NVIDIA Jetson (JetPack 5.x, L4T R35, CUDA 11.4)
+#
+# Użycie:
+#   docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d
+#
+# Zmiany względem bazowego docker-compose.yml:
+#   - FinBERT: Dockerfile.jetson z obrazem L4T PyTorch (aarch64 + CUDA 11.4)
+#   - FinBERT: runtime nvidia zamiast deploy.resources (lepsze na Jetson)
+#   - FinBERT: batch size 8 (Jetson NX ma współdzielone 16GB RAM CPU+GPU)
+#   - pgAdmin wyłączony (oszczędność RAM-u, dostęp przez psql/DBeaver)
+
+services:
+  finbert:
+    build:
+      context: ./finbert-sidecar
+      dockerfile: Dockerfile.jetson
+    runtime: nvidia
+    environment:
+      BATCH_SIZE: 8
+    # Nadpisuje deploy z bazowego pliku — Jetson nie używa tego mechanizmu
+    deploy:
+      resources:
+        reservations:
+          devices: []
+
+  # pgAdmin wyłączony na Jetsonie — oszczędność ~200MB RAM
+  pgadmin:
+    profiles:
+      - pgadmin
