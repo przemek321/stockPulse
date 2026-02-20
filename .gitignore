@@ -18,3 +18,12 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Lokalne ustawienia Claude Code (per maszyna)
+.claude/settings.local.json
+
+# Artefakty Windows/WSL
+nul
+
+# Backup bazy danych
+*.dump
