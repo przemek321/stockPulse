@@ -7,3 +7,5 @@ export { InsiderTrade } from './insider-trade.entity';
 export { Alert } from './alert.entity';
 export { AlertRule } from './alert-rule.entity';
 export { CollectionLog } from './collection-log.entity';
+export { PdufaCatalyst } from './pdufa-catalyst.entity';
+export { AiPipelineLog } from './ai-pipeline-log.entity';

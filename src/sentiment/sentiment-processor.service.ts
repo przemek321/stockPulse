@@ -14,6 +14,8 @@ import {
   AzureOpenaiClientService,
   EnrichedAnalysis,
 } from './azure-openai-client.service';
+import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
+import { AiPipelineLog } from '../entities/ai-pipeline-log.entity';
 import { DataSource } from '../common/interfaces/data-source.enum';
 
 /** Minimalna długość tekstu do analizy sentymentu (krótsze = szum) */
@@ -57,12 +59,15 @@ export class SentimentProcessorService extends WorkerHost {
   constructor(
     private readonly finbert: FinbertClientService,
     private readonly azureOpenai: AzureOpenaiClientService,
+    private readonly pdufaBio: PdufaBioService,
     @InjectRepository(SentimentScore)
     private readonly sentimentRepo: Repository<SentimentScore>,
     @InjectRepository(RawMention)
     private readonly mentionRepo: Repository<RawMention>,
     @InjectRepository(NewsArticle)
     private readonly articleRepo: Repository<NewsArticle>,
+    @InjectRepository(AiPipelineLog)
+    private readonly pipelineLogRepo: Repository<AiPipelineLog>,
     private readonly eventEmitter: EventEmitter2,
   ) {
     super();
@@ -71,101 +76,177 @@ export class SentimentProcessorService extends WorkerHost {
   async process(job: Job<SentimentJobData>): Promise<SentimentScore | null> {
     const { type, entityId, symbol, source } = job.data;
 
-    this.logger.debug(
-      `Analiza sentymentu: ${symbol} (${type} #${entityId})`,
-    );
+    // Inicjalizacja logu pipeline — budowany inkrementalnie
+    const pLog = this.pipelineLogRepo.create({
+      symbol,
+      source,
+      entityType: type,
+      entityId,
+      status: 'SKIPPED_NOT_FOUND',
+    });
 
-    // Pobierz tekst do analizy
-    const textData = await this.extractText(type, entityId);
-    if (!textData) {
-      this.logger.warn(`Nie znaleziono ${type} #${entityId} — pomijam`);
-      return null;
-    }
-
-    // Filtruj za krótkie teksty (sam ticker, emoji, "wow" itp.)
-    if (textData.text.length < MIN_TEXT_LENGTH) {
+    try {
       this.logger.debug(
-        `Pomijam ${symbol} ${type} #${entityId} — za krótki tekst (${textData.text.length} znaków): "${textData.text}"`,
-      );
-      return null;
-    }
-
-    // 1. etap: FinBERT (szybka analiza lokalna)
-    const result = await this.finbert.analyze(textData.text);
-
-    // 2. etap: Tier-based eskalacja do LLM
-    let enrichedAnalysis: EnrichedAnalysis | null = null;
-    let finalModel = 'finbert';
-
-    const { tier, reason } = this.classifyTier(result);
-    const shouldEscalate =
-      tier === 1 || (tier === 2 && this.azureOpenai.isEnabled());
-
-    if (shouldEscalate && this.azureOpenai.isEnabled()) {
-      this.logger.debug(
-        `Eskalacja do LLM (tier ${tier}): ${symbol} — ${reason}`,
+        `Analiza sentymentu: ${symbol} (${type} #${entityId})`,
       );
 
-      enrichedAnalysis = await this.azureOpenai.analyze(
-        textData.text.substring(0, 500),
-        symbol,
-        reason,
-      );
+      // Pobierz tekst do analizy
+      const textData = await this.extractText(type, entityId);
+      if (!textData) {
+        this.logger.warn(`Nie znaleziono ${type} #${entityId} — pomijam`);
+        await this.savePipelineLog(pLog);
+        return null;
+      }
 
-      if (enrichedAnalysis) {
-        finalModel = 'finbert+gpt-4o-mini';
+      // Filtruj za krótkie teksty (sam ticker, emoji, "wow" itp.)
+      if (textData.text.length < MIN_TEXT_LENGTH) {
         this.logger.debug(
-          `Analiza AI ${symbol}: sentiment=${enrichedAnalysis.sentiment}, ` +
-            `conviction=${enrichedAnalysis.conviction}, ` +
-            `czas=${enrichedAnalysis.processing_time_ms}ms`,
+          `Pomijam ${symbol} ${type} #${entityId} — za krótki tekst (${textData.text.length} znaków): "${textData.text}"`,
+        );
+        pLog.status = 'SKIPPED_SHORT';
+        pLog.inputText = textData.text;
+        await this.savePipelineLog(pLog);
+        return null;
+      }
+
+      // 1. etap: FinBERT (szybka analiza lokalna)
+      const finbertStart = Date.now();
+      const result = await this.finbert.analyze(textData.text);
+      pLog.finbertDurationMs = Date.now() - finbertStart;
+      pLog.finbertScore = result.score;
+      pLog.finbertConfidence = result.confidence;
+      pLog.inputText = textData.text.substring(0, 500);
+
+      // 2. etap: Tier-based eskalacja do LLM
+      let enrichedAnalysis: EnrichedAnalysis | null = null;
+      let finalModel = 'finbert';
+
+      const { tier, reason } = this.classifyTier(result);
+      pLog.tier = tier;
+      pLog.tierReason = reason;
+
+      const shouldEscalate =
+        tier === 1 || (tier === 2 && this.azureOpenai.isEnabled());
+
+      if (shouldEscalate && this.azureOpenai.isEnabled()) {
+        this.logger.debug(
+          `Eskalacja do LLM (tier ${tier}): ${symbol} — ${reason}`,
+        );
+
+        // Pobierz kontekst PDUFA dla tickera (nadchodzące katalizatory FDA)
+        let pdufaContext: string | null = null;
+        try {
+          const catalysts = await this.pdufaBio.getUpcomingCatalysts(symbol, 30);
+          if (catalysts.length > 0) {
+            pdufaContext = this.pdufaBio.buildPdufaContext(catalysts);
+            this.logger.debug(
+              `PDUFA context dla ${symbol}: ${catalysts.length} katalizator(ów)`,
+            );
+          }
+        } catch {
+          // Brak danych PDUFA nie blokuje pipeline
+        }
+
+        pLog.pdufaContext = pdufaContext;
+        pLog.requestPayload = {
+          text: textData.text.substring(0, 500),
+          symbol,
+          escalation_reason: reason,
+          ...(pdufaContext ? { pdufa_context: pdufaContext } : {}),
+        };
+
+        const azureStart = Date.now();
+        enrichedAnalysis = await this.azureOpenai.analyze(
+          textData.text.substring(0, 500),
+          symbol,
+          reason,
+          pdufaContext,
+        );
+        pLog.azureDurationMs = Date.now() - azureStart;
+
+        if (enrichedAnalysis) {
+          finalModel = 'finbert+gpt-4o-mini';
+          pLog.status = 'AI_ESCALATED';
+          pLog.responsePayload = enrichedAnalysis as any;
+          this.logger.debug(
+            `Analiza AI ${symbol}: sentiment=${enrichedAnalysis.sentiment}, ` +
+              `conviction=${enrichedAnalysis.conviction}, ` +
+              `czas=${enrichedAnalysis.processing_time_ms}ms`,
+          );
+        } else {
+          pLog.status = 'AI_FAILED';
+          pLog.errorMessage = 'Azure VM zwróciło null (timeout lub błąd parsowania)';
+        }
+      } else if (shouldEscalate && !this.azureOpenai.isEnabled()) {
+        pLog.status = 'AI_DISABLED';
+      } else if (tier === 3) {
+        pLog.status = 'FINBERT_ONLY';
+        this.logger.debug(
+          `Skip AI (tier 3): ${symbol} — ${reason}`,
         );
       }
-    } else if (tier === 3) {
+
+      // Zapisz wynik do sentiment_scores
+      const sentimentScore = this.sentimentRepo.create({
+        symbol,
+        score: result.score,
+        confidence: result.confidence,
+        source,
+        model: finalModel,
+        rawText: textData.text.substring(0, 500),
+        externalId: textData.externalId,
+        enrichedAnalysis,
+      });
+
+      const saved = await this.sentimentRepo.save(sentimentScore);
+      pLog.sentimentScoreId = saved.id;
+
+      // Aktualizuj sentimentScore w NewsArticle (jeśli to artykuł)
+      if (type === 'article') {
+        await this.articleRepo.update(entityId, {
+          sentimentScore: result.score,
+        });
+      }
+
+      // Zapisz log pipeline
+      await this.savePipelineLog(pLog);
+
+      // Emituj event — AlertEvaluator i inne moduły mogą reagować
+      this.eventEmitter.emit(EventType.SENTIMENT_SCORED, {
+        scoreId: saved.id,
+        symbol,
+        score: result.score,
+        confidence: result.confidence,
+        label: result.label,
+        source,
+        model: finalModel,
+        conviction: enrichedAnalysis?.conviction ?? null,
+        enrichedAnalysis: enrichedAnalysis ?? null,
+      });
+
       this.logger.debug(
-        `Skip AI (tier 3): ${symbol} — ${reason}`,
+        `Sentyment ${symbol}: ${result.score.toFixed(3)} ` +
+          `(${result.label}, confidence: ${result.confidence.toFixed(3)}, model: ${finalModel})`,
+      );
+
+      return saved;
+    } catch (err) {
+      pLog.status = 'ERROR';
+      pLog.errorMessage = err instanceof Error ? err.message : String(err);
+      await this.savePipelineLog(pLog);
+      throw err;
+    }
+  }
+
+  /** Zapisuje log pipeline — błąd zapisu nie blokuje pipeline */
+  private async savePipelineLog(pLog: AiPipelineLog): Promise<void> {
+    try {
+      await this.pipelineLogRepo.save(pLog);
+    } catch (err) {
+      this.logger.warn(
+        `Błąd zapisu pipeline log: ${err instanceof Error ? err.message : err}`,
       );
     }
-
-    // Zapisz wynik do sentiment_scores
-    const sentimentScore = this.sentimentRepo.create({
-      symbol,
-      score: result.score,
-      confidence: result.confidence,
-      source,
-      model: finalModel,
-      rawText: textData.text.substring(0, 500),
-      externalId: textData.externalId,
-      enrichedAnalysis,
-    });
-
-    const saved = await this.sentimentRepo.save(sentimentScore);
-
-    // Aktualizuj sentimentScore w NewsArticle (jeśli to artykuł)
-    if (type === 'article') {
-      await this.articleRepo.update(entityId, {
-        sentimentScore: result.score,
-      });
-    }
-
-    // Emituj event — AlertEvaluator i inne moduły mogą reagować
-    this.eventEmitter.emit(EventType.SENTIMENT_SCORED, {
-      scoreId: saved.id,
-      symbol,
-      score: result.score,
-      confidence: result.confidence,
-      label: result.label,
-      source,
-      model: finalModel,
-      conviction: enrichedAnalysis?.conviction ?? null,
-      enrichedAnalysis: enrichedAnalysis ?? null,
-    });
-
-    this.logger.debug(
-      `Sentyment ${symbol}: ${result.score.toFixed(3)} ` +
-        `(${result.label}, confidence: ${result.confidence.toFixed(3)}, model: ${finalModel})`,
-    );
-
-    return saved;
   }
 
   /**

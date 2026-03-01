@@ -69,18 +69,24 @@ export class AzureOpenaiClientService {
     text: string,
     symbol: string,
     escalationReason: string,
+    pdufaContext?: string | null,
   ): Promise<EnrichedAnalysis | null> {
     if (!this.enabled) return null;
 
     try {
+      const payload: Record<string, string> = {
+        text,
+        symbol,
+        escalation_reason: escalationReason,
+      };
+      if (pdufaContext) {
+        payload.pdufa_context = pdufaContext;
+      }
+
       const response = await fetch(`${this.analysisUrl}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          symbol,
-          escalation_reason: escalationReason,
-        }),
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
 

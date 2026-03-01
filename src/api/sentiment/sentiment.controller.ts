@@ -7,6 +7,8 @@ import {
   NewsArticle,
   SecFiling,
   InsiderTrade,
+  PdufaCatalyst,
+  AiPipelineLog,
 } from '../../entities';
 
 /**
@@ -29,6 +31,10 @@ export class SentimentController {
     private readonly newsRepo: Repository<NewsArticle>,
     @InjectRepository(InsiderTrade)
     private readonly tradeRepo: Repository<InsiderTrade>,
+    @InjectRepository(PdufaCatalyst)
+    private readonly pdufaRepo: Repository<PdufaCatalyst>,
+    @InjectRepository(AiPipelineLog)
+    private readonly pipelineLogRepo: Repository<AiPipelineLog>,
   ) {}
 
   /** Wszystkie wyniki sentymentu (najnowsze). ?ai_only=true → tylko z analizą AI */
@@ -87,6 +93,55 @@ export class SentimentController {
         take,
       });
     return { count: filings.length, filings };
+  }
+
+  /** Nadchodzące katalizatory PDUFA (daty decyzji FDA). ?upcoming_only=true → tylko pending */
+  @Get('pdufa')
+  async getPdufaCatalysts(
+    @Query('limit') limit?: string,
+    @Query('upcoming_only') upcomingOnly?: string,
+  ) {
+    const take = Math.min(parseInt(limit || '100', 10), 500);
+
+    const qb = this.pdufaRepo
+      .createQueryBuilder('p')
+      .orderBy('p.pdufaDate', 'ASC')
+      .take(take);
+
+    if (upcomingOnly === 'true') {
+      qb.where('p.outcome IS NULL');
+      qb.andWhere('p.pdufaDate >= :now', {
+        now: new Date().toISOString().split('T')[0],
+      });
+    }
+
+    const catalysts = await qb.getMany();
+    return { count: catalysts.length, catalysts };
+  }
+
+  /** Logi pipeline AI — pełna historia egzekucji analizy sentymentu. */
+  @Get('pipeline-logs')
+  async getPipelineLogs(
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('symbol') symbol?: string,
+  ) {
+    const take = Math.min(parseInt(limit || '100', 10), 500);
+
+    const qb = this.pipelineLogRepo
+      .createQueryBuilder('log')
+      .orderBy('log.created_at', 'DESC')
+      .take(take);
+
+    if (status) {
+      qb.andWhere('log.status = :status', { status });
+    }
+    if (symbol) {
+      qb.andWhere('log.symbol = :symbol', { symbol: symbol.toUpperCase() });
+    }
+
+    const logs = await qb.getMany();
+    return { count: logs.length, logs };
   }
 
   /** Transakcje insiderów z Form 4 (SEC EDGAR). */

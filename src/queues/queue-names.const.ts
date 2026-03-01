@@ -20,6 +20,9 @@ export const QUEUE_NAMES = {
 
   /** Ewaluacja reguł alertów i wysyłka powiadomień */
   ALERTS: 'alert-processing',
+
+  /** Scraping kalendarza PDUFA z pdufa.bio */
+  PDUFA_BIO: 'pdufa-bio-collector',
 } as const;
 
 /** Typ z nazwami kolejek */

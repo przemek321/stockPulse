@@ -108,6 +108,7 @@ export default function CollectorStatus() {
     STOCKTWITS: ['raw_mentions'],
     FINNHUB: ['news_articles', 'insider_trades'],
     SEC_EDGAR: ['sec_filings', 'insider_trades'],
+    PDUFA_BIO: ['pdufa_catalysts'],
   };
 
   // Ukryj Reddit — placeholder, nie zbiera danych

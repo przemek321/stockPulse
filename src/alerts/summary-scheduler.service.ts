@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { SentimentScore, Alert } from '../entities';
 import { TelegramService } from './telegram/telegram.service';
+import { TelegramFormatterService } from './telegram/telegram-formatter.service';
+import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
 
 /**
  * Cykliczne podsumowanie sentymentu wysyłane na Telegram co 2 godziny.
@@ -26,6 +28,8 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Alert)
     private readonly alertRepo: Repository<Alert>,
     private readonly telegram: TelegramService,
+    private readonly formatter: TelegramFormatterService,
+    private readonly pdufaBio: PdufaBioService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -102,7 +106,18 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .limit(3)
         .getRawMany();
 
-      const message = this.formatSummary(total, avgScore, alertCount, aiEscalated, negative, positive);
+      // Nadchodzące katalizatory PDUFA (7 dni)
+      let pdufaSection = '';
+      try {
+        const upcoming = await this.pdufaBio.getAllUpcoming(7);
+        if (upcoming.length > 0) {
+          pdufaSection = this.formatter.formatPdufaSummarySection(upcoming);
+        }
+      } catch {
+        // Brak danych PDUFA nie blokuje raportu
+      }
+
+      const message = this.formatSummary(total, avgScore, alertCount, aiEscalated, negative, positive) + pdufaSection;
       const sent = await this.telegram.sendMarkdown(message);
 
       if (sent) {

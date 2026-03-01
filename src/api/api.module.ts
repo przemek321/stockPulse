@@ -14,6 +14,8 @@ import {
   Alert,
   AlertRule,
   CollectionLog,
+  PdufaCatalyst,
+  AiPipelineLog,
 } from '../entities';
 import { CollectorsModule } from '../collectors/collectors.module';
 import { AlertsModule } from '../alerts/alerts.module';
@@ -34,6 +36,8 @@ import { AlertsModule } from '../alerts/alerts.module';
       Alert,
       AlertRule,
       CollectionLog,
+      PdufaCatalyst,
+      AiPipelineLog,
     ]),
     CollectorsModule,
     AlertsModule,

@@ -7,4 +7,6 @@ export enum DataSource {
   FINNHUB = 'FINNHUB',
   SEC_EDGAR = 'SEC_EDGAR',
   STOCKTWITS = 'STOCKTWITS',
+  /** Kalendarz PDUFA z pdufa.bio (daty decyzji FDA) */
+  PDUFA_BIO = 'PDUFA_BIO',
 }

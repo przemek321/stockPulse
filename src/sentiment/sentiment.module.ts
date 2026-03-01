@@ -5,10 +5,12 @@ import { QUEUE_NAMES } from '../queues/queue-names.const';
 import { SentimentScore } from '../entities/sentiment-score.entity';
 import { RawMention } from '../entities/raw-mention.entity';
 import { NewsArticle } from '../entities/news-article.entity';
+import { AiPipelineLog } from '../entities/ai-pipeline-log.entity';
 import { FinbertClientService } from './finbert-client.service';
 import { AzureOpenaiClientService } from './azure-openai-client.service';
 import { SentimentListenerService } from './sentiment-listener.service';
 import { SentimentProcessorService } from './sentiment-processor.service';
+import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
 
 /**
  * Moduł analizy sentymentu.
@@ -23,8 +25,9 @@ import { SentimentProcessorService } from './sentiment-processor.service';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SentimentScore, RawMention, NewsArticle]),
+    TypeOrmModule.forFeature([SentimentScore, RawMention, NewsArticle, AiPipelineLog]),
     BullModule.registerQueue({ name: QUEUE_NAMES.SENTIMENT }),
+    PdufaBioModule,
   ],
   providers: [
     FinbertClientService,

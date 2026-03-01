@@ -17,4 +17,6 @@ export enum EventType {
   ANOMALY_DETECTED = 'anomaly.detected',
   /** Wyzwolono alert */
   ALERT_TRIGGERED = 'alert.triggered',
+  /** Nowy event PDUFA (data decyzji FDA) z pdufa.bio */
+  NEW_PDUFA_EVENT = 'pdufa-event.new',
 }

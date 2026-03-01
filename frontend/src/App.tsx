@@ -3,6 +3,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import NewspaperIcon from '@mui/icons-material/Newspaper';
 import GavelIcon from '@mui/icons-material/Gavel';
 import PersonSearchIcon from '@mui/icons-material/PersonSearch';
+import EventIcon from '@mui/icons-material/Event';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import RuleIcon from '@mui/icons-material/Rule';
 import ForumIcon from '@mui/icons-material/Forum';
@@ -13,7 +14,7 @@ import DataPanel from './components/DataPanel';
 import DbSummary from './components/DbSummary';
 import SentimentChart from './components/SentimentChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores } from './api';
+import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs } from './api';
 
 /** Formatowanie daty do czytelnej formy */
 const fmtDate = (v: string | null) =>
@@ -177,6 +178,142 @@ export default function App() {
         fetchData={async () => {
           const data = await fetchAiScores(200);
           return data.scores;
+        }}
+      />
+
+      {/* ── Pipeline AI — Logi Egzekucji ────── */}
+      <DataPanel
+        title="Pipeline AI — Logi Egzekucji"
+        icon={<PsychologyIcon sx={{ color: '#ff9800' }} />}
+        badgeColor="warning"
+        defaultSortKey="createdAt"
+        defaultSortDir="desc"
+        columns={[
+          {
+            key: 'status',
+            label: 'Status',
+            render: (v: string) => {
+              const colors: Record<string, string> = {
+                AI_ESCALATED: '#66bb6a',
+                FINBERT_ONLY: '#90a4ae',
+                AI_FAILED: '#ef5350',
+                AI_DISABLED: '#ffa726',
+                SKIPPED_SHORT: '#616161',
+                SKIPPED_NOT_FOUND: '#616161',
+                FINBERT_FALLBACK: '#ce93d8',
+                ERROR: '#ef5350',
+              };
+              return (
+                <Chip
+                  label={v}
+                  size="small"
+                  sx={{ bgcolor: colors[v] || '#616161', color: '#fff', fontWeight: 700, fontSize: '0.6rem' }}
+                />
+              );
+            },
+          },
+          { key: 'symbol', label: 'Ticker' },
+          {
+            key: 'tier',
+            label: 'Tier',
+            render: (v: number | null) => {
+              if (v == null) return '—';
+              const colors: Record<number, string> = { 1: '#66bb6a', 2: '#ffa726', 3: '#90a4ae' };
+              return <span style={{ color: colors[v] || '#fff', fontWeight: 700 }}>T{v}</span>;
+            },
+          },
+          { key: 'source', label: 'Źródło' },
+          {
+            key: 'finbertScore',
+            label: 'FinBERT',
+            render: (v: number | null) => {
+              if (v == null) return '—';
+              const num = Number(v);
+              const color = num > 0.2 ? '#66bb6a' : num < -0.2 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 700 }}>{num.toFixed(3)}</span>;
+            },
+          },
+          {
+            key: 'finbertConfidence',
+            label: 'Conf.',
+            render: (v: number | null) => (v != null ? `${(Number(v) * 100).toFixed(1)}%` : '—'),
+          },
+          {
+            key: 'tierReason',
+            label: 'Powód',
+            render: (v: string | null) => (
+              <span title={v || ''} style={{ cursor: 'help', fontSize: '0.7rem', color: '#b0bec5' }}>
+                {v?.slice(0, 50) || '—'}{v && v.length > 50 ? '…' : ''}
+              </span>
+            ),
+          },
+          {
+            key: 'inputText',
+            label: 'Tekst',
+            render: (v: string | null) => (
+              <span title={v || ''} style={{ cursor: 'help', fontSize: '0.7rem', color: '#b0bec5' }}>
+                {v?.slice(0, 60) || '—'}{v && v.length > 60 ? '…' : ''}
+              </span>
+            ),
+          },
+          {
+            key: 'pdufaContext',
+            label: 'PDUFA',
+            render: (v: string | null) =>
+              v ? <Chip label="TAK" size="small" sx={{ bgcolor: '#42a5f5', color: '#fff', fontSize: '0.6rem' }} /> : '—',
+          },
+          {
+            key: 'responsePayload',
+            label: 'AI Wynik',
+            render: (v: any) => {
+              if (!v) return '—';
+              const sentColor =
+                v.sentiment === 'BULLISH' ? '#66bb6a' : v.sentiment === 'BEARISH' ? '#ef5350' : '#90a4ae';
+              return <span style={{ color: sentColor, fontWeight: 700 }}>{v.sentiment} ({v.conviction})</span>;
+            },
+          },
+          {
+            key: '_prompt',
+            label: 'Prompt',
+            render: (_: any, row: any) => {
+              const prompt = row.responsePayload?.prompt_used;
+              if (!prompt) return '—';
+              return (
+                <span title={prompt} style={{ cursor: 'help', fontSize: '0.7rem', color: '#80cbc4' }}>
+                  {prompt.slice(0, 60)}…
+                </span>
+              );
+            },
+          },
+          {
+            key: 'finbertDurationMs',
+            label: 'FinBERT ms',
+            render: (v: number | null) => (v != null ? `${v}ms` : '—'),
+          },
+          {
+            key: 'azureDurationMs',
+            label: 'Azure ms',
+            render: (v: number | null) => (v != null ? `${v}ms` : '—'),
+          },
+          {
+            key: 'errorMessage',
+            label: 'Błąd',
+            render: (v: string | null) =>
+              v ? (
+                <span title={v} style={{ color: '#ef5350', cursor: 'help', fontSize: '0.7rem' }}>
+                  {v.slice(0, 40)}…
+                </span>
+              ) : '—',
+          },
+          {
+            key: 'createdAt',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchPipelineLogs(200);
+          return data.logs;
         }}
       />
 
@@ -411,6 +548,59 @@ export default function App() {
         fetchData={async () => {
           const res = await fetch('/api/sentiment/insider-trades?limit=100');
           if (res.ok) return (await res.json()).trades || [];
+          return [];
+        }}
+      />
+
+      {/* ── PDUFA Calendar (Decyzje FDA) ────── */}
+      <DataPanel
+        title="PDUFA Kalendarz (Decyzje FDA)"
+        icon={<EventIcon sx={{ color: '#42a5f5' }} />}
+        badgeColor="info"
+        defaultSortKey="pdufaDate"
+        defaultSortDir="asc"
+        columns={[
+          {
+            key: 'pdufaDate',
+            label: 'Data PDUFA',
+            render: (v: string) => {
+              const date = new Date(v);
+              const now = new Date();
+              const daysUntil = Math.ceil((date.getTime() - now.getTime()) / 86400000);
+              const color = daysUntil <= 1 ? '#ef5350' : daysUntil <= 3 ? '#ffa726' : daysUntil <= 7 ? '#42a5f5' : '#90a4ae';
+              const label = daysUntil > 0 ? `(${daysUntil}d)` : daysUntil === 0 ? '(dziś!)' : '';
+              return (
+                <span style={{ color, fontWeight: 700 }}>
+                  {fmtDate(v)} {label}
+                </span>
+              );
+            },
+          },
+          { key: 'symbol', label: 'Ticker' },
+          { key: 'drugName', label: 'Lek' },
+          {
+            key: 'indication',
+            label: 'Wskazanie',
+            render: (v: string) => v || '—',
+          },
+          {
+            key: 'therapeuticArea',
+            label: 'Obszar',
+            render: (v: string) => v || '—',
+          },
+          {
+            key: 'outcome',
+            label: 'Wynik',
+            render: (v: string | null) => {
+              if (!v) return <span style={{ color: '#90a4ae' }}>Oczekuje</span>;
+              const color = v === 'APPROVED' ? '#66bb6a' : v === 'CRL' ? '#ef5350' : '#ffa726';
+              return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+            },
+          },
+        ]}
+        fetchData={async () => {
+          const res = await fetch('/api/sentiment/pdufa?upcoming_only=true&limit=100');
+          if (res.ok) return (await res.json()).catalysts || [];
           return [];
         }}
       />

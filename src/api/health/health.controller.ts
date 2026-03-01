@@ -5,6 +5,7 @@ import { StocktwitsService } from '../../collectors/stocktwits/stocktwits.servic
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
 import { RedditService } from '../../collectors/reddit/reddit.service';
+import { PdufaBioService } from '../../collectors/pdufa-bio/pdufa-bio.service';
 import { TelegramService } from '../../alerts/telegram/telegram.service';
 import {
   Ticker,
@@ -16,6 +17,7 @@ import {
   Alert,
   AlertRule,
   CollectionLog,
+  PdufaCatalyst,
 } from '../../entities';
 
 /** Interwały kolektorów w minutach — musi odpowiadać schedulerom BullMQ */
@@ -24,6 +26,7 @@ const COLLECTOR_INTERVALS: Record<string, number> = {
   FINNHUB: 10,
   SEC_EDGAR: 30,
   REDDIT: 10,
+  PDUFA_BIO: 360, // 6 godzin
 };
 
 /**
@@ -37,6 +40,7 @@ export class HealthController {
     private readonly finnhub: FinnhubService,
     private readonly secEdgar: SecEdgarService,
     private readonly reddit: RedditService,
+    private readonly pdufaBio: PdufaBioService,
     private readonly telegram: TelegramService,
     @InjectRepository(Ticker) private readonly tickerRepo: Repository<Ticker>,
     @InjectRepository(RawMention) private readonly mentionRepo: Repository<RawMention>,
@@ -47,18 +51,20 @@ export class HealthController {
     @InjectRepository(Alert) private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule) private readonly ruleRepo: Repository<AlertRule>,
     @InjectRepository(CollectionLog) private readonly logRepo: Repository<CollectionLog>,
+    @InjectRepository(PdufaCatalyst) private readonly pdufaRepo: Repository<PdufaCatalyst>,
   ) {}
 
   @Get()
   async getHealth() {
-    const [stHealth, fhHealth, secHealth, rdHealth] = await Promise.all([
+    const [stHealth, fhHealth, secHealth, rdHealth, pdufaHealth] = await Promise.all([
       this.stocktwits.getHealthStatus(),
       this.finnhub.getHealthStatus(),
       this.secEdgar.getHealthStatus(),
       this.reddit.getHealthStatus(),
+      this.pdufaBio.getHealthStatus(),
     ]);
 
-    const collectors = [stHealth, fhHealth, secHealth, rdHealth];
+    const collectors = [stHealth, fhHealth, secHealth, rdHealth, pdufaHealth];
     const allHealthy = collectors.every((c) => c.isHealthy);
 
     return {
@@ -81,7 +87,7 @@ export class HealthController {
 
     // Totale per tabela (równoległe zapytania)
     const [
-      tickers, mentions, news, filings, trades, scores, alerts, rules, logs,
+      tickers, mentions, news, filings, trades, scores, alerts, rules, logs, pdufaEvents,
     ] = await Promise.all([
       this.tickerRepo.count(),
       this.mentionRepo.count(),
@@ -92,6 +98,7 @@ export class HealthController {
       this.alertRepo.count(),
       this.ruleRepo.count(),
       this.logRepo.count(),
+      this.pdufaRepo.count(),
     ]);
 
     // Ostatnie logi kolektorów + obliczenie countdown
@@ -148,6 +155,7 @@ export class HealthController {
           { name: 'alerts', count: alerts },
           { name: 'alert_rules', count: rules },
           { name: 'collection_logs', count: logs },
+          { name: 'pdufa_catalysts', count: pdufaEvents },
         ],
       },
       collectors: collectorStats,

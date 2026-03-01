@@ -214,6 +214,47 @@ export class TelegramFormatterService {
   }
 
   /**
+   * Formatuje sekcję PDUFA w raporcie 2h — nadchodzące katalizatory FDA (7 dni).
+   * Kolorowanie: ≤1d czerwony, ≤3d pomarańczowy, ≤7d niebieski.
+   */
+  formatPdufaSummarySection(catalysts: {
+    symbol: string;
+    drugName: string;
+    indication?: string;
+    pdufaDate: Date;
+    odinTier?: string;
+    odinScore?: number;
+  }[]): string {
+    if (catalysts.length === 0) return '';
+
+    const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+    const now = new Date();
+
+    const lines = [
+      '',
+      '💊 *PDUFA — nadchodzące decyzje FDA:*',
+    ];
+
+    for (const c of catalysts) {
+      const pdufaDate = new Date(c.pdufaDate);
+      const daysUntil = Math.ceil(
+        (pdufaDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+      );
+      const icon = daysUntil <= 1 ? '🔴' : daysUntil <= 3 ? '🟠' : '🔵';
+      const dateStr = pdufaDate.toISOString().split('T')[0];
+      const odin = c.odinTier
+        ? ` \\| ${esc(c.odinTier)}${c.odinScore ? ` ${esc(String(c.odinScore))}%` : ''}`
+        : '';
+
+      lines.push(
+        `${icon} \\$${esc(c.symbol)} — ${esc(c.drugName)} — za ${esc(String(daysUntil))}d \\(${esc(dateStr)}\\)${odin}`,
+      );
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
    * Escapuje znaki specjalne MarkdownV2.
    */
   private escapeMarkdown(text: string): string {

@@ -113,3 +113,28 @@ export const fetchSentimentScores = (limit = 500) =>
 
 export const fetchAiScores = (limit = 200) =>
   get<{ count: number; scores: SentimentScore[] }>(`/sentiment/scores?limit=${limit}&ai_only=true`);
+
+export interface AiPipelineLog {
+  id: number;
+  symbol: string;
+  source: string;
+  entityType: string;
+  entityId: number;
+  status: string;
+  tier: number | null;
+  tierReason: string | null;
+  finbertScore: number | null;
+  finbertConfidence: number | null;
+  inputText: string | null;
+  pdufaContext: string | null;
+  requestPayload: Record<string, any> | null;
+  responsePayload: Record<string, any> | null;
+  finbertDurationMs: number | null;
+  azureDurationMs: number | null;
+  errorMessage: string | null;
+  sentimentScoreId: number | null;
+  createdAt: string;
+}
+
+export const fetchPipelineLogs = (limit = 200) =>
+  get<{ count: number; logs: AiPipelineLog[] }>(`/sentiment/pipeline-logs?limit=${limit}`);
