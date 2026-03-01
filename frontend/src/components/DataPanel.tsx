@@ -80,15 +80,17 @@ export default function DataPanel({
       if (va == null && vb == null) return 0;
       if (va == null) return 1;
       if (vb == null) return -1;
+      // Liczby (w tym stringi numeryczne z PostgreSQL decimal)
+      const na = Number(va);
+      const nb = Number(vb);
+      if (!isNaN(na) && !isNaN(nb) && String(va).trim() !== '' && String(vb).trim() !== '') {
+        return sortDir === 'asc' ? na - nb : nb - na;
+      }
       // Daty — porównanie po timestamp
       const da = Date.parse(va);
       const db = Date.parse(vb);
       if (!isNaN(da) && !isNaN(db)) {
         return sortDir === 'asc' ? da - db : db - da;
-      }
-      // Liczby
-      if (typeof va === 'number' && typeof vb === 'number') {
-        return sortDir === 'asc' ? va - vb : vb - va;
       }
       // Tekst
       const cmp = String(va).localeCompare(String(vb), 'pl');
