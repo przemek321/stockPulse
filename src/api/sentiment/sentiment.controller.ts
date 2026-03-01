@@ -27,14 +27,24 @@ export class SentimentController {
     private readonly newsRepo: Repository<NewsArticle>,
   ) {}
 
-  /** Wszystkie wyniki sentymentu (najnowsze). */
+  /** Wszystkie wyniki sentymentu (najnowsze). ?ai_only=true → tylko z analizą AI */
   @Get('scores')
-  async getScores(@Query('limit') limit?: string) {
+  async getScores(
+    @Query('limit') limit?: string,
+    @Query('ai_only') aiOnly?: string,
+  ) {
     const take = Math.min(parseInt(limit || '100', 10), 500);
-    const scores = await this.scoreRepo.find({
-      order: { timestamp: 'DESC' },
-      take,
-    });
+
+    const qb = this.scoreRepo
+      .createQueryBuilder('s')
+      .orderBy('s.timestamp', 'DESC')
+      .take(take);
+
+    if (aiOnly === 'true') {
+      qb.where('s.enrichedAnalysis IS NOT NULL');
+    }
+
+    const scores = await qb.getMany();
     return { count: scores.length, scores };
   }
 

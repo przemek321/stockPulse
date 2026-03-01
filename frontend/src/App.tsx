@@ -11,7 +11,8 @@ import CollectorStatus from './components/CollectorStatus';
 import DataPanel from './components/DataPanel';
 import DbSummary from './components/DbSummary';
 import SentimentChart from './components/SentimentChart';
-import { fetchTickers, fetchAlertRules, fetchAlerts } from './api';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores } from './api';
 
 /** Formatowanie daty do czytelnej formy */
 const fmtDate = (v: string | null) =>
@@ -58,6 +59,125 @@ export default function App() {
       <Typography variant="h6" sx={{ mb: 2 }}>
         Tabele danych
       </Typography>
+
+      {/* ── Analiza AI (gpt-4o-mini) ─────────── */}
+      <DataPanel
+        title="Analiza AI (gpt-4o-mini)"
+        icon={<SmartToyIcon sx={{ color: '#ce93d8' }} />}
+        badgeColor="secondary"
+        defaultSortKey="timestamp"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          {
+            key: 'score',
+            label: 'FinBERT',
+            render: (v: number) => {
+              const num = Number(v);
+              const color = num > 0.2 ? '#66bb6a' : num < -0.2 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 700 }}>{num.toFixed(3)}</span>;
+            },
+          },
+          {
+            key: 'enrichedAnalysis',
+            label: 'AI Sentyment',
+            render: (_: any, row: any) => {
+              const ea = row.enrichedAnalysis;
+              if (!ea) return '—';
+              const sentColor =
+                ea.sentiment === 'BULLISH' ? '#66bb6a' : ea.sentiment === 'BEARISH' ? '#ef5350' : '#90a4ae';
+              return <span style={{ color: sentColor, fontWeight: 700 }}>{ea.sentiment}</span>;
+            },
+          },
+          {
+            key: '_conviction',
+            label: 'Conviction',
+            render: (_: any, row: any) => {
+              const ea = row.enrichedAnalysis;
+              if (!ea) return '—';
+              const color = ea.conviction > 0 ? '#66bb6a' : ea.conviction < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 700 }}>{ea.conviction}</span>;
+            },
+          },
+          {
+            key: '_urgency',
+            label: 'Pilność',
+            render: (_: any, row: any) => {
+              const ea = row.enrichedAnalysis;
+              if (!ea) return '—';
+              const color =
+                ea.urgency === 'HIGH' ? '#ef5350' : ea.urgency === 'MEDIUM' ? '#ffa726' : '#90a4ae';
+              return <Chip label={ea.urgency} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+            },
+          },
+          {
+            key: '_catalyst',
+            label: 'Katalizator',
+            render: (_: any, row: any) => {
+              const ea = row.enrichedAnalysis;
+              if (!ea?.catalyst_type) return '—';
+              return ea.catalyst_type;
+            },
+          },
+          {
+            key: '_priceImpact',
+            label: 'Wpływ cenowy',
+            render: (_: any, row: any) => {
+              const ea = row.enrichedAnalysis;
+              if (!ea) return '—';
+              const dir = ea.price_impact_direction || '?';
+              const mag = ea.price_impact_magnitude || '?';
+              const arrow = dir === 'positive' ? '↑' : dir === 'negative' ? '↓' : '→';
+              const color = dir === 'positive' ? '#66bb6a' : dir === 'negative' ? '#ef5350' : '#90a4ae';
+              return (
+                <span style={{ color }}>
+                  {arrow} {mag}
+                </span>
+              );
+            },
+          },
+          {
+            key: '_summary',
+            label: 'Podsumowanie AI',
+            render: (_: any, row: any) => {
+              const ea = row.enrichedAnalysis;
+              if (!ea?.summary) return '—';
+              return (
+                <span title={ea.summary} style={{ cursor: 'help' }}>
+                  {ea.summary.slice(0, 100)}{ea.summary.length > 100 ? '…' : ''}
+                </span>
+              );
+            },
+          },
+          {
+            key: 'rawText',
+            label: 'Tekst źródłowy',
+            render: (v: string) => (
+              <span title={v || ''} style={{ cursor: 'help', fontSize: '0.7rem', color: '#b0bec5' }}>
+                {v?.slice(0, 80) || '—'}{v && v.length > 80 ? '…' : ''}
+              </span>
+            ),
+          },
+          {
+            key: '_time',
+            label: 'Czas AI',
+            render: (_: any, row: any) => {
+              const ea = row.enrichedAnalysis;
+              if (!ea?.processing_time_ms) return '—';
+              return `${(ea.processing_time_ms / 1000).toFixed(1)}s`;
+            },
+          },
+          {
+            key: 'timestamp',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchAiScores(200);
+          return data.scores;
+        }}
+      />
 
       {/* ── Tickery ──────────────────────────── */}
       <DataPanel

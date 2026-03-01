@@ -108,8 +108,10 @@ export default function CollectorStatus() {
     STOCKTWITS: ['raw_mentions'],
     FINNHUB: ['news_articles', 'insider_trades'],
     SEC_EDGAR: ['sec_filings', 'insider_trades'],
-    REDDIT: ['raw_mentions'],
   };
+
+  // Ukryj Reddit — placeholder, nie zbiera danych
+  const HIDDEN_COLLECTORS = ['REDDIT'];
 
   return (
     <Box>
@@ -148,7 +150,7 @@ export default function CollectorStatus() {
 
       {/* Karty kolektorów */}
       <Grid container spacing={2}>
-        {stats.collectors.map((c) => {
+        {stats.collectors.filter((c) => !HIDDEN_COLLECTORS.includes(c.source)).map((c) => {
           const healthInfo = health.collectors.find((h) => h.source === c.source);
           const isHealthy = healthInfo?.isHealthy ?? false;
           const countdown = countdowns[c.source] ?? 0;

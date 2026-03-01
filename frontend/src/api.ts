@@ -109,3 +109,6 @@ export const fetchAlertRules = () => get<{ count: number; rules: AlertRule[] }>(
 export const fetchAlerts = () => get<{ count: number; alerts: Alert[] }>('/alerts');
 export const fetchSentimentScores = (limit = 500) =>
   get<{ count: number; scores: SentimentScore[] }>(`/sentiment/scores?limit=${limit}`);
+
+export const fetchAiScores = (limit = 200) =>
+  get<{ count: number; scores: SentimentScore[] }>(`/sentiment/scores?limit=${limit}&ai_only=true`);
