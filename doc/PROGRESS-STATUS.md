@@ -8,7 +8,7 @@
 
 **Faza 2 — Analiza AI sentymentu** (ukończona)
 
-Pełny 2-etapowy pipeline sentymentu działa end-to-end: kolektory zbierają dane → eventy → kolejka BullMQ → FinBERT na GPU (1. etap) → eskalacja do Azure OpenAI gpt-4o-mini (2. etap, ~10-20% tekstów) → wyniki w bazie (z enrichedAnalysis) → alerty na Telegramie (z sekcją AI). Frontend React z dashboardem, wykresem sentymentu (Recharts), zakładką AI Analysis. Baza PostgreSQL z 9 tabelami, Redis dla kolejek. Produkcja na serwerze z NVIDIA CUDA + Azure VM z gpt-4o-mini.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap): Tier 1 (silne: conf>0.7 AND abs>0.5) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 (śmieci) skip. Conviction = sent × rel × nov × auth × conf × mag → alert "High Conviction Signal" (|conv|>1.5) na Telegram z rozkładem wymiarów. Frontend React z dashboardem, wykresem sentymentu (Recharts), zakładką AI Analysis. 8 reguł alertów, 9 tabel PostgreSQL, 6 kolejek Redis.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -66,7 +66,7 @@ Pełny 2-etapowy pipeline sentymentu działa end-to-end: kolektory zbierają dan
 ## Faza 1.5 — Seed + monitoring (ukończona)
 
 - [x] **Seed tickerów** — 27 spółek healthcare z `healthcare-universe.json` (5 ETF-ów osobno)
-- [x] **Seed reguł alertów** — 7 reguł z `healthcare-universe.json`
+- [x] **Seed reguł alertów** — 8 reguł z `healthcare-universe.json` (w tym High Conviction Signal)
 - [x] Komenda `npm run seed` / `docker exec stockpulse-app npm run seed`
 - [x] Weryfikacja kolektorów — dane zbierają się do bazy
 - [x] **Fix alert spam** — naprawiony podwójny trigger Form 4 + minimalny throttle 1 min
@@ -153,6 +153,21 @@ Pełny 2-etapowy pipeline sentymentu działa end-to-end: kolektory zbierają dan
 - [x] **Ukrycie kolektora Reddit** z widoku frontend (placeholder, nie zbiera danych)
 - [x] **Interfejs `EnrichedAnalysis`** w `frontend/src/api.ts` — pełna typizacja 16 pól analizy AI
 
+### Sprint 2f: Tier-based eskalacja AI + High Conviction Signal (ukończony 2026-03-01)
+- [x] **Tier-based eskalacja** w `SentimentProcessorService` — zastąpienie prostej bramki eskalacji (conf<0.6 OR abs<0.3) systemem 3-tierowym:
+  - **Tier 1 (silne)**: confidence > 0.7 AND absScore > 0.5 → ZAWSZE do AI (złote sygnały)
+  - **Tier 2 (średnie)**: confidence > 0.3 OR absScore > 0.2 → do AI jeśli VM aktywna
+  - **Tier 3 (śmieci)**: skip AI, tylko FinBERT
+- [x] **Nowa reguła alertów** "High Conviction Signal" — 8. reguła w healthcare-universe.json
+  - Warunek: |conviction| > 1.5 AND enrichedAnalysis IS NOT NULL
+  - Priorytet: HIGH, throttle: 60 min per ticker
+- [x] **AlertEvaluator rozszerzony** — `onSentimentScored` rozbity na 2 niezależne sprawdzenia (równoległe):
+  - `checkSentimentCrash()` — istniejąca logika (score < -0.5 AND confidence > 0.7)
+  - `checkHighConviction()` — NOWA: |conviction| > 1.5 → alert na Telegram
+- [x] **Format alertu conviction** — `formatConvictionAlert()` z pełnym rozkładem wymiarów:
+  - Conviction score, kierunek (BULLISH/BEARISH), rozkład: sent × rel × nov × auth × conf × mag
+  - FinBERT score/confidence, katalizator, horyzont, wpływ cenowy, pilność, summary
+
 ### Faza 1.6 — Naprawić insider trades parser (priorytet ŚREDNI)
 - [ ] Form 4 XML parsing — wyciąganie shares, pricePerShare, totalValue, transactionType
 - [ ] Aktualne dane mają totalValue=0 i transactionType=UNKNOWN
@@ -232,6 +247,7 @@ npm run test:all
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~60 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
+- **Reguły alertów**: 8 (Sentiment Crash, Mention Volume Spike, Insider Trade Large, 8-K Material Event, Cross-Sector Correlation, CMS Regulatory Event, Earnings Date Approaching, High Conviction Signal)
 - **Encje bazy danych**: 9 tabel (sentiment_scores z enrichedAnalysis jsonb)
 - **Kolejki BullMQ**: 6 (4 kolektory + sentiment-analysis + alerts)
 - **Endpointy REST**: 12 (health x2, tickers x2, sentiment x5 + ai_only, alerts x2)

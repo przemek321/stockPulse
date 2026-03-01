@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StockPulse to system analizy sentymentu rynku akcji w czasie rzeczywistym z alertami, skupiony na sektorze healthcare. Monitoruje media społecznościowe (Reddit, StockTwits), dane finansowe (Finnhub), zgłoszenia SEC (EDGAR) i wysyła alerty przez Telegram.
 
-**Aktualny stan projektu**: Faza 2 — Analiza AI sentymentu (ukończona). Pełny 2-etapowy pipeline: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → Azure OpenAI gpt-4o-mini na VM (2. etap, eskalacja ~10-20%) → wyniki w bazie (z enrichedAnalysis) → alerty Telegram (z sekcją AI). Frontend z wykresem sentymentu, zakładką AI Analysis i ukrytym Redditem. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
+**Aktualny stan projektu**: Faza 2 — Analiza AI sentymentu (ukończona). 2-etapowy pipeline z tier-based eskalacją: kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier(confidence, absScore) → Tier 1 (silne) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 skip → Azure OpenAI gpt-4o-mini na VM (2. etap) → conviction = sent × rel × nov × auth × conf × mag → alerty Telegram (Sentiment Crash + High Conviction Signal). Frontend z wykresem sentymentu, zakładką AI Analysis. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
 
 ## Komendy (Makefile — autodetekcja środowiska)
 
@@ -67,9 +67,13 @@ npm run test:all
 Działający system end-to-end w 6 kontenerach Docker:
 
 1. **Warstwa zbierania danych** — 3 aktywne kolektory (StockTwits co 5 min, Finnhub co 10 min, SEC EDGAR co 30 min) + Reddit placeholder. Eventy `NEW_MENTION` / `NEW_ARTICLE` przez EventEmitter2.
-2. **Warstwa AI** — 2-etapowy pipeline:
+2. **Warstwa AI** — 2-etapowy pipeline z tier-based eskalacją:
    - **1. etap**: FinBERT sidecar (ProsusAI/finbert, GPU) — szybka analiza lokalna (~67ms)
-   - **2. etap**: Azure OpenAI gpt-4o-mini (eskalacja gdy confidence < 0.6 lub |score| < 0.3) — wzbogacona analiza z conviction, catalyst_type, price_impact itp.
+   - **Tier-based eskalacja** (classifyTier na confidence + absScore):
+     - Tier 1 (silne): conf > 0.7 AND abs > 0.5 → ZAWSZE do AI (złote sygnały)
+     - Tier 2 (średnie): conf > 0.3 OR abs > 0.2 → do AI jeśli VM aktywna
+     - Tier 3 (śmieci): skip AI, tylko FinBERT
+   - **2. etap**: Azure OpenAI gpt-4o-mini → wielowymiarowa analiza (relevance, novelty, source_authority, confidence, catalyst_type, price_impact) → conviction = sent × rel × nov × auth × conf × mag
    - Azure VM (`stockpulse-vm`, 74.248.113.3:3100) — processor.js (POST /analyze) + api.js (:8000)
    - BullMQ kolejka `sentiment-analysis`. Wyniki w `sentiment_scores` z enrichedAnalysis (jsonb).
 3. **Warstwa danych** — PostgreSQL z 9 tabelami, Redis dla 6 kolejek BullMQ. TypeORM z `synchronize: true`.
@@ -95,7 +99,7 @@ Działający system end-to-end w 6 kontenerach Docker:
 
 ### Healthcare Universe
 
-[doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) definiuje zakres monitoringu: 27 tickerów healthcare (wg podsektora), 180+ słów kluczowych, 18 subredditów i 7 reguł alertów z priorytetami.
+[doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) definiuje zakres monitoringu: 27 tickerów healthcare (wg podsektora), 180+ słów kluczowych, 18 subredditów i 8 reguł alertów z priorytetami (w tym High Conviction Signal).
 
 ### Dokumentacja szczegółowa
 
