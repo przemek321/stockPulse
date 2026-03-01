@@ -22,7 +22,7 @@ const MIN_TEXT_LENGTH = 20;
 /**
  * Progi tier-based eskalacji do LLM (2. etap pipeline).
  * Tier 1 (silne): confidence > 0.7 AND absScore > 0.5 → ZAWSZE do AI (złote sygnały)
- * Tier 2 (średnie): confidence > 0.3 OR absScore > 0.2 → do AI jeśli VM aktywna
+ * Tier 2 (średnie): confidence > 0.3 AND absScore > 0.2 → do AI jeśli VM aktywna
  * Tier 3 (śmieci): reszta → skip AI, tylko FinBERT
  */
 const TIER1_MIN_CONFIDENCE = 0.7;
@@ -45,7 +45,7 @@ interface SentimentJobData {
  * 1. FinBERT sidecar — szybka analiza lokalna (GPU)
  * 2. Azure OpenAI gpt-4o-mini — tier-based eskalacja:
  *    - Tier 1 (silne): conf > 0.7 AND absScore > 0.5 → ZAWSZE do AI
- *    - Tier 2 (średnie): conf > 0.3 OR absScore > 0.2 → do AI jeśli VM aktywna
+ *    - Tier 2 (średnie): conf > 0.3 AND absScore > 0.2 → do AI jeśli VM aktywna
  *    - Tier 3 (śmieci): skip AI, tylko FinBERT
  *
  * Wynik zapisywany do sentiment_scores z opcjonalnym enrichedAnalysis (jsonb).
@@ -190,7 +190,7 @@ export class SentimentProcessorService extends WorkerHost {
     }
 
     if (
-      result.confidence > TIER2_MIN_CONFIDENCE ||
+      result.confidence > TIER2_MIN_CONFIDENCE &&
       absScore > TIER2_MIN_ABS_SCORE
     ) {
       return {
