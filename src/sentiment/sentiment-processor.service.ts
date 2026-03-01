@@ -19,9 +19,16 @@ import { DataSource } from '../common/interfaces/data-source.enum';
 /** Minimalna długość tekstu do analizy sentymentu (krótsze = szum) */
 const MIN_TEXT_LENGTH = 20;
 
-/** Progi eskalacji do LLM (2. etap pipeline) */
-const LLM_ESCALATION_MIN_CONFIDENCE = 0.6;
-const LLM_ESCALATION_MAX_ABS_SCORE = 0.3;
+/**
+ * Progi tier-based eskalacji do LLM (2. etap pipeline).
+ * Tier 1 (silne): confidence > 0.7 AND absScore > 0.5 → ZAWSZE do AI (złote sygnały)
+ * Tier 2 (średnie): confidence > 0.3 OR absScore > 0.2 → do AI jeśli VM aktywna
+ * Tier 3 (śmieci): reszta → skip AI, tylko FinBERT
+ */
+const TIER1_MIN_CONFIDENCE = 0.7;
+const TIER1_MIN_ABS_SCORE = 0.5;
+const TIER2_MIN_CONFIDENCE = 0.3;
+const TIER2_MIN_ABS_SCORE = 0.2;
 
 /** Dane jobu w kolejce sentiment-analysis */
 interface SentimentJobData {
@@ -34,9 +41,12 @@ interface SentimentJobData {
 /**
  * BullMQ processor dla kolejki sentiment-analysis.
  *
- * 2-etapowy pipeline:
+ * 2-etapowy pipeline z tier-based eskalacją:
  * 1. FinBERT sidecar — szybka analiza lokalna (GPU)
- * 2. Azure OpenAI gpt-4o-mini — eskalacja gdy FinBERT niepewny (confidence < 0.6 lub |score| < 0.3)
+ * 2. Azure OpenAI gpt-4o-mini — tier-based eskalacja:
+ *    - Tier 1 (silne): conf > 0.7 AND absScore > 0.5 → ZAWSZE do AI
+ *    - Tier 2 (średnie): conf > 0.3 OR absScore > 0.2 → do AI jeśli VM aktywna
+ *    - Tier 3 (śmieci): skip AI, tylko FinBERT
  *
  * Wynik zapisywany do sentiment_scores z opcjonalnym enrichedAnalysis (jsonb).
  */
@@ -83,31 +93,37 @@ export class SentimentProcessorService extends WorkerHost {
     // 1. etap: FinBERT (szybka analiza lokalna)
     const result = await this.finbert.analyze(textData.text);
 
-    // 2. etap: Eskalacja do LLM jeśli FinBERT niepewny
+    // 2. etap: Tier-based eskalacja do LLM
     let enrichedAnalysis: EnrichedAnalysis | null = null;
     let finalModel = 'finbert';
 
-    const escalationReason = this.checkEscalation(result);
-    if (escalationReason && this.azureOpenai.isEnabled()) {
+    const { tier, reason } = this.classifyTier(result);
+    const shouldEscalate =
+      tier === 1 || (tier === 2 && this.azureOpenai.isEnabled());
+
+    if (shouldEscalate && this.azureOpenai.isEnabled()) {
       this.logger.debug(
-        `Eskalacja do LLM: ${symbol} (${escalationReason}) — ` +
-          `score=${result.score.toFixed(3)}, confidence=${result.confidence.toFixed(3)}`,
+        `Eskalacja do LLM (tier ${tier}): ${symbol} — ${reason}`,
       );
 
       enrichedAnalysis = await this.azureOpenai.analyze(
         textData.text.substring(0, 500),
         symbol,
-        escalationReason,
+        reason,
       );
 
       if (enrichedAnalysis) {
         finalModel = 'finbert+gpt-4o-mini';
         this.logger.debug(
-          `LLM wynik ${symbol}: sentiment=${enrichedAnalysis.sentiment}, ` +
+          `Analiza AI ${symbol}: sentiment=${enrichedAnalysis.sentiment}, ` +
             `conviction=${enrichedAnalysis.conviction}, ` +
             `czas=${enrichedAnalysis.processing_time_ms}ms`,
         );
       }
+    } else if (tier === 3) {
+      this.logger.debug(
+        `Skip AI (tier 3): ${symbol} — ${reason}`,
+      );
     }
 
     // Zapisz wynik do sentiment_scores
@@ -153,17 +169,40 @@ export class SentimentProcessorService extends WorkerHost {
   }
 
   /**
-   * Sprawdza czy wynik FinBERT wymaga eskalacji do LLM.
-   * Zwraca powód eskalacji lub null jeśli nie trzeba.
+   * Klasyfikuje wynik FinBERT do jednego z 3 tierów eskalacji.
+   * Tier 1: silne sygnały (złote) — ZAWSZE do AI
+   * Tier 2: średnie — do AI jeśli VM aktywna
+   * Tier 3: śmieci — skip AI
    */
-  private checkEscalation(result: FinbertResult): string | null {
-    if (result.confidence < LLM_ESCALATION_MIN_CONFIDENCE) {
-      return `low_confidence (${result.confidence.toFixed(3)})`;
+  private classifyTier(
+    result: FinbertResult,
+  ): { tier: 1 | 2 | 3; reason: string } {
+    const absScore = Math.abs(result.score);
+
+    if (
+      result.confidence > TIER1_MIN_CONFIDENCE &&
+      absScore > TIER1_MIN_ABS_SCORE
+    ) {
+      return {
+        tier: 1,
+        reason: `strong_signal (confidence=${result.confidence.toFixed(3)}, absScore=${absScore.toFixed(3)})`,
+      };
     }
-    if (Math.abs(result.score) < LLM_ESCALATION_MAX_ABS_SCORE) {
-      return `undecided_score (${result.score.toFixed(3)})`;
+
+    if (
+      result.confidence > TIER2_MIN_CONFIDENCE ||
+      absScore > TIER2_MIN_ABS_SCORE
+    ) {
+      return {
+        tier: 2,
+        reason: `medium_signal (confidence=${result.confidence.toFixed(3)}, absScore=${absScore.toFixed(3)})`,
+      };
     }
-    return null;
+
+    return {
+      tier: 3,
+      reason: `junk (confidence=${result.confidence.toFixed(3)}, absScore=${absScore.toFixed(3)})`,
+    };
   }
 
   /**

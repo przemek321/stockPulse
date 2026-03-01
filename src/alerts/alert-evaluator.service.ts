@@ -111,7 +111,9 @@ export class AlertEvaluatorService {
 
   /**
    * Reaguje na wynik analizy sentymentu.
-   * Alert gdy score < -0.5 i confidence > 0.7 (silny negatywny sygnał).
+   * Sprawdza dwa niezależne warunki:
+   * 1. Sentiment Crash: score < -0.5 AND confidence > 0.7
+   * 2. High Conviction Signal: |conviction| > 1.5
    */
   @OnEvent(EventType.SENTIMENT_SCORED)
   async onSentimentScored(payload: {
@@ -125,7 +127,23 @@ export class AlertEvaluatorService {
     conviction: number | null;
     enrichedAnalysis: Record<string, any> | null;
   }): Promise<void> {
-    // Tylko silne negatywne sygnały z wysoką pewnością
+    await Promise.all([
+      this.checkSentimentCrash(payload),
+      this.checkHighConviction(payload),
+    ]);
+  }
+
+  /**
+   * Sprawdza regułę "Sentiment Crash" — silny negatywny sygnał.
+   */
+  private async checkSentimentCrash(payload: {
+    symbol: string;
+    score: number;
+    confidence: number;
+    source: string;
+    model: string;
+    enrichedAnalysis: Record<string, any> | null;
+  }): Promise<void> {
     if (payload.score >= -0.5 || payload.confidence < 0.7) return;
 
     this.logger.debug(
@@ -153,6 +171,52 @@ export class AlertEvaluatorService {
       sentimentScore: payload.score,
       details: `Model: ${payload.model}, Źródło: ${payload.source}, Confidence: ${payload.confidence.toFixed(2)}`,
       enrichedAnalysis: payload.enrichedAnalysis,
+    });
+
+    await this.sendAlert(payload.symbol, rule, message);
+  }
+
+  /**
+   * Sprawdza regułę "High Conviction Signal" — |conviction| > 1.5.
+   * Wymaga enrichedAnalysis (wynik 2-etapowej analizy AI).
+   */
+  private async checkHighConviction(payload: {
+    symbol: string;
+    score: number;
+    confidence: number;
+    source: string;
+    conviction: number | null;
+    enrichedAnalysis: Record<string, any> | null;
+  }): Promise<void> {
+    if (payload.conviction == null || Math.abs(payload.conviction) < 1.5) {
+      return;
+    }
+
+    this.logger.debug(
+      `High conviction: ${payload.symbol} conviction=${payload.conviction}`,
+    );
+
+    const ruleName = 'High Conviction Signal';
+    const rule = await this.ruleRepo.findOne({
+      where: { name: ruleName, isActive: true },
+    });
+    if (!rule) return;
+
+    const isThrottled = await this.isThrottled(
+      rule.name,
+      payload.symbol,
+      rule.throttleMinutes,
+    );
+    if (isThrottled) return;
+
+    const message = this.formatter.formatConvictionAlert({
+      symbol: payload.symbol,
+      priority: rule.priority,
+      conviction: payload.conviction,
+      finbertScore: payload.score,
+      finbertConfidence: payload.confidence,
+      source: payload.source,
+      enrichedAnalysis: payload.enrichedAnalysis!,
     });
 
     await this.sendAlert(payload.symbol, rule, message);

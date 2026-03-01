@@ -733,6 +733,12 @@
         "condition": "days_to_earnings <= 3",
         "priority": "MEDIUM",
         "throttle_minutes": 1440
+      },
+      {
+        "name": "High Conviction Signal",
+        "condition": "abs(conviction) > 1.5 AND enrichedAnalysis IS NOT NULL",
+        "priority": "HIGH",
+        "throttle_minutes": 60
       }
     ]
   },
