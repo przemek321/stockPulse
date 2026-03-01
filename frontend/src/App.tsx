@@ -1,4 +1,7 @@
-import { Box, Container, Typography, Chip, Divider } from '@mui/material';
+import { useState } from 'react';
+import { Box, Container, Typography, Chip, Divider, Dialog, DialogTitle, DialogContent, IconButton } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CloseIcon from '@mui/icons-material/Close';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import NewspaperIcon from '@mui/icons-material/Newspaper';
 import GavelIcon from '@mui/icons-material/Gavel';
@@ -15,6 +18,65 @@ import DbSummary from './components/DbSummary';
 import SentimentChart from './components/SentimentChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs } from './api';
+
+/** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
+const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <>
+      <span
+        onClick={() => setOpen(true)}
+        style={{ cursor: 'pointer', fontSize: '0.7rem', color, textDecoration: 'underline dotted' }}
+      >
+        {label}
+      </span>
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          Szczegóły
+          <Box>
+            <IconButton size="small" onClick={handleCopy} title="Kopiuj do schowka">
+              <ContentCopyIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => setOpen(false)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {copied && (
+            <Typography variant="caption" sx={{ color: '#66bb6a', mb: 1, display: 'block' }}>
+              Skopiowano!
+            </Typography>
+          )}
+          <Box
+            sx={{
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              bgcolor: '#1a1a2e',
+              p: 2,
+              borderRadius: 1,
+              maxHeight: '60vh',
+              overflow: 'auto',
+              userSelect: 'text',
+            }}
+          >
+            {text}
+          </Box>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
 
 /** Formatowanie daty do czytelnej formy */
 const fmtDate = (v: string | null) =>
@@ -250,11 +312,10 @@ export default function App() {
           {
             key: 'inputText',
             label: 'Tekst',
-            render: (v: string | null) => (
-              <span title={v || ''} style={{ cursor: 'help', fontSize: '0.7rem', color: '#b0bec5' }}>
-                {v?.slice(0, 60) || '—'}{v && v.length > 60 ? '…' : ''}
-              </span>
-            ),
+            render: (v: string | null) => {
+              if (!v) return '—';
+              return <TextDialog label={`${v.slice(0, 50)}${v.length > 50 ? '…' : ''}`} text={v} color="#b0bec5" />;
+            },
           },
           {
             key: 'pdufaContext',
@@ -278,11 +339,7 @@ export default function App() {
             render: (_: any, row: any) => {
               const prompt = row.responsePayload?.prompt_used;
               if (!prompt) return '—';
-              return (
-                <span title={prompt} style={{ cursor: 'help', fontSize: '0.7rem', color: '#80cbc4' }}>
-                  {prompt.slice(0, 60)}…
-                </span>
-              );
+              return <TextDialog label={`${prompt.slice(0, 50)}…`} text={prompt} />;
             },
           },
           {
@@ -298,12 +355,10 @@ export default function App() {
           {
             key: 'errorMessage',
             label: 'Błąd',
-            render: (v: string | null) =>
-              v ? (
-                <span title={v} style={{ color: '#ef5350', cursor: 'help', fontSize: '0.7rem' }}>
-                  {v.slice(0, 40)}…
-                </span>
-              ) : '—',
+            render: (v: string | null) => {
+              if (!v) return '—';
+              return <TextDialog label={`${v.slice(0, 35)}…`} text={v} color="#ef5350" />;
+            },
           },
           {
             key: 'createdAt',
