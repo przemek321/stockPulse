@@ -379,6 +379,11 @@ export default function App() {
           },
           { key: 'channel', label: 'Kanał' },
           {
+            key: 'catalystType',
+            label: 'Katalizator',
+            render: (v: string | null) => v || '—',
+          },
+          {
             key: 'message',
             label: 'Wiadomość',
             render: (v: string) => v?.slice(0, 100) || '—',
@@ -399,7 +404,6 @@ export default function App() {
       <DataPanel
         title="Reguły alertów"
         icon={<RuleIcon color="info" />}
-        badge={7}
         badgeColor="info"
         columns={[
           { key: 'name', label: 'Nazwa' },

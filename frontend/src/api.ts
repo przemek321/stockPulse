@@ -65,6 +65,7 @@ export interface Alert {
   priority: string;
   channel: string;
   message: string;
+  catalystType: string | null;
   delivered: boolean;
   sentAt: string;
 }
