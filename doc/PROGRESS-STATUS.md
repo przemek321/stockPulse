@@ -6,9 +6,9 @@
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona)
+**Faza 2 — Analiza AI sentymentu** (ukończona, tuning w Sprint 3a)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap): Tier 1 (silne: conf>0.7 AND abs>0.5) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 (śmieci) skip. Conviction = sent × rel × nov × auth × conf × mag → alert "High Conviction Signal" (|conv|>1.5) na Telegram z rozkładem wymiarów. Frontend React z dashboardem, wykresem sentymentu (Recharts), zakładką AI Analysis. 8 reguł alertów, 9 tabel PostgreSQL, 6 kolejek Redis.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap): Tier 1 (silne: conf>0.7 AND abs>0.5) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 (śmieci) skip. Conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0]) → alerty: "High Conviction Signal" (|conv|>1.5) + "Strong FinBERT Signal" (fallback bez VM). Throttling per (rule, symbol, catalyst_type). Frontend React z dashboardem, wykresem sentymentu (Recharts), zakładką AI Analysis. 9 reguł alertów, 9 tabel PostgreSQL, 6 kolejek Redis.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -66,7 +66,7 @@ Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → even
 ## Faza 1.5 — Seed + monitoring (ukończona)
 
 - [x] **Seed tickerów** — 27 spółek healthcare z `healthcare-universe.json` (5 ETF-ów osobno)
-- [x] **Seed reguł alertów** — 8 reguł z `healthcare-universe.json` (w tym High Conviction Signal)
+- [x] **Seed reguł alertów** — 9 reguł z `healthcare-universe.json` (w tym High Conviction Signal + Strong FinBERT Signal)
 - [x] Komenda `npm run seed` / `docker exec stockpulse-app npm run seed`
 - [x] Weryfikacja kolektorów — dane zbierają się do bazy
 - [x] **Fix alert spam** — naprawiony podwójny trigger Form 4 + minimalny throttle 1 min
@@ -158,19 +158,36 @@ Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → even
   - **Tier 1 (silne)**: confidence > 0.7 AND absScore > 0.5 → ZAWSZE do AI (złote sygnały)
   - **Tier 2 (średnie)**: confidence > 0.3 OR absScore > 0.2 → do AI jeśli VM aktywna
   - **Tier 3 (śmieci)**: skip AI, tylko FinBERT
-- [x] **Nowa reguła alertów** "High Conviction Signal" — 8. reguła w healthcare-universe.json
+- [x] **Nowa reguła alertów** "High Conviction Signal" — reguła w healthcare-universe.json
   - Warunek: |conviction| > 1.5 AND enrichedAnalysis IS NOT NULL
-  - Priorytet: HIGH, throttle: 60 min per ticker
-- [x] **AlertEvaluator rozszerzony** — `onSentimentScored` rozbity na 2 niezależne sprawdzenia (równoległe):
-  - `checkSentimentCrash()` — istniejąca logika (score < -0.5 AND confidence > 0.7)
-  - `checkHighConviction()` — NOWA: |conviction| > 1.5 → alert na Telegram
-- [x] **Format alertu conviction** — `formatConvictionAlert()` z pełnym rozkładem wymiarów:
-  - Conviction score, kierunek (BULLISH/BEARISH), rozkład: sent × rel × nov × auth × conf × mag
-  - FinBERT score/confidence, katalizator, horyzont, wpływ cenowy, pilność, summary
+  - Priorytet: HIGH, throttle: 60 min per (ticker, catalyst_type)
+- [x] **AlertEvaluator rozszerzony** — `onSentimentScored` rozbity na 3 niezależne sprawdzenia (równoległe):
+  - `checkSentimentCrash()` — score < -0.5 AND confidence > 0.7
+  - `checkHighConviction()` — |conviction| > 1.5 → alert na Telegram
+  - `checkStrongFinbert()` — fallback: |score| > 0.7 AND conf > 0.8 AND brak AI → alert "(unconfirmed)"
+- [x] **Format alertu conviction** — uproszczony `formatConvictionAlert()`:
+  - Conviction score, kierunek (BULLISH/BEARISH), katalizator, summary, źródło (bez rozkładu wymiarów)
 
-### Faza 1.6 — Naprawić insider trades parser (priorytet ŚREDNI)
-- [ ] Form 4 XML parsing — wyciąganie shares, pricePerShare, totalValue, transactionType
-- [ ] Aktualne dane mają totalValue=0 i transactionType=UNKNOWN
+### Faza 1.6 — Insider trades parser (ukończona)
+- [x] Form 4 XML parsing — wyciąganie shares, pricePerShare, totalValue, transactionType
+- [x] Pełne dane z SEC EDGAR: nazwa insidera, rola, typ transakcji, wartość, liczba akcji
+- [x] Alert insider trade z danymi z Form 4 XML
+
+### Sprint 3a: Tuning conviction + alertów (ukończony 2026-03-01)
+- [x] **Rebalans magnitude_multiplier** — zmiana z {low:1, med:2, high:3} na {low:1, med:1.5, high:2.0}
+  - Conviction range: [-3.0, +3.0] → [-2.0, +2.0], próg alertu |conv|>1.5 bez zmian
+  - Zmiana w `azure-api/processor.js` (Azure VM) + `telegram-formatter.service.ts`
+- [x] **Throttling per catalyst_type** — throttle per (rule, symbol, catalyst_type) zamiast per (rule, symbol)
+  - Nowa kolumna `catalystType` w `Alert` entity (TypeORM auto-sync)
+  - FDA i earnings dla tego samego tickera nie blokują się wzajemnie
+  - Insider trade / filing — throttle per (rule, symbol) jak dotąd
+- [x] **Fallback "Strong FinBERT Signal"** gdy VM offline — 9. reguła alertów
+  - Warunek: model=finbert AND |score|>0.7 AND confidence>0.8 AND brak conviction (brak AI)
+  - Format: kierunek, FinBERT score/confidence, etykieta "(unconfirmed)"
+  - Priorytet: HIGH, throttle: 60 min
+- [x] **Uproszczenie formatu Telegram conviction** — usunięto rozkład wymiarów (sent×rel×nov×auth×conf×mag)
+  - Nowy format: kierunek + conviction + katalizator + summary + źródło (~50% mniej tekstu)
+- [x] **Frontend** — kolumna Katalizator w tabeli alertów, dynamiczny badge reguł (bez hardcode)
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
@@ -247,7 +264,7 @@ npm run test:all
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~60 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
-- **Reguły alertów**: 8 (Sentiment Crash, Mention Volume Spike, Insider Trade Large, 8-K Material Event, Cross-Sector Correlation, CMS Regulatory Event, Earnings Date Approaching, High Conviction Signal)
+- **Reguły alertów**: 9 (Sentiment Crash, Mention Volume Spike, Insider Trade Large, 8-K Material Event, Cross-Sector Correlation, CMS Regulatory Event, Earnings Date Approaching, High Conviction Signal, Strong FinBERT Signal)
 - **Encje bazy danych**: 9 tabel (sentiment_scores z enrichedAnalysis jsonb)
 - **Kolejki BullMQ**: 6 (4 kolektory + sentiment-analysis + alerts)
 - **Endpointy REST**: 12 (health x2, tickers x2, sentiment x5 + ai_only, alerts x2)
