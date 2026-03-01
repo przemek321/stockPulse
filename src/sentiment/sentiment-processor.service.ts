@@ -9,11 +9,19 @@ import { EventType } from '../events/event-types';
 import { SentimentScore } from '../entities/sentiment-score.entity';
 import { RawMention } from '../entities/raw-mention.entity';
 import { NewsArticle } from '../entities/news-article.entity';
-import { FinbertClientService } from './finbert-client.service';
+import { FinbertClientService, FinbertResult } from './finbert-client.service';
+import {
+  AzureOpenaiClientService,
+  EnrichedAnalysis,
+} from './azure-openai-client.service';
 import { DataSource } from '../common/interfaces/data-source.enum';
 
 /** Minimalna długość tekstu do analizy sentymentu (krótsze = szum) */
 const MIN_TEXT_LENGTH = 20;
+
+/** Progi eskalacji do LLM (2. etap pipeline) */
+const LLM_ESCALATION_MIN_CONFIDENCE = 0.6;
+const LLM_ESCALATION_MAX_ABS_SCORE = 0.3;
 
 /** Dane jobu w kolejce sentiment-analysis */
 interface SentimentJobData {
@@ -25,8 +33,12 @@ interface SentimentJobData {
 
 /**
  * BullMQ processor dla kolejki sentiment-analysis.
- * Pobiera tekst z RawMention lub NewsArticle, wysyła do FinBERT sidecar,
- * zapisuje wynik do sentiment_scores i emituje event SENTIMENT_SCORED.
+ *
+ * 2-etapowy pipeline:
+ * 1. FinBERT sidecar — szybka analiza lokalna (GPU)
+ * 2. Azure OpenAI gpt-4o-mini — eskalacja gdy FinBERT niepewny (confidence < 0.6 lub |score| < 0.3)
+ *
+ * Wynik zapisywany do sentiment_scores z opcjonalnym enrichedAnalysis (jsonb).
  */
 @Processor(QUEUE_NAMES.SENTIMENT)
 export class SentimentProcessorService extends WorkerHost {
@@ -34,6 +46,7 @@ export class SentimentProcessorService extends WorkerHost {
 
   constructor(
     private readonly finbert: FinbertClientService,
+    private readonly azureOpenai: AzureOpenaiClientService,
     @InjectRepository(SentimentScore)
     private readonly sentimentRepo: Repository<SentimentScore>,
     @InjectRepository(RawMention)
@@ -67,8 +80,35 @@ export class SentimentProcessorService extends WorkerHost {
       return null;
     }
 
-    // Wyślij do FinBERT
+    // 1. etap: FinBERT (szybka analiza lokalna)
     const result = await this.finbert.analyze(textData.text);
+
+    // 2. etap: Eskalacja do LLM jeśli FinBERT niepewny
+    let enrichedAnalysis: EnrichedAnalysis | null = null;
+    let finalModel = 'finbert';
+
+    const escalationReason = this.checkEscalation(result);
+    if (escalationReason && this.azureOpenai.isEnabled()) {
+      this.logger.debug(
+        `Eskalacja do LLM: ${symbol} (${escalationReason}) — ` +
+          `score=${result.score.toFixed(3)}, confidence=${result.confidence.toFixed(3)}`,
+      );
+
+      enrichedAnalysis = await this.azureOpenai.analyze(
+        textData.text.substring(0, 500),
+        symbol,
+        escalationReason,
+      );
+
+      if (enrichedAnalysis) {
+        finalModel = 'finbert+gpt-4o-mini';
+        this.logger.debug(
+          `LLM wynik ${symbol}: sentiment=${enrichedAnalysis.sentiment}, ` +
+            `conviction=${enrichedAnalysis.conviction}, ` +
+            `czas=${enrichedAnalysis.processing_time_ms}ms`,
+        );
+      }
+    }
 
     // Zapisz wynik do sentiment_scores
     const sentimentScore = this.sentimentRepo.create({
@@ -76,9 +116,10 @@ export class SentimentProcessorService extends WorkerHost {
       score: result.score,
       confidence: result.confidence,
       source,
-      model: 'finbert',
+      model: finalModel,
       rawText: textData.text.substring(0, 500),
       externalId: textData.externalId,
+      enrichedAnalysis,
     });
 
     const saved = await this.sentimentRepo.save(sentimentScore);
@@ -98,14 +139,31 @@ export class SentimentProcessorService extends WorkerHost {
       confidence: result.confidence,
       label: result.label,
       source,
-      model: 'finbert',
+      model: finalModel,
+      conviction: enrichedAnalysis?.conviction ?? null,
+      enrichedAnalysis: enrichedAnalysis ?? null,
     });
 
     this.logger.debug(
-      `Sentyment ${symbol}: ${result.score.toFixed(3)} (${result.label}, confidence: ${result.confidence.toFixed(3)})`,
+      `Sentyment ${symbol}: ${result.score.toFixed(3)} ` +
+        `(${result.label}, confidence: ${result.confidence.toFixed(3)}, model: ${finalModel})`,
     );
 
     return saved;
+  }
+
+  /**
+   * Sprawdza czy wynik FinBERT wymaga eskalacji do LLM.
+   * Zwraca powód eskalacji lub null jeśli nie trzeba.
+   */
+  private checkEscalation(result: FinbertResult): string | null {
+    if (result.confidence < LLM_ESCALATION_MIN_CONFIDENCE) {
+      return `low_confidence (${result.confidence.toFixed(3)})`;
+    }
+    if (Math.abs(result.score) < LLM_ESCALATION_MAX_ABS_SCORE) {
+      return `undecided_score (${result.score.toFixed(3)})`;
+    }
+    return null;
   }
 
   /**

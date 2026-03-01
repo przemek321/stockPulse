@@ -69,6 +69,25 @@ export interface Alert {
   sentAt: string;
 }
 
+export interface EnrichedAnalysis {
+  ticker: string;
+  type: string;
+  sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  urgency: 'HIGH' | 'MEDIUM' | 'LOW';
+  summary: string;
+  relevance: number;
+  novelty: number;
+  confidence: number;
+  source_authority: number;
+  temporal_signal: 'immediate' | 'short_term' | 'medium_term';
+  catalyst_type: string;
+  price_impact_direction: 'positive' | 'negative' | 'neutral';
+  price_impact_magnitude: 'low' | 'medium' | 'high';
+  conviction: number;
+  escalation_reason: string;
+  processing_time_ms: number;
+}
+
 export interface SentimentScore {
   id: number;
   symbol: string;
@@ -78,6 +97,7 @@ export interface SentimentScore {
   model: string;
   rawText: string;
   externalId: string;
+  enrichedAnalysis: EnrichedAnalysis | null;
   timestamp: string;
 }
 

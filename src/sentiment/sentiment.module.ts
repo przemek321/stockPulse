@@ -6,16 +6,18 @@ import { SentimentScore } from '../entities/sentiment-score.entity';
 import { RawMention } from '../entities/raw-mention.entity';
 import { NewsArticle } from '../entities/news-article.entity';
 import { FinbertClientService } from './finbert-client.service';
+import { AzureOpenaiClientService } from './azure-openai-client.service';
 import { SentimentListenerService } from './sentiment-listener.service';
 import { SentimentProcessorService } from './sentiment-processor.service';
 
 /**
  * Moduł analizy sentymentu.
  *
- * Odpowiada za pipeline: event z kolektora → BullMQ → FinBERT sidecar → zapis do bazy.
+ * 2-etapowy pipeline: event z kolektora → BullMQ → FinBERT sidecar → [eskalacja LLM] → zapis do bazy.
  *
  * Serwisy:
- * - FinbertClientService — HTTP klient do FinBERT sidecar (Python FastAPI)
+ * - FinbertClientService — HTTP klient do FinBERT sidecar (1. etap: szybka analiza)
+ * - AzureOpenaiClientService — klient Azure OpenAI gpt-4o-mini (2. etap: niuansowa analiza)
  * - SentimentListenerService — nasłuchuje eventów NEW_MENTION/NEW_ARTICLE
  * - SentimentProcessorService — BullMQ processor kolejki sentiment-analysis
  */
@@ -26,9 +28,10 @@ import { SentimentProcessorService } from './sentiment-processor.service';
   ],
   providers: [
     FinbertClientService,
+    AzureOpenaiClientService,
     SentimentListenerService,
     SentimentProcessorService,
   ],
-  exports: [FinbertClientService],
+  exports: [FinbertClientService, AzureOpenaiClientService],
 })
 export class SentimentModule {}

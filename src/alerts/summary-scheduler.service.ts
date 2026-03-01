@@ -71,6 +71,13 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         where: { sentAt: MoreThan(since) },
       });
 
+      // Liczba eskalacji do AI (model zawiera gpt-4o-mini)
+      const aiEscalated = await this.sentimentRepo
+        .createQueryBuilder('s')
+        .where('s.timestamp > :since', { since })
+        .andWhere("s.model LIKE '%gpt-4o-mini%'")
+        .getCount();
+
       // Top 3 negatywne tickery
       const negative = await this.sentimentRepo
         .createQueryBuilder('s')
@@ -95,7 +102,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .limit(3)
         .getRawMany();
 
-      const message = this.formatSummary(total, avgScore, alertCount, negative, positive);
+      const message = this.formatSummary(total, avgScore, alertCount, aiEscalated, negative, positive);
       const sent = await this.telegram.sendMarkdown(message);
 
       if (sent) {
@@ -115,6 +122,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     total: number,
     avgScore: number,
     alertCount: number,
+    aiEscalated: number,
     negative: { symbol: string; avg: string }[],
     positive: { symbol: string; avg: string }[],
   ): string {
@@ -128,6 +136,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       `• Nowych analiz: ${esc(String(total))}`,
       `• Średni score: ${esc(avgScore.toFixed(2))}`,
       `• Alertów: ${esc(String(alertCount))}`,
+      `• 🤖 Eskalacji AI: ${esc(String(aiEscalated))}`,
     ];
 
     if (negative.length > 0) {

@@ -45,6 +45,15 @@ export class SentimentScore {
   @Column({ length: 100, nullable: true })
   externalId: string;
 
+  /**
+   * Wzbogacona analiza z LLM (gpt-4o-mini).
+   * Nullable — wypełniane tylko gdy tekst przeszedł eskalację do 2. etapu pipeline.
+   * Zawiera: sentiment, urgency, relevance, novelty, confidence, source_authority,
+   * conviction, catalyst_type, price_impact, summary, escalation_reason.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  enrichedAnalysis: Record<string, any> | null;
+
   /** Timestamp pomiaru — klucz partycjonowania TimescaleDB */
   @Index()
   @CreateDateColumn()

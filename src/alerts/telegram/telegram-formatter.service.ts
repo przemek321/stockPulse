@@ -16,12 +16,13 @@ export class TelegramFormatterService {
     ruleName: string;
     sentimentScore: number;
     details?: string;
+    enrichedAnalysis?: Record<string, any> | null;
   }): string {
     const icon = this.priorityIcon(data.priority);
     const score = data.sentimentScore.toFixed(2);
     const timestamp = this.escapeMarkdown(new Date().toISOString());
 
-    return [
+    const lines = [
       `${icon} *StockPulse Alert*`,
       '',
       `*${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} ${this.escapeMarkdown(data.ruleName)}`,
@@ -29,11 +30,40 @@ export class TelegramFormatterService {
       `📊 *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
       `• Sentiment: ${this.escapeMarkdown(score)}`,
       data.details ? `• ${this.escapeMarkdown(data.details)}` : '',
-      '',
-      `⏰ ${timestamp}`,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    ];
+
+    // Sekcja AI — jeśli tekst był eskalowany do gpt-4o-mini
+    if (data.enrichedAnalysis) {
+      const ea = data.enrichedAnalysis;
+      lines.push('');
+      lines.push('🤖 *Analiza AI \\(gpt\\-4o\\-mini\\):*');
+      if (ea.sentiment) {
+        const conv = ea.conviction != null ? `, conviction: ${this.escapeMarkdown(String(ea.conviction))}` : '';
+        lines.push(`• Sentyment: ${this.escapeMarkdown(ea.sentiment)}${conv}`);
+      }
+      if (ea.type || ea.urgency) {
+        const parts: string[] = [];
+        if (ea.type) parts.push(`Typ: ${this.escapeMarkdown(ea.type)}`);
+        if (ea.urgency) parts.push(`Pilność: ${this.escapeMarkdown(ea.urgency)}`);
+        lines.push(`• ${parts.join(' \\| ')}`);
+      }
+      if (ea.price_impact_direction || ea.price_impact_magnitude) {
+        const dir = ea.price_impact_direction || '?';
+        const mag = ea.price_impact_magnitude || '?';
+        lines.push(`• Wpływ cenowy: ${this.escapeMarkdown(dir)} / ${this.escapeMarkdown(mag)}`);
+      }
+      if (ea.catalyst_type) {
+        lines.push(`• Katalizator: ${this.escapeMarkdown(ea.catalyst_type)}`);
+      }
+      if (ea.summary) {
+        lines.push(`• ${this.escapeMarkdown(ea.summary.substring(0, 150))}`);
+      }
+    }
+
+    lines.push('');
+    lines.push(`⏰ ${timestamp}`);
+
+    return lines.filter(Boolean).join('\n');
   }
 
   /**

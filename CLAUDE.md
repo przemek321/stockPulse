@@ -67,7 +67,7 @@ npm run test:all
 Działający system end-to-end w 6 kontenerach Docker:
 
 1. **Warstwa zbierania danych** — 4 kolektory (StockTwits co 5 min, Finnhub co 10 min, SEC EDGAR co 30 min, Reddit placeholder). Eventy `NEW_MENTION` / `NEW_ARTICLE` przez EventEmitter2.
-2. **Warstwa AI** — FinBERT sidecar (ProsusAI/finbert) w kontenerze z GPU passthrough (NVIDIA Container Toolkit). BullMQ kolejka `sentiment-analysis`. Wyniki w `sentiment_scores` z score/confidence/model.
+2. **Warstwa AI** — 2-etapowy pipeline: FinBERT sidecar (ProsusAI/finbert, GPU) + Azure OpenAI gpt-4o-mini (eskalacja dla niepewnych wyników). BullMQ kolejka `sentiment-analysis`. Wyniki w `sentiment_scores` z score/confidence/model/enrichedAnalysis.
 3. **Warstwa danych** — PostgreSQL z 9 tabelami, Redis dla 6 kolejek BullMQ. TypeORM z `synchronize: true`.
 4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001, alerty Telegram, REST API (11 endpointów) na :3000.
 
@@ -75,7 +75,7 @@ Działający system end-to-end w 6 kontenerach Docker:
 
 - **Backend**: NestJS 10, TypeORM, BullMQ, EventEmitter2, Node.js 20, TypeScript 5.x
 - **Frontend**: React 18, Recharts 3.7, MUI 5 (dark theme), Vite 4
-- **AI/NLP**: FinBERT (ProsusAI/finbert, PyTorch, FastAPI sidecar na :8000)
+- **AI/NLP**: FinBERT (ProsusAI/finbert, PyTorch, FastAPI sidecar na :8000), Azure OpenAI gpt-4o-mini (2. etap pipeline)
 - **Infra**: Docker Compose (6 kontenerów), NVIDIA Container Toolkit (GPU), PostgreSQL 16 + TimescaleDB, Redis 7
 
 ### Usługi i porty
@@ -167,6 +167,7 @@ Główne grupy:
 - **Finnhub**: klucz API (free tier, 60 req/min)
 - **SEC EDGAR**: User-Agent z emailem (bez klucza, 10 req/sec)
 - **Anthropic**: klucz API do Claude Haiku (potrzebny od Fazy 2)
+- **Azure OpenAI**: endpoint + klucz + deployment (opcjonalne — 2-etapowy pipeline sentymentu)
 - **Telegram**: token bota + chat ID do alertów
 - **StockTwits**: publiczne endpointy, bez autoryzacji (200 req/hour)
 - **Bazy danych**: konfiguracja PostgreSQL i Redis

@@ -98,9 +98,9 @@ export default function App() {
         }}
       />
 
-      {/* ── Wyniki sentymentu FinBERT ─────────── */}
+      {/* ── Wyniki sentymentu ─────────── */}
       <DataPanel
-        title="Wyniki sentymentu FinBERT"
+        title="Wyniki sentymentu"
         icon={<PsychologyIcon sx={{ color: '#ef5350' }} />}
         badgeColor="error"
         defaultSortKey="timestamp"
@@ -122,6 +122,23 @@ export default function App() {
             render: (v: number) => `${(Number(v) * 100).toFixed(1)}%`,
           },
           { key: 'model', label: 'Model' },
+          {
+            key: 'enrichedAnalysis',
+            label: 'AI',
+            render: (ea: any) => {
+              if (!ea) return <span style={{ color: '#555' }}>—</span>;
+              const convColor = ea.conviction > 0 ? '#66bb6a' : ea.conviction < 0 ? '#ef5350' : '#90a4ae';
+              return (
+                <span title={`${ea.type} | ${ea.urgency} | ${ea.catalyst_type}\n${ea.summary || ''}`}>
+                  <span style={{ color: '#ce93d8', fontWeight: 700 }}>{ea.sentiment}</span>
+                  {' '}
+                  <span style={{ color: convColor, fontSize: 11 }}>
+                    ({ea.conviction})
+                  </span>
+                </span>
+              );
+            },
+          },
           { key: 'source', label: 'Źródło' },
           {
             key: 'rawText',

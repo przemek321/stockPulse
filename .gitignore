@@ -41,3 +41,7 @@ logs/
 
 # Artefakty Windows/WSL
 nul
+NUL
+
+# Azure API (osobne repo)
+azure-api/

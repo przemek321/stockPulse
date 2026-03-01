@@ -132,10 +132,12 @@ Pełny pipeline sentymentu działa end-to-end: kolektory zbierają dane → even
 - [x] Filtrowanie krótkich tekstów < 20 znaków (MIN_TEXT_LENGTH — odrzuca szum)
 - [x] Skrypt idempotentny — pomija rekordy z istniejącym wynikiem w sentiment_scores
 
-### Sprint 2d: Claude Haiku — analiza niuansowa (priorytet ŚREDNI)
-- [ ] Anthropic Claude API — 2-etapowy pipeline: FinBERT (szybki bulk) → Claude (high-priority)
-- [ ] Eskalacja do Claude gdy: confidence < 0.6 lub score bliski zeru (niezdecydowany)
-- [ ] Analiza kontekstu: sarkasm, porównania, złożone zdania finansowe
+### Sprint 2d: Azure OpenAI gpt-4o-mini — analiza niuansowa (ukończony 2026-03-01)
+- [x] Azure OpenAI gpt-4o-mini — 2-etapowy pipeline: FinBERT (szybki bulk) → gpt-4o-mini (high-priority)
+- [x] Eskalacja do LLM gdy: confidence < 0.6 lub |score| < 0.3 (niezdecydowany)
+- [x] Analiza kontekstu: sarkasm, porównania, złożone zdania finansowe
+- [x] Kolumna `enrichedAnalysis` (jsonb) w SentimentScore — wielowymiarowa analiza (conviction, relevance, novelty, catalyst_type, price_impact)
+- [x] AzureOpenaiClientService — NestJS injectable, opcjonalny (działa bez konfiguracji — graceful degradation)
 
 ### Faza 1.6 — Naprawić insider trades parser (priorytet ŚREDNI)
 - [ ] Form 4 XML parsing — wyciąganie shares, pricePerShare, totalValue, transactionType
@@ -217,5 +219,5 @@ npm run test:all
 - **Kolejki BullMQ**: 6 (4 kolektory + sentiment-analysis + alerts)
 - **Endpointy REST**: 11 (health x2, tickers x2, sentiment x5, alerts x2)
 - **Źródła danych**: 4 kolektory (StockTwits, Finnhub, SEC EDGAR, Reddit)
-- **Modele AI**: 1 aktywny (FinBERT), 2 planowane (Claude Haiku, spaCy NER)
+- **Modele AI**: 2 aktywne (FinBERT, Azure OpenAI gpt-4o-mini), 1 planowany (spaCy NER)
 - **Kontenery Docker**: 6 (app, finbert, frontend, postgres, redis, pgadmin)

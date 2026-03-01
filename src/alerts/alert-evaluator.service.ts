@@ -122,6 +122,8 @@ export class AlertEvaluatorService {
     label: string;
     source: string;
     model: string;
+    conviction: number | null;
+    enrichedAnalysis: Record<string, any> | null;
   }): Promise<void> {
     // Tylko silne negatywne sygnały z wysoką pewnością
     if (payload.score >= -0.5 || payload.confidence < 0.7) return;
@@ -150,6 +152,7 @@ export class AlertEvaluatorService {
       ruleName,
       sentimentScore: payload.score,
       details: `Model: ${payload.model}, Źródło: ${payload.source}, Confidence: ${payload.confidence.toFixed(2)}`,
+      enrichedAnalysis: payload.enrichedAnalysis,
     });
 
     await this.sendAlert(payload.symbol, rule, message);

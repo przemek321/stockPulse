@@ -41,17 +41,19 @@ const fmtFull = (ts: string) =>
 const scoreColor = (score: number) =>
   score > 0.2 ? '#66bb6a' : score < -0.2 ? '#ef5350' : '#90a4ae';
 
-/** Kropka na wykresie z kolorem wg score */
+/** Kropka na wykresie — fioletowa obwódka gdy eskalacja AI */
 const ScoreDot = (props: any) => {
   const { cx, cy, payload } = props;
   if (!payload) return null;
+  const hasAI = !!payload.enrichedAnalysis;
   return (
     <Dot
       cx={cx}
       cy={cy}
-      r={4}
+      r={hasAI ? 5 : 4}
       fill={scoreColor(payload.score)}
-      stroke="none"
+      stroke={hasAI ? '#ce93d8' : 'none'}
+      strokeWidth={hasAI ? 2 : 0}
     />
   );
 };
@@ -60,21 +62,41 @@ const ScoreDot = (props: any) => {
 const ChartTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.[0]) return null;
   const d = payload[0].payload;
+  const ea = d.enrichedAnalysis;
   return (
-    <Paper sx={{ p: 1.5, maxWidth: 320 }}>
+    <Paper sx={{ p: 1.5, maxWidth: 360 }}>
       <Typography variant="subtitle2" sx={{ color: scoreColor(d.score), fontWeight: 700 }}>
         Score: {Number(d.score).toFixed(3)}
+        {d.model?.includes('gpt') && (
+          <span style={{ marginLeft: 8, fontSize: 11, color: '#ce93d8' }}>AI</span>
+        )}
       </Typography>
       <Typography variant="caption" display="block" color="text.secondary">
         {fmtFull(d.timestamp)}
       </Typography>
       <Typography variant="caption" display="block">
-        Confidence: {(Number(d.confidence) * 100).toFixed(1)}%
+        Confidence: {(Number(d.confidence) * 100).toFixed(1)}% &middot; {d.source}
       </Typography>
-      <Typography variant="caption" display="block" color="text.secondary">
-        {d.source}
-      </Typography>
-      {d.rawText && (
+      {ea && (
+        <Box sx={{ mt: 0.5, pt: 0.5, borderTop: '1px solid #444' }}>
+          <Typography variant="caption" display="block" sx={{ color: '#ce93d8', fontWeight: 700 }}>
+            AI: {ea.sentiment}
+            {ea.conviction != null && ` (conv: ${ea.conviction})`}
+          </Typography>
+          <Typography variant="caption" display="block">
+            {ea.type} &middot; {ea.urgency} &middot; {ea.catalyst_type}
+          </Typography>
+          <Typography variant="caption" display="block">
+            Wpływ: {ea.price_impact_direction} / {ea.price_impact_magnitude}
+          </Typography>
+          {ea.summary && (
+            <Typography variant="caption" display="block" sx={{ fontStyle: 'italic', mt: 0.3 }}>
+              {ea.summary.slice(0, 120)}
+            </Typography>
+          )}
+        </Box>
+      )}
+      {!ea && d.rawText && (
         <Typography variant="caption" display="block" sx={{ mt: 0.5, fontStyle: 'italic' }}>
           {d.rawText.slice(0, 120)}
           {d.rawText.length > 120 ? '...' : ''}
@@ -148,7 +170,8 @@ export default function SentimentChart() {
     const pos = scores.filter((s) => s > 0.2).length;
     const neg = scores.filter((s) => s < -0.2).length;
     const neutral = scores.length - pos - neg;
-    return { avg, pos, neg, neutral, total: scores.length };
+    const aiCount = chartData.filter((d) => !!(d as any).enrichedAnalysis).length;
+    return { avg, pos, neg, neutral, total: scores.length, aiCount };
   }, [chartData]);
 
   if (loading) {
@@ -202,6 +225,14 @@ export default function SentimentChart() {
             <Chip label={`${stats.neutral} neutralnych`} size="small" variant="outlined" />
             <Chip label={`${stats.neg} negatywnych`} size="small" color="error" variant="outlined" />
             <Chip label={`${stats.total} total`} size="small" variant="outlined" />
+            {stats.aiCount > 0 && (
+              <Chip
+                label={`${stats.aiCount} AI`}
+                size="small"
+                variant="outlined"
+                sx={{ color: '#ce93d8', borderColor: '#ce93d8' }}
+              />
+            )}
           </Box>
         )}
       </Box>
