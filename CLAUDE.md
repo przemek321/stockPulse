@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StockPulse to system analizy sentymentu rynku akcji w czasie rzeczywistym z alertami, skupiony na sektorze healthcare. Monitoruje media społecznościowe (Reddit, StockTwits), dane finansowe (Finnhub), zgłoszenia SEC (EDGAR) i wysyła alerty przez Telegram.
 
-**Aktualny stan projektu**: Faza 2 — Analiza AI sentymentu (w trakcie). Pełny pipeline działa end-to-end: kolektory → eventy → BullMQ → FinBERT na GPU → wyniki w bazie → alerty Telegram. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
+**Aktualny stan projektu**: Faza 2 — Analiza AI sentymentu (ukończona). Pełny 2-etapowy pipeline: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → Azure OpenAI gpt-4o-mini na VM (2. etap, eskalacja ~10-20%) → wyniki w bazie (z enrichedAnalysis) → alerty Telegram (z sekcją AI). Frontend z wykresem sentymentu, zakładką AI Analysis i ukrytym Redditem. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
 
 ## Komendy (Makefile — autodetekcja środowiska)
 
@@ -66,17 +66,21 @@ npm run test:all
 
 Działający system end-to-end w 6 kontenerach Docker:
 
-1. **Warstwa zbierania danych** — 4 kolektory (StockTwits co 5 min, Finnhub co 10 min, SEC EDGAR co 30 min, Reddit placeholder). Eventy `NEW_MENTION` / `NEW_ARTICLE` przez EventEmitter2.
-2. **Warstwa AI** — 2-etapowy pipeline: FinBERT sidecar (ProsusAI/finbert, GPU) + Azure OpenAI gpt-4o-mini (eskalacja dla niepewnych wyników). BullMQ kolejka `sentiment-analysis`. Wyniki w `sentiment_scores` z score/confidence/model/enrichedAnalysis.
+1. **Warstwa zbierania danych** — 3 aktywne kolektory (StockTwits co 5 min, Finnhub co 10 min, SEC EDGAR co 30 min) + Reddit placeholder. Eventy `NEW_MENTION` / `NEW_ARTICLE` przez EventEmitter2.
+2. **Warstwa AI** — 2-etapowy pipeline:
+   - **1. etap**: FinBERT sidecar (ProsusAI/finbert, GPU) — szybka analiza lokalna (~67ms)
+   - **2. etap**: Azure OpenAI gpt-4o-mini (eskalacja gdy confidence < 0.6 lub |score| < 0.3) — wzbogacona analiza z conviction, catalyst_type, price_impact itp.
+   - Azure VM (`stockpulse-vm`, 74.248.113.3:3100) — processor.js (POST /analyze) + api.js (:8000)
+   - BullMQ kolejka `sentiment-analysis`. Wyniki w `sentiment_scores` z enrichedAnalysis (jsonb).
 3. **Warstwa danych** — PostgreSQL z 9 tabelami, Redis dla 6 kolejek BullMQ. TypeORM z `synchronize: true`.
-4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001, alerty Telegram, REST API (11 endpointów) na :3000.
+4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z wykresem sentymentu i zakładką AI Analysis, alerty Telegram (z sekcją AI + raport 2h), REST API (12 endpointów) na :3000.
 
 ### Stack technologiczny
 
 - **Backend**: NestJS 10, TypeORM, BullMQ, EventEmitter2, Node.js 20, TypeScript 5.x
 - **Frontend**: React 18, Recharts 3.7, MUI 5 (dark theme), Vite 4
-- **AI/NLP**: FinBERT (ProsusAI/finbert, PyTorch, FastAPI sidecar na :8000), Azure OpenAI gpt-4o-mini (2. etap pipeline)
-- **Infra**: Docker Compose (6 kontenerów), NVIDIA Container Toolkit (GPU), PostgreSQL 16 + TimescaleDB, Redis 7
+- **AI/NLP**: FinBERT (ProsusAI/finbert, PyTorch, FastAPI sidecar na :8000), Azure OpenAI gpt-4o-mini (2. etap pipeline, VM 74.248.113.3:3100)
+- **Infra**: Docker Compose (6 kontenerów), NVIDIA Container Toolkit (GPU), PostgreSQL 16 + TimescaleDB, Redis 7, Azure VM (PM2 + Node.js), serwer produkcyjny (NVIDIA CUDA, autostart z git pull)
 
 ### Usługi i porty
 
@@ -129,7 +133,8 @@ finbert-sidecar/
 ### Workflow
 
 ```
-Laptop (dev)  ──git push──→  GitHub  ──git pull──→  Jetson (prod, autostart po reboot)
+Laptop WSL2 (dev) ──git push──→ GitHub ──git pull──→ Serwer prod (192.168.0.138, autostart po reboot)
+                                                  └→ Azure VM (74.248.113.3, PM2: processor.js + api.js)
 ```
 
 - **Rozwijasz kod na laptopie**, commitujesz, pushujesz
@@ -167,7 +172,7 @@ Główne grupy:
 - **Finnhub**: klucz API (free tier, 60 req/min)
 - **SEC EDGAR**: User-Agent z emailem (bez klucza, 10 req/sec)
 - **Anthropic**: klucz API do Claude Haiku (potrzebny od Fazy 2)
-- **Azure OpenAI**: endpoint + klucz + deployment (opcjonalne — 2-etapowy pipeline sentymentu)
+- **Azure Analysis Service**: URL do VM z gpt-4o-mini + timeout (opcjonalne — 2-etapowy pipeline sentymentu)
 - **Telegram**: token bota + chat ID do alertów
 - **StockTwits**: publiczne endpointy, bez autoryzacji (200 req/hour)
 - **Bazy danych**: konfiguracja PostgreSQL i Redis

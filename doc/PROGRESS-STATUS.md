@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-02-16
+> Ostatnia aktualizacja: 2026-03-01
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (w trakcie)
+**Faza 2 — Analiza AI sentymentu** (ukończona)
 
-Pełny pipeline sentymentu działa end-to-end: kolektory zbierają dane → eventy → kolejka BullMQ → FinBERT na GPU → wyniki w bazie → alerty na Telegramie. FinBERT sidecar (ProsusAI/finbert) działa w kontenerze Docker z GPU passthrough (NVIDIA Container Toolkit w WSL2). Backend NestJS z 4 kolektorami, 6 kolejkami, REST API. Frontend React z dashboardem. Baza PostgreSQL z 9 tabelami, Redis dla kolejek.
+Pełny 2-etapowy pipeline sentymentu działa end-to-end: kolektory zbierają dane → eventy → kolejka BullMQ → FinBERT na GPU (1. etap) → eskalacja do Azure OpenAI gpt-4o-mini (2. etap, ~10-20% tekstów) → wyniki w bazie (z enrichedAnalysis) → alerty na Telegramie (z sekcją AI). Frontend React z dashboardem, wykresem sentymentu (Recharts), zakładką AI Analysis. Baza PostgreSQL z 9 tabelami, Redis dla kolejek. Produkcja na serwerze z NVIDIA CUDA + Azure VM z gpt-4o-mini.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -81,7 +81,7 @@ Pełny pipeline sentymentu działa end-to-end: kolektory zbierają dane → even
   - Rozwijane panele z tabelami danych (lazy loading)
   - Totale per tabela i rozmiar bazy
 
-## Faza 2 — Analiza AI (w trakcie)
+## Faza 2 — Analiza AI (ukończona)
 
 ### Sprint 2a: FinBERT Sidecar (ukończony 2026-02-13)
 - [x] **FinBERT sidecar** — Python FastAPI mikroserwis w kontenerze Docker
@@ -122,9 +122,9 @@ Pełny pipeline sentymentu działa end-to-end: kolektory zbierają dane → even
   - Alert "Sentiment Crash" gdy score < -0.5 i confidence > 0.7
   - Throttling per ticker (reguła w bazie)
 - [x] **Endpoint** `GET /api/sentiment/scores` — lista wyników sentymentu (wszystkie tickery)
-- [x] **Frontend** — panel "Wyniki sentymentu FinBERT" na dashboardzie (kolorowe score, confidence %, tekst)
+- [x] **Frontend** — panel "Wyniki sentymentu" na dashboardzie (kolorowe score, confidence %, tekst, kolumna AI)
 
-## Co czeka — Następne kroki
+## Ukończone dodatkowe sprinty
 
 ### Sprint 2c: Backfill historycznych danych (ukończony 2026-02-13)
 - [x] Przeanalizować istniejące dane FinBERT-em (1837 rekordów przetworzonych w 36s, 0 błędów)
@@ -137,7 +137,21 @@ Pełny pipeline sentymentu działa end-to-end: kolektory zbierają dane → even
 - [x] Eskalacja do LLM gdy: confidence < 0.6 lub |score| < 0.3 (niezdecydowany)
 - [x] Analiza kontekstu: sarkasm, porównania, złożone zdania finansowe
 - [x] Kolumna `enrichedAnalysis` (jsonb) w SentimentScore — wielowymiarowa analiza (conviction, relevance, novelty, catalyst_type, price_impact)
-- [x] AzureOpenaiClientService — NestJS injectable, opcjonalny (działa bez konfiguracji — graceful degradation)
+- [x] `AzureOpenaiClientService` — NestJS injectable, wywołuje Azure VM HTTP endpoint (POST /analyze na :3100)
+- [x] Graceful degradation — bez konfiguracji pipeline działa z FinBERT-only
+- [x] Azure VM (`stockpulse-vm`, 74.248.113.3:3100) — PM2: processor.js (gpt-4o-mini) + api.js (signals :8000)
+- [x] Zmienne środowiskowe: `AZURE_ANALYSIS_URL`, `AZURE_ANALYSIS_TIMEOUT_MS`
+
+### Sprint 2e: Frontend AI + Telegram AI + ukrycie Reddit (ukończony 2026-03-01)
+- [x] **Telegram alerty AI** — sekcja "Analiza AI (gpt-4o-mini)" w alertach sentymentu (sentiment, conviction, type, urgency, price impact, catalyst, summary)
+- [x] **Raport 2h na Telegram** — liczba eskalacji AI w raporcie podsumowującym
+- [x] **Frontend: wykres sentymentu** — fioletowe kropki dla AI-eskalowanych, badge AI w tooltip, statystyki AI
+- [x] **Frontend: kolumna AI** w tabeli "Wyniki sentymentu" — sentiment + conviction z kolorami
+- [x] **Frontend: zakładka "Analiza AI (gpt-4o-mini)"** — dedykowany panel z pełnymi danymi enrichedAnalysis:
+  - AI Sentyment (BULLISH/BEARISH/NEUTRAL), Conviction, Pilność, Katalizator, Wpływ cenowy, Podsumowanie AI, Tekst źródłowy, Czas przetwarzania
+- [x] **Backend: filtr `?ai_only=true`** na `/api/sentiment/scores` — zwraca tylko rekordy z analizą AI
+- [x] **Ukrycie kolektora Reddit** z widoku frontend (placeholder, nie zbiera danych)
+- [x] **Interfejs `EnrichedAnalysis`** w `frontend/src/api.ts` — pełna typizacja 16 pól analizy AI
 
 ### Faza 1.6 — Naprawić insider trades parser (priorytet ŚREDNI)
 - [ ] Form 4 XML parsing — wyciąganie shares, pricePerShare, totalValue, transactionType
@@ -152,6 +166,9 @@ GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza AP
 
 ### Faza 3 — Frontend React rozbudowa (w trakcie)
 - [x] Wykres sentymentu per ticker (Recharts) — linia score w czasie, dropdown tickerów, statystyki (avg, pos/neg/neutral), kolorowe kropki, tooltip z tekstem
+- [x] Zakładka "Analiza AI (gpt-4o-mini)" — pełne dane enrichedAnalysis w tabeli
+- [x] Fioletowe kropki AI na wykresie sentymentu + badge AI w tooltip
+- [x] Ukrycie kolektora Reddit z widoku (placeholder)
 - [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
 - [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami
@@ -214,10 +231,11 @@ npm run test:all
 - **Tickery do monitorowania**: 27 healthcare (zdefiniowane w healthcare-universe.json)
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
-- **Pliki źródłowe**: ~55 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/`
-- **Encje bazy danych**: 9 tabel
+- **Pliki źródłowe**: ~60 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
+- **Encje bazy danych**: 9 tabel (sentiment_scores z enrichedAnalysis jsonb)
 - **Kolejki BullMQ**: 6 (4 kolektory + sentiment-analysis + alerts)
-- **Endpointy REST**: 11 (health x2, tickers x2, sentiment x5, alerts x2)
-- **Źródła danych**: 4 kolektory (StockTwits, Finnhub, SEC EDGAR, Reddit)
-- **Modele AI**: 2 aktywne (FinBERT, Azure OpenAI gpt-4o-mini), 1 planowany (spaCy NER)
-- **Kontenery Docker**: 6 (app, finbert, frontend, postgres, redis, pgadmin)
+- **Endpointy REST**: 12 (health x2, tickers x2, sentiment x5 + ai_only, alerts x2)
+- **Źródła danych**: 3 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR), 1 placeholder (Reddit)
+- **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM), 1 planowany (spaCy NER)
+- **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
+- **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini

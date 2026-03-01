@@ -1,7 +1,7 @@
 # StockPulse — Schemat struktury katalogów
 
 > Szczegółowy opis każdego pliku, co robi i z czym jest powiązany.
-> Ostatnia aktualizacja: 2026-02-13
+> Ostatnia aktualizacja: 2026-03-01
 
 ## Drzewo katalogów
 
@@ -74,18 +74,20 @@ stockPulse/
 │   │       ├── reddit.processor.ts         # BullMQ worker
 │   │       └── reddit.scheduler.ts         # Cron co 10 min (jeśli skonfigurowany)
 │   │
-│   ├── sentiment/                          # Warstwa 2: Analiza sentymentu FinBERT
+│   ├── sentiment/                          # Warstwa 2: Analiza sentymentu (2-etapowy pipeline)
 │   │   ├── sentiment.module.ts             # Moduł zbiorczy (encje, kolejka, serwisy)
-│   │   ├── finbert-client.service.ts       # HTTP klient do FinBERT sidecar
+│   │   ├── finbert-client.service.ts       # HTTP klient do FinBERT sidecar (1. etap)
+│   │   ├── azure-openai-client.service.ts  # HTTP klient do Azure VM gpt-4o-mini (2. etap)
 │   │   ├── sentiment-listener.service.ts   # Nasłuchuje eventów → dodaje joby
-│   │   └── sentiment-processor.service.ts  # BullMQ processor → FinBERT → zapis
+│   │   └── sentiment-processor.service.ts  # BullMQ processor → FinBERT → eskalacja LLM → zapis
 │   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
-│   │   ├── alert-evaluator.service.ts      # Ewaluacja reguł + throttling
+│   │   ├── alert-evaluator.service.ts      # Ewaluacja reguł + throttling (z enrichedAnalysis)
+│   │   ├── summary-scheduler.service.ts    # Raport sentymentu co 2h na Telegram
 │   │   └── telegram/
 │   │       ├── telegram.service.ts         # Wysyłka wiadomości Telegram
-│   │       └── telegram-formatter.service.ts # Formatowanie MarkdownV2
+│   │       └── telegram-formatter.service.ts # Formatowanie MarkdownV2 (z sekcją AI)
 │   │
 │   └── api/                                # REST API kontrolery
 │       ├── api.module.ts                   # Zbiorczy moduł API
@@ -114,13 +116,19 @@ stockPulse/
 │   ├── tsconfig.json                       # TypeScript frontend
 │   └── src/
 │       ├── main.tsx                        # Punkt wejścia React
-│       ├── App.tsx                         # Layout główny (4 panele danych)
-│       ├── api.ts                          # Klient HTTP do backendu (/api/*)
+│       ├── App.tsx                         # Layout główny (8 paneli danych, zakładka AI)
+│       ├── api.ts                          # Klient HTTP do backendu (/api/*, fetchAiScores)
 │       ├── vite-env.d.ts                   # Typy Vite
 │       └── components/
-│           ├── CollectorStatus.tsx          # Status kolektorów (health + countdown)
-│           ├── DataPanel.tsx                # Panel danych (tabela z danymi)
-│           └── DbSummary.tsx               # Podsumowanie bazy (totale per tabela)
+│           ├── CollectorStatus.tsx          # Status kolektorów (health + countdown, ukryty Reddit)
+│           ├── DataPanel.tsx                # Panel danych (tabela z sortowaniem)
+│           ├── DbSummary.tsx               # Podsumowanie bazy (totale per tabela)
+│           └── SentimentChart.tsx           # Wykres sentymentu Recharts (fioletowe AI dots)
+│
+├── azure-api/                              # Azure VM — gpt-4o-mini analysis service (osobne repo)
+│   ├── processor.js                       # POST /analyze — gpt-4o-mini eskalacja (PM2, port 3100)
+│   ├── api.js                             # Signals API (PM2, port 8000)
+│   └── ecosystem.config.js               # PM2 konfiguracja (2 procesy)
 │
 ├── docker/                                 # Pliki konfiguracyjne Docker
 │   └── pgadmin-servers.json                # Auto-rejestracja serwera w pgAdmin
@@ -218,9 +226,9 @@ Każda encja = jedna tabela w PostgreSQL.
 **Używany przez:** Wszystkie kolektory (pobierają listę aktywnych tickerów), `tickers.controller.ts`.
 
 #### `sentiment-score.entity.ts` → tabela `sentiment_scores`
-**Co robi:** Wynik analizy sentymentu (-1.0 do +1.0) z confidence, modelem (`finbert`), źródłem, rawText. Indeksowana po [symbol, timestamp].
+**Co robi:** Wynik analizy sentymentu (-1.0 do +1.0) z confidence, modelem (`finbert` lub `finbert+gpt-4o-mini`), źródłem, rawText, enrichedAnalysis (jsonb — wielowymiarowa analiza AI, nullable). Indeksowana po [symbol, timestamp].
 **Zasilana przez:** `sentiment-processor.service.ts` (real-time), `backfill-sentiment.ts` (historyczne).
-**Używany przez:** `sentiment.controller.ts`, `health.controller.ts` (stats).
+**Używany przez:** `sentiment.controller.ts` (z filtrem `?ai_only=true`), `health.controller.ts` (stats), `summary-scheduler.service.ts` (raport 2h).
 
 #### `raw-mention.entity.ts` → tabela `raw_mentions`
 **Co robi:** Surowa wzmianka z Reddit lub StockTwits. Przechowuje oryginalne dane (autor, treść, URL, wykryte tickery jako JSONB, sentyment ze źródła).
@@ -363,10 +371,10 @@ Każdy kolektor składa się z 4 plików:
 
 ### Analiza sentymentu (`src/sentiment/`)
 
-Pipeline: event z kolektora → BullMQ → FinBERT sidecar (GPU) → zapis do bazy → alert.
+2-etapowy pipeline: event z kolektora → BullMQ → FinBERT sidecar (1. etap) → eskalacja do gpt-4o-mini (2. etap, opcjonalny) → zapis do bazy → alert.
 
 #### `sentiment.module.ts`
-**Co robi:** Moduł zbiorczy. Rejestruje encje (SentimentScore, RawMention, NewsArticle), kolejkę `sentiment-analysis`. Providerzy: FinbertClientService, SentimentListenerService, SentimentProcessorService. Eksportuje FinbertClientService.
+**Co robi:** Moduł zbiorczy. Rejestruje encje (SentimentScore, RawMention, NewsArticle), kolejkę `sentiment-analysis`. Providerzy: FinbertClientService, AzureOpenaiClientService, SentimentListenerService, SentimentProcessorService. Eksportuje FinbertClientService.
 
 #### `finbert-client.service.ts`
 **Co robi:** HTTP klient do FinBERT sidecar (Python FastAPI). Metody:
@@ -382,14 +390,23 @@ Pipeline: event z kolektora → BullMQ → FinBERT sidecar (GPU) → zapis do ba
 - `@OnEvent(NEW_ARTICLE)` → job `analyze-article` (priorytet: 3 — najwyższy)
 **Delay:** 500ms na każdy job — pewność że encja jest zapisana w bazie.
 
+#### `azure-openai-client.service.ts`
+**Co robi:** HTTP klient do Azure VM z gpt-4o-mini (2. etap pipeline). Metody:
+- `analyze(text, symbol, escalationReason)` — POST `/analyze` (wysyła tekst do analizy AI)
+- `isEnabled()` — sprawdza czy `AZURE_ANALYSIS_URL` jest skonfigurowany
+**Konfiguracja:** `AZURE_ANALYSIS_URL` (domyślnie puste — pipeline działa z FinBERT-only), `AZURE_ANALYSIS_TIMEOUT_MS` (domyślnie 30s).
+**Zwraca:** `EnrichedAnalysis` — 16-polowa wielowymiarowa analiza: sentiment, conviction, type, urgency, relevance, novelty, confidence, source_authority, temporal_signal, catalyst_type, price_impact_direction, price_impact_magnitude, summary, escalation_reason, processing_time_ms.
+**Graceful degradation:** Jeśli brak konfiguracji lub błąd HTTP — zwraca null, pipeline kontynuuje z FinBERT-only.
+
 #### `sentiment-processor.service.ts`
-**Co robi:** BullMQ processor (Worker) kolejki `sentiment-analysis`. Pipeline:
+**Co robi:** BullMQ processor (Worker) kolejki `sentiment-analysis`. 2-etapowy pipeline:
 1. Pobiera tekst z `RawMention` (title + body) lub `NewsArticle` (headline + summary)
 2. Filtruje teksty < 20 znaków (MIN_TEXT_LENGTH — odrzuca szum: emoji, same tickery)
-3. Wysyła do FinBERT sidecar przez `FinbertClientService.analyze()`
-4. Zapisuje wynik do `sentiment_scores` (model='finbert')
-5. Aktualizuje `sentimentScore` w `news_articles` (jeśli typ = article)
-6. Emituje `EventType.SENTIMENT_SCORED` → AlertEvaluator reaguje
+3. **1. etap:** Wysyła do FinBERT sidecar przez `FinbertClientService.analyze()`
+4. **2. etap:** Jeśli confidence < 0.6 lub |score| < 0.3 → eskalacja do `AzureOpenaiClientService.analyze()` → enrichedAnalysis
+5. Zapisuje wynik do `sentiment_scores` (model='finbert' lub 'finbert+gpt-4o-mini', enrichedAnalysis jsonb)
+6. Aktualizuje `sentimentScore` w `news_articles` (jeśli typ = article)
+7. Emituje `EventType.SENTIMENT_SCORED` (z conviction i enrichedAnalysis) → AlertEvaluator reaguje
 
 ---
 
@@ -419,22 +436,25 @@ Python FastAPI app z modelem ProsusAI/finbert. Uruchamiana jako osobny kontener 
 
 ### Frontend (`frontend/`)
 
-Dashboard React z 4 panelami danych. Odpytuje REST API backendu.
+Dashboard React z 8 panelami danych, wykresem sentymentu i zakładką AI. Odpytuje REST API backendu.
 
 #### `App.tsx`
-**Co robi:** Główny layout — 4 panele (Sentiment Scores, News Articles, Social Mentions, SEC Filings) + status kolektorów + podsumowanie bazy.
+**Co robi:** Główny layout — wykres sentymentu (SentimentChart), 8 paneli DataPanel: Analiza AI, Tickery, Wyniki sentymentu, News, SEC EDGAR, Alerty, Reguły alertów, StockTwits Wzmianki. Status kolektorów + podsumowanie bazy.
 
 #### `api.ts`
-**Co robi:** Klient HTTP (fetch) do backendu. Endpointy: `/api/health/stats`, `/api/sentiment/scores`, `/api/sentiment/news`, `/api/sentiment/mentions`, `/api/sentiment/filings`.
+**Co robi:** Klient HTTP (fetch) do backendu. Interfejsy TypeScript: HealthData, Ticker, NewsArticle, AlertRule, Alert, SentimentScore, EnrichedAnalysis (16 pól AI). Endpointy: fetchHealth, fetchTickers, fetchAlertRules, fetchAlerts, fetchSentimentScores, fetchAiScores.
 
 #### `components/CollectorStatus.tsx`
-**Co robi:** Wyświetla status 4 kolektorów: ostatni run, ile elementów, czas, countdown do następnego cyklu.
+**Co robi:** Wyświetla status 3 aktywnych kolektorów (Reddit ukryty): ostatni run, ile elementów, czas, countdown do następnego cyklu. Totale per tabela.
 
 #### `components/DataPanel.tsx`
-**Co robi:** Uniwersalny panel tabelaryczny z danymi (score, tekst, ticker, data).
+**Co robi:** Uniwersalny rozwijany panel tabelaryczny z danymi, sortowaniem po kolumnach, lazy loading. Użyty 8x w App.tsx.
 
 #### `components/DbSummary.tsx`
 **Co robi:** Podsumowanie bazy — totale per tabela, wielkość bazy danych.
+
+#### `components/SentimentChart.tsx`
+**Co robi:** Wykres sentymentu per ticker (Recharts ScatterChart). Dropdown tickerów, zakres czasu. Fioletowe kropki dla AI-eskalowanych wyników, tooltip z danymi AI (sentiment, conviction, urgency, catalyst, summary). Statystyki: średni score, positive/negative/neutral, AI count.
 
 ---
 
@@ -447,11 +467,15 @@ Dashboard React z 4 panelami danych. Odpytuje REST API backendu.
 **Co robi:** Serce systemu alertów. Nasłuchuje na eventy przez `@OnEvent()`:
 - `NEW_INSIDER_TRADE` → sprawdza regułę "Insider Trade Large"
 - `NEW_FILING` → sprawdza regułę "8-K Material Event" (tylko 8-K)
-- `SENTIMENT_SCORED` → sprawdza regułę "Sentiment Crash" (score < -0.5, confidence > 0.7)
+- `SENTIMENT_SCORED` → sprawdza regułę "Sentiment Crash" (score < -0.5, confidence > 0.7), przekazuje enrichedAnalysis do formattera
 
 Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnich N minut (z `alert_rules.throttleMinutes`) nie był już wysłany alert tego samego typu per ticker.
 
-**Powiązania:** Nasłuchuje eventów z kolektorów i sentiment pipeline → sprawdza reguły w `alert_rules` → wysyła przez `TelegramService` → zapisuje do `alerts`.
+**Powiązania:** Nasłuchuje eventów z kolektorów i sentiment pipeline → sprawdza reguły w `alert_rules` → wysyła przez `TelegramService` (z danymi AI jeśli dostępne) → zapisuje do `alerts`.
+
+#### `summary-scheduler.service.ts`
+**Co robi:** Cykliczny raport sentymentu co 2 godziny na Telegram. Agreguje: średni score, top 3 negatywne/pozytywne tickery, liczba alertów, liczba eskalacji AI. Pierwszy raport po 15s od startu.
+**Powiązania:** `SentimentScoreRepository`, `AlertRepository`, `TelegramService`.
 
 #### `telegram/telegram.service.ts`
 **Co robi:** Wrapper HTTP do Telegram Bot API. Metody `sendMarkdown()` i `sendText()`. Sprawdza czy bot jest skonfigurowany (token + chat_id).
@@ -459,7 +483,7 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 
 #### `telegram/telegram-formatter.service.ts`
 **Co robi:** Generuje sformatowane wiadomości alertów w MarkdownV2. Obsługuje escapowanie znaków specjalnych. Typy alertów:
-- `formatSentimentAlert()` — alert sentymentu (score < -0.5)
+- `formatSentimentAlert()` — alert sentymentu (score < -0.5) z sekcją AI (sentiment, conviction, type, urgency, price impact, catalyst, summary)
 - `formatInsiderTradeAlert()` — alert transakcji insiderskiej
 - `formatFilingAlert()` — alert nowego filingu SEC
 
@@ -484,7 +508,7 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 
 #### `sentiment/sentiment.controller.ts`
 **Endpointy:**
-- `GET /api/sentiment/scores?limit=100` — wszystkie wyniki sentymentu (najnowsze)
+- `GET /api/sentiment/scores?limit=100&ai_only=true` — wyniki sentymentu (najnowsze, opcjonalny filtr AI-only)
 - `GET /api/sentiment/news?limit=100` — ostatnie newsy (wszystkie tickery)
 - `GET /api/sentiment/mentions?limit=100` — ostatnie wzmianki social media
 - `GET /api/sentiment/filings?limit=100` — ostatnie filingi SEC
@@ -540,16 +564,28 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
                          └──────┬──────────┘
                                 │
                          ┌──────▼──────────┐
-                         │ FinBERT Sidecar │  (GPU: ProsusAI/finbert)
+                         │ FinBERT Sidecar │  (GPU: ProsusAI/finbert — 1. etap)
                          │ POST /api/sent. │
+                         └──────┬──────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │  Eskalacja?           │  (confidence < 0.6 LUB |score| < 0.3)
+                    │  TAK → Azure VM LLM  │
+                    │  NIE → zapis bezpośr. │
+                    └───────────┬───────────┘
+                                │ (opcjonalnie)
+                         ┌──────▼──────────┐
+                         │ Azure VM        │  (gpt-4o-mini — 2. etap)
+                         │ POST /analyze   │  (74.248.113.3:3100)
                          └──────┬──────────┘
                                 │
               ┌─────────────────┼─────────────────┐
               │                 │                  │
        ┌──────▼──────────┐ ┌───▼───────────┐ ┌───▼──────────────────┐
        │ sentiment_scores │ │ Event Bus     │ │ news_articles        │
-       │ (nowy rekord)    │ │ SENTIMENT_    │ │ (update sentScore)   │
-       └─────────────────┘ │ SCORED        │ └──────────────────────┘
+       │ (+ enriched     │ │ SENTIMENT_    │ │ (update sentScore)   │
+       │   Analysis)     │ │ SCORED        │ └──────────────────────┘
+       └─────────────────┘ │ (+conviction) │
                            └───┬───────────┘
                                │
                          ┌─────▼────────────┐
@@ -582,13 +618,15 @@ AppModule
 │   ├── SecEdgarModule    (service + processor + scheduler)
 │   └── RedditModule      (service + processor + scheduler)
 ├── SentimentModule
-│   ├── FinbertClientService       (HTTP klient → FinBERT sidecar)
-│   ├── SentimentListenerService   (nasłuchuje eventów → dodaje joby)
-│   └── SentimentProcessorService  (BullMQ worker → FinBERT → zapis)
+│   ├── FinbertClientService         (HTTP klient → FinBERT sidecar, 1. etap)
+│   ├── AzureOpenaiClientService     (HTTP klient → Azure VM gpt-4o-mini, 2. etap)
+│   ├── SentimentListenerService     (nasłuchuje eventów → dodaje joby)
+│   └── SentimentProcessorService    (BullMQ worker → FinBERT → eskalacja LLM → zapis)
 ├── AlertsModule
-│   ├── AlertEvaluatorService  (nasłuchuje: insider trade, filing, sentiment)
-│   ├── TelegramService        (wysyłka)
-│   └── TelegramFormatterService (formatowanie MarkdownV2)
+│   ├── AlertEvaluatorService    (nasłuchuje: insider trade, filing, sentiment + AI)
+│   ├── SummarySchedulerService  (raport 2h na Telegram)
+│   ├── TelegramService          (wysyłka)
+│   └── TelegramFormatterService (formatowanie MarkdownV2 z sekcją AI)
 └── ApiModule
     ├── HealthController       (GET /api/health, /api/health/stats)
     ├── TickersController      (GET /api/tickers)
@@ -624,11 +662,13 @@ AppModule
 │ cik          │     │ score (-1 to +1) │     │ insiderRole      │
 │ formType     │     │ confidence       │     │ transactionType  │
 │ accessionNum │     │ source (enum)    │     │ shares           │
-│ filingDate   │     │ model ('finbert')│     │ pricePerShare    │
+│ filingDate   │     │ model            │     │ pricePerShare    │
 │ description  │     │ rawText          │     │ totalValue       │
 │ documentUrl  │     │ externalId       │     │ transactionDate  │
-│ collectedAt  │     │ timestamp        │     │ accessionNumber  │
-└──────────────┘     └──────────────────┘     │ collectedAt      │
+│ collectedAt  │     │ enrichedAnalysis │     │ accessionNumber  │
+└──────────────┘     │  (jsonb, null)   │     │ collectedAt      │
+                     │ timestamp        │     └──────────────────┘
+                     └──────────────────┘
                                                └──────────────────┘
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │   alerts     │     │  alert_rules     │     │ collection_logs  │
