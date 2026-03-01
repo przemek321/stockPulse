@@ -34,6 +34,12 @@ export class PdufaBioScheduler implements OnModuleInit {
       },
     );
 
-    this.logger.log('Zaplanowano scraping PDUFA.bio co 6 godzin');
+    // Natychmiastowy pierwszy run po starcie
+    await this.queue.add('collect-pdufa-bio-init', {}, {
+      removeOnComplete: { count: 1 },
+      removeOnFail: { count: 5 },
+    });
+
+    this.logger.log('Zaplanowano scraping PDUFA.bio co 6 godzin (+ natychmiastowy start)');
   }
 }
