@@ -67,32 +67,50 @@ export class TelegramFormatterService {
   }
 
   /**
-   * Formatuje alert insider trade.
+   * Formatuje alert insider trade z pełnymi danymi z Form 4 XML.
    */
   formatInsiderTradeAlert(data: {
     symbol: string;
     companyName: string;
     insiderName: string;
+    insiderRole?: string;
     transactionType: string;
     totalValue: number;
+    shares?: number;
     priority: string;
   }): string {
     const icon = this.priorityIcon(data.priority);
     const value = this.escapeMarkdown(
       `$${data.totalValue.toLocaleString('en-US')}`,
     );
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
 
-    return [
+    const lines = [
       `${icon} *StockPulse Alert*`,
       '',
-      `🕵️ *Insider Trade* — \\$${this.escapeMarkdown(data.symbol)}`,
+      `\u{1F575}\uFE0F *Insider Trade* \u2014 \\$${this.escapeMarkdown(data.symbol)}`,
       '',
-      `• Insider: ${this.escapeMarkdown(data.insiderName)}`,
-      `• Typ: ${this.escapeMarkdown(data.transactionType)}`,
-      `• Wartość: ${value}`,
-      '',
-      `⏰ ${this.escapeMarkdown(new Date().toISOString())}`,
-    ].join('\n');
+      `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
+      `\u2022 Insider: ${this.escapeMarkdown(data.insiderName)}`,
+    ];
+
+    if (data.insiderRole) {
+      lines.push(`\u2022 Rola: ${this.escapeMarkdown(data.insiderRole)}`);
+    }
+
+    lines.push(`\u2022 Typ: ${this.escapeMarkdown(data.transactionType)}`);
+
+    if (data.shares) {
+      lines.push(
+        `\u2022 Akcje: ${this.escapeMarkdown(data.shares.toLocaleString('en-US'))}`,
+      );
+    }
+
+    lines.push(`\u2022 Warto\u015b\u0107: ${value}`);
+    lines.push('');
+    lines.push(`\u23F0 ${timestamp}`);
+
+    return lines.join('\n');
   }
 
   /**

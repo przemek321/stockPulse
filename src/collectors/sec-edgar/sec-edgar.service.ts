@@ -7,9 +7,9 @@ import { BaseCollectorService } from '../shared/base-collector.service';
 import { SecFiling, InsiderTrade, Ticker, CollectionLog } from '../../entities';
 import { DataSource } from '../../common/interfaces/data-source.enum';
 import { EventType } from '../../events/event-types';
+import { parseForm4Xml } from './form4-parser';
 
 const EDGAR_BASE = 'https://data.sec.gov';
-const EFTS_BASE = 'https://efts.sec.gov/LATEST';
 
 /**
  * Kolektor danych z SEC EDGAR.
@@ -62,8 +62,7 @@ export class SecEdgarService extends BaseCollectorService {
 
       try {
         const filingsCount = await this.collectFilings(ticker.symbol, ticker.cik);
-        const insiderCount = await this.collectInsiderTrades(ticker.symbol, ticker.cik);
-        totalNew += filingsCount + insiderCount;
+        totalNew += filingsCount;
         // Rate limit: 10 req/sec → 100ms przerwy
         await this.delay(200);
       } catch (error) {
@@ -104,6 +103,9 @@ export class SecEdgarService extends BaseCollectorService {
       });
       if (exists) continue;
 
+      const accessionDir = accessionNumber.replace(/-/g, '');
+      const documentUrl = `https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${accessionDir}`;
+
       const filing = this.filingRepo.create({
         symbol,
         cik: cik.padStart(10, '0'),
@@ -111,7 +113,7 @@ export class SecEdgarService extends BaseCollectorService {
         accessionNumber,
         description: recent.primaryDocDescription?.[i] || undefined,
         filingDate: new Date(recent.filingDate[i]),
-        documentUrl: `https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${accessionNumber.replace(/-/g, '')}`,
+        documentUrl,
       });
 
       await this.filingRepo.save(filing);
@@ -122,6 +124,21 @@ export class SecEdgarService extends BaseCollectorService {
         symbol,
         formType,
       });
+
+      // Form 4 → pobierz XML i utwórz InsiderTrade z prawdziwymi danymi
+      if (formType === '4') {
+        const primaryDoc = recent.primaryDocument?.[i];
+        if (primaryDoc) {
+          // primaryDocument zwraca "xslF345X05/edgardoc.xml" (XSLT → HTML)
+          // Raw XML to sama nazwa pliku bez XSLT prefix
+          const rawXmlFile = primaryDoc.includes('/')
+            ? primaryDoc.split('/').pop()
+            : primaryDoc;
+          const xmlUrl = `${documentUrl}/${rawXmlFile}`;
+          await this.parseAndSaveForm4(symbol, accessionNumber, xmlUrl);
+          await this.delay(150); // Rate limit SEC
+        }
+      }
     }
 
     if (newCount > 0) {
@@ -132,57 +149,67 @@ export class SecEdgarService extends BaseCollectorService {
   }
 
   /**
-   * Szuka transakcji insiderów (Form 4) przez EFTS.
+   * Pobiera i parsuje Form 4 XML, tworzy rekordy InsiderTrade z prawdziwymi danymi.
+   * Błędy nie przerywają kolekcji filingów — logowane i pomijane.
    */
-  private async collectInsiderTrades(
+  private async parseAndSaveForm4(
     symbol: string,
-    cik: string,
-  ): Promise<number> {
+    accessionNumber: string,
+    xmlUrl: string,
+  ): Promise<void> {
     try {
-      const daysAgo90 = this.getDateDaysAgo(90);
-      const today = this.formatDate(new Date());
-      const url = `${EFTS_BASE}/search-index?q=%22${symbol}%22&dateRange=custom&startdt=${daysAgo90}&enddt=${today}&forms=4&from=0&size=10`;
+      const xml = await this.fetchText(xmlUrl);
+      const transactions = parseForm4Xml(xml);
 
-      const data = await this.fetchUrl(url);
-      if (!data.hits?.hits?.length) return 0;
+      if (transactions.length === 0) {
+        this.logger.debug(`Form 4 ${symbol} ${accessionNumber}: brak transakcji`);
+        return;
+      }
 
-      let newCount = 0;
-
-      for (const hit of data.hits.hits) {
-        const src = hit._source;
-        const accession = src.file_num || `efts_${symbol}_${src.file_date}_${hit._id}`;
+      for (let i = 0; i < transactions.length; i++) {
+        const txn = transactions[i];
+        // Deduplikacja: accession + index transakcji w filingu
+        const txnAccession = `${accessionNumber}_${i}`;
 
         const exists = await this.insiderTradeRepo.findOne({
-          where: { accessionNumber: accession },
+          where: { accessionNumber: txnAccession },
         });
         if (exists) continue;
 
         const trade = this.insiderTradeRepo.create({
           symbol,
-          insiderName: src.display_names?.join(', ') || 'Unknown',
-          insiderRole: undefined,
-          transactionType: 'UNKNOWN', // Form 4 wymaga parsowania XML dla szczegółów
-          shares: 0,
-          pricePerShare: undefined,
-          totalValue: 0,
-          transactionDate: new Date(src.file_date),
-          accessionNumber: accession,
+          insiderName: txn.insiderName,
+          insiderRole: txn.insiderRole ?? undefined,
+          transactionType: txn.transactionType,
+          shares: txn.shares,
+          pricePerShare: txn.pricePerShare ?? undefined,
+          totalValue: txn.totalValue,
+          transactionDate: txn.transactionDate,
+          accessionNumber: txnAccession,
         });
 
         await this.insiderTradeRepo.save(trade);
-        newCount++;
 
         this.eventEmitter.emit(EventType.NEW_INSIDER_TRADE, {
           tradeId: trade.id,
           symbol,
+          totalValue: txn.totalValue,
+          insiderName: txn.insiderName,
+          insiderRole: txn.insiderRole,
+          transactionType: txn.transactionType,
+          shares: txn.shares,
           source: 'SEC_EDGAR',
         });
-      }
 
-      return newCount;
-    } catch {
-      // EFTS search może być czasem niedostępny
-      return 0;
+        this.logger.log(
+          `Insider ${symbol}: ${txn.insiderName} ${txn.transactionType} ` +
+            `${txn.shares} akcji @ $${txn.pricePerShare ?? '?'} = $${txn.totalValue.toLocaleString('en-US')}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Błąd parsowania Form 4 XML ${symbol} ${accessionNumber}: ${error instanceof Error ? error.message : error}`,
+      );
     }
   }
 
@@ -205,14 +232,19 @@ export class SecEdgarService extends BaseCollectorService {
     return res.json();
   }
 
-  private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
-  }
+  /**
+   * Pobiera treść tekstową (XML) z SEC.
+   */
+  private async fetchText(url: string): Promise<string> {
+    const res = await fetch(url, {
+      headers: { ...this.headers, Accept: 'text/xml, application/xml' },
+    });
 
-  private getDateDaysAgo(days: number): string {
-    const d = new Date();
-    d.setDate(d.getDate() - days);
-    return this.formatDate(d);
+    if (!res.ok) {
+      throw new Error(`SEC HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return res.text();
   }
 
   private delay(ms: number): Promise<void> {

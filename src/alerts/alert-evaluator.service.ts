@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Alert, AlertRule } from '../entities';
+import { Alert, AlertRule, Ticker } from '../entities';
 import { EventType } from '../events/event-types';
 import { TelegramService } from './telegram/telegram.service';
 import { TelegramFormatterService } from './telegram/telegram-formatter.service';
@@ -22,32 +22,41 @@ export class AlertEvaluatorService {
     private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule)
     private readonly ruleRepo: Repository<AlertRule>,
+    @InjectRepository(Ticker)
+    private readonly tickerRepo: Repository<Ticker>,
     private readonly telegram: TelegramService,
     private readonly formatter: TelegramFormatterService,
   ) {}
 
   /**
    * Reaguje na event nowej transakcji insiderskiej.
-   * Jeśli wartość > $100K, generuje alert.
+   * Generuje alert "Insider Trade Large" gdy totalValue > $100K.
+   * Ignoruje Finnhub MSPR (totalValue=0) i małe transakcje.
    */
   @OnEvent(EventType.NEW_INSIDER_TRADE)
   async onInsiderTrade(payload: {
     tradeId: number;
     symbol: string;
-    mspr?: number;
+    totalValue?: number;
+    insiderName?: string;
+    insiderRole?: string | null;
+    transactionType?: string;
+    shares?: number;
     source?: string;
   }): Promise<void> {
+    // Próg $100K — filtruje MSPR (totalValue=0), małe transakcje i stare EFTS placeholdery
+    if (!payload.totalValue || payload.totalValue < 100_000) return;
+
     this.logger.debug(
-      `Insider trade event: ${payload.symbol} (trade #${payload.tradeId})`,
+      `Insider trade >$100K: ${payload.symbol} ${payload.insiderName} ` +
+        `${payload.transactionType} $${payload.totalValue.toLocaleString('en-US')}`,
     );
 
-    // Sprawdź czy istnieje reguła "Insider Trade Large"
     const rule = await this.ruleRepo.findOne({
       where: { name: 'Insider Trade Large', isActive: true },
     });
     if (!rule) return;
 
-    // Sprawdź throttling
     const isThrottled = await this.isThrottled(
       rule.name,
       payload.symbol,
@@ -55,13 +64,19 @@ export class AlertEvaluatorService {
     );
     if (isThrottled) return;
 
-    // Wyślij alert
+    // Nazwa firmy z Ticker entity
+    const ticker = await this.tickerRepo.findOne({
+      where: { symbol: payload.symbol },
+    });
+
     const message = this.formatter.formatInsiderTradeAlert({
       symbol: payload.symbol,
-      companyName: payload.symbol, // TODO: dociągnąć z tickerów
-      insiderName: 'Insider',
-      transactionType: 'Trade',
-      totalValue: 0,
+      companyName: ticker?.name ?? payload.symbol,
+      insiderName: payload.insiderName ?? 'Unknown',
+      insiderRole: payload.insiderRole ?? undefined,
+      transactionType: payload.transactionType ?? 'UNKNOWN',
+      totalValue: payload.totalValue,
+      shares: payload.shares,
       priority: rule.priority,
     });
 
