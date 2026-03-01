@@ -739,6 +739,12 @@
         "condition": "abs(conviction) > 1.5 AND enrichedAnalysis IS NOT NULL",
         "priority": "HIGH",
         "throttle_minutes": 60
+      },
+      {
+        "name": "Strong FinBERT Signal",
+        "condition": "model = 'finbert' AND abs(score) > 0.7 AND confidence > 0.8",
+        "priority": "HIGH",
+        "throttle_minutes": 60
       }
     ]
   },

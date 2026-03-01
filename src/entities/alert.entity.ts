@@ -34,6 +34,10 @@ export class Alert {
   @Column({ type: 'text' })
   message: string;
 
+  /** Typ katalizatora (opcjonalny) — do throttlingu per catalyst */
+  @Column({ type: 'varchar', length: 50, nullable: true, default: null })
+  catalystType: string | null;
+
   /** Czy alert został pomyślnie wysłany */
   @Column({ default: true })
   delivered: boolean;

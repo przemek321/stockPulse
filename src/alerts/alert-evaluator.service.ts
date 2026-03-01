@@ -129,6 +129,7 @@ export class AlertEvaluatorService {
    * Sprawdza dwa niezależne warunki:
    * 1. Sentiment Crash: score < -0.5 AND confidence > 0.7
    * 2. High Conviction Signal: |conviction| > 1.5
+   * 3. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
    */
   @OnEvent(EventType.SENTIMENT_SCORED)
   async onSentimentScored(payload: {
@@ -145,6 +146,7 @@ export class AlertEvaluatorService {
     await Promise.all([
       this.checkSentimentCrash(payload),
       this.checkHighConviction(payload),
+      this.checkStrongFinbert(payload),
     ]);
   }
 
@@ -171,10 +173,13 @@ export class AlertEvaluatorService {
     });
     if (!rule) return;
 
+    const catalyst = payload.enrichedAnalysis?.catalyst_type;
+
     const isThrottled = await this.isThrottled(
       rule.name,
       payload.symbol,
       rule.throttleMinutes,
+      catalyst,
     );
     if (isThrottled) return;
 
@@ -188,7 +193,7 @@ export class AlertEvaluatorService {
       enrichedAnalysis: payload.enrichedAnalysis,
     });
 
-    await this.sendAlert(payload.symbol, rule, message);
+    await this.sendAlert(payload.symbol, rule, message, catalyst);
   }
 
   /**
@@ -217,10 +222,13 @@ export class AlertEvaluatorService {
     });
     if (!rule) return;
 
+    const catalyst = payload.enrichedAnalysis?.catalyst_type;
+
     const isThrottled = await this.isThrottled(
       rule.name,
       payload.symbol,
       rule.throttleMinutes,
+      catalyst,
     );
     if (isThrottled) return;
 
@@ -234,6 +242,51 @@ export class AlertEvaluatorService {
       enrichedAnalysis: payload.enrichedAnalysis!,
     });
 
+    await this.sendAlert(payload.symbol, rule, message, catalyst);
+  }
+
+  /**
+   * Sprawdza regułę "Strong FinBERT Signal" — fallback gdy VM offline.
+   * Silny sygnał FinBERT (|score| > 0.7, conf > 0.8) bez potwierdzenia AI.
+   */
+  private async checkStrongFinbert(payload: {
+    symbol: string;
+    score: number;
+    confidence: number;
+    source: string;
+    model: string;
+    conviction: number | null;
+  }): Promise<void> {
+    // Tylko sygnały bez analizy AI (VM offline lub nie eskalowany)
+    if (payload.conviction != null) return;
+    if (payload.model !== 'finbert') return;
+    if (Math.abs(payload.score) <= 0.7 || payload.confidence <= 0.8) return;
+
+    this.logger.debug(
+      `Strong FinBERT (unconfirmed): ${payload.symbol} score=${payload.score} conf=${payload.confidence}`,
+    );
+
+    const ruleName = 'Strong FinBERT Signal';
+    const rule = await this.ruleRepo.findOne({
+      where: { name: ruleName, isActive: true },
+    });
+    if (!rule) return;
+
+    const isThrottled = await this.isThrottled(
+      rule.name,
+      payload.symbol,
+      rule.throttleMinutes,
+    );
+    if (isThrottled) return;
+
+    const message = this.formatter.formatStrongFinbertAlert({
+      symbol: payload.symbol,
+      priority: rule.priority,
+      score: payload.score,
+      confidence: payload.confidence,
+      source: payload.source,
+    });
+
     await this.sendAlert(payload.symbol, rule, message);
   }
 
@@ -244,6 +297,7 @@ export class AlertEvaluatorService {
     symbol: string,
     rule: AlertRule,
     message: string,
+    catalystType?: string,
   ): Promise<void> {
     const delivered = await this.telegram.sendMarkdown(message);
 
@@ -254,6 +308,7 @@ export class AlertEvaluatorService {
       channel: 'TELEGRAM',
       message,
       delivered,
+      catalystType: catalystType ?? null,
     });
 
     await this.alertRepo.save(alert);
@@ -265,23 +320,29 @@ export class AlertEvaluatorService {
 
   /**
    * Sprawdza czy alert tego typu per ticker jest wstrzymany (throttling).
+   * Jeśli catalystType podany → throttle per (rule, symbol, catalyst).
+   * Jeśli nie → per (rule, symbol) jak dotąd.
    */
   private async isThrottled(
     ruleName: string,
     symbol: string,
     throttleMinutes: number,
+    catalystType?: string,
   ): Promise<boolean> {
     // Minimalny throttle 1 min — zapobiega spamowi przy batch importach
     const effectiveMinutes = Math.max(throttleMinutes, 1);
     const cutoff = new Date(Date.now() - effectiveMinutes * 60 * 1000);
 
-    const recentAlert = await this.alertRepo.findOne({
-      where: {
-        ruleName,
-        symbol,
-        sentAt: MoreThan(cutoff),
-      },
-    });
+    const where: any = {
+      ruleName,
+      symbol,
+      sentAt: MoreThan(cutoff),
+    };
+    if (catalystType) {
+      where.catalystType = catalystType;
+    }
+
+    const recentAlert = await this.alertRepo.findOne({ where });
 
     return !!recentAlert;
   }
