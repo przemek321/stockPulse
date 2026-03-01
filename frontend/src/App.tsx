@@ -2,6 +2,7 @@ import { Box, Container, Typography, Chip, Divider } from '@mui/material';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import NewspaperIcon from '@mui/icons-material/Newspaper';
 import GavelIcon from '@mui/icons-material/Gavel';
+import PersonSearchIcon from '@mui/icons-material/PersonSearch';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import RuleIcon from '@mui/icons-material/Rule';
 import ForumIcon from '@mui/icons-material/Forum';
@@ -358,6 +359,58 @@ export default function App() {
         fetchData={async () => {
           const res = await fetch('/api/sentiment/filings?limit=100');
           if (res.ok) return (await res.json()).filings || [];
+          return [];
+        }}
+      />
+
+      {/* ── Insider Trades (Form 4) ──────────── */}
+      <DataPanel
+        title="Insider Trades (Form 4)"
+        icon={<PersonSearchIcon sx={{ color: '#ff7043' }} />}
+        badgeColor="warning"
+        defaultSortKey="transactionDate"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          { key: 'insiderName', label: 'Insider' },
+          { key: 'insiderRole', label: 'Rola' },
+          {
+            key: 'transactionType',
+            label: 'Typ',
+            render: (v: string) => {
+              const color = v === 'BUY' ? '#66bb6a' : v === 'SELL' ? '#ef5350' : '#90a4ae';
+              return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+            },
+          },
+          {
+            key: 'shares',
+            label: 'Akcje',
+            render: (v: number) => v ? Number(v).toLocaleString('en-US') : '—',
+          },
+          {
+            key: 'pricePerShare',
+            label: 'Cena/szt',
+            render: (v: number) => v ? `$${Number(v).toFixed(2)}` : '—',
+          },
+          {
+            key: 'totalValue',
+            label: 'Wartość',
+            render: (v: number) => {
+              const num = Number(v);
+              if (!num) return '—';
+              const color = num > 100000 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 700 }}>${num.toLocaleString('en-US')}</span>;
+            },
+          },
+          {
+            key: 'transactionDate',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const res = await fetch('/api/sentiment/insider-trades?limit=100');
+          if (res.ok) return (await res.json()).trades || [];
           return [];
         }}
       />

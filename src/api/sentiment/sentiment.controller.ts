@@ -6,15 +6,17 @@ import {
   RawMention,
   NewsArticle,
   SecFiling,
+  InsiderTrade,
 } from '../../entities';
 
 /**
  * REST API sentymentu i danych zbieranych przez kolektory.
- * GET /api/sentiment/scores   — wyniki analizy sentymentu (wszystkie tickery)
- * GET /api/sentiment/news     — ostatnie newsy (wszystkie tickery)
- * GET /api/sentiment/mentions — ostatnie wzmianki social media
- * GET /api/sentiment/filings  — ostatnie filingi SEC
- * GET /api/sentiment/:ticker  — dane sentymentu per ticker
+ * GET /api/sentiment/scores          — wyniki analizy sentymentu (wszystkie tickery)
+ * GET /api/sentiment/news            — ostatnie newsy (wszystkie tickery)
+ * GET /api/sentiment/mentions        — ostatnie wzmianki social media
+ * GET /api/sentiment/filings         — ostatnie filingi SEC
+ * GET /api/sentiment/insider-trades  — transakcje insiderów (Form 4)
+ * GET /api/sentiment/:ticker         — dane sentymentu per ticker
  */
 @Controller('sentiment')
 export class SentimentController {
@@ -25,6 +27,8 @@ export class SentimentController {
     private readonly mentionRepo: Repository<RawMention>,
     @InjectRepository(NewsArticle)
     private readonly newsRepo: Repository<NewsArticle>,
+    @InjectRepository(InsiderTrade)
+    private readonly tradeRepo: Repository<InsiderTrade>,
   ) {}
 
   /** Wszystkie wyniki sentymentu (najnowsze). ?ai_only=true → tylko z analizą AI */
@@ -83,6 +87,17 @@ export class SentimentController {
         take,
       });
     return { count: filings.length, filings };
+  }
+
+  /** Transakcje insiderów z Form 4 (SEC EDGAR). */
+  @Get('insider-trades')
+  async getInsiderTrades(@Query('limit') limit?: string) {
+    const take = Math.min(parseInt(limit || '100', 10), 500);
+    const trades = await this.tradeRepo.find({
+      order: { transactionDate: 'DESC' },
+      take,
+    });
+    return { count: trades.length, trades };
   }
 
   /**
