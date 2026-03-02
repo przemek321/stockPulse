@@ -370,8 +370,7 @@
           "notes": "Largest US dialysis provider. 2800+ centers. CMS reimbursement dependent."
         }
       ]
-    }
-  },
+    },
 
     "pharma_biotech": {
       "description": "Big Pharma & Biotech z datami PDUFA. Monitorowane dla FDA catalysts i context AI.",
