@@ -1,6 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { StocktwitsService } from '../../collectors/stocktwits/stocktwits.service';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
@@ -52,6 +52,7 @@ export class HealthController {
     @InjectRepository(AlertRule) private readonly ruleRepo: Repository<AlertRule>,
     @InjectRepository(CollectionLog) private readonly logRepo: Repository<CollectionLog>,
     @InjectRepository(PdufaCatalyst) private readonly pdufaRepo: Repository<PdufaCatalyst>,
+    private readonly dataSource: DataSource,
   ) {}
 
   @Get()
@@ -159,6 +160,110 @@ export class HealthController {
         ],
       },
       collectors: collectorStats,
+    };
+  }
+
+  /**
+   * Raport tygodniowy — 6 zapytań SQL z doc/stockpulse-weekly-review-queries.md.
+   * Parametr ?days=7 (domyślnie 7) kontroluje zakres czasowy.
+   */
+  @Get('weekly-report')
+  async getWeeklyReport(@Query('days') daysParam?: string) {
+    const days = parseInt(daysParam || '7', 10) || 7;
+    const interval = `${days} days`;
+
+    const [
+      pipelineStats,
+      sourceDistribution,
+      topConvictions,
+      pdufaImpact,
+      alertsSent,
+      pdufaStatus,
+    ] = await Promise.all([
+      // 1. Statystyki pipeline (status × tier)
+      this.dataSource.query(`
+        SELECT
+          status, tier, COUNT(*) as count,
+          ROUND(AVG(finbert_duration_ms)) as avg_finbert_ms,
+          ROUND(AVG(azure_duration_ms)) as avg_azure_ms
+        FROM ai_pipeline_logs
+        WHERE created_at > NOW() - INTERVAL '${interval}'
+        GROUP BY status, tier
+        ORDER BY count DESC
+      `),
+
+      // 2. Rozkład źródeł danych
+      this.dataSource.query(`
+        SELECT source, COUNT(*) as count
+        FROM ai_pipeline_logs
+        WHERE created_at > NOW() - INTERVAL '${interval}'
+        GROUP BY source
+        ORDER BY count DESC
+      `),
+
+      // 3. Top 20 conviction scores
+      this.dataSource.query(`
+        SELECT
+          symbol, score, confidence, model,
+          enriched_analysis->>'conviction' as conviction,
+          enriched_analysis->>'catalyst_type' as catalyst,
+          enriched_analysis->>'relevance' as relevance,
+          enriched_analysis->>'sentiment' as ai_sentiment,
+          enriched_analysis->>'summary' as summary,
+          raw_text,
+          timestamp
+        FROM sentiment_scores
+        WHERE enriched_analysis IS NOT NULL
+          AND timestamp > NOW() - INTERVAL '${interval}'
+        ORDER BY ABS((enriched_analysis->>'conviction')::numeric) DESC
+        LIMIT 20
+      `),
+
+      // 4. PDUFA context impact
+      this.dataSource.query(`
+        SELECT
+          symbol,
+          pdufa_context IS NOT NULL as had_pdufa,
+          ROUND(AVG(ABS((response_payload->>'relevance')::numeric)), 3) as avg_relevance,
+          ROUND(AVG(ABS((response_payload->>'conviction')::numeric)), 3) as avg_conviction,
+          COUNT(*) as count
+        FROM ai_pipeline_logs
+        WHERE status = 'AI_ESCALATED'
+          AND created_at > NOW() - INTERVAL '${interval}'
+        GROUP BY symbol, had_pdufa
+        ORDER BY symbol, had_pdufa
+      `),
+
+      // 5. Alerty wysłane na Telegram
+      this.dataSource.query(`
+        SELECT
+          rule_name, symbol, priority, catalyst_type,
+          message, sent_at
+        FROM alerts
+        WHERE sent_at > NOW() - INTERVAL '${interval}'
+        ORDER BY sent_at DESC
+      `),
+
+      // 6. Status scrapera PDUFA
+      this.dataSource.query(`
+        SELECT COUNT(*) as total_events,
+          COUNT(*) FILTER (WHERE outcome IS NOT NULL) as resolved,
+          COUNT(*) FILTER (WHERE outcome IS NULL AND pdufa_date > NOW()) as upcoming
+        FROM pdufa_catalysts
+      `),
+    ]);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      periodDays: days,
+      sections: {
+        pipelineStats,
+        sourceDistribution,
+        topConvictions,
+        pdufaImpact,
+        alertsSent,
+        pdufaStatus: pdufaStatus[0] || {},
+      },
     };
   }
 }
