@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StockPulse to system analizy sentymentu rynku akcji w czasie rzeczywistym z alertami, skupiony na sektorze healthcare. Monitoruje media społecznościowe (Reddit, StockTwits), dane finansowe (Finnhub), zgłoszenia SEC (EDGAR) i wysyła alerty przez Telegram.
 
-**Aktualny stan projektu**: Faza 2 — Analiza AI sentymentu (ukończona, tuning Sprint 3a). 2-etapowy pipeline z tier-based eskalacją: kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier(confidence, absScore) → Tier 1 (silne) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 skip → Azure OpenAI gpt-4o-mini na VM (2. etap) → conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0]) → alerty Telegram: Sentiment Crash, High Conviction Signal (|conv|>1.5), Strong FinBERT Signal (fallback bez VM). Throttling per (rule, symbol, catalyst_type). Frontend z wykresem sentymentu, zakładką AI Analysis. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
+**Aktualny stan projektu**: Faza 2 + Sprint 3b (ukończony). 2-etapowy pipeline z tier-based eskalacją + PDUFA Context Layer: kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier(confidence, absScore) → Tier 1 (silne) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 skip → PDUFA context injection → Azure OpenAI gpt-4o-mini na VM (2. etap, zwraca prompt_used) → conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0]) → alerty Telegram: Sentiment Crash, High Conviction Signal (|conv|>1.5), Strong FinBERT Signal (fallback bez VM). Throttling per (rule, symbol, catalyst_type). Pipeline observability: tabela `ai_pipeline_logs` z pełną historią egzekucji. Kolektor PDUFA.bio: scraping kalendarza FDA co 6h. Frontend z 10+ panelami (wykres sentymentu, AI Analysis, Pipeline AI, PDUFA Calendar, Insider Trades). Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
 
 ## Komendy (Makefile — autodetekcja środowiska)
 
@@ -62,23 +62,25 @@ npm run test:all
 
 ## Architektura
 
-### Stan obecny (Faza 2)
+### Stan obecny (Faza 2 + Sprint 3b)
 
 Działający system end-to-end w 6 kontenerach Docker:
 
-1. **Warstwa zbierania danych** — 3 aktywne kolektory (StockTwits co 5 min, Finnhub co 10 min, SEC EDGAR co 30 min) + Reddit placeholder. Eventy `NEW_MENTION` / `NEW_ARTICLE` przez EventEmitter2.
+1. **Warstwa zbierania danych** — 4 aktywne kolektory (StockTwits co 5 min, Finnhub co 10 min, SEC EDGAR co 30 min, PDUFA.bio co 6h) + Reddit placeholder. Eventy `NEW_MENTION` / `NEW_ARTICLE` / `NEW_PDUFA_EVENT` przez EventEmitter2.
 2. **Warstwa AI** — 2-etapowy pipeline z tier-based eskalacją:
    - **1. etap**: FinBERT sidecar (ProsusAI/finbert, GPU) — szybka analiza lokalna (~67ms)
    - **Tier-based eskalacja** (classifyTier na confidence + absScore):
      - Tier 1 (silne): conf > 0.7 AND abs > 0.5 → ZAWSZE do AI (złote sygnały)
      - Tier 2 (średnie): conf > 0.3 OR abs > 0.2 → do AI jeśli VM aktywna
      - Tier 3 (śmieci): skip AI, tylko FinBERT
-   - **2. etap**: Azure OpenAI gpt-4o-mini → wielowymiarowa analiza (relevance, novelty, source_authority, confidence, catalyst_type, price_impact) → conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0], magnitude: low=1.0, med=1.5, high=2.0)
+   - **PDUFA Context Layer**: wstrzykiwanie nadchodzących dat FDA do prompta (z tabeli `pdufa_catalysts`)
+   - **2. etap**: Azure OpenAI gpt-4o-mini → wielowymiarowa analiza (relevance, novelty, source_authority, confidence, catalyst_type, price_impact) → conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0], magnitude: low=1.0, med=1.5, high=2.0). Zwraca `prompt_used` w odpowiedzi.
    - **Fallback**: Strong FinBERT Signal — gdy VM offline, silne sygnały (|score|>0.7, conf>0.8) generują alert "(unconfirmed)"
    - Azure VM (`stockpulse-vm`, 74.248.113.3:3100) — processor.js (POST /analyze) + api.js (:8000)
    - BullMQ kolejka `sentiment-analysis`. Wyniki w `sentiment_scores` z enrichedAnalysis (jsonb).
-3. **Warstwa danych** — PostgreSQL z 9 tabelami, Redis dla 6 kolejek BullMQ. TypeORM z `synchronize: true`.
-4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z wykresem sentymentu i zakładką AI Analysis, alerty Telegram (z sekcją AI + raport 2h, uproszczony format conviction), REST API (12 endpointów) na :3000. Throttling per (rule, symbol, catalyst_type) — różne katalizatory dla tego samego tickera nie blokują się wzajemnie.
+   - **Pipeline observability**: tabela `ai_pipeline_logs` — pełna historia egzekucji (status, tier, czasy, payload, prompt, błędy)
+3. **Warstwa danych** — PostgreSQL z 11 tabelami, Redis dla 7 kolejek BullMQ. TypeORM z `synchronize: true`.
+4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z 10+ panelami (wykres sentymentu, AI Analysis, Pipeline AI, PDUFA Calendar, Insider Trades itd.), klikalne dialogi TextDialog do kopiowania. Alerty Telegram (z sekcją AI + raport 2h z PDUFA), REST API (15 endpointów) na :3000. Throttling per (rule, symbol, catalyst_type).
 
 ### Stack technologiczny
 

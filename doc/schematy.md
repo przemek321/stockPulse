@@ -1,7 +1,7 @@
 # StockPulse — Schemat struktury katalogów
 
 > Szczegółowy opis każdego pliku, co robi i z czym jest powiązany.
-> Ostatnia aktualizacja: 2026-03-01
+> Ostatnia aktualizacja: 2026-03-02
 
 ## Drzewo katalogów
 
@@ -32,12 +32,14 @@ stockPulse/
 │   │   ├── insider-trade.entity.ts         # Transakcje insiderów
 │   │   ├── alert.entity.ts                 # Historia wysłanych alertów
 │   │   ├── alert-rule.entity.ts            # Reguły generowania alertów
-│   │   └── collection-log.entity.ts        # Logi cykli zbierania danych
+│   │   ├── collection-log.entity.ts        # Logi cykli zbierania danych
+│   │   ├── pdufa-catalyst.entity.ts       # Katalizatory PDUFA (decyzje FDA)
+│   │   └── ai-pipeline-log.entity.ts      # Logi egzekucji pipeline AI
 │   │
 │   ├── common/                             # Współdzielone utility
 │   │   ├── interfaces/
 │   │   │   ├── collector.interface.ts       # Interfejs ICollector
-│   │   │   └── data-source.enum.ts          # Enum: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS
+│   │   │   └── data-source.enum.ts          # Enum: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS, PDUFA_BIO
 │   │   └── filters/
 │   │       └── http-exception.filter.ts     # Globalny filtr błędów HTTP
 │   │
@@ -66,20 +68,27 @@ stockPulse/
 │   │   ├── sec-edgar/
 │   │   │   ├── sec-edgar.module.ts
 │   │   │   ├── sec-edgar.service.ts        # Filingi + Form 4
-│   │   │   ├── sec-edgar.processor.ts      # BullMQ worker
-│   │   │   └── sec-edgar.scheduler.ts      # Cron co 30 min
-│   │   └── reddit/
-│   │       ├── reddit.module.ts
-│   │       ├── reddit.service.ts           # OAuth2 + wzmianki
-│   │       ├── reddit.processor.ts         # BullMQ worker
-│   │       └── reddit.scheduler.ts         # Cron co 10 min (jeśli skonfigurowany)
+│   │   │   │   ├── sec-edgar.processor.ts      # BullMQ worker
+│   │   │   ├── sec-edgar.scheduler.ts      # Cron co 30 min
+│   │   │   └── form4-parser.ts             # Parser XML Form 4 (insider trades)
+│   │   ├── reddit/
+│   │   │   ├── reddit.module.ts
+│   │   │   ├── reddit.service.ts           # OAuth2 + wzmianki
+│   │   │   ├── reddit.processor.ts         # BullMQ worker
+│   │   │   └── reddit.scheduler.ts         # Cron co 10 min (jeśli skonfigurowany)
+│   │   └── pdufa-bio/
+│   │       ├── pdufa-bio.module.ts         # Moduł kolektora PDUFA
+│   │       ├── pdufa-bio.service.ts        # Scraping pdufa.bio + buildPdufaContext()
+│   │       ├── pdufa-bio.processor.ts      # BullMQ worker
+│   │       ├── pdufa-bio.scheduler.ts      # Co 6h + natychmiastowy pierwszy run
+│   │       └── pdufa-parser.ts             # Parser HTML tabeli kalendarza PDUFA
 │   │
 │   ├── sentiment/                          # Warstwa 2: Analiza sentymentu (2-etapowy pipeline)
 │   │   ├── sentiment.module.ts             # Moduł zbiorczy (encje, kolejka, serwisy)
 │   │   ├── finbert-client.service.ts       # HTTP klient do FinBERT sidecar (1. etap)
 │   │   ├── azure-openai-client.service.ts  # HTTP klient do Azure VM gpt-4o-mini (2. etap)
 │   │   ├── sentiment-listener.service.ts   # Nasłuchuje eventów → dodaje joby
-│   │   └── sentiment-processor.service.ts  # BullMQ processor → FinBERT → eskalacja LLM → zapis
+│   │   └── sentiment-processor.service.ts  # BullMQ processor → FinBERT → eskalacja LLM → zapis + log pipeline
 │   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
@@ -116,8 +125,8 @@ stockPulse/
 │   ├── tsconfig.json                       # TypeScript frontend
 │   └── src/
 │       ├── main.tsx                        # Punkt wejścia React
-│       ├── App.tsx                         # Layout główny (8 paneli danych, zakładka AI)
-│       ├── api.ts                          # Klient HTTP do backendu (/api/*, fetchAiScores)
+│       ├── App.tsx                         # Layout główny (10+ paneli danych, TextDialog, zakładki AI/PDUFA/Pipeline)
+│       ├── api.ts                          # Klient HTTP do backendu (/api/*, fetchAiScores, fetchPipelineLogs)
 │       ├── vite-env.d.ts                   # Typy Vite
 │       └── components/
 │           ├── CollectorStatus.tsx          # Status kolektorów (health + countdown, ukryty Reddit)
@@ -262,12 +271,22 @@ Każda encja = jedna tabela w PostgreSQL.
 **Zasilana przez:** `base-collector.service.ts`.
 **Używany przez:** `health.controller.ts` (status zdrowia + countdown).
 
+#### `pdufa-catalyst.entity.ts` → tabela `pdufa_catalysts`
+**Co robi:** Katalizator PDUFA (decyzja FDA). Symbol tickera, nazwa leku, wskazanie, obszar terapeutyczny, data PDUFA, typ eventu, outcome (nullable: APPROVED/CRL/DELAYED), opcjonalnie ODIN tier/score. UNIQUE constraint na (symbol, drugName, pdufaDate).
+**Zasilana przez:** `pdufa-bio.service.ts` (scraping pdufa.bio co 6h).
+**Używany przez:** `sentiment-processor.service.ts` (Context Layer — wstrzykiwanie do prompta AI), `sentiment.controller.ts` (endpoint `/pdufa`), `summary-scheduler.service.ts` (raport Telegram), `health.controller.ts` (stats).
+
+#### `ai-pipeline-log.entity.ts` → tabela `ai_pipeline_logs`
+**Co robi:** Log egzekucji 2-etapowego pipeline AI. 17 kolumn: symbol, source, entityType/Id, status (AI_ESCALATED/FINBERT_ONLY/AI_FAILED/AI_DISABLED/SKIPPED_SHORT/SKIPPED_NOT_FOUND/ERROR), tier, tierReason, finbertScore, finbertConfidence, inputText, pdufaContext, requestPayload (jsonb), responsePayload (jsonb z prompt_used), finbertDurationMs, azureDurationMs, errorMessage, sentimentScoreId.
+**Zasilana przez:** `sentiment-processor.service.ts` (budowana inkrementalnie przez cały pipeline).
+**Używany przez:** `sentiment.controller.ts` (endpoint `/pipeline-logs`).
+
 ---
 
 ### Współdzielone (`src/common/`)
 
 #### `interfaces/data-source.enum.ts`
-**Co robi:** Enum `DataSource` z wartościami: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS.
+**Co robi:** Enum `DataSource` z wartościami: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS, PDUFA_BIO.
 **Używany przez:** Encje (`sentiment_scores.source`, `raw_mentions.source`, `collection_logs.collector`), kolektory, `sentiment-listener.service.ts`.
 
 #### `interfaces/collector.interface.ts`
@@ -292,6 +311,7 @@ Każda encja = jedna tabela w PostgreSQL.
 - `NEW_FILING` — nowy filing SEC → alert 8-K
 - `NEW_INSIDER_TRADE` — nowa transakcja insiderska → alert
 - `SENTIMENT_SCORED` — przeanalizowany sentyment FinBERT → alert przy score < -0.5
+- `NEW_PDUFA_EVENT` — nowy event PDUFA z kalendarza FDA
 - `ANOMALY_DETECTED` — wykryta anomalia (Faza 2)
 - `ALERT_TRIGGERED` — alert wyzwolony
 
@@ -300,7 +320,7 @@ Każda encja = jedna tabela w PostgreSQL.
 ### Kolejki (`src/queues/`)
 
 #### `queue-names.const.ts`
-**Co robi:** Definiuje nazwy 6 kolejek BullMQ: `stocktwits-collector`, `finnhub-collector`, `sec-edgar-collector`, `reddit-collector`, `sentiment-analysis`, `alert-processing`.
+**Co robi:** Definiuje nazwy 7 kolejek BullMQ: `stocktwits-collector`, `finnhub-collector`, `sec-edgar-collector`, `reddit-collector`, `pdufa-bio`, `sentiment-analysis`, `alert-processing`.
 **Używany przez:** `queues.module.ts`, moduły kolektorów, schedulery, processory, `sentiment.module.ts`.
 
 #### `queues.module.ts`
@@ -328,7 +348,7 @@ Każdy kolektor składa się z 4 plików:
 **Dziedziczą:** StocktwitsService, FinnhubService, SecEdgarService, RedditService.
 
 #### `collectors.module.ts`
-**Co robi:** Zbiorczy moduł importujący wszystkie 4 moduły kolektorów. Eksportuje je do użytku w `ApiModule` (health controller).
+**Co robi:** Zbiorczy moduł importujący wszystkie 5 modułów kolektorów (StockTwits, Finnhub, SEC EDGAR, Reddit, PDUFA.bio). Eksportuje je do użytku w `ApiModule` (health controller).
 
 #### StockTwits (`stocktwits/`)
 - **API:** `https://api.stocktwits.com/api/2`
@@ -367,6 +387,16 @@ Każdy kolektor składa się z 4 plików:
 - **Cykl:** Co 10 minut (tylko jeśli skonfigurowany)
 - **Status:** Scheduler nieaktywny — czeka na zatwierdzenie API access
 
+#### PDUFA.bio (`pdufa-bio/`)
+- **API:** `https://www.pdufa.bio/pdufa-calendar-YYYY`
+- **Auth:** Brak (publiczna strona HTML)
+- **Limit:** Brak (co 6h to wystarczająco rzadko)
+- **Co zbiera:** Kalendarz dat decyzji FDA — ticker, lek, wskazanie, obszar terapeutyczny, data PDUFA
+- **Zapisuje do:** `pdufa_catalysts`
+- **Emituje:** `EventType.NEW_PDUFA_EVENT`
+- **Cykl:** Co 6 godzin + natychmiastowy pierwszy run po starcie
+- **Dodatkowa rola:** `buildPdufaContext()` — buduje tekst kontekstu PDUFA wstrzykiwany do prompta GPT-4o-mini (Context Layer)
+
 ---
 
 ### Analiza sentymentu (`src/sentiment/`)
@@ -392,21 +422,24 @@ Każdy kolektor składa się z 4 plików:
 
 #### `azure-openai-client.service.ts`
 **Co robi:** HTTP klient do Azure VM z gpt-4o-mini (2. etap pipeline). Metody:
-- `analyze(text, symbol, escalationReason)` — POST `/analyze` (wysyła tekst do analizy AI)
+- `analyze(text, symbol, escalationReason, pdufaContext?)` — POST `/analyze` (wysyła tekst + opcjonalny kontekst PDUFA do analizy AI)
 - `isEnabled()` — sprawdza czy `AZURE_ANALYSIS_URL` jest skonfigurowany
 **Konfiguracja:** `AZURE_ANALYSIS_URL` (domyślnie puste — pipeline działa z FinBERT-only), `AZURE_ANALYSIS_TIMEOUT_MS` (domyślnie 30s).
 **Zwraca:** `EnrichedAnalysis` — 16-polowa wielowymiarowa analiza: sentiment, conviction, type, urgency, relevance, novelty, confidence, source_authority, temporal_signal, catalyst_type, price_impact_direction, price_impact_magnitude, summary, escalation_reason, processing_time_ms.
 **Graceful degradation:** Jeśli brak konfiguracji lub błąd HTTP — zwraca null, pipeline kontynuuje z FinBERT-only.
 
 #### `sentiment-processor.service.ts`
-**Co robi:** BullMQ processor (Worker) kolejki `sentiment-analysis`. 2-etapowy pipeline:
+**Co robi:** BullMQ processor (Worker) kolejki `sentiment-analysis`. 2-etapowy pipeline z logowaniem:
 1. Pobiera tekst z `RawMention` (title + body) lub `NewsArticle` (headline + summary)
 2. Filtruje teksty < 20 znaków (MIN_TEXT_LENGTH — odrzuca szum: emoji, same tickery)
 3. **1. etap:** Wysyła do FinBERT sidecar przez `FinbertClientService.analyze()`
-4. **2. etap:** Jeśli confidence < 0.6 lub |score| < 0.3 → eskalacja do `AzureOpenaiClientService.analyze()` → enrichedAnalysis
-5. Zapisuje wynik do `sentiment_scores` (model='finbert' lub 'finbert+gpt-4o-mini', enrichedAnalysis jsonb)
-6. Aktualizuje `sentimentScore` w `news_articles` (jeśli typ = article)
-7. Emituje `EventType.SENTIMENT_SCORED` (z conviction i enrichedAnalysis) → AlertEvaluator reaguje
+4. **Tier-based eskalacja:** classifyTier (Tier 1 → ZAWSZE AI, Tier 2 → AI jeśli VM aktywna, Tier 3 → skip)
+5. **PDUFA Context Layer:** pobiera nadchodzące katalizatory z PdufaBioService.getUpcomingCatalysts() i wstrzykuje do prompta
+6. **2. etap:** Eskalacja do `AzureOpenaiClientService.analyze()` z pdufaContext → enrichedAnalysis
+7. Zapisuje wynik do `sentiment_scores` (model='finbert' lub 'finbert+gpt-4o-mini', enrichedAnalysis jsonb)
+8. Aktualizuje `sentimentScore` w `news_articles` (jeśli typ = article)
+9. Emituje `EventType.SENTIMENT_SCORED` (z conviction i enrichedAnalysis) → AlertEvaluator reaguje
+10. **Pipeline log:** buduje `AiPipelineLog` inkrementalnie na każdym etapie, zapisuje na każdym punkcie wyjścia
 
 ---
 
@@ -436,13 +469,13 @@ Python FastAPI app z modelem ProsusAI/finbert. Uruchamiana jako osobny kontener 
 
 ### Frontend (`frontend/`)
 
-Dashboard React z 8 panelami danych, wykresem sentymentu i zakładką AI. Odpytuje REST API backendu.
+Dashboard React z 10+ panelami danych, wykresem sentymentu, zakładkami AI/Pipeline/PDUFA. TextDialog do podglądu i kopiowania długich tekstów. Odpytuje REST API backendu.
 
 #### `App.tsx`
-**Co robi:** Główny layout — wykres sentymentu (SentimentChart), 8 paneli DataPanel: Analiza AI, Tickery, Wyniki sentymentu, News, SEC EDGAR, Alerty, Reguły alertów, StockTwits Wzmianki. Status kolektorów + podsumowanie bazy.
+**Co robi:** Główny layout — wykres sentymentu (SentimentChart), 10+ paneli DataPanel: Analiza AI, Pipeline AI (logi egzekucji), Tickery, Wyniki sentymentu, News, SEC EDGAR, Insider Trades, PDUFA Kalendarz, Alerty, Reguły alertów, StockTwits Wzmianki. Status kolektorów + podsumowanie bazy. Komponent `TextDialog` — klikalne okna dialogowe do podglądu i kopiowania długich tekstów (prompt AI, tekst wejściowy, błąd).
 
 #### `api.ts`
-**Co robi:** Klient HTTP (fetch) do backendu. Interfejsy TypeScript: HealthData, Ticker, NewsArticle, AlertRule, Alert, SentimentScore, EnrichedAnalysis (16 pól AI). Endpointy: fetchHealth, fetchTickers, fetchAlertRules, fetchAlerts, fetchSentimentScores, fetchAiScores.
+**Co robi:** Klient HTTP (fetch) do backendu. Interfejsy TypeScript: HealthData, Ticker, NewsArticle, AlertRule, Alert, SentimentScore, EnrichedAnalysis (16 pól AI), AiPipelineLog (19 pól). Endpointy: fetchHealth, fetchTickers, fetchAlertRules, fetchAlerts, fetchSentimentScores, fetchAiScores, fetchPipelineLogs.
 
 #### `components/CollectorStatus.tsx`
 **Co robi:** Wyświetla status 3 aktywnych kolektorów (Reddit ukryty): ostatni run, ile elementów, czas, countdown do następnego cyklu. Totale per tabela.
@@ -474,8 +507,8 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 **Powiązania:** Nasłuchuje eventów z kolektorów i sentiment pipeline → sprawdza reguły w `alert_rules` → wysyła przez `TelegramService` (z danymi AI jeśli dostępne) → zapisuje do `alerts`.
 
 #### `summary-scheduler.service.ts`
-**Co robi:** Cykliczny raport sentymentu co 2 godziny na Telegram. Agreguje: średni score, top 3 negatywne/pozytywne tickery, liczba alertów, liczba eskalacji AI. Pierwszy raport po 15s od startu.
-**Powiązania:** `SentimentScoreRepository`, `AlertRepository`, `TelegramService`.
+**Co robi:** Cykliczny raport sentymentu co 2 godziny na Telegram. Agreguje: średni score, top 3 negatywne/pozytywne tickery, liczba alertów, liczba eskalacji AI, nadchodzące katalizatory PDUFA (w oknie 7 dni). Pierwszy raport po 15s od startu.
+**Powiązania:** `SentimentScoreRepository`, `AlertRepository`, `PdufaCatalystRepository`, `TelegramService`, `PdufaBioService`.
 
 #### `telegram/telegram.service.ts`
 **Co robi:** Wrapper HTTP do Telegram Bot API. Metody `sendMarkdown()` i `sendText()`. Sprawdza czy bot jest skonfigurowany (token + chat_id).
@@ -512,9 +545,12 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 - `GET /api/sentiment/news?limit=100` — ostatnie newsy (wszystkie tickery)
 - `GET /api/sentiment/mentions?limit=100` — ostatnie wzmianki social media
 - `GET /api/sentiment/filings?limit=100` — ostatnie filingi SEC
+- `GET /api/sentiment/insider-trades?limit=100` — transakcje insiderów (Form 4)
+- `GET /api/sentiment/pdufa?upcoming_only=true&limit=100` — kalendarz PDUFA (decyzje FDA)
+- `GET /api/sentiment/pipeline-logs?status=&symbol=&limit=200` — logi egzekucji pipeline AI
 - `GET /api/sentiment/:ticker?limit=50` — dane sentymentu per ticker (scores + mentions + news)
 
-**Powiązania:** `SentimentScoreRepository`, `RawMentionRepository`, `NewsArticleRepository`.
+**Powiązania:** `SentimentScoreRepository`, `RawMentionRepository`, `NewsArticleRepository`, `InsiderTradeRepository`, `PdufaCatalystRepository`, `AiPipelineLogRepository`.
 
 #### `alerts/alerts.controller.ts`
 **Endpoint:** `GET /api/alerts?symbol=UNH&limit=50`, `GET /api/alerts/rules`
@@ -569,13 +605,16 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
                          └──────┬──────────┘
                                 │
                     ┌───────────▼───────────┐
-                    │  Eskalacja?           │  (confidence < 0.6 LUB |score| < 0.3)
-                    │  TAK → Azure VM LLM  │
-                    │  NIE → zapis bezpośr. │
+                    │  Tier-based eskalacja │  (T1: conf>0.7 & abs>0.5 → ZAWSZE)
+                    │  T2: do AI jeśli VM   │  (T3: skip → FINBERT_ONLY)
                     └───────────┬───────────┘
-                                │ (opcjonalnie)
+                                │ (Tier 1 lub 2)
+                    ┌───────────▼───────────┐
+                    │  PDUFA Context Layer  │  (pdufa_catalysts → tekst kontekstu)
+                    └───────────┬───────────┘
+                                │
                          ┌──────▼──────────┐
-                         │ Azure VM        │  (gpt-4o-mini — 2. etap)
+                         │ Azure VM        │  (gpt-4o-mini — 2. etap + prompt_used)
                          │ POST /analyze   │  (74.248.113.3:3100)
                          └──────┬──────────┘
                                 │
@@ -599,6 +638,11 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
                          ┌─────▼────────────┐
                          │ alerts (tabela)  │  (historia wysyłki)
                          └──────────────────┘
+
+                    (Na każdym etapie pipeline buduje AiPipelineLog)
+                         ┌──────────────────┐
+                         │ ai_pipeline_logs │  (pełna historia egzekucji)
+                         └──────────────────┘
 ```
 
 ---
@@ -615,13 +659,14 @@ AppModule
 ├── CollectorsModule
 │   ├── StocktwitsModule  (service + processor + scheduler)
 │   ├── FinnhubModule     (service + processor + scheduler)
-│   ├── SecEdgarModule    (service + processor + scheduler)
-│   └── RedditModule      (service + processor + scheduler)
+│   ├── SecEdgarModule    (service + processor + scheduler + form4-parser)
+│   ├── RedditModule      (service + processor + scheduler)
+│   └── PdufaBioModule    (service + processor + scheduler + pdufa-parser)
 ├── SentimentModule
 │   ├── FinbertClientService         (HTTP klient → FinBERT sidecar, 1. etap)
 │   ├── AzureOpenaiClientService     (HTTP klient → Azure VM gpt-4o-mini, 2. etap)
 │   ├── SentimentListenerService     (nasłuchuje eventów → dodaje joby)
-│   └── SentimentProcessorService    (BullMQ worker → FinBERT → eskalacja LLM → zapis)
+│   └── SentimentProcessorService    (BullMQ worker → FinBERT → tier → PDUFA context → LLM → zapis + pipeline log)
 ├── AlertsModule
 │   ├── AlertEvaluatorService    (nasłuchuje: insider trade, filing, sentiment + AI)
 │   ├── SummarySchedulerService  (raport 2h na Telegram)
@@ -630,13 +675,13 @@ AppModule
 └── ApiModule
     ├── HealthController       (GET /api/health, /api/health/stats)
     ├── TickersController      (GET /api/tickers)
-    ├── SentimentController    (GET /api/sentiment/* — 5 endpointów)
+    ├── SentimentController    (GET /api/sentiment/* — 8 endpointów, w tym pipeline-logs, pdufa, insider-trades)
     └── AlertsController       (GET /api/alerts)
 ```
 
 ---
 
-## Schemat bazy danych (9 tabel)
+## Schemat bazy danych (11 tabel)
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
@@ -682,6 +727,30 @@ AppModule
 │ delivered    │     │ createdAt        │     │ startedAt        │
 │ sentAt       │     │ updatedAt        │     └──────────────────┘
 └──────────────┘     └──────────────────┘
+
+┌──────────────────┐     ┌──────────────────┐
+│ pdufa_catalysts  │     │ ai_pipeline_logs │
+│──────────────────│     │──────────────────│
+│ id               │     │ id               │
+│ symbol           │     │ symbol           │
+│ drugName         │     │ source           │
+│ indication       │     │ entityType       │
+│ therapeuticArea  │     │ entityId         │
+│ pdufaDate        │     │ status           │
+│ eventType        │     │ tier             │
+│ outcome (null)   │     │ tierReason       │
+│ odinTier         │     │ finbertScore     │
+│ odinScore        │     │ finbertConfidence│
+│ scrapedAt        │     │ inputText        │
+│ createdAt        │     │ pdufaContext      │
+│ updatedAt        │     │ requestPayload   │
+└──────────────────┘     │ responsePayload  │
+                         │ finbertDurationMs│
+                         │ azureDurationMs  │
+                         │ errorMessage     │
+                         │ sentimentScoreId │
+                         │ createdAt        │
+                         └──────────────────┘
 ```
 
 ---

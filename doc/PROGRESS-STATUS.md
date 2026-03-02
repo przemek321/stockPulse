@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-03-01
+> Ostatnia aktualizacja: 2026-03-02
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona, tuning w Sprint 3a)
+**Faza 2 — Analiza AI sentymentu** (ukończona, tuning w Sprint 3a) + **Sprint 3b — PDUFA + Pipeline observability** (ukończony)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap): Tier 1 (silne: conf>0.7 AND abs>0.5) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 (śmieci) skip. Conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0]) → alerty: "High Conviction Signal" (|conv|>1.5) + "Strong FinBERT Signal" (fallback bez VM). Throttling per (rule, symbol, catalyst_type). Frontend React z dashboardem, wykresem sentymentu (Recharts), zakładką AI Analysis. 9 reguł alertów, 9 tabel PostgreSQL, 6 kolejek Redis.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap): Tier 1 (silne: conf>0.7 AND abs>0.5) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 (śmieci) skip. Conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0]) → alerty: "High Conviction Signal" (|conv|>1.5) + "Strong FinBERT Signal" (fallback bez VM). Throttling per (rule, symbol, catalyst_type). PDUFA Context Layer: wstrzykiwanie nadchodzących dat FDA do prompta AI. Pipeline observability: pełne logi egzekucji AI w tabeli `ai_pipeline_logs`. Frontend React z 10+ panelami danych, wykresem sentymentu (Recharts), zakładkami AI Analysis, Pipeline AI i PDUFA Calendar. 9 reguł alertów, 11 tabel PostgreSQL, 7 kolejek Redis.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -189,6 +189,35 @@ Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → even
   - Nowy format: kierunek + conviction + katalizator + summary + źródło (~50% mniej tekstu)
 - [x] **Frontend** — kolumna Katalizator w tabeli alertów, dynamiczny badge reguł (bez hardcode)
 
+### Sprint 3b: PDUFA.bio + Context Layer + Pipeline Log Viewer (ukończony 2026-03-02)
+- [x] **Kolektor PDUFA.bio** — scraping kalendarza FDA z pdufa.bio/pdufa-calendar-YYYY
+  - `PdufaBioService` — scraping HTML, parsowanie eventów, deduplikacja (ticker+drug+date)
+  - `PdufaBioProcessor` — BullMQ worker kolejki `pdufa-bio`
+  - `PdufaBioScheduler` — repeatable job co 6h + natychmiastowy pierwszy run
+  - `pdufa-parser.ts` — parser HTML tabeli PDUFA
+  - Przechowuje WSZYSTKIE eventy (nie tylko nasze tickery)
+- [x] **Entity `PdufaCatalyst`** — tabela `pdufa_catalysts`:
+  - symbol, drugName, indication, therapeuticArea, pdufaDate, eventType, outcome (nullable), odinTier, odinScore, scrapedAt
+  - UNIQUE constraint: (symbol, drugName, pdufaDate)
+- [x] **PDUFA Context Layer** — wstrzykiwanie kontekstu FDA do prompta gpt-4o-mini:
+  - `buildPdufaContext()` w PdufaBioService — format: "PDUFA: drugName, indication: X, date: YYYY-MM-DD (N days)"
+  - `AzureOpenaiClientService.analyze()` — nowy parametr `pdufaContext`
+  - `processor.js` (Azure VM) — wstrzyknięcie sekcji "UPCOMING FDA CATALYSTS" do prompta
+  - `processor.js` — zwraca `prompt_used` w odpowiedzi (widoczność prompta)
+- [x] **Entity `AiPipelineLog`** — tabela `ai_pipeline_logs`:
+  - 17 kolumn: symbol, source, entityType, entityId, status, tier, tierReason, finbertScore, finbertConfidence, inputText, pdufaContext, requestPayload (jsonb), responsePayload (jsonb), finbertDurationMs, azureDurationMs, errorMessage, sentimentScoreId, createdAt
+  - Statusy: AI_ESCALATED, FINBERT_ONLY, AI_FAILED, AI_DISABLED, FINBERT_FALLBACK, SKIPPED_SHORT, SKIPPED_NOT_FOUND, ERROR
+- [x] **Instrumentacja SentimentProcessorService** — budowanie logu inkrementalnie przez cały pipeline, zapis na każdym punkcie wyjścia
+- [x] **REST API**:
+  - `GET /api/sentiment/pipeline-logs?status=&symbol=&limit=` — logi egzekucji pipeline AI
+  - `GET /api/sentiment/pdufa?upcoming_only=true&limit=` — kalendarz PDUFA
+  - `GET /api/health/stats` — rozszerzony o statystyki PDUFA
+- [x] **Frontend**:
+  - Panel "Pipeline AI — Logi Egzekucji" (15 kolumn: status, ticker, tier, źródło, FinBERT, confidence, powód, tekst, PDUFA, AI wynik, prompt, czasy, błąd, data)
+  - Panel "PDUFA Kalendarz (Decyzje FDA)" (kolumny: data PDUFA z countdown, ticker, lek, wskazanie, obszar, wynik)
+  - `TextDialog` — klikalne okna dialogowe zamiast tooltipów (prompt, tekst, błąd) z możliwością zaznaczania i kopiowania
+- [x] **Telegram** — sekcja PDUFA w raportach 2h (nadchodzące katalizatory FDA w oknie 7 dni)
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -201,6 +230,9 @@ GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza AP
 - [x] Zakładka "Analiza AI (gpt-4o-mini)" — pełne dane enrichedAnalysis w tabeli
 - [x] Fioletowe kropki AI na wykresie sentymentu + badge AI w tooltip
 - [x] Ukrycie kolektora Reddit z widoku (placeholder)
+- [x] Panel "Pipeline AI — Logi Egzekucji" — 15 kolumn z pełną historią AI pipeline
+- [x] Panel "PDUFA Kalendarz (Decyzje FDA)" — countdown do dat, kolory wg odległości
+- [x] TextDialog — klikalne dialogi z kopiowaniem zamiast tooltipów (prompt, tekst, błąd)
 - [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
 - [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami
@@ -263,12 +295,12 @@ npm run test:all
 - **Tickery do monitorowania**: 27 healthcare (zdefiniowane w healthcare-universe.json)
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
-- **Pliki źródłowe**: ~60 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
+- **Pliki źródłowe**: ~70 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
 - **Reguły alertów**: 9 (Sentiment Crash, Mention Volume Spike, Insider Trade Large, 8-K Material Event, Cross-Sector Correlation, CMS Regulatory Event, Earnings Date Approaching, High Conviction Signal, Strong FinBERT Signal)
-- **Encje bazy danych**: 9 tabel (sentiment_scores z enrichedAnalysis jsonb)
-- **Kolejki BullMQ**: 6 (4 kolektory + sentiment-analysis + alerts)
-- **Endpointy REST**: 12 (health x2, tickers x2, sentiment x5 + ai_only, alerts x2)
-- **Źródła danych**: 3 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR), 1 placeholder (Reddit)
-- **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM), 1 planowany (spaCy NER)
+- **Encje bazy danych**: 11 tabel (sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs)
+- **Kolejki BullMQ**: 7 (5 kolektorów + sentiment-analysis + alerts)
+- **Endpointy REST**: 15 (health x2, tickers x2, sentiment x7 + ai_only + pipeline-logs + pdufa + insider-trades, alerts x2)
+- **Źródła danych**: 4 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio), 1 placeholder (Reddit)
+- **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer), 1 planowany (spaCy NER)
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
 - **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
