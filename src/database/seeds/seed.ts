@@ -21,6 +21,7 @@ const GROUP_PRIORITY: Record<string, string> = {
   pbm_pharmacy: 'HIGH',
   health_it_digital: 'MEDIUM',
   medical_devices_diagnostics: 'MEDIUM',
+  pharma_biotech: 'HIGH',
 };
 
 interface CompanyJson {

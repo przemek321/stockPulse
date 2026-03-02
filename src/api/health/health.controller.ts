@@ -244,11 +244,20 @@ export class HealthController {
         ORDER BY "sentAt" DESC
       `),
 
-      // 6. Status scrapera PDUFA
+      // 6. Status scrapera PDUFA + lista upcoming tickerów
       this.dataSource.query(`
         SELECT COUNT(*) as total_events,
           COUNT(*) FILTER (WHERE outcome IS NOT NULL) as resolved,
-          COUNT(*) FILTER (WHERE outcome IS NULL AND pdufa_date > NOW()) as upcoming
+          COUNT(*) FILTER (WHERE outcome IS NULL AND pdufa_date > NOW()) as upcoming,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'symbol', symbol, 'drug', drug_name,
+              'date', pdufa_date, 'area', therapeutic_area
+            ) ORDER BY pdufa_date)
+            FROM pdufa_catalysts
+            WHERE outcome IS NULL AND pdufa_date > NOW()),
+            '[]'::json
+          ) as upcoming_events
         FROM pdufa_catalysts
       `),
     ]);

@@ -5,7 +5,7 @@
     "created": "2026-02-08",
     "author": "Przemek",
     "description": "Kompletna konfiguracja monitoringu healthcare sector dla StockPulse",
-    "total_tickers": 32,
+    "total_tickers": 42,
     "total_keywords": 180,
     "total_people": 65,
     "total_subreddits": 18,
@@ -373,6 +373,134 @@
     }
   },
 
+    "pharma_biotech": {
+      "description": "Big Pharma & Biotech z datami PDUFA. Monitorowane dla FDA catalysts i context AI.",
+      "priority": "HIGH",
+      "companies": [
+        {
+          "ticker": "BMY",
+          "name": "Bristol-Myers Squibb",
+          "cik": "0000014272",
+          "subsector": "Big Pharma",
+          "market_cap_tier": "mega",
+          "aliases": ["Bristol Myers", "BMS", "Bristol-Myers"],
+          "key_metrics": ["pipeline", "revenue_growth", "new_product_revenue"],
+          "ceo": "Chris Boerner",
+          "cfo": "David Elkins",
+          "notes": "Oncology + immunology leader. Multiple PDUFA dates annually."
+        },
+        {
+          "ticker": "LLY",
+          "name": "Eli Lilly",
+          "cik": "0000059478",
+          "subsector": "Big Pharma (GLP-1 leader)",
+          "market_cap_tier": "mega",
+          "aliases": ["Lilly", "Eli Lilly", "Mounjaro", "Zepbound"],
+          "key_metrics": ["Mounjaro_revenue", "Zepbound_revenue", "pipeline"],
+          "ceo": "David Ricks",
+          "cfo": "Anat Ashkenazi",
+          "notes": "GLP-1 market leader (Mounjaro/Zepbound). PDUFA dates for orforglipron."
+        },
+        {
+          "ticker": "MRNA",
+          "name": "Moderna",
+          "cik": "0001682852",
+          "subsector": "mRNA Therapeutics",
+          "market_cap_tier": "large",
+          "aliases": ["Moderna"],
+          "key_metrics": ["vaccine_revenue", "pipeline_readouts", "cash_position"],
+          "ceo": "Stephane Bancel",
+          "cfo": "Jamey Mock",
+          "notes": "mRNA platform. Beyond COVID — oncology, rare disease pipeline."
+        },
+        {
+          "ticker": "ABBV",
+          "name": "AbbVie",
+          "cik": "0001551152",
+          "subsector": "Big Pharma (Immunology)",
+          "market_cap_tier": "mega",
+          "aliases": ["AbbVie", "Humira", "Skyrizi", "Rinvoq"],
+          "key_metrics": ["Skyrizi_revenue", "Rinvoq_revenue", "Humira_erosion"],
+          "ceo": "Rob Michael",
+          "cfo": "Scott Reents",
+          "notes": "Post-Humira transition. Skyrizi+Rinvoq growth. Immunology + oncology."
+        },
+        {
+          "ticker": "REGN",
+          "name": "Regeneron Pharmaceuticals",
+          "cik": "0000872589",
+          "subsector": "Biotech (Antibodies)",
+          "market_cap_tier": "mega",
+          "aliases": ["Regeneron", "Eylea", "Dupixent"],
+          "key_metrics": ["Dupixent_revenue", "Eylea_revenue", "pipeline"],
+          "ceo": "Leonard Schleifer",
+          "cfo": "Robert Landry",
+          "notes": "Dupixent blockbuster. Eylea HD. Strong R&D pipeline."
+        },
+        {
+          "ticker": "VRTX",
+          "name": "Vertex Pharmaceuticals",
+          "cik": "0000875320",
+          "subsector": "Biotech (CF + Pain)",
+          "market_cap_tier": "mega",
+          "aliases": ["Vertex", "Trikafta", "Casgevy"],
+          "key_metrics": ["Trikafta_revenue", "pain_pipeline", "gene_therapy"],
+          "ceo": "Reshma Kewalramani",
+          "cfo": "Charlie Wagner",
+          "notes": "CF monopoly (Trikafta). Pain pipeline next catalyst. Casgevy gene therapy."
+        },
+        {
+          "ticker": "GILD",
+          "name": "Gilead Sciences",
+          "cik": "0000882095",
+          "subsector": "Biotech (HIV/Oncology)",
+          "market_cap_tier": "mega",
+          "aliases": ["Gilead", "Biktarvy", "Trodelvy"],
+          "key_metrics": ["HIV_revenue", "oncology_revenue", "Biktarvy_revenue"],
+          "ceo": "Daniel O'Day",
+          "cfo": "Andrew Dickinson",
+          "notes": "HIV franchise (Biktarvy). Expanding oncology (Trodelvy). Lenacapavir."
+        },
+        {
+          "ticker": "AMGN",
+          "name": "Amgen",
+          "cik": "0000318154",
+          "subsector": "Big Biotech",
+          "market_cap_tier": "mega",
+          "aliases": ["Amgen", "Repatha", "MariTide"],
+          "key_metrics": ["biosimilar_revenue", "obesity_pipeline", "Repatha_revenue"],
+          "ceo": "Robert Bradway",
+          "cfo": "Peter Griffith",
+          "notes": "Largest biotech. MariTide obesity candidate. Biosimilar portfolio."
+        },
+        {
+          "ticker": "BIIB",
+          "name": "Biogen",
+          "cik": "0000875045",
+          "subsector": "Biotech (Neuro)",
+          "market_cap_tier": "large",
+          "aliases": ["Biogen", "Leqembi", "Skyclarys"],
+          "key_metrics": ["Leqembi_revenue", "MS_franchise", "pipeline"],
+          "ceo": "Chris Viehbacher",
+          "cfo": "Mike McDonnell",
+          "notes": "Alzheimer's (Leqembi). MS franchise. Rare disease (Skyclarys)."
+        },
+        {
+          "ticker": "GSK",
+          "name": "GSK plc",
+          "cik": "0001131399",
+          "subsector": "Big Pharma (Vaccines + Specialty)",
+          "market_cap_tier": "mega",
+          "aliases": ["GSK", "GlaxoSmithKline", "Glaxo"],
+          "key_metrics": ["vaccine_revenue", "specialty_revenue", "pipeline"],
+          "ceo": "Emma Walmsley",
+          "cfo": "Julie Brown",
+          "notes": "Vaccines leader (Shingrix). Specialty pharma. Linerixibat PDUFA."
+        }
+      ]
+    }
+  },
+
   "search_keywords": {
     "financial_metrics": [
       "medical cost ratio", "MCR", "medical loss ratio", "MLR",
@@ -597,7 +725,11 @@
       "VEEV": "0001393052", "DOCS": "0001833708", "GDRX": "0001809519",
       "TDOC": "0001477449", "CERT": "0001827090", "HCAT": "0001636422",
       "ISRG": "0001035267", "DXCM": "0001093557", "PODD": "0001145197",
-      "DVA": "0000927066"
+      "DVA": "0000927066",
+      "BMY": "0000014272", "LLY": "0000059478", "GSK": "0001131399",
+      "MRNA": "0001682852", "REGN": "0000872589", "VRTX": "0000875320",
+      "BIIB": "0000875045", "GILD": "0000882095", "AMGN": "0000318154",
+      "ABBV": "0001551152"
     }
   },
 
@@ -685,6 +817,18 @@
         "tickers": ["TDOC", "DOCS", "HIMS"],
         "catalyst": "Telehealth policy, reimbursement parity, tech regulation",
         "correlation": "MEDIUM"
+      },
+      {
+        "name": "GLP-1 / Obesity",
+        "tickers": ["LLY", "AMGN", "HIMS"],
+        "catalyst": "FDA approval, CMS coverage, compounding regulation",
+        "correlation": "HIGH"
+      },
+      {
+        "name": "Big Pharma Pipeline",
+        "tickers": ["BMY", "ABBV", "REGN", "VRTX", "GILD"],
+        "catalyst": "PDUFA dates, clinical trial readouts, patent expiry",
+        "correlation": "LOW"
       }
     ]
   },
