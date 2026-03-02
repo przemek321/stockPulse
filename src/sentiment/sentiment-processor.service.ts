@@ -143,8 +143,10 @@ export class SentimentProcessorService extends WorkerHost {
               `PDUFA context dla ${symbol}: ${catalysts.length} katalizator(ów)`,
             );
           }
-        } catch {
-          // Brak danych PDUFA nie blokuje pipeline
+        } catch (pdufaErr) {
+          this.logger.warn(
+            `Błąd pobierania PDUFA context dla ${symbol}: ${pdufaErr instanceof Error ? pdufaErr.message : pdufaErr}`,
+          );
         }
 
         pLog.pdufaContext = pdufaContext;

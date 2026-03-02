@@ -114,6 +114,62 @@ export class TelegramFormatterService {
   }
 
   /**
+   * Formatuje zbiorczy alert insider trade — wiele transakcji tego samego tickera
+   * zagregowanych w oknie 5 min (np. nocny dump SEC EDGAR).
+   */
+  formatInsiderBatchAlert(data: {
+    symbol: string;
+    companyName: string;
+    tradeCount: number;
+    totalValue: number;
+    totalShares: number;
+    trades: {
+      insiderName: string;
+      insiderRole?: string | null;
+      transactionType: string;
+      totalValue: number;
+      shares: number;
+    }[];
+    priority: string;
+  }): string {
+    const icon = this.priorityIcon(data.priority);
+    const value = this.escapeMarkdown(
+      `$${data.totalValue.toLocaleString('en-US')}`,
+    );
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
+
+    const lines = [
+      `${icon} *StockPulse Alert*`,
+      '',
+      `\u{1F575}\uFE0F *${this.escapeMarkdown(String(data.tradeCount))} Insider Trades* \u2014 \\$${this.escapeMarkdown(data.symbol)}`,
+      '',
+      `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
+      `\u2022 Łączna wartość: ${value}`,
+      `\u2022 Łącznie akcji: ${this.escapeMarkdown(data.totalShares.toLocaleString('en-US'))}`,
+      '',
+    ];
+
+    // Pokaż max 5 transakcji ze szczegółami
+    const shown = data.trades.slice(0, 5);
+    for (const t of shown) {
+      const tv = this.escapeMarkdown(`$${t.totalValue.toLocaleString('en-US')}`);
+      lines.push(
+        `  \u2022 ${this.escapeMarkdown(t.insiderName)} — ${this.escapeMarkdown(t.transactionType)} ${tv}`,
+      );
+    }
+    if (data.trades.length > 5) {
+      lines.push(
+        `  \u2022 \\.\\.\\.i ${this.escapeMarkdown(String(data.trades.length - 5))} więcej`,
+      );
+    }
+
+    lines.push('');
+    lines.push(`\u23F0 ${timestamp}`);
+
+    return lines.join('\n');
+  }
+
+  /**
    * Formatuje alert o nowym filingu SEC.
    */
   formatFilingAlert(data: {

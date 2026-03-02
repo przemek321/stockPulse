@@ -109,7 +109,7 @@ export class PdufaBioService extends BaseCollectorService {
    */
   async getUpcomingCatalysts(
     symbol: string,
-    daysAhead = 30,
+    daysAhead = 90,
   ): Promise<PdufaCatalyst[]> {
     const now = new Date();
     const limit = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);

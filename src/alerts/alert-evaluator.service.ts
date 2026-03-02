@@ -13,9 +13,27 @@ import { TelegramFormatterService } from './telegram/telegram-formatter.service'
  * i sprawdza czy pasują do aktywnych reguł.
  * Implementuje throttling — minimalna przerwa między alertami tego samego typu per ticker.
  */
+/** Okno agregacji insider trades — zbiera transakcje per ticker i wysyła zbiorczy alert */
+const INSIDER_AGGREGATION_WINDOW_MS = 5 * 60 * 1000; // 5 minut
+
+interface InsiderBatch {
+  symbol: string;
+  trades: {
+    insiderName: string;
+    insiderRole?: string | null;
+    transactionType: string;
+    totalValue: number;
+    shares: number;
+  }[];
+  timer: ReturnType<typeof setTimeout>;
+}
+
 @Injectable()
 export class AlertEvaluatorService {
   private readonly logger = new Logger(AlertEvaluatorService.name);
+
+  /** Bufor agregacji insider trades per ticker */
+  private readonly insiderBatches = new Map<string, InsiderBatch>();
 
   constructor(
     @InjectRepository(Alert)
@@ -47,10 +65,65 @@ export class AlertEvaluatorService {
     // Próg $100K — filtruje MSPR (totalValue=0), małe transakcje i stare EFTS placeholdery
     if (!payload.totalValue || payload.totalValue < 100_000) return;
 
+    // Filtruj rutynowe transakcje — tylko BUY i SELL to prawdziwe sygnały handlowe
+    const ALERTABLE_TYPES = ['BUY', 'SELL'];
+    if (
+      payload.transactionType &&
+      !ALERTABLE_TYPES.includes(payload.transactionType)
+    ) {
+      this.logger.debug(
+        `Pominięto insider trade ${payload.symbol} — typ ${payload.transactionType} (nie BUY/SELL)`,
+      );
+      return;
+    }
+
     this.logger.debug(
       `Insider trade >$100K: ${payload.symbol} ${payload.insiderName} ` +
         `${payload.transactionType} $${payload.totalValue.toLocaleString('en-US')}`,
     );
+
+    // Agregacja: zbierz trades per ticker w oknie 5 min, wyślij zbiorczy alert
+    const existing = this.insiderBatches.get(payload.symbol);
+    const trade = {
+      insiderName: payload.insiderName ?? 'Unknown',
+      insiderRole: payload.insiderRole,
+      transactionType: payload.transactionType ?? 'UNKNOWN',
+      totalValue: payload.totalValue,
+      shares: payload.shares ?? 0,
+    };
+
+    if (existing) {
+      // Dodaj do istniejącego batcha — timer już biegnie
+      existing.trades.push(trade);
+      this.logger.debug(
+        `Insider batch ${payload.symbol}: ${existing.trades.length} transakcji w oknie`,
+      );
+    } else {
+      // Nowy batch — ustaw timer na flush po 5 min
+      const batch: InsiderBatch = {
+        symbol: payload.symbol,
+        trades: [trade],
+        timer: setTimeout(
+          () => this.flushInsiderBatch(payload.symbol),
+          INSIDER_AGGREGATION_WINDOW_MS,
+        ),
+      };
+      this.insiderBatches.set(payload.symbol, batch);
+    }
+  }
+
+  /**
+   * Wysyła zbiorczy alert insider trade po zakończeniu okna agregacji.
+   * Grupuje transakcje: "3 insider trades for $ISRG totaling $3.5M"
+   */
+  private async flushInsiderBatch(symbol: string): Promise<void> {
+    const batch = this.insiderBatches.get(symbol);
+    if (!batch || batch.trades.length === 0) {
+      this.insiderBatches.delete(symbol);
+      return;
+    }
+
+    this.insiderBatches.delete(symbol);
 
     const rule = await this.ruleRepo.findOne({
       where: { name: 'Insider Trade Large', isActive: true },
@@ -59,28 +132,47 @@ export class AlertEvaluatorService {
 
     const isThrottled = await this.isThrottled(
       rule.name,
-      payload.symbol,
+      symbol,
       rule.throttleMinutes,
     );
     if (isThrottled) return;
 
-    // Nazwa firmy z Ticker entity
     const ticker = await this.tickerRepo.findOne({
-      where: { symbol: payload.symbol },
+      where: { symbol },
     });
 
-    const message = this.formatter.formatInsiderTradeAlert({
-      symbol: payload.symbol,
-      companyName: ticker?.name ?? payload.symbol,
-      insiderName: payload.insiderName ?? 'Unknown',
-      insiderRole: payload.insiderRole ?? undefined,
-      transactionType: payload.transactionType ?? 'UNKNOWN',
-      totalValue: payload.totalValue,
-      shares: payload.shares,
-      priority: rule.priority,
-    });
+    const totalValue = batch.trades.reduce((s, t) => s + t.totalValue, 0);
+    const totalShares = batch.trades.reduce((s, t) => s + t.shares, 0);
 
-    await this.sendAlert(payload.symbol, rule, message);
+    let message: string;
+
+    if (batch.trades.length === 1) {
+      // Pojedynczy trade — standardowy format
+      const t = batch.trades[0];
+      message = this.formatter.formatInsiderTradeAlert({
+        symbol,
+        companyName: ticker?.name ?? symbol,
+        insiderName: t.insiderName,
+        insiderRole: t.insiderRole ?? undefined,
+        transactionType: t.transactionType,
+        totalValue: t.totalValue,
+        shares: t.shares,
+        priority: rule.priority,
+      });
+    } else {
+      // Wiele trades — zbiorczy format
+      message = this.formatter.formatInsiderBatchAlert({
+        symbol,
+        companyName: ticker?.name ?? symbol,
+        tradeCount: batch.trades.length,
+        totalValue,
+        totalShares,
+        trades: batch.trades,
+        priority: rule.priority,
+      });
+    }
+
+    await this.sendAlert(symbol, rule, message);
   }
 
   /**
@@ -162,6 +254,20 @@ export class AlertEvaluatorService {
     enrichedAnalysis: Record<string, any> | null;
   }): Promise<void> {
     if (payload.score >= -0.5 || payload.confidence < 0.7) return;
+
+    // AI override: jeśli AI przeanalizowało tekst i mówi „to nic" → nie wysyłaj alertu
+    // FinBERT może krzyczeć -0.9, ale AI wie że tekst jest neutralny (conviction ≈ 0)
+    if (payload.enrichedAnalysis) {
+      const conviction = Number(payload.enrichedAnalysis.conviction ?? 0);
+      const urgency = payload.enrichedAnalysis.urgency;
+      if (Math.abs(conviction) < 0.3 && urgency === 'LOW') {
+        this.logger.debug(
+          `Pominięto Sentiment Crash ${payload.symbol} — AI override: ` +
+            `conviction=${conviction}, urgency=${urgency} (FinBERT score=${payload.score})`,
+        );
+        return;
+      }
+    }
 
     this.logger.debug(
       `Negatywny sentyment: ${payload.symbol} score=${payload.score} (${payload.model})`,
