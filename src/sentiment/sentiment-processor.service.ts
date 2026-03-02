@@ -136,7 +136,7 @@ export class SentimentProcessorService extends WorkerHost {
         // Pobierz kontekst PDUFA dla tickera (nadchodzące katalizatory FDA)
         let pdufaContext: string | null = null;
         try {
-          const catalysts = await this.pdufaBio.getUpcomingCatalysts(symbol, 30);
+          const catalysts = await this.pdufaBio.getUpcomingCatalysts(symbol);
           if (catalysts.length > 0) {
             pdufaContext = this.pdufaBio.buildPdufaContext(catalysts);
             this.logger.debug(
