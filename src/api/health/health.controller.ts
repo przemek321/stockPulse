@@ -205,17 +205,17 @@ export class HealthController {
       this.dataSource.query(`
         SELECT
           symbol, score, confidence, model,
-          enriched_analysis->>'conviction' as conviction,
-          enriched_analysis->>'catalyst_type' as catalyst,
-          enriched_analysis->>'relevance' as relevance,
-          enriched_analysis->>'sentiment' as ai_sentiment,
-          enriched_analysis->>'summary' as summary,
-          raw_text,
+          "enrichedAnalysis"->>'conviction' as conviction,
+          "enrichedAnalysis"->>'catalyst_type' as catalyst,
+          "enrichedAnalysis"->>'relevance' as relevance,
+          "enrichedAnalysis"->>'sentiment' as ai_sentiment,
+          "enrichedAnalysis"->>'summary' as summary,
+          "rawText",
           timestamp
         FROM sentiment_scores
-        WHERE enriched_analysis IS NOT NULL
+        WHERE "enrichedAnalysis" IS NOT NULL
           AND timestamp > NOW() - INTERVAL '${interval}'
-        ORDER BY ABS((enriched_analysis->>'conviction')::numeric) DESC
+        ORDER BY ABS(("enrichedAnalysis"->>'conviction')::numeric) DESC
         LIMIT 20
       `),
 
@@ -237,11 +237,11 @@ export class HealthController {
       // 5. Alerty wysłane na Telegram
       this.dataSource.query(`
         SELECT
-          rule_name, symbol, priority, catalyst_type,
-          message, sent_at
+          "ruleName" as rule_name, symbol, priority, "catalystType" as catalyst_type,
+          message, "sentAt" as sent_at
         FROM alerts
-        WHERE sent_at > NOW() - INTERVAL '${interval}'
-        ORDER BY sent_at DESC
+        WHERE "sentAt" > NOW() - INTERVAL '${interval}'
+        ORDER BY "sentAt" DESC
       `),
 
       // 6. Status scrapera PDUFA
