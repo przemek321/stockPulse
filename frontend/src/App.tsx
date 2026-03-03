@@ -95,9 +95,21 @@ const PriorityChip = ({ value }: { value: string }) => {
   return <Chip label={value} color={color as any} size="small" />;
 };
 
+declare const __BUILD_DATE__: string;
+
 export default function App() {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
+      {/* Data kompilacji — prawy dolny róg */}
+      <Typography
+        sx={{
+          position: 'fixed', bottom: 8, right: 12,
+          fontSize: '0.65rem', color: 'grey.600', opacity: 0.7, zIndex: 1,
+        }}
+      >
+        Build: {new Date(__BUILD_DATE__).toLocaleString('pl-PL')}
+      </Typography>
+
       {/* Nagłówek */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
