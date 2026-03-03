@@ -260,6 +260,17 @@ export class AlertEvaluatorService {
     if (payload.enrichedAnalysis) {
       const conviction = Number(payload.enrichedAnalysis.conviction ?? 0);
       const urgency = payload.enrichedAnalysis.urgency;
+
+      // Poziom 1: conviction < 0.1 = śmieć, suppress zawsze (niezależnie od urgency)
+      if (Math.abs(conviction) < 0.1) {
+        this.logger.debug(
+          `Pominięto Sentiment Crash ${payload.symbol} — AI override: ` +
+            `conviction=${conviction} < 0.1 (FinBERT score=${payload.score})`,
+        );
+        return;
+      }
+
+      // Poziom 2: conviction < 0.3 + urgency LOW = nieistotne
       if (Math.abs(conviction) < 0.3 && urgency === 'LOW') {
         this.logger.debug(
           `Pominięto Sentiment Crash ${payload.symbol} — AI override: ` +

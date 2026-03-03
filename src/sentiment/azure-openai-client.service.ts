@@ -70,6 +70,7 @@ export class AzureOpenaiClientService {
     symbol: string,
     escalationReason: string,
     pdufaContext?: string | null,
+    source?: string,
   ): Promise<EnrichedAnalysis | null> {
     if (!this.enabled) return null;
 
@@ -81,6 +82,9 @@ export class AzureOpenaiClientService {
       };
       if (pdufaContext) {
         payload.pdufa_context = pdufaContext;
+      }
+      if (source) {
+        payload.source = source;
       }
 
       const response = await fetch(`${this.analysisUrl}/analyze`, {

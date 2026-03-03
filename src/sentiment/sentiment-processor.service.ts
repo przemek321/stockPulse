@@ -163,6 +163,7 @@ export class SentimentProcessorService extends WorkerHost {
           symbol,
           reason,
           pdufaContext,
+          source,
         );
         pLog.azureDurationMs = Date.now() - azureStart;
 
