@@ -2,11 +2,15 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
-  Autocomplete,
-  TextField,
   CircularProgress,
   Paper,
-  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableSortLabel,
 } from '@mui/material';
 import {
   LineChart,
@@ -112,40 +116,52 @@ const ChartTooltip = ({ active, payload }: any) => {
   );
 };
 
+/** Wiersz tabeli tickerów — agregowane statystyki */
+interface TickerRow {
+  symbol: string;
+  avg: number;
+  total: number;
+  ai: number;
+  pos: number;
+  neutral: number;
+  neg: number;
+  last: number;
+}
+
+type SortKey = keyof TickerRow;
+
+/** Kolumny tabeli */
+const COLUMNS: { key: SortKey; label: string; align?: 'left' | 'right' }[] = [
+  { key: 'symbol', label: 'Ticker', align: 'left' },
+  { key: 'avg', label: 'Avg', align: 'right' },
+  { key: 'total', label: 'Total', align: 'right' },
+  { key: 'ai', label: 'AI', align: 'right' },
+  { key: 'pos', label: 'Poz.', align: 'right' },
+  { key: 'neutral', label: 'Neutr.', align: 'right' },
+  { key: 'neg', label: 'Neg.', align: 'right' },
+  { key: 'last', label: 'Ostatni', align: 'right' },
+];
+
 /**
- * Wykres sentymentu per ticker.
- * Linia score w czasie z kolorowaniem wg wartości.
+ * Wykres sentymentu z tabelą tickerów.
+ * Tabela z sortowaniem → kliknięcie wiersza → wykres poniżej.
  */
 export default function SentimentChart() {
   const [allScores, setAllScores] = useState<SentimentScore[]>([]);
-  const [tickers, setTickers] = useState<string[]>([]);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('total');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [scoresRes, tickersRes] = await Promise.all([
+        const [scoresRes] = await Promise.all([
           fetchSentimentScores(500),
           fetchTickers(),
         ]);
         setAllScores(scoresRes.scores || []);
-
-        // Wyciągnij unikalne tickery z wyników sentymentu (posortowane po ilości)
-        const counts: Record<string, number> = {};
-        for (const s of scoresRes.scores || []) {
-          counts[s.symbol] = (counts[s.symbol] || 0) + 1;
-        }
-        const sorted = Object.entries(counts)
-          .sort((a, b) => b[1] - a[1])
-          .map(([sym]) => sym);
-        setTickers(sorted);
-
-        // Domyślnie wybierz ticker z największą ilością danych
-        if (sorted.length > 0) {
-          setSelectedTicker(sorted[0]);
-        }
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -155,9 +171,82 @@ export default function SentimentChart() {
     load();
   }, []);
 
+  /** Agregacja statystyk per ticker */
+  const tickerRows = useMemo<TickerRow[]>(() => {
+    const map = new Map<string, { scores: number[]; aiCount: number; lastTs: number; lastScore: number }>();
+
+    for (const s of allScores) {
+      const ds = s.effectiveScore != null ? Number(s.effectiveScore) : Number(s.score);
+      const ts = new Date(s.timestamp).getTime();
+      const existing = map.get(s.symbol);
+
+      if (existing) {
+        existing.scores.push(ds);
+        if (s.enrichedAnalysis) existing.aiCount++;
+        if (ts > existing.lastTs) {
+          existing.lastTs = ts;
+          existing.lastScore = ds;
+        }
+      } else {
+        map.set(s.symbol, {
+          scores: [ds],
+          aiCount: s.enrichedAnalysis ? 1 : 0,
+          lastTs: ts,
+          lastScore: ds,
+        });
+      }
+    }
+
+    const rows: TickerRow[] = [];
+    for (const [symbol, data] of map) {
+      const avg = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+      rows.push({
+        symbol,
+        avg,
+        total: data.scores.length,
+        ai: data.aiCount,
+        pos: data.scores.filter((s) => s > 0.2).length,
+        neutral: data.scores.filter((s) => s >= -0.2 && s <= 0.2).length,
+        neg: data.scores.filter((s) => s < -0.2).length,
+        last: data.lastScore,
+      });
+    }
+
+    // Domyślnie wybierz ticker z największą liczbą wzmianek
+    if (!selectedTicker && rows.length > 0) {
+      const top = [...rows].sort((a, b) => b.total - a.total)[0];
+      setSelectedTicker(top.symbol);
+    }
+
+    return rows;
+  }, [allScores]);
+
+  /** Posortowane wiersze tabeli */
+  const sortedRows = useMemo(() => {
+    return [...tickerRows].sort((a, b) => {
+      const va = a[sortKey];
+      const vb = b[sortKey];
+      if (typeof va === 'string' && typeof vb === 'string') {
+        const cmp = va.localeCompare(vb, 'pl');
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      const na = Number(va);
+      const nb = Number(vb);
+      return sortDir === 'asc' ? na - nb : nb - na;
+    });
+  }, [tickerRows, sortKey, sortDir]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
   /** Dane wykresu — filtrowane po tickerze, posortowane chronologicznie.
-   *  displayScore = effectiveScore (gdy AI) lub FinBERT score (bez AI).
-   *  effectiveScore tłumi szum: AI mówi "neutral" → 0 zamiast szumu FinBERT. */
+   *  displayScore = effectiveScore (gdy AI) lub FinBERT score (bez AI). */
   const chartData = useMemo(() => {
     if (!selectedTicker) return [];
     return allScores
@@ -170,18 +259,6 @@ export default function SentimentChart() {
         displayScore: s.effectiveScore != null ? Number(s.effectiveScore) : Number(s.score),
       }));
   }, [allScores, selectedTicker]);
-
-  /** Statystyki dla wybranego tickera — na bazie displayScore (effectiveScore > FinBERT) */
-  const stats = useMemo(() => {
-    if (chartData.length === 0) return null;
-    const scores = chartData.map((d) => d.displayScore);
-    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const pos = scores.filter((s) => s > 0.2).length;
-    const neg = scores.filter((s) => s < -0.2).length;
-    const neutral = scores.length - pos - neg;
-    const aiCount = chartData.filter((d) => !!(d as any).enrichedAnalysis).length;
-    return { avg, pos, neg, neutral, total: scores.length, aiCount };
-  }, [chartData]);
 
   if (loading) {
     return (
@@ -201,88 +278,100 @@ export default function SentimentChart() {
 
   return (
     <Paper sx={{ p: 2, mb: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-        <Typography variant="h6" fontWeight={600}>
-          Wykres sentymentu
-        </Typography>
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 1.5 }}>
+        Sentyment per ticker
+      </Typography>
 
-        <Autocomplete
-          value={selectedTicker}
-          onChange={(_, v) => setSelectedTicker(v)}
-          options={tickers}
-          getOptionLabel={(opt) => opt}
-          renderInput={(params) => (
-            <TextField {...params} label="Ticker" size="small" />
-          )}
-          sx={{ width: 180 }}
-          disableClearable
-        />
+      {/* Tabela tickerów z sortowaniem */}
+      <TableContainer sx={{ maxHeight: 320, mb: 2 }}>
+        <Table size="small" stickyHeader>
+          <TableHead>
+            <TableRow>
+              {COLUMNS.map((col) => (
+                <TableCell
+                  key={col.key}
+                  align={col.align ?? 'right'}
+                  sx={{ fontWeight: 700, py: 0.5 }}
+                >
+                  <TableSortLabel
+                    active={sortKey === col.key}
+                    direction={sortKey === col.key ? sortDir : 'desc'}
+                    onClick={() => handleSort(col.key)}
+                  >
+                    {col.label}
+                  </TableSortLabel>
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sortedRows.map((row) => (
+              <TableRow
+                key={row.symbol}
+                hover
+                selected={row.symbol === selectedTicker}
+                onClick={() => setSelectedTicker(row.symbol)}
+                sx={{ cursor: 'pointer' }}
+              >
+                <TableCell sx={{ fontWeight: 700, py: 0.4 }}>{row.symbol}</TableCell>
+                <TableCell align="right" sx={{ color: scoreColor(row.avg), fontWeight: 600, py: 0.4 }}>
+                  {row.avg.toFixed(3)}
+                </TableCell>
+                <TableCell align="right" sx={{ py: 0.4 }}>{row.total}</TableCell>
+                <TableCell align="right" sx={{ color: row.ai > 0 ? '#ce93d8' : 'inherit', py: 0.4 }}>
+                  {row.ai}
+                </TableCell>
+                <TableCell align="right" sx={{ color: '#66bb6a', py: 0.4 }}>{row.pos}</TableCell>
+                <TableCell align="right" sx={{ color: '#90a4ae', py: 0.4 }}>{row.neutral}</TableCell>
+                <TableCell align="right" sx={{ color: '#ef5350', py: 0.4 }}>{row.neg}</TableCell>
+                <TableCell align="right" sx={{ color: scoreColor(row.last), fontWeight: 600, py: 0.4 }}>
+                  {row.last.toFixed(3)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-        {stats && (
-          <Box sx={{ display: 'flex', gap: 1, ml: 'auto', flexWrap: 'wrap' }}>
-            <Chip
-              label={`Avg: ${stats.avg.toFixed(3)}`}
-              size="small"
-              sx={{
-                fontWeight: 700,
-                color: scoreColor(stats.avg),
-                borderColor: scoreColor(stats.avg),
-              }}
-              variant="outlined"
-            />
-            <Chip label={`${stats.pos} pozytywnych`} size="small" color="success" variant="outlined" />
-            <Chip label={`${stats.neutral} neutralnych`} size="small" variant="outlined" />
-            <Chip label={`${stats.neg} negatywnych`} size="small" color="error" variant="outlined" />
-            <Chip label={`${stats.total} total`} size="small" variant="outlined" />
-            {stats.aiCount > 0 && (
-              <Chip
-                label={`${stats.aiCount} AI`}
-                size="small"
-                variant="outlined"
-                sx={{ color: '#ce93d8', borderColor: '#ce93d8' }}
+      {/* Wykres dla wybranego tickera */}
+      {selectedTicker && chartData.length > 0 && (
+        <>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+            {selectedTicker} — {chartData.length} wzmianek
+          </Typography>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={fmtShort}
+                tick={{ fontSize: 11 }}
+                stroke="#666"
+                interval="preserveStartEnd"
+                minTickGap={60}
               />
-            )}
-          </Box>
-        )}
-      </Box>
-
-      {chartData.length === 0 ? (
-        <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-          Brak danych sentymentu dla {selectedTicker || 'tego tickera'}
-        </Typography>
-      ) : (
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-            <XAxis
-              dataKey="timestamp"
-              tickFormatter={fmtShort}
-              tick={{ fontSize: 11 }}
-              stroke="#666"
-              interval="preserveStartEnd"
-              minTickGap={60}
-            />
-            <YAxis
-              domain={[-1, 1]}
-              ticks={[-1, -0.5, 0, 0.5, 1]}
-              tick={{ fontSize: 11 }}
-              stroke="#666"
-              width={40}
-            />
-            <Tooltip content={<ChartTooltip />} />
-            <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
-            <ReferenceLine y={0.5} stroke="#388e3c" strokeDasharray="2 4" strokeOpacity={0.4} />
-            <ReferenceLine y={-0.5} stroke="#d32f2f" strokeDasharray="2 4" strokeOpacity={0.4} />
-            <Line
-              type="monotone"
-              dataKey="displayScore"
-              stroke="#64b5f6"
-              strokeWidth={2}
-              dot={<ScoreDot />}
-              activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+              <YAxis
+                domain={[-1, 1]}
+                ticks={[-1, -0.5, 0, 0.5, 1]}
+                tick={{ fontSize: 11 }}
+                stroke="#666"
+                width={40}
+              />
+              <Tooltip content={<ChartTooltip />} />
+              <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
+              <ReferenceLine y={0.5} stroke="#388e3c" strokeDasharray="2 4" strokeOpacity={0.4} />
+              <ReferenceLine y={-0.5} stroke="#d32f2f" strokeDasharray="2 4" strokeOpacity={0.4} />
+              <Line
+                type="monotone"
+                dataKey="displayScore"
+                stroke="#64b5f6"
+                strokeWidth={2}
+                dot={<ScoreDot />}
+                activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </>
       )}
     </Paper>
   );
