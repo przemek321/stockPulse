@@ -27,6 +27,8 @@ Price impact assessment:
 - MLR above 90% for managed care = severe bearish signal
 - Guidance cut is more impactful than earnings miss
 
+IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
+
 Respond with JSON only, no preamble:
 {
   "price_impact": {
@@ -36,9 +38,9 @@ Respond with JSON only, no preamble:
     "time_horizon": "immediate|short_term|medium_term"
   },
   "conviction": -2.0 to +2.0,
-  "summary": "one sentence: EPS beat/miss and guidance direction",
-  "conclusion": "1-2 sentences: price impact with key numbers",
-  "key_facts": ["EPS reported vs estimate", "revenue reported vs estimate", "guidance change", "MLR if applicable"],
+  "summary": "jedno zdanie po polsku: EPS beat/miss i kierunek guidance",
+  "conclusion": "1-2 zdania po polsku: wpływ na cenę z kluczowymi liczbami",
+  "key_facts": ["EPS raportowany vs szacunek", "przychód vs szacunek", "zmiana guidance", "MLR jeśli dotyczy"],
   "catalyst_type": "earnings",
   "requires_immediate_attention": true
 }`;

@@ -89,7 +89,7 @@ export class TelegramFormatterService {
     const lines = [
       `${icon} *StockPulse Alert*`,
       '',
-      `\u{1F575}\uFE0F *Insider Trade* \u2014 \\$${this.escapeMarkdown(data.symbol)}`,
+      `\u{1F575}\uFE0F *Transakcja Insidera* \u2014 \\$${this.escapeMarkdown(data.symbol)}`,
       '',
       `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
       `\u2022 Insider: ${this.escapeMarkdown(data.insiderName)}`,
@@ -142,7 +142,7 @@ export class TelegramFormatterService {
     const lines = [
       `${icon} *StockPulse Alert*`,
       '',
-      `\u{1F575}\uFE0F *${this.escapeMarkdown(String(data.tradeCount))} Insider Trades* \u2014 \\$${this.escapeMarkdown(data.symbol)}`,
+      `\u{1F575}\uFE0F *${this.escapeMarkdown(String(data.tradeCount))} Transakcji Insiderów* \u2014 \\$${this.escapeMarkdown(data.symbol)}`,
       '',
       `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
       `\u2022 Łączna wartość: ${value}`,
@@ -185,7 +185,7 @@ export class TelegramFormatterService {
     return [
       `${icon} *StockPulse Alert*`,
       '',
-      `📄 *SEC Filing* — \\$${this.escapeMarkdown(data.symbol)}`,
+      `📄 *Filing SEC* — \\$${this.escapeMarkdown(data.symbol)}`,
       '',
       `• Formularz: ${this.escapeMarkdown(data.formType)}`,
       data.description
@@ -214,11 +214,11 @@ export class TelegramFormatterService {
     const ea = data.enrichedAnalysis;
     const timestamp = this.escapeMarkdown(new Date().toISOString());
 
-    const direction = data.conviction > 0 ? 'BULLISH' : 'BEARISH';
+    const direction = data.conviction > 0 ? 'BYCZY' : 'NIEDŹWIEDZI';
     const dirIcon = data.conviction > 0 ? '\u{1F7E2}' : '\u{1F534}';
 
     const lines = [
-      `${icon} *StockPulse — High Conviction Signal*`,
+      `${icon} *StockPulse — Silny Sygnał*`,
       '',
       `${dirIcon} *${this.escapeMarkdown(direction)}* — \\$${this.escapeMarkdown(data.symbol)}`,
       '',
@@ -258,18 +258,18 @@ export class TelegramFormatterService {
   }): string {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.direction === 'BULLISH' ? '\u{1F7E2}' : '\u{1F534}';
-    const dirLabel = data.direction === 'BULLISH' ? 'Bullish' : 'Bearish';
+    const dirLabel = data.direction === 'BULLISH' ? 'Byczy' : 'Niedźwiedzi';
     const timestamp = this.escapeMarkdown(new Date().toISOString());
 
     const lines = [
       `${icon} *StockPulse Alert*`,
       '',
-      `${dirIcon} *${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} ${this.escapeMarkdown(dirLabel)} Signal Override`,
+      `${dirIcon} *${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} Korekta Sygnału \\(${this.escapeMarkdown(dirLabel)}\\)`,
       '',
       `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
       `\u2022 FinBERT: ${this.escapeMarkdown(data.finbertScore.toFixed(3))}`,
-      `\u2022 GPT override: ${this.escapeMarkdown(data.direction)} ${this.escapeMarkdown(data.gptConviction.toFixed(3))}`,
-      `\u2022 Effective score: ${this.escapeMarkdown(data.effectiveScore.toFixed(3))}`,
+      `\u2022 Korekta GPT: ${this.escapeMarkdown(data.direction)} ${this.escapeMarkdown(data.gptConviction.toFixed(3))}`,
+      `\u2022 Wynik efektywny: ${this.escapeMarkdown(data.effectiveScore.toFixed(3))}`,
     ];
 
     if (data.catalystType && data.catalystType !== 'unknown') {
@@ -300,15 +300,15 @@ export class TelegramFormatterService {
     const icon = this.priorityIcon(data.priority);
     const timestamp = this.escapeMarkdown(new Date().toISOString());
 
-    const direction = data.score > 0 ? 'BULLISH' : 'BEARISH';
+    const direction = data.score > 0 ? 'BYCZY' : 'NIEDŹWIEDZI';
     const dirIcon = data.score > 0 ? '\u{1F7E2}' : '\u{1F534}';
 
     return [
-      `${icon} *StockPulse — Strong FinBERT Signal \\(unconfirmed\\)*`,
+      `${icon} *StockPulse — Silny Sygnał FinBERT \\(niepotwierdzone\\)*`,
       '',
       `${dirIcon} *${this.escapeMarkdown(direction)}* — \\$${this.escapeMarkdown(data.symbol)}`,
       '',
-      `\u{1F4CA} FinBERT: score ${this.escapeMarkdown(data.score.toFixed(3))}, confidence ${this.escapeMarkdown(data.confidence.toFixed(3))}`,
+      `\u{1F4CA} FinBERT: wynik ${this.escapeMarkdown(data.score.toFixed(3))}, pewność ${this.escapeMarkdown(data.confidence.toFixed(3))}`,
       `\u26A0\uFE0F Brak potwierdzenia AI — VM offline`,
       '',
       `\u{1F4CC} Źródło: ${this.escapeMarkdown(data.source)}`,
@@ -385,14 +385,14 @@ export class TelegramFormatterService {
 
     const lines = [
       `${icon} *StockPulse Alert*`,
-      `*${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} Insider Signal`,
+      `*${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} Sygnał Insidera`,
       '',
-      `👤 *${this.escapeMarkdown(data.insiderName)}* \\(${this.escapeMarkdown(data.insiderRole ?? 'Unknown')}\\)`,
-      `• Transakcja: ${this.escapeMarkdown(data.transactionType)} ${this.escapeMarkdown(data.shares.toLocaleString('en-US'))} shares @ ${value}`,
+      `👤 *${this.escapeMarkdown(data.insiderName)}* \\(${this.escapeMarkdown(data.insiderRole ?? 'Nieznana')}\\)`,
+      `• Transakcja: ${this.escapeMarkdown(data.transactionType)} ${this.escapeMarkdown(data.shares.toLocaleString('en-US'))} akcji @ ${value}`,
     ];
 
     if (data.sharesOwnedAfter != null) {
-      lines.push(`• Udziały po transakcji: ${this.escapeMarkdown(data.sharesOwnedAfter.toLocaleString('en-US'))} shares`);
+      lines.push(`• Udziały po transakcji: ${this.escapeMarkdown(data.sharesOwnedAfter.toLocaleString('en-US'))} akcji`);
     }
 
     lines.push(`• Plan 10b5\\-1: ${data.is10b51Plan ? 'TAK' : 'NIE'}`);
@@ -476,9 +476,9 @@ export class TelegramFormatterService {
     return [
       `🔴 *StockPulse — CRITICAL*`,
       '',
-      `⚠️ *BANKRUPTCY FILING* — \\$${this.escapeMarkdown(data.symbol)}`,
+      `⚠️ *WNIOSEK O UPADŁOŚĆ* — \\$${this.escapeMarkdown(data.symbol)}`,
       '',
-      `📄 *${this.escapeMarkdown(data.companyName)}* złożyło 8\\-K Item 1\\.03 \\(Bankruptcy\\)`,
+      `📄 *${this.escapeMarkdown(data.companyName)}* złożyło 8\\-K Item 1\\.03 \\(Upadłość\\)`,
       `• Data filingu: ${this.escapeMarkdown(data.filingDate)}`,
       data.documentUrl ? `• [Link do SEC](${data.documentUrl})` : '',
       '',

@@ -32,6 +32,8 @@ Healthcare-specific events to watch for:
 For each event type, the key question is always:
 Does this change the fundamental earnings power of the company?
 
+IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
+
 Respond with JSON only, no preamble:
 {
   "price_impact": {
@@ -41,9 +43,9 @@ Respond with JSON only, no preamble:
     "time_horizon": "immediate|short_term|medium_term"
   },
   "conviction": -2.0 to +2.0,
-  "summary": "one sentence what happened",
-  "conclusion": "1-2 sentences: price impact and reasoning",
-  "key_facts": ["fact1", "fact2", "fact3"],
+  "summary": "jedno zdanie po polsku co się wydarzyło",
+  "conclusion": "1-2 zdania po polsku: wpływ na cenę i uzasadnienie",
+  "key_facts": ["fakt1 po polsku", "fakt2", "fakt3"],
   "catalyst_type": "fda|cms_rate|legal|ma|regulatory|earnings|other",
   "requires_immediate_attention": true|false
 }`;

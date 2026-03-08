@@ -27,6 +27,8 @@ Price impact assessment:
 - CFO departure before earnings = strong bearish signal
 - "Effective immediately" language = higher uncertainty = more negative
 
+IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
+
 Respond with JSON only, no preamble:
 {
   "price_impact": {
@@ -36,9 +38,9 @@ Respond with JSON only, no preamble:
     "time_horizon": "immediate|short_term|medium_term"
   },
   "conviction": -2.0 to +2.0,
-  "summary": "one sentence: who left/joined and in what capacity",
-  "conclusion": "1-2 sentences: circumstances and likely price reaction",
-  "key_facts": ["role", "departure reason", "effective date", "successor if named"],
+  "summary": "jedno zdanie po polsku: kto odszedł/dołączył i na jakim stanowisku",
+  "conclusion": "1-2 zdania po polsku: okoliczności i prawdopodobna reakcja cenowa",
+  "key_facts": ["stanowisko", "powód odejścia", "data wejścia w życie", "następca jeśli wskazany"],
   "catalyst_type": "leadership",
   "requires_immediate_attention": true|false
 }`;

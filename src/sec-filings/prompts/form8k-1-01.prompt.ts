@@ -26,6 +26,8 @@ Price impact assessment:
 - Contracts creating customer concentration risk = bearish long-term
 - Healthcare-specific: Medicare/Medicaid contracts carry regulatory risk
 
+IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
+
 Respond with JSON only, no preamble:
 {
   "price_impact": {
@@ -35,9 +37,9 @@ Respond with JSON only, no preamble:
     "time_horizon": "immediate|short_term|medium_term"
   },
   "conviction": -2.0 to +2.0,
-  "summary": "one sentence what happened",
-  "conclusion": "1-2 sentences: price impact assessment and reasoning",
-  "key_facts": ["include contract value", "counterparty", "duration", "key terms"],
+  "summary": "jedno zdanie po polsku co się wydarzyło",
+  "conclusion": "1-2 zdania po polsku: ocena wpływu na cenę i uzasadnienie",
+  "key_facts": ["wartość kontraktu", "kontrahent", "czas trwania", "kluczowe warunki"],
   "catalyst_type": "contract",
   "requires_immediate_attention": true|false
 }`;

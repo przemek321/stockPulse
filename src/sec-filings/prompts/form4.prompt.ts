@@ -57,6 +57,8 @@ ANALYSIS GUIDELINES:
 - Cluster selling (2+ insiders in 7 days) amplifies bearish signal
 - Consider % of total holdings sold/bought, not just absolute value
 
+IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
+
 Respond with JSON only, no preamble:
 {
   "price_impact": {
@@ -66,9 +68,9 @@ Respond with JSON only, no preamble:
     "time_horizon": "immediate|short_term|medium_term"
   },
   "conviction": -2.0 to +2.0,
-  "summary": "one sentence what happened",
-  "conclusion": "1-2 sentences: price impact assessment and reasoning",
-  "key_facts": ["fact1", "fact2", "fact3"],
+  "summary": "jedno zdanie po polsku co się wydarzyło",
+  "conclusion": "1-2 zdania po polsku: ocena wpływu na cenę i uzasadnienie",
+  "key_facts": ["fakt1 po polsku", "fakt2", "fakt3"],
   "catalyst_type": "insider",
   "requires_immediate_attention": true|false
 }`;
