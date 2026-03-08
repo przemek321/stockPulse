@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
  * Serwis do wysyłania wiadomości przez Telegram Bot API.
@@ -28,6 +29,7 @@ export class TelegramService {
   /**
    * Wysyła wiadomość MarkdownV2 na Telegram.
    */
+  @Logged('telegram')
   async sendMarkdown(text: string): Promise<boolean> {
     return this.send(text, 'MarkdownV2');
   }
@@ -35,6 +37,7 @@ export class TelegramService {
   /**
    * Wysyła prostą wiadomość tekstową na Telegram.
    */
+  @Logged('telegram')
   async sendText(text: string): Promise<boolean> {
     return this.send(text);
   }
