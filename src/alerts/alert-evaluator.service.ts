@@ -56,8 +56,8 @@ export class AlertEvaluatorService {
    * Generuje alert "Insider Trade Large" gdy totalValue > $100K.
    * Ignoruje Finnhub MSPR (totalValue=0) i małe transakcje.
    */
-  @Logged('alerts')
   @OnEvent(EventType.NEW_INSIDER_TRADE)
+  @Logged('alerts')
   async onInsiderTrade(payload: {
     tradeId: number;
     symbol: string;
@@ -244,8 +244,8 @@ export class AlertEvaluatorService {
    * 4. High Conviction Signal: |conviction| > 1.5 (raw, nieznormalizowany)
    * 5. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
    */
-  @Logged('alerts')
   @OnEvent(EventType.SENTIMENT_SCORED)
+  @Logged('alerts')
   async onSentimentScored(payload: {
     scoreId: number;
     symbol: string;
