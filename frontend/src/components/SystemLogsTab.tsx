@@ -21,7 +21,6 @@ import {
   CircularProgress,
   Switch,
   FormControlLabel,
-  TextField,
   Pagination,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -322,11 +321,18 @@ export default function SystemLogsTab() {
     }
   };
 
-  // Export JSON
+  // Export JSON — wybór zakresu dni
+  const [exportDays, setExportDays] = useState(1);
+
   const handleExport = async () => {
     try {
-      // Pobierz wszystkie pasujące logi (do 500)
-      const filters: SystemLogFilters = { limit: 500 };
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - exportDays);
+
+      const filters: SystemLogFilters = {
+        limit: 500,
+        dateFrom: dateFrom.toISOString(),
+      };
       if (module) filters.module = module;
       if (status) filters.status = status;
       const data = await fetchSystemLogs(filters);
@@ -338,7 +344,7 @@ export default function SystemLogsTab() {
       const a = document.createElement('a');
       a.href = url;
       const date = new Date().toISOString().slice(0, 10);
-      a.download = `system-logs-${date}.json`;
+      a.download = `system-logs-${date}-${exportDays}d.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
@@ -454,6 +460,20 @@ export default function SystemLogsTab() {
         >
           Odśwież
         </Button>
+        <FormControl size="small" sx={{ minWidth: 90 }}>
+          <InputLabel>Dni</InputLabel>
+          <Select
+            value={exportDays}
+            label="Dni"
+            onChange={(e) => setExportDays(Number(e.target.value))}
+          >
+            {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+              <MenuItem key={d} value={d}>
+                {d}d
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <Button
           size="small"
           variant="outlined"
