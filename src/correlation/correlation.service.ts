@@ -33,11 +33,11 @@ const WINDOW_7D = 7 * 24 * 3600_000;
 const WINDOW_72H = 72 * 3600_000;
 const WINDOW_14D = 14 * 24 * 3600_000;
 
-/** Minimalny |conviction| sygnału do zapisania w Redis */
-const MIN_CONVICTION = 0.15;
+/** Minimalny |conviction| sygnału do zapisania w Redis (obniżony z 0.15 — insider trades $100K mają conviction 0.1) */
+const MIN_CONVICTION = 0.05;
 
-/** Minimalny |conviction| do wyzwolenia correlated alertu */
-const MIN_CORRELATED_CONVICTION = 0.35;
+/** Minimalny |conviction| do wyzwolenia correlated alertu (obniżony z 0.35 — realne sygnały rzadko przekraczały próg) */
+const MIN_CORRELATED_CONVICTION = 0.20;
 
 /** Minimalny |conviction| ostatniego sygnału w ESCALATING_SIGNAL */
 const MIN_ESCALATING_LAST_CONVICTION = 0.25;
@@ -125,7 +125,7 @@ export class CorrelationService {
 
       const patterns: DetectedPattern[] = [];
 
-      const p1 = this.detectInsiderPlus8K(shortSignals, now);
+      const p1 = this.detectInsiderPlus8K(shortSignals, insiderSignals, now);
       const p2 = this.detectFilingConfirmsNews(shortSignals, now);
       const p3 = this.detectMultiSourceConvergence(shortSignals, now);
       const p4 = this.detectInsiderCluster(insiderSignals, now);
@@ -146,10 +146,14 @@ export class CorrelationService {
   // ── Detektory wzorców ──────────────────────────────────
 
   /** Pattern 1: Insider + 8-K w ciągu 24h */
-  private detectInsiderPlus8K(signals: StoredSignal[], now: number): DetectedPattern | null {
+  private detectInsiderPlus8K(
+    shortSignals: StoredSignal[],
+    insiderSignals: StoredSignal[],
+    now: number,
+  ): DetectedPattern | null {
     const window = now - WINDOW_24H;
-    const form4 = signals.filter(s => s.source_category === 'form4' && s.timestamp > window);
-    const filing8k = signals.filter(s => s.source_category === '8k' && s.timestamp > window);
+    const form4 = insiderSignals.filter(s => s.source_category === 'form4' && s.timestamp > window);
+    const filing8k = shortSignals.filter(s => s.source_category === '8k' && s.timestamp > window);
 
     if (form4.length === 0 || filing8k.length === 0) return null;
 
@@ -181,11 +185,15 @@ export class CorrelationService {
     const earliestFiling = Math.min(...filingSignals.map(s => s.timestamp));
     if (earliestNews >= earliestFiling) return null;
 
-    // Sprawdź czy catalyst_type się zgadza
-    const newsCatalysts = new Set(newsSignals.map(s => s.catalyst_type));
-    const filingCatalysts = new Set(filingSignals.map(s => s.catalyst_type));
-    const sharedCatalyst = [...newsCatalysts].some(c => filingCatalysts.has(c));
-    if (!sharedCatalyst) return null;
+    // Sprawdź czy catalyst_type się zgadza (ignoruj 'unknown' — news często nie ma catalyst_type)
+    const newsCatalysts = new Set(newsSignals.map(s => s.catalyst_type).filter(c => c && c !== 'unknown'));
+    const filingCatalysts = new Set(filingSignals.map(s => s.catalyst_type).filter(c => c && c !== 'unknown'));
+    // Jeśli jedna strona ma tylko 'unknown' — przepuść (brak danych ≠ brak korelacji)
+    const bothHaveKnownTypes = newsCatalysts.size > 0 && filingCatalysts.size > 0;
+    if (bothHaveKnownTypes) {
+      const sharedCatalyst = [...newsCatalysts].some(c => filingCatalysts.has(c));
+      if (!sharedCatalyst) return null;
+    }
 
     const allSignals = [...newsSignals, ...filingSignals];
     const dir = this.getDominantDirection(allSignals);
