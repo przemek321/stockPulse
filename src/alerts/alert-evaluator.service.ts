@@ -10,6 +10,7 @@ import { SignalDirection } from '../common/types';
 import { CorrelationService } from '../correlation/correlation.service';
 import { SourceCategory, StoredSignal } from '../correlation/types/correlation.types';
 import { Logged } from '../common/decorators/logged.decorator';
+import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 
 /**
  * Ewaluator reguł alertów.
@@ -48,6 +49,7 @@ export class AlertEvaluatorService {
     private readonly tickerRepo: Repository<Ticker>,
     private readonly telegram: TelegramService,
     private readonly formatter: TelegramFormatterService,
+    private readonly finnhub: FinnhubService,
     @Optional() private readonly correlation?: CorrelationService,
   ) {}
 
@@ -623,6 +625,7 @@ export class AlertEvaluatorService {
       message,
       delivered,
       catalystType: catalystType ?? null,
+      alertDirection: correlationData?.direction === 'neutral' ? null : (correlationData?.direction ?? null),
     });
 
     await this.alertRepo.save(alert);
@@ -630,6 +633,18 @@ export class AlertEvaluatorService {
     this.logger.log(
       `Alert wysłany: ${rule.name} dla ${symbol} (delivered: ${delivered})`,
     );
+
+    // Price Outcome Tracker — zapisz cenę w momencie alertu
+    try {
+      const price = await this.finnhub.getQuote(symbol);
+      if (price) {
+        alert.priceAtAlert = price;
+        await this.alertRepo.save(alert);
+        this.logger.debug(`PriceOutcome: ${symbol} priceAtAlert=$${price}`);
+      }
+    } catch (err) {
+      this.logger.warn(`PriceOutcome getQuote error: ${err.message}`);
+    }
 
     // Rejestruj sygnał w CorrelationService
     if (this.correlation && correlationData) {

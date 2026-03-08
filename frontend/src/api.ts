@@ -219,3 +219,34 @@ export const fetchSystemLogs = (filters: SystemLogFilters = {}) => {
     `/system-logs${qs ? `?${qs}` : ''}`,
   );
 };
+
+/* ── Price Outcome Tracker ──────────────── */
+
+export interface AlertOutcome {
+  id: number;
+  symbol: string;
+  ruleName: string;
+  priority: string;
+  alertDirection: string | null;
+  catalystType: string | null;
+  priceAtAlert: number;
+  price1h: number | null;
+  price4h: number | null;
+  price1d: number | null;
+  price3d: number | null;
+  delta1h: number | null;
+  delta4h: number | null;
+  delta1d: number | null;
+  delta3d: number | null;
+  directionCorrect: boolean | null;
+  priceOutcomeDone: boolean;
+  sentAt: string;
+}
+
+export const fetchAlertOutcomes = (limit = 100, symbol?: string) => {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (symbol) params.set('symbol', symbol);
+  return get<{ count: number; outcomes: AlertOutcome[] }>(
+    `/alerts/outcomes?${params}`,
+  );
+};

@@ -10,6 +10,7 @@ import { SecFilingsModule } from './sec-filings/sec-filings.module';
 import { CorrelationModule } from './correlation/correlation.module';
 import { ApiModule } from './api/api.module';
 import { SystemLogModule } from './system-log/system-log.module';
+import { PriceOutcomeModule } from './price-outcome/price-outcome.module';
 
 /**
  * Główny moduł aplikacji StockPulse.
@@ -28,6 +29,7 @@ import { SystemLogModule } from './system-log/system-log.module';
     SecFilingsModule,
     CorrelationModule,
     AlertsModule,
+    PriceOutcomeModule,
     ApiModule,
   ],
 })

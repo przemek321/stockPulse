@@ -22,7 +22,8 @@ import DataPanel from './components/DataPanel';
 import DbSummary from './components/DbSummary';
 import SentimentChart from './components/SentimentChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt } from './api';
+import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt, fetchAlertOutcomes, AlertOutcome } from './api';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SystemLogsTab from './components/SystemLogsTab';
 import JetsonStatsBar from './components/JetsonStatsBar';
 
@@ -927,6 +928,88 @@ export default function App() {
           const res = await fetch('/api/sentiment/mentions?limit=100');
           if (res.ok) return (await res.json()).mentions || [];
           return [];
+        }}
+      />
+
+      {/* ── Trafność Alertów (Price Outcome) ─── */}
+      <DataPanel
+        title="Trafność Alertów (Price Outcome)"
+        icon={<TrendingUpIcon sx={{ color: '#66bb6a' }} />}
+        badgeColor="success"
+        defaultSortKey="sentAt"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          { key: 'ruleName', label: 'Reguła', render: (v: string) => v?.replace(' Signal', '') || '—' },
+          {
+            key: 'alertDirection',
+            label: 'Kierunek',
+            render: (v: string | null) => {
+              if (!v) return '—';
+              const color = v === 'positive' ? '#66bb6a' : '#ef5350';
+              return <span style={{ color, fontWeight: 700 }}>{v === 'positive' ? '▲ BULL' : '▼ BEAR'}</span>;
+            },
+          },
+          {
+            key: 'priceAtAlert',
+            label: 'Cena alertu',
+            render: (v: number) => v ? `$${Number(v).toFixed(2)}` : '—',
+          },
+          {
+            key: 'delta1h',
+            label: '+1h%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'delta4h',
+            label: '+4h%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'delta1d',
+            label: '+1d%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'delta3d',
+            label: '+3d%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'directionCorrect',
+            label: 'Trafny?',
+            render: (v: boolean | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              return v
+                ? <span style={{ color: '#66bb6a', fontWeight: 700 }}>✓</span>
+                : <span style={{ color: '#ef5350', fontWeight: 700 }}>✗</span>;
+            },
+          },
+          {
+            key: 'sentAt',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchAlertOutcomes(100);
+          return data.outcomes || [];
         }}
       />
 

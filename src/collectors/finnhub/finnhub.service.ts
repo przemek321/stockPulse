@@ -212,4 +212,18 @@ export class FinnhubService extends BaseCollectorService {
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  /**
+   * Pobiera aktualną cenę akcji z Finnhub /quote.
+   * Zwraca null gdy API niedostępne lub rynek zamknięty (cena = 0).
+   */
+  async getQuote(symbol: string): Promise<number | null> {
+    try {
+      const data = await this.fetchApi('/quote', { symbol });
+      return data?.c > 0 ? data.c : null;
+    } catch (err) {
+      this.logger.warn(`getQuote(${symbol}) error: ${err.message}`);
+      return null;
+    }
+  }
 }

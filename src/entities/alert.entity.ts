@@ -44,4 +44,34 @@ export class Alert {
 
   @CreateDateColumn()
   sentAt: Date;
+
+  // ── Price Outcome Tracker ──────────────────────────────
+
+  /** Kierunek alertu: 'positive' (bullish) lub 'negative' (bearish) */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  alertDirection: string | null;
+
+  /** Cena akcji w momencie wysłania alertu */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  priceAtAlert: number | null;
+
+  /** Cena po 1 godzinie */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  price1h: number | null;
+
+  /** Cena po 4 godzinach */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  price4h: number | null;
+
+  /** Cena po 1 dniu */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  price1d: number | null;
+
+  /** Cena po 3 dniach */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  price3d: number | null;
+
+  /** Czy CRON zakończył zbieranie cen (po 3d) */
+  @Column({ type: 'boolean', default: false })
+  priceOutcomeDone: boolean;
 }

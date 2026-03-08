@@ -6,6 +6,7 @@ import { SummarySchedulerService } from './summary-scheduler.service';
 import { TelegramModule } from './telegram/telegram.module';
 import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
 import { CorrelationModule } from '../correlation/correlation.module';
+import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
 
 /**
  * Moduł alertów.
@@ -18,6 +19,7 @@ import { CorrelationModule } from '../correlation/correlation.module';
     PdufaBioModule,
     TelegramModule,
     CorrelationModule,
+    FinnhubModule,
   ],
   providers: [
     AlertEvaluatorService,
