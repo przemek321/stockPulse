@@ -181,7 +181,7 @@ Główne grupy:
 - **Reddit**: OAuth2 (client ID, secret, username, password)
 - **Finnhub**: klucz API (free tier, 60 req/min)
 - **SEC EDGAR**: User-Agent z emailem (bez klucza, 10 req/sec)
-- **Anthropic**: klucz API do Claude Haiku (potrzebny od Fazy 2)
+- **Anthropic**: klucz API (opcjonalny, aktualnie nieużywany — 2. etap pipeline to Azure OpenAI gpt-4o-mini)
 - **Azure Analysis Service**: URL do VM z gpt-4o-mini + timeout (opcjonalne — 2-etapowy pipeline sentymentu)
 - **Telegram**: token bota + chat ID do alertów
 - **StockTwits**: publiczne endpointy, bez autoryzacji (200 req/hour)

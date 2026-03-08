@@ -51,7 +51,7 @@ stockPulse/
 │   │   └── event-types.ts                  # Enum typów eventów
 │   │
 │   ├── queues/                             # Kolejki zadań BullMQ
-│   │   ├── queue-names.const.ts            # Nazwy 6 kolejek
+│   │   ├── queue-names.const.ts            # Nazwy 7 kolejek
 │   │   └── queues.module.ts                # Rejestracja kolejek + Redis
 │   │
 │   ├── collectors/                         # Warstwa 1: Zbieranie danych
@@ -71,7 +71,7 @@ stockPulse/
 │   │   ├── sec-edgar/
 │   │   │   ├── sec-edgar.module.ts
 │   │   │   ├── sec-edgar.service.ts        # Filingi + Form 4
-│   │   │   │   ├── sec-edgar.processor.ts      # BullMQ worker
+│   │   │   ├── sec-edgar.processor.ts      # BullMQ worker
 │   │   │   ├── sec-edgar.scheduler.ts      # Cron co 30 min
 │   │   │   └── form4-parser.ts             # Parser XML Form 4 (insider trades)
 │   │   ├── reddit/
@@ -385,7 +385,7 @@ Globalny moduł logowania wywołań funkcji — singleton pattern z fire-and-for
 **Używany przez:** `queues.module.ts`, moduły kolektorów, schedulery, processory, `sentiment.module.ts`.
 
 #### `queues.module.ts`
-**Co robi:** Konfiguruje BullMQ — połączenie z Redis, domyślne opcje jobów (3 próby, exponential backoff), rejestruje wszystkie 6 kolejek. Eksportuje `BullModule` do użytku w kolektorach.
+**Co robi:** Konfiguruje BullMQ — połączenie z Redis, domyślne opcje jobów (3 próby, exponential backoff), rejestruje wszystkie 7 kolejek. Eksportuje `BullModule` do użytku w kolektorach.
 **Zależy od:** `ConfigService` (REDIS_HOST, REDIS_PORT).
 
 ---
@@ -830,12 +830,13 @@ AppModule
     ├── HealthController       (GET /api/health, /api/health/stats)
     ├── TickersController      (GET /api/tickers)
     ├── SentimentController    (GET /api/sentiment/* — 9 endpointów, w tym filings-gpt, pipeline-logs, pdufa, insider-trades)
-    └── AlertsController       (GET /api/alerts)
+    ├── AlertsController       (GET /api/alerts)
+    └── SystemLogsController   (GET /api/system-logs)
 ```
 
 ---
 
-## Schemat bazy danych (11 tabel)
+## Schemat bazy danych (12 tabel)
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
@@ -869,7 +870,7 @@ AppModule
 │ collectedAt      │  │ timestamp        │     │ sharesOwnedAfter │
 └──────────────────┘  └──────────────────┘     │ collectedAt      │
                                                 └──────────────────┘
-                                               └──────────────────┘
+
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │   alerts         │  │  alert_rules     │     │ collection_logs  │
 │──────────────────│  │──────────────────│     │──────────────────│
@@ -907,6 +908,21 @@ AppModule
                          │ sentimentScoreId │
                          │ createdAt        │
                          └──────────────────┘
+
+┌──────────────────┐
+│  system_logs     │
+│──────────────────│
+│ id               │
+│ createdAt        │
+│ module           │
+│ className        │
+│ functionName     │
+│ status           │
+│ durationMs       │
+│ input (JSONB)    │
+│ output (JSONB)   │
+│ errorMessage     │
+└──────────────────┘
 ```
 
 ---
