@@ -30,7 +30,7 @@ stockPulse/
 │   │   ├── news-article.entity.ts          # Artykuły newsowe (Finnhub)
 │   │   ├── sec-filing.entity.ts            # Filingi SEC (8-K, 10-Q, Form 4)
 │   │   ├── insider-trade.entity.ts         # Transakcje insiderów
-│   │   ├── alert.entity.ts                 # Historia wysłanych alertów
+│   │   ├── alert.entity.ts                 # Historia alertów + Price Outcome (7 pól cenowych)
 │   │   ├── alert-rule.entity.ts            # Reguły generowania alertów
 │   │   ├── collection-log.entity.ts        # Logi cykli zbierania danych
 │   │   ├── pdufa-catalyst.entity.ts       # Katalizatory PDUFA (decyzje FDA)
@@ -121,9 +121,13 @@ stockPulse/
 │   │   ├── correlation.service.ts          # 5 detektorów wzorców, Redis Sorted Sets
 │   │   └── redis.provider.ts              # Osobna instancja Redis (keyPrefix: 'corr:')
 │   │
+│   ├── price-outcome/                      # Warstwa 3b: Price Outcome Tracker
+│   │   ├── price-outcome.module.ts         # Moduł (Alert repo + FinnhubModule)
+│   │   └── price-outcome.service.ts        # CRON co 1h — uzupełnia price1h/4h/1d/3d
+│   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
-│   │   ├── alert-evaluator.service.ts      # Ewaluacja reguł + throttling (z enrichedAnalysis)
+│   │   ├── alert-evaluator.service.ts      # 6 reguł niezależnych, decyzje w logach, Price Outcome wiring
 │   │   ├── summary-scheduler.service.ts    # Raport sentymentu co 2h na Telegram
 │   │   └── telegram/
 │   │       ├── telegram.module.ts          # Wydzielony TelegramModule (unikanie circular dep)
@@ -141,7 +145,7 @@ stockPulse/
 │       ├── system-logs/
 │       │   └── system-logs.controller.ts   # GET /api/system-logs (z filtrami)
 │       └── alerts/
-│           └── alerts.controller.ts        # GET /api/alerts
+│           └── alerts.controller.ts        # GET /api/alerts, GET /api/alerts/outcomes
 │
 ├── finbert-sidecar/                        # FinBERT sidecar — Python FastAPI (GPU/CPU)
 │   ├── Dockerfile                          # Obraz GPU (CUDA + PyTorch)
@@ -293,9 +297,9 @@ Każda encja = jedna tabela w PostgreSQL.
 **Zasilana przez:** `finnhub.service.ts` (MSPR), `sec-edgar.service.ts` (Form 4).
 
 #### `alert.entity.ts` → tabela `alerts`
-**Co robi:** Historia wysłanych alertów. Zawiera ticker, nazwę reguły (w tym 'Correlated Signal'), priorytet, kanał (TELEGRAM), treść wiadomości, catalystType (typ katalizatora — do throttlingu per catalyst), czy dostarczono.
-**Zasilana przez:** `alert-evaluator.service.ts`, `correlation.service.ts` (Correlated Signal), `form4.pipeline.ts`, `form8k.pipeline.ts`.
-**Używany przez:** `alerts.controller.ts`, frontend (filtruje `ruleName === 'Correlated Signal'` dla panelu Skorelowane Sygnały).
+**Co robi:** Historia wysłanych alertów + Price Outcome Tracker. Pola podstawowe: ticker, ruleName, priorytet, kanał, treść, catalystType, delivered. Pola Price Outcome (Sprint 6): `alertDirection` (positive/negative), `priceAtAlert`, `price1h`, `price4h`, `price1d`, `price3d`, `priceOutcomeDone`.
+**Zasilana przez:** `alert-evaluator.service.ts` (alerty + priceAtAlert), `correlation.service.ts` (Correlated Signal), `form4.pipeline.ts`, `form8k.pipeline.ts`, `price-outcome.service.ts` (CRON uzupełnia ceny).
+**Używany przez:** `alerts.controller.ts` (w tym endpoint /outcomes), frontend (panele Skorelowane Sygnały + Trafność Alertów).
 
 #### `alert-rule.entity.ts` → tabela `alert_rules`
 **Co robi:** Konfiguracja reguł alertów. Nazwa, warunek (tekst), priorytet, minuty throttlingu, czy aktywna. Reguły: "Insider Trade Large", "8-K Material Event", "Sentiment Crash".
@@ -563,6 +567,16 @@ Sygnały przechowywane w Redis Sorted Sets (timestamp jako score). Debounce 10s 
 #### `redis.provider.ts`
 **Co robi:** Osobna instancja Redis z `keyPrefix: 'corr:'`. Klucze: `corr:signals:short:{ticker}` (48h TTL) i `corr:signals:insider:{ticker}` (14d TTL).
 
+### Price Outcome Tracker (`src/price-outcome/`)
+
+Mierzenie trafności alertów — zapis ceny akcji w momencie alertu i śledzenie zmian w 4 horyzontach czasowych.
+
+#### `price-outcome.module.ts`
+**Co robi:** Moduł importujący TypeORM (Alert) i FinnhubModule (do pobierania cen). Rejestruje PriceOutcomeService.
+
+#### `price-outcome.service.ts`
+**Co robi:** CRON `0 * * * *` (co godzinę). Szuka alertów z `priceAtAlert IS NOT NULL` i `priceOutcomeDone=false`. Dla każdego sprawdza 4 sloty (1h, 4h, 1d, 3d) — jeśli czas minął i pole jest puste → pobiera cenę z `FinnhubService.getQuote()`. Max 30 zapytań Finnhub/cykl (free tier). Po 3 dniach `priceOutcomeDone=true`.
+
 ---
 
 ### FinBERT Sidecar (`finbert-sidecar/`)
@@ -698,8 +712,8 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 **Powiązania:** `SystemLogService.findAll()`.
 
 #### `alerts/alerts.controller.ts`
-**Endpoint:** `GET /api/alerts?symbol=UNH&limit=50`, `GET /api/alerts/rules`
-**Co robi:** Historia wysłanych alertów z filtrowaniem po symbolu. Lista reguł alertów.
+**Endpoint:** `GET /api/alerts?symbol=UNH&limit=50`, `GET /api/alerts/rules`, `GET /api/alerts/outcomes?limit=100&symbol=UNH`
+**Co robi:** Historia wysłanych alertów z filtrowaniem po symbolu. Lista reguł alertów. Endpoint `/outcomes` zwraca alerty z danymi cenowymi (priceAtAlert, price1h/4h/1d/3d, delta %, directionCorrect).
 **Powiązania:** `AlertRepository`, `AlertRuleRepository`.
 
 ---
@@ -820,17 +834,19 @@ AppModule
 │   └── 5 promptów + parser + scorer + Zod schema
 ├── CorrelationModule
 │   └── CorrelationService       (5 detektorów wzorców, Redis Sorted Sets, debounce 10s)
+├── PriceOutcomeModule
+│   └── PriceOutcomeService      (CRON co 1h — uzupełnia price1h/4h/1d/3d z Finnhub /quote)
 ├── TelegramModule               (wydzielony — unikanie circular dependency)
 │   ├── TelegramService          (wysyłka)
 │   └── TelegramFormatterService (formatowanie MarkdownV2 po polsku)
 ├── AlertsModule
-│   ├── AlertEvaluatorService    (nasłuchuje: insider trade, filing, sentiment + AI + storeSignal → Correlation)
+│   ├── AlertEvaluatorService    (6 reguł niezależnych, decyzje w logach, priceAtAlert + storeSignal → Correlation)
 │   └── SummarySchedulerService  (raport 2h na Telegram)
 └── ApiModule
     ├── HealthController       (GET /api/health, /api/health/stats)
     ├── TickersController      (GET /api/tickers)
     ├── SentimentController    (GET /api/sentiment/* — 9 endpointów, w tym filings-gpt, pipeline-logs, pdufa, insider-trades)
-    ├── AlertsController       (GET /api/alerts)
+    ├── AlertsController       (GET /api/alerts, /api/alerts/outcomes)
     └── SystemLogsController   (GET /api/system-logs)
 ```
 
@@ -881,8 +897,12 @@ AppModule
 │ channel          │  │ throttleMinutes  │     │ errorMessage     │
 │ message          │  │ isActive         │     │ durationMs       │
 │ catalystType     │  │ createdAt        │     │ startedAt        │
-│ delivered        │  │ updatedAt        │     └──────────────────┘
-│ sentAt           │  └──────────────────┘
+│ alertDirection   │  │ updatedAt        │     └──────────────────┘
+│ priceAtAlert     │  └──────────────────┘
+│ price1h/4h/1d/3d│
+│ priceOutcomeDone │
+│ delivered        │
+│ sentAt           │
 └──────────────────┘
 
 ┌──────────────────┐     ┌──────────────────┐

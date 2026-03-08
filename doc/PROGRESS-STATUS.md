@@ -6,9 +6,9 @@
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + nowy pipeline GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami + CorrelationService do detekcji wzorców między źródłami sygnałów. Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: Form 4 (insider trades) i 8-K (material events) analizowane GPT z per-Item promptami (Item 1.01 contracts, 2.02 earnings, 5.02 leadership, 1.03 bankruptcy natychmiastowy CRITICAL). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców (insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h). effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 17 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców. AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 19 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -336,6 +336,27 @@ Globalny system logowania funkcji z automatycznym pomiarem czasu, rejestracją w
 - [x] **Wykres sentymentu** — schowany w Accordion (domyślnie zwinięty, rozwija się po kliknięciu)
 - [x] **api.ts** — interfejsy `SystemLog`, `SystemLogFilters`, funkcja `fetchSystemLogs()`
 
+### Sprint 6: Price Outcome Tracker + Urgent AI Signal (ukończony 2026-03-08)
+
+Mierzenie trafności alertów — zapis ceny akcji w momencie alertu i śledzenie zmian w 4 horyzontach czasowych + nowa reguła Urgent AI Signal.
+
+#### 6.1 Price Outcome Tracker
+- [x] **Rozszerzenie encji Alert** — 7 nowych pól: `alertDirection`, `priceAtAlert`, `price1h`, `price4h`, `price1d`, `price3d`, `priceOutcomeDone`
+- [x] **FinnhubService.getQuote()** — pobieranie bieżącej ceny z endpointu `/quote`
+- [x] **PriceOutcomeModule** (`src/price-outcome/`) — nowy moduł:
+  - `PriceOutcomeService` — CRON `0 * * * *` (co godzinę), max 30 zapytań Finnhub/cykl
+  - 4 sloty czasowe: 1h → 4h → 1d → 3d, po 3 dniach `priceOutcomeDone=true`
+  - Fallback: market closed → pole pozostaje null, nie blokuje
+- [x] **Wiring w sendAlert()** — zapis `priceAtAlert` i `alertDirection` w momencie wysyłki alertu
+- [x] **Endpoint REST**: `GET /api/alerts/outcomes?limit=100&symbol=UNH` — alerty z cenami + delty % + `directionCorrect`
+- [x] **Frontend: panel "Trafność Alertów (Price Outcome)"** — tabela z kolumnami: ticker, reguła, kierunek (▲/▼), cena alertu, +1h%, +4h%, +1d%, +3d%, trafny? (✓/✗/—)
+
+#### 6.2 AlertEvaluator — decyzje w logach + nowa reguła
+- [x] **Decyzje w logach** — metody check*() zwracają string z decyzją (SKIP/THROTTLED/ALERT_SENT) → zapisywane do system_logs przez @Logged
+- [x] **onSentimentScored()** zwraca obiekt z 6 decyzjami (sentimentCrash, signalOverride, highConviction, strongFinbert, urgentSignal, checkUrgentSignal)
+- [x] **Nowa reguła checkUrgentSignal()** — łapie sygnały z `urgency=HIGH`, `relevance≥0.7`, `confidence≥0.6`, `|conviction|≥0.1` (pomimo niskiego conviction z powodu niedowartościowania źródła). Throttle 60 min.
+- [x] **Reguła w JSON**: "Urgent AI Signal" (priority HIGH, throttle 60 min)
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -353,6 +374,7 @@ GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza AP
 - [x] TextDialog — klikalne dialogi z kopiowaniem zamiast tooltipów (prompt, tekst, błąd)
 - [x] Panel "Analiza GPT Filingów SEC" — wyniki analizy GPT per filing SEC (conviction, wpływ cenowy, podsumowanie)
 - [x] Panel "Skorelowane Sygnały" — alerty z CorrelationService (wzorzec, priorytet, wiadomość)
+- [x] Panel "Trafność Alertów (Price Outcome)" — cena alertu, delty %, trafność kierunku (✓/✗/—)
 - [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
 - [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami
@@ -416,12 +438,13 @@ npm run test:all
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
-- **Reguły alertów**: 17 (11 sentyment/insider/filing + 6 nowych: 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, Form 4 Insider Signal, 8-K Bankruptcy, Correlated Signal)
-- **Encje bazy danych**: 12 tabel (sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan)
+- **Reguły alertów**: 19 (11 sentyment/insider/filing + 6 SEC/korelacja + Urgent AI Signal + Insider Trade Large)
+- **Encje bazy danych**: 12 tabel (alerts z 7 polami price outcome, sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan)
 - **Kolejki BullMQ**: 7 (5 kolektorów + sentiment-analysis + alerts)
-- **Endpointy REST**: 19 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x2, sec-filings/backfill-gpt x1, system-logs x1)
+- **Endpointy REST**: 20 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x3 incl. outcomes, sec-filings/backfill-gpt x1, system-logs x1)
 - **Źródła danych**: 4 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio), 1 placeholder (Reddit)
 - **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer + SEC Filing GPT Pipeline), 1 planowany (spaCy NER)
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
 - **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
 - **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (5 detektorów wzorców, Redis Sorted Sets)
+- **Nowe moduły (Sprint 6)**: PriceOutcomeModule (CRON co 1h, Finnhub /quote, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d)
