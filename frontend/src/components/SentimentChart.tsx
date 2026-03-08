@@ -46,12 +46,13 @@ const ScoreDot = (props: any) => {
   const { cx, cy, payload } = props;
   if (!payload) return null;
   const hasAI = !!payload.enrichedAnalysis;
+  const displayScore = payload.displayScore ?? payload.score;
   return (
     <Dot
       cx={cx}
       cy={cy}
       r={hasAI ? 5 : 4}
-      fill={scoreColor(payload.score)}
+      fill={scoreColor(displayScore)}
       stroke={hasAI ? '#ce93d8' : 'none'}
       strokeWidth={hasAI ? 2 : 0}
     />
@@ -65,12 +66,17 @@ const ChartTooltip = ({ active, payload }: any) => {
   const ea = d.enrichedAnalysis;
   return (
     <Paper sx={{ p: 1.5, maxWidth: 360 }}>
-      <Typography variant="subtitle2" sx={{ color: scoreColor(d.score), fontWeight: 700 }}>
-        Score: {Number(d.score).toFixed(3)}
+      <Typography variant="subtitle2" sx={{ color: scoreColor(d.displayScore ?? d.score), fontWeight: 700 }}>
+        {d.effectiveScore != null ? `effectiveScore: ${Number(d.displayScore).toFixed(3)}` : `Score: ${Number(d.score).toFixed(3)}`}
         {d.model?.includes('gpt') && (
           <span style={{ marginLeft: 8, fontSize: 11, color: '#ce93d8' }}>AI</span>
         )}
       </Typography>
+      {d.effectiveScore != null && (
+        <Typography variant="caption" display="block" color="text.secondary">
+          FinBERT raw: {Number(d.score).toFixed(3)}
+        </Typography>
+      )}
       <Typography variant="caption" display="block" color="text.secondary">
         {fmtFull(d.timestamp)}
       </Typography>
@@ -149,7 +155,9 @@ export default function SentimentChart() {
     load();
   }, []);
 
-  /** Dane wykresu — filtrowane po tickerze, posortowane chronologicznie */
+  /** Dane wykresu — filtrowane po tickerze, posortowane chronologicznie.
+   *  displayScore = effectiveScore (gdy AI) lub FinBERT score (bez AI).
+   *  effectiveScore tłumi szum: AI mówi "neutral" → 0 zamiast szumu FinBERT. */
   const chartData = useMemo(() => {
     if (!selectedTicker) return [];
     return allScores
@@ -159,13 +167,14 @@ export default function SentimentChart() {
         ...s,
         score: Number(s.score),
         confidence: Number(s.confidence),
+        displayScore: s.effectiveScore != null ? Number(s.effectiveScore) : Number(s.score),
       }));
   }, [allScores, selectedTicker]);
 
-  /** Statystyki dla wybranego tickera */
+  /** Statystyki dla wybranego tickera — na bazie displayScore (effectiveScore > FinBERT) */
   const stats = useMemo(() => {
     if (chartData.length === 0) return null;
-    const scores = chartData.map((d) => d.score);
+    const scores = chartData.map((d) => d.displayScore);
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
     const pos = scores.filter((s) => s > 0.2).length;
     const neg = scores.filter((s) => s < -0.2).length;
@@ -266,7 +275,7 @@ export default function SentimentChart() {
             <ReferenceLine y={-0.5} stroke="#d32f2f" strokeDasharray="2 4" strokeOpacity={0.4} />
             <Line
               type="monotone"
-              dataKey="score"
+              dataKey="displayScore"
               stroke="#64b5f6"
               strokeWidth={2}
               dot={<ScoreDot />}
