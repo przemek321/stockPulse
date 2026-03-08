@@ -1,6 +1,6 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, FindOptionsWhere } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Alert, AlertRule, Ticker } from '../entities';
 import { EventType } from '../events/event-types';
@@ -34,11 +34,25 @@ interface InsiderBatch {
 }
 
 @Injectable()
-export class AlertEvaluatorService {
+export class AlertEvaluatorService implements OnModuleDestroy {
   private readonly logger = new Logger(AlertEvaluatorService.name);
 
   /** Bufor agregacji insider trades per ticker */
   private readonly insiderBatches = new Map<string, InsiderBatch>();
+
+  /** Cache reguł alertów — TTL 5 min, unika powtarzanych zapytań do DB */
+  private rulesCache: Map<string, AlertRule | null> = new Map();
+  private rulesCacheExpiry = 0;
+  private static readonly RULES_CACHE_TTL_MS = 5 * 60 * 1000;
+
+  /** Czyści timery insider batches przy shutdownie */
+  onModuleDestroy(): void {
+    for (const [symbol, batch] of this.insiderBatches) {
+      clearTimeout(batch.timer);
+      this.logger.debug(`Wyczyszczono timer insider batch: ${symbol}`);
+    }
+    this.insiderBatches.clear();
+  }
 
   constructor(
     @InjectRepository(Alert)
@@ -75,10 +89,7 @@ export class AlertEvaluatorService {
 
     // Filtruj rutynowe transakcje — tylko BUY i SELL to prawdziwe sygnały handlowe
     const ALERTABLE_TYPES = ['BUY', 'SELL'];
-    if (
-      payload.transactionType &&
-      !ALERTABLE_TYPES.includes(payload.transactionType)
-    ) {
+    if (!payload.transactionType || !ALERTABLE_TYPES.includes(payload.transactionType)) {
       this.logger.debug(
         `Pominięto insider trade ${payload.symbol} — typ ${payload.transactionType} (nie BUY/SELL)`,
       );
@@ -133,9 +144,7 @@ export class AlertEvaluatorService {
 
     this.insiderBatches.delete(symbol);
 
-    const rule = await this.ruleRepo.findOne({
-      where: { name: 'Insider Trade Large', isActive: true },
-    });
+    const rule = await this.getRule('Insider Trade Large');
     if (!rule) return;
 
     const isThrottled = await this.isThrottled(
@@ -197,6 +206,7 @@ export class AlertEvaluatorService {
    * Generuje alert dla ważnych filingów (8-K, Form 4).
    */
   @OnEvent(EventType.NEW_FILING)
+  @Logged('alerts')
   async onFiling(payload: {
     filingId: number;
     symbol: string;
@@ -211,9 +221,7 @@ export class AlertEvaluatorService {
     if (payload.formType !== '8-K') return;
 
     const ruleName = '8-K Material Event';
-    const rule = await this.ruleRepo.findOne({
-      where: { name: ruleName, isActive: true },
-    });
+    const rule = await this.getRule(ruleName);
     if (!rule) return;
 
     const isThrottled = await this.isThrottled(
@@ -223,9 +231,13 @@ export class AlertEvaluatorService {
     );
     if (isThrottled) return;
 
+    const ticker = await this.tickerRepo.findOne({
+      where: { symbol: payload.symbol },
+    });
+
     const message = this.formatter.formatFilingAlert({
       symbol: payload.symbol,
-      companyName: payload.symbol,
+      companyName: ticker?.name ?? payload.symbol,
       formType: payload.formType,
       priority: rule.priority,
     });
@@ -314,9 +326,7 @@ export class AlertEvaluatorService {
     );
 
     const ruleName = 'Sentiment Crash';
-    const rule = await this.ruleRepo.findOne({
-      where: { name: ruleName, isActive: true },
-    });
+    const rule = await this.getRule(ruleName);
     if (!rule) return 'SKIP: reguła nieaktywna';
 
     const catalyst = payload.enrichedAnalysis?.catalyst_type;
@@ -387,9 +397,7 @@ export class AlertEvaluatorService {
       `${ruleName}: ${payload.symbol} finbert=${finbertScore} effectiveScore=${effectiveScore} gptConviction=${payload.gptConviction}`,
     );
 
-    const rule = await this.ruleRepo.findOne({
-      where: { name: ruleName, isActive: true },
-    });
+    const rule = await this.getRule(ruleName);
     if (!rule) return `SKIP: reguła ${ruleName} nieaktywna`;
 
     const catalyst = payload.enrichedAnalysis?.catalyst_type;
@@ -449,9 +457,7 @@ export class AlertEvaluatorService {
     );
 
     const ruleName = 'High Conviction Signal';
-    const rule = await this.ruleRepo.findOne({
-      where: { name: ruleName, isActive: true },
-    });
+    const rule = await this.getRule(ruleName);
     if (!rule) return 'SKIP: reguła nieaktywna';
 
     const catalyst = payload.enrichedAnalysis?.catalyst_type;
@@ -471,7 +477,7 @@ export class AlertEvaluatorService {
       finbertScore: payload.score,
       finbertConfidence: payload.confidence,
       source: payload.source,
-      enrichedAnalysis: payload.enrichedAnalysis!,
+      enrichedAnalysis: payload.enrichedAnalysis ?? {},
     });
 
     await this.sendAlert(payload.symbol, rule, message, catalyst, {
@@ -507,9 +513,7 @@ export class AlertEvaluatorService {
     );
 
     const ruleName = 'Strong FinBERT Signal';
-    const rule = await this.ruleRepo.findOne({
-      where: { name: ruleName, isActive: true },
-    });
+    const rule = await this.getRule(ruleName);
     if (!rule) return 'SKIP: reguła nieaktywna';
 
     const isThrottled = await this.isThrottled(
@@ -567,9 +571,7 @@ export class AlertEvaluatorService {
     );
 
     const ruleName = 'Urgent AI Signal';
-    const rule = await this.ruleRepo.findOne({
-      where: { name: ruleName, isActive: true },
-    });
+    const rule = await this.getRule(ruleName);
     if (!rule) return 'SKIP: reguła nieaktywna';
 
     const catalyst = ea.catalyst_type;
@@ -617,6 +619,17 @@ export class AlertEvaluatorService {
   ): Promise<void> {
     const delivered = await this.telegram.sendMarkdown(message);
 
+    // Price Outcome Tracker — pobierz cenę PRZED zapisem (1 zapis zamiast 2)
+    let priceAtAlert: number | null = null;
+    try {
+      priceAtAlert = await this.finnhub.getQuote(symbol);
+      if (priceAtAlert) {
+        this.logger.debug(`PriceOutcome: ${symbol} priceAtAlert=$${priceAtAlert}`);
+      }
+    } catch (err) {
+      this.logger.warn(`PriceOutcome getQuote error: ${err.message}`);
+    }
+
     const alert = this.alertRepo.create({
       symbol,
       ruleName: rule.name,
@@ -626,6 +639,7 @@ export class AlertEvaluatorService {
       delivered,
       catalystType: catalystType ?? null,
       alertDirection: correlationData?.direction === 'neutral' ? null : (correlationData?.direction ?? null),
+      priceAtAlert,
     });
 
     await this.alertRepo.save(alert);
@@ -633,18 +647,6 @@ export class AlertEvaluatorService {
     this.logger.log(
       `Alert wysłany: ${rule.name} dla ${symbol} (delivered: ${delivered})`,
     );
-
-    // Price Outcome Tracker — zapisz cenę w momencie alertu
-    try {
-      const price = await this.finnhub.getQuote(symbol);
-      if (price) {
-        alert.priceAtAlert = price;
-        await this.alertRepo.save(alert);
-        this.logger.debug(`PriceOutcome: ${symbol} priceAtAlert=$${price}`);
-      }
-    } catch (err) {
-      this.logger.warn(`PriceOutcome getQuote error: ${err.message}`);
-    }
 
     // Rejestruj sygnał w CorrelationService
     if (this.correlation && correlationData) {
@@ -680,6 +682,28 @@ export class AlertEvaluatorService {
   }
 
   /**
+   * Pobiera regułę alertu z cache (TTL 5 min) lub z DB.
+   * Redukuje liczbę zapytań — reguły zmieniają się rzadko.
+   */
+  private async getRule(name: string): Promise<AlertRule | null> {
+    const now = Date.now();
+    if (now > this.rulesCacheExpiry) {
+      this.rulesCache.clear();
+      this.rulesCacheExpiry = now + AlertEvaluatorService.RULES_CACHE_TTL_MS;
+    }
+
+    if (this.rulesCache.has(name)) {
+      return this.rulesCache.get(name)!;
+    }
+
+    const rule = await this.ruleRepo.findOne({
+      where: { name, isActive: true },
+    });
+    this.rulesCache.set(name, rule);
+    return rule;
+  }
+
+  /**
    * Sprawdza czy alert tego typu per ticker jest wstrzymany (throttling).
    * Jeśli catalystType podany → throttle per (rule, symbol, catalyst).
    * Jeśli nie → per (rule, symbol) jak dotąd.
@@ -694,7 +718,7 @@ export class AlertEvaluatorService {
     const effectiveMinutes = Math.max(throttleMinutes, 1);
     const cutoff = new Date(Date.now() - effectiveMinutes * 60 * 1000);
 
-    const where: any = {
+    const where: FindOptionsWhere<Alert> = {
       ruleName,
       symbol,
       sentAt: MoreThan(cutoff),
@@ -703,8 +727,8 @@ export class AlertEvaluatorService {
       where.catalystType = catalystType;
     }
 
-    const recentAlert = await this.alertRepo.findOne({ where });
+    const count = await this.alertRepo.count({ where });
 
-    return !!recentAlert;
+    return count > 0;
   }
 }
