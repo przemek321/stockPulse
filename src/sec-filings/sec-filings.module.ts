@@ -9,6 +9,7 @@ import { CorrelationModule } from '../correlation/correlation.module';
 import { Form4Pipeline } from './pipelines/form4.pipeline';
 import { Form8kPipeline } from './pipelines/form8k.pipeline';
 import { DailyCapService, SEC_FILINGS_REDIS } from './services/daily-cap.service';
+import { SecFilingsController } from './sec-filings.controller';
 
 /**
  * Moduł analizy GPT filingów SEC (Form 4 + 8-K).
@@ -23,6 +24,7 @@ import { DailyCapService, SEC_FILINGS_REDIS } from './services/daily-cap.service
     TelegramModule,      // TelegramService, TelegramFormatterService
     CorrelationModule,   // CorrelationService (storeSignal)
   ],
+  controllers: [SecFilingsController],
   providers: [
     {
       provide: SEC_FILINGS_REDIS,
