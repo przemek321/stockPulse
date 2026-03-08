@@ -6,7 +6,7 @@
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony)
 
 Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + nowy pipeline GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami + CorrelationService do detekcji wzorców między źródłami sygnałów. Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: Form 4 (insider trades) i 8-K (material events) analizowane GPT z per-Item promptami (Item 1.01 contracts, 2.02 earnings, 5.02 leadership, 1.03 bankruptcy natychmiastowy CRITICAL). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców (insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h). effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 17 reguł alertów, 11 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
 
@@ -293,6 +293,48 @@ Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami +
   - 8-K other: rutynowe ujawnienie = ±0.1-0.4, FDA decyzja = ±1.3-1.6
   - Jawny zakaz defaultowania do ±1.5, instrukcja użycia pełnego zakresu
 
+### Sprint 5: System Logowania — decorator @Logged() + zakładka System Logs (ukończony 2026-03-08)
+
+Globalny system logowania funkcji z automatycznym pomiarem czasu, rejestracją wejścia/wyjścia i osobną zakładką na froncie.
+
+#### 5.1 Backend: Decorator @Logged() + SystemLogService
+- [x] **Encja `SystemLog`** (`src/entities/system-log.entity.ts`) — tabela `system_logs`:
+  - id, createdAt, module, className, functionName, status, durationMs, input (JSONB), output (JSONB), errorMessage
+  - Indeksy: (module, createdAt), status, functionName
+- [x] **SystemLogService** (`src/system-log/system-log.service.ts`) — globalny singleton:
+  - `log(data)` — fire-and-forget zapis (nie blokuje pipeline)
+  - `findAll(filters)` — QueryBuilder z filtrami (module, function, status, dateFrom, dateTo, limit, offset)
+  - `cleanup()` — `@Cron('0 3 * * *')` usuwa logi starsze niż 7 dni
+- [x] **SystemLogModule** (`src/system-log/system-log.module.ts`) — `@Global()` moduł
+- [x] **Decorator `@Logged(module)`** (`src/common/decorators/logged.decorator.ts`):
+  - Wrappuje metody async, mierzy czas, przechwytuje input/output
+  - `truncateForLog()` — obsługa circular refs (WeakSet), obcinanie stringów >500 znaków, JSON >2000 znaków
+  - `serializeArgs()` — wyciąga `.data` z BullMQ Job
+  - Fire-and-forget via `SystemLogService.getInstance()?.log(...)`
+- [x] **Kontroler** (`src/api/system-logs/system-logs.controller.ts`):
+  - `GET /api/system-logs?module=&function=&status=&dateFrom=&dateTo=&limit=&offset=`
+
+#### 5.2 Zastosowanie @Logged() — ~13 metod w 8 serwisach
+- [x] `BaseCollectorService.runCollectionCycle()` — moduł `collectors`
+- [x] `FinbertClientService.analyze()` — moduł `sentiment`
+- [x] `AzureOpenaiClientService.analyze()` — moduł `sentiment`
+- [x] `SentimentProcessorService.process()` — moduł `sentiment`
+- [x] `Form4Pipeline.onInsiderTrade()` — moduł `sec-filings`
+- [x] `Form8kPipeline.onFiling()` — moduł `sec-filings`
+- [x] `CorrelationService.storeSignal()`, `runPatternDetection()` — moduł `correlation`
+- [x] `AlertEvaluatorService.onSentimentScored()`, `onInsiderTrade()` — moduł `alerts`
+
+#### 5.3 Frontend: zakładka System Logs
+- [x] **MUI Tabs** w `App.tsx` — Dashboard + System Logs (2 zakładki)
+- [x] **SystemLogsTab** (`frontend/src/components/SystemLogsTab.tsx`):
+  - Filtry: moduł (dropdown), status (dropdown), auto-refresh 30s (toggle)
+  - Tabela MUI z sortowaniem: Czas, Moduł, Klasa, Funkcja, Status, Czas trwania
+  - Rozwijane wiersze z INPUT/OUTPUT JSON w `<pre>`, ERROR na czerwono
+  - Paginacja (50/stronę), Export JSON (do 500 logów)
+  - Czas trwania >5s podświetlony na pomarańczowo
+- [x] **Wykres sentymentu** — schowany w Accordion (domyślnie zwinięty, rozwija się po kliknięciu)
+- [x] **api.ts** — interfejsy `SystemLog`, `SystemLogFilters`, funkcja `fetchSystemLogs()`
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -374,9 +416,9 @@ npm run test:all
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
 - **Reguły alertów**: 17 (11 sentyment/insider/filing + 6 nowych: 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, Form 4 Insider Signal, 8-K Bankruptcy, Correlated Signal)
-- **Encje bazy danych**: 11 tabel (sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan)
+- **Encje bazy danych**: 12 tabel (sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan)
 - **Kolejki BullMQ**: 7 (5 kolektorów + sentiment-analysis + alerts)
-- **Endpointy REST**: 18 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x2, sec-filings/backfill-gpt x1)
+- **Endpointy REST**: 19 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x2, sec-filings/backfill-gpt x1, system-logs x1)
 - **Źródła danych**: 4 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio), 1 placeholder (Reddit)
 - **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer + SEC Filing GPT Pipeline), 1 planowany (spaCy NER)
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)

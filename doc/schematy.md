@@ -34,12 +34,15 @@ stockPulse/
 │   │   ├── alert-rule.entity.ts            # Reguły generowania alertów
 │   │   ├── collection-log.entity.ts        # Logi cykli zbierania danych
 │   │   ├── pdufa-catalyst.entity.ts       # Katalizatory PDUFA (decyzje FDA)
-│   │   └── ai-pipeline-log.entity.ts      # Logi egzekucji pipeline AI
+│   │   ├── ai-pipeline-log.entity.ts      # Logi egzekucji pipeline AI
+│   │   └── system-log.entity.ts           # Logi systemowe (@Logged decorator)
 │   │
 │   ├── common/                             # Współdzielone utility
 │   │   ├── interfaces/
 │   │   │   ├── collector.interface.ts       # Interfejs ICollector
 │   │   │   └── data-source.enum.ts          # Enum: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS, PDUFA_BIO
+│   │   ├── decorators/
+│   │   │   └── logged.decorator.ts          # @Logged(module) — automatyczne logowanie metod
 │   │   └── filters/
 │   │       └── http-exception.filter.ts     # Globalny filtr błędów HTTP
 │   │
@@ -109,6 +112,10 @@ stockPulse/
 │   │   │   └── sec-filing-analysis.schema.ts # Zod walidacja odpowiedzi GPT
 │   │   └── daily-cap.service.ts            # Redis INCR, max 20 GPT/ticker/dzień
 │   │
+│   ├── system-log/                        # System logowania (@Logged decorator)
+│   │   ├── system-log.module.ts           # @Global() moduł (singleton)
+│   │   └── system-log.service.ts          # Zapis logów fire-and-forget, cleanup cron 7d
+│   │
 │   ├── correlation/                        # Warstwa 3: Detekcja wzorców cross-source
 │   │   ├── correlation.module.ts           # Moduł (eksportuje CorrelationService)
 │   │   ├── correlation.service.ts          # 5 detektorów wzorców, Redis Sorted Sets
@@ -131,6 +138,8 @@ stockPulse/
 │       │   └── tickers.controller.ts       # GET /api/tickers
 │       ├── sentiment/
 │       │   └── sentiment.controller.ts     # GET /api/sentiment/* (5 endpointów)
+│       ├── system-logs/
+│       │   └── system-logs.controller.ts   # GET /api/system-logs (z filtrami)
 │       └── alerts/
 │           └── alerts.controller.ts        # GET /api/alerts
 │
@@ -150,14 +159,15 @@ stockPulse/
 │   ├── tsconfig.json                       # TypeScript frontend
 │   └── src/
 │       ├── main.tsx                        # Punkt wejścia React
-│       ├── App.tsx                         # Layout główny (10+ paneli danych, TextDialog, zakładki AI/PDUFA/Pipeline)
-│       ├── api.ts                          # Klient HTTP do backendu (/api/*, fetchAiScores, fetchPipelineLogs)
+│       ├── App.tsx                         # Layout główny (MUI Tabs: Dashboard + System Logs, 12+ paneli)
+│       ├── api.ts                          # Klient HTTP do backendu (/api/*, fetchAiScores, fetchPipelineLogs, fetchSystemLogs)
 │       ├── vite-env.d.ts                   # Typy Vite
 │       └── components/
 │           ├── CollectorStatus.tsx          # Status kolektorów (health + countdown, ukryty Reddit)
 │           ├── DataPanel.tsx                # Panel danych (tabela z sortowaniem)
 │           ├── DbSummary.tsx               # Podsumowanie bazy (totale per tabela)
-│           └── SentimentChart.tsx           # Wykres sentymentu Recharts (fioletowe AI dots)
+│           ├── SentimentChart.tsx           # Wykres sentymentu Recharts (fioletowe AI dots)
+│           └── SystemLogsTab.tsx           # Zakładka System Logs (filtry, tabela, export JSON)
 │
 ├── azure-api/                              # Azure VM — gpt-4o-mini analysis service (osobne repo)
 │   ├── processor.js                       # POST /analyze — gpt-4o-mini eskalacja (PM2, port 3100)
@@ -306,6 +316,12 @@ Każda encja = jedna tabela w PostgreSQL.
 **Zasilana przez:** `sentiment-processor.service.ts` (budowana inkrementalnie przez cały pipeline).
 **Używany przez:** `sentiment.controller.ts` (endpoint `/pipeline-logs`).
 
+#### `system-log.entity.ts` → tabela `system_logs`
+**Co robi:** Uniwersalny log wywołań funkcji z decoratora `@Logged()`. Kolumny: module (np. 'collectors', 'sentiment', 'sec-filings', 'correlation', 'alerts'), className, functionName, status ('success'/'error'), durationMs, input (JSONB — argumenty funkcji, obcięte do 2000 znaków), output (JSONB — wartość zwrócona), errorMessage.
+**Indeksy:** (module, createdAt), status, functionName.
+**Zasilana przez:** `logged.decorator.ts` (fire-and-forget via `SystemLogService.getInstance()`).
+**Używany przez:** `system-logs.controller.ts` (endpoint `/system-logs`), frontend `SystemLogsTab`.
+
 ---
 
 ### Współdzielone (`src/common/`)
@@ -318,8 +334,28 @@ Każda encja = jedna tabela w PostgreSQL.
 **Co robi:** Interfejs `ICollector` — kontrakt dla kolektorów: `collect()`, `getSourceName()`, `getHealthStatus()`. Plus interfejs `CollectorHealth` dla statusu zdrowia.
 **Implementowany przez:** `BaseCollectorService` → wszystkie kolektory.
 
+#### `decorators/logged.decorator.ts`
+**Co robi:** Decorator `@Logged(moduleName)` — TypeScript method decorator do automatycznego logowania wywołań metod. Wrappuje async metody, mierzy czas (Date.now), przechwytuje input (argumenty) i output (wartość zwrócona). `truncateForLog()` — obsługa circular refs (WeakSet), obcinanie stringów >500 znaków, JSON >2000 znaków. `serializeArgs()` — wyciąga `.data` z BullMQ Job. Fire-and-forget zapis do bazy przez `SystemLogService.getInstance()?.log(...)`.
+**Używany przez:** ~13 metod w 8 serwisach (collectors, sentiment, sec-filings, correlation, alerts).
+
 #### `filters/http-exception.filter.ts`
 **Co robi:** Globalny filtr błędów HTTP. Przechwytuje wyjątki i zwraca ustandaryzowany JSON: `{ statusCode, message, timestamp, path }`.
+
+---
+
+### System Logowania (`src/system-log/`)
+
+Globalny moduł logowania wywołań funkcji — singleton pattern z fire-and-forget zapisem do PostgreSQL.
+
+#### `system-log.module.ts`
+**Co robi:** `@Global()` moduł NestJS. Importuje TypeORM (SystemLog) i ScheduleModule. Eksportuje SystemLogService. Dzięki `@Global()` decorator `@Logged()` ma dostęp do singletona bez jawnego importu modułu.
+
+#### `system-log.service.ts`
+**Co robi:** Serwis z globalnym singletonem (`static instance`, ustawiany w `onModuleInit()`). Metody:
+- `log(data)` — fire-and-forget `repo.save()` z catch (nigdy nie blokuje pipeline)
+- `findAll(filters)` — QueryBuilder z opcjonalnymi filtrami: module, functionName, status, dateFrom, dateTo, limit (max 500), offset. Zwraca `{ count, total, logs }`
+- `cleanup()` — `@Cron('0 3 * * *')` — codzienny cleanup logów starszych niż 7 dni
+**Powiązania:** `logged.decorator.ts` (producent logów), `system-logs.controller.ts` (konsument).
 
 ---
 
@@ -555,13 +591,13 @@ Python FastAPI app z modelem ProsusAI/finbert. Uruchamiana jako osobny kontener 
 
 ### Frontend (`frontend/`)
 
-Dashboard React z 10+ panelami danych, wykresem sentymentu, zakładkami AI/Pipeline/PDUFA. TextDialog do podglądu i kopiowania długich tekstów. Odpytuje REST API backendu.
+Dashboard React z 12+ panelami danych, wykresem sentymentu, zakładkami MUI (Dashboard + System Logs). TextDialog do podglądu i kopiowania długich tekstów. Odpytuje REST API backendu.
 
 #### `App.tsx`
-**Co robi:** Główny layout — wykres sentymentu (SentimentChart), 12+ paneli DataPanel: Analiza AI, Pipeline AI (logi egzekucji), Analiza GPT Filingów SEC, Skorelowane Sygnały, Tickery, Wyniki sentymentu, News, SEC EDGAR, Insider Trades, PDUFA Kalendarz, Alerty, Reguły alertów, StockTwits Wzmianki. Status kolektorów + podsumowanie bazy. Komponent `TextDialog` — klikalne okna dialogowe do podglądu i kopiowania długich tekstów (prompt AI, tekst wejściowy, błąd).
+**Co robi:** Główny layout z MUI Tabs (2 zakładki: Dashboard + System Logs). Tab Dashboard: wykres sentymentu (SentimentChart w Accordion, domyślnie zwinięty), 12+ paneli DataPanel: Analiza AI, Pipeline AI (logi egzekucji), Analiza GPT Filingów SEC, Skorelowane Sygnały, Tickery, Wyniki sentymentu, News, SEC EDGAR, Insider Trades, PDUFA Kalendarz, Alerty, Reguły alertów, StockTwits Wzmianki. Status kolektorów + podsumowanie bazy. TextDialog — klikalne okna dialogowe do podglądu i kopiowania. Tab System Logs: `<SystemLogsTab />`.
 
 #### `api.ts`
-**Co robi:** Klient HTTP (fetch) do backendu. Interfejsy TypeScript: HealthData, Ticker, NewsArticle, AlertRule, Alert, SentimentScore, EnrichedAnalysis (16 pól AI), AiPipelineLog (19 pól). Endpointy: fetchHealth, fetchTickers, fetchAlertRules, fetchAlerts, fetchSentimentScores, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt.
+**Co robi:** Klient HTTP (fetch) do backendu. Interfejsy TypeScript: HealthData, Ticker, NewsArticle, AlertRule, Alert, SentimentScore, EnrichedAnalysis (16 pól AI), AiPipelineLog (19 pól), SystemLog, SystemLogFilters. Endpointy: fetchHealth, fetchTickers, fetchAlertRules, fetchAlerts, fetchSentimentScores, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt, fetchSystemLogs.
 
 #### `components/CollectorStatus.tsx`
 **Co robi:** Wyświetla status 3 aktywnych kolektorów (Reddit ukryty): ostatni run, ile elementów, czas, countdown do następnego cyklu. Totale per tabela.
@@ -573,7 +609,18 @@ Dashboard React z 10+ panelami danych, wykresem sentymentu, zakładkami AI/Pipel
 **Co robi:** Podsumowanie bazy — totale per tabela, wielkość bazy danych.
 
 #### `components/SentimentChart.tsx`
-**Co robi:** Wykres sentymentu per ticker (Recharts ScatterChart). Dropdown tickerów, zakres czasu. Fioletowe kropki dla AI-eskalowanych wyników, tooltip z danymi AI (sentiment, conviction, urgency, catalyst, summary). Statystyki: średni score, positive/negative/neutral, AI count.
+**Co robi:** Wykres sentymentu per ticker (Recharts ScatterChart). Dropdown tickerów, zakres czasu. Fioletowe kropki dla AI-eskalowanych wyników, tooltip z danymi AI (sentiment, conviction, urgency, catalyst, summary). Statystyki: średni score, positive/negative/neutral, AI count. Domyślnie schowany w Accordion (rozwijany po kliknięciu).
+
+#### `components/SystemLogsTab.tsx`
+**Co robi:** Zakładka System Logs z pełnym widokiem logów z decoratora `@Logged()`. Funkcje:
+- Filtry: moduł (dropdown: collectors, sentiment, sec-filings, correlation, alerts), status (success/error)
+- Auto-refresh co 30s (toggle)
+- Tabela MUI z sortowaniem po kolumnach: Czas, Moduł, Klasa, Funkcja, Status, Czas trwania
+- Rozwijane wiersze — kliknięcie wiersza pokazuje INPUT/OUTPUT jako sformatowany JSON w `<pre>`, ERROR na czerwono
+- Paginacja (50 na stronę), przycisk Export JSON (pobiera do 500 przefiltrowanych logów)
+- Czas trwania >5s podświetlony na pomarańczowo (warning)
+- Statystyki: total, success count, error count
+**Powiązania:** `fetchSystemLogs()` z `api.ts`.
 
 ---
 
@@ -617,7 +664,7 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 ### REST API (`src/api/`)
 
 #### `api.module.ts`
-**Co robi:** Zbiorczy moduł API. Importuje encje, `CollectorsModule` (dostęp do serwisów kolektorów) i `AlertsModule` (dostęp do TelegramService). Rejestruje 4 kontrolery.
+**Co robi:** Zbiorczy moduł API. Importuje encje, `CollectorsModule` (dostęp do serwisów kolektorów) i `AlertsModule` (dostęp do TelegramService). Rejestruje 5 kontrolerów (w tym SystemLogsController).
 
 #### `health/health.controller.ts`
 **Endpointy:**
@@ -644,6 +691,11 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 - `GET /api/sentiment/:ticker?limit=50` — dane sentymentu per ticker (scores + mentions + news)
 
 **Powiązania:** `SentimentScoreRepository`, `RawMentionRepository`, `NewsArticleRepository`, `SecFilingRepository`, `InsiderTradeRepository`, `PdufaCatalystRepository`, `AiPipelineLogRepository`.
+
+#### `system-logs/system-logs.controller.ts`
+**Endpoint:** `GET /api/system-logs?module=&function=&status=&dateFrom=&dateTo=&limit=&offset=`
+**Co robi:** Zwraca logi z tabeli `system_logs` z opcjonalnymi filtrami. Domyślny limit 100, max 500. Odpowiedź: `{ count, total, logs }`.
+**Powiązania:** `SystemLogService.findAll()`.
 
 #### `alerts/alerts.controller.ts`
 **Endpoint:** `GET /api/alerts?symbol=UNH&limit=50`, `GET /api/alerts/rules`

@@ -83,11 +83,12 @@ export function Logged(moduleName: string) {
     descriptor: PropertyDescriptor,
   ) {
     const original = descriptor.value;
-    const className = target.constructor.name;
 
     descriptor.value = async function (...args: any[]) {
       const start = Date.now();
       const logger = SystemLogService.getInstance();
+      // Runtime className — łapie dziecko (np. StocktwitsService), nie bazową klasę
+      const className = this?.constructor?.name || target.constructor.name;
 
       try {
         const result = await original.apply(this, args);
@@ -106,10 +107,11 @@ export function Logged(moduleName: string) {
         return result;
       } catch (error) {
         const durationMs = Date.now() - start;
+        const errClassName = this?.constructor?.name || target.constructor.name;
 
         logger?.log({
           module: moduleName,
-          className,
+          className: errClassName,
           functionName: propertyKey,
           status: 'error',
           durationMs,
