@@ -29,14 +29,15 @@ import DownloadIcon from '@mui/icons-material/Download';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { fetchSystemLogs, SystemLog, SystemLogFilters } from '../api';
 
-/** Dostępne moduły do filtrowania */
+/** Dostępne moduły do filtrowania — wartości muszą pasować do @Logged(module) */
 const MODULES = [
   { value: '', label: 'Wszystkie' },
-  { value: 'collectors', label: 'Kolektory' },
-  { value: 'sentiment', label: 'Sentyment' },
-  { value: 'sec-filings', label: 'SEC Filings' },
-  { value: 'correlation', label: 'Korelacja' },
-  { value: 'alerts', label: 'Alerty' },
+  { value: 'collectors', label: 'collectors' },
+  { value: 'sentiment', label: 'sentiment' },
+  { value: 'sec-filings', label: 'sec-filings' },
+  { value: 'correlation', label: 'correlation' },
+  { value: 'alerts', label: 'alerts' },
+  { value: 'telegram', label: 'telegram' },
 ];
 
 const STATUSES = [
