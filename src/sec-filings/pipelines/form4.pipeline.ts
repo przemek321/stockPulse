@@ -13,6 +13,7 @@ import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysi
 import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
+import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
  * Pipeline analizy GPT dla transakcji insiderskich (Form 4).
@@ -41,6 +42,7 @@ export class Form4Pipeline {
     @Optional() private readonly correlation?: CorrelationService,
   ) {}
 
+  @Logged('sec-filings')
   @OnEvent(EventType.NEW_INSIDER_TRADE)
   async onInsiderTrade(payload: {
     tradeId: number;

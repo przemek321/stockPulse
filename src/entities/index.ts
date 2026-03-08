@@ -9,3 +9,4 @@ export { AlertRule } from './alert-rule.entity';
 export { CollectionLog } from './collection-log.entity';
 export { PdufaCatalyst } from './pdufa-catalyst.entity';
 export { AiPipelineLog } from './ai-pipeline-log.entity';
+export { SystemLog } from './system-log.entity';

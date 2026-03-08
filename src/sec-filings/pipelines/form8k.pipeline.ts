@@ -20,6 +20,7 @@ import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysi
 import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
+import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
  * Pipeline analizy GPT dla filingów 8-K.
@@ -57,6 +58,7 @@ export class Form8kPipeline {
     );
   }
 
+  @Logged('sec-filings')
   @OnEvent(EventType.NEW_FILING)
   async onFiling(payload: {
     filingId: number;

@@ -14,6 +14,7 @@ import {
   PATTERN_LABELS,
   PATTERN_THROTTLE,
 } from './types/correlation.types';
+import { Logged } from '../common/decorators/logged.decorator';
 
 /**
  * CorrelationService — wykrywa wzorce między sygnałami z różnych źródeł.
@@ -62,6 +63,7 @@ export class CorrelationService {
    * Zapisuje sygnał do Redis po wysłaniu alertu.
    * Wywoływany z AlertEvaluator, Form4Pipeline, Form8kPipeline.
    */
+  @Logged('correlation')
   async storeSignal(signal: StoredSignal): Promise<void> {
     if (Math.abs(signal.conviction) < MIN_CONVICTION) return;
 
@@ -104,6 +106,7 @@ export class CorrelationService {
   /**
    * Uruchamia detekcję wzorców dla danego tickera.
    */
+  @Logged('correlation')
   async runPatternDetection(ticker: string): Promise<void> {
     this.pendingChecks.delete(ticker);
     const now = Date.now();

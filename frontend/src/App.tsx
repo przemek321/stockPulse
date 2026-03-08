@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { Box, Container, Typography, Chip, Divider, Dialog, DialogTitle, DialogContent, IconButton } from '@mui/material';
+import { Box, Container, Typography, Chip, Divider, Dialog, DialogTitle, DialogContent, IconButton, Tabs, Tab, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import TerminalIcon from '@mui/icons-material/Terminal';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CloseIcon from '@mui/icons-material/Close';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
@@ -19,6 +23,7 @@ import DbSummary from './components/DbSummary';
 import SentimentChart from './components/SentimentChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt } from './api';
+import SystemLogsTab from './components/SystemLogsTab';
 
 /** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
 const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
@@ -99,6 +104,8 @@ const PriorityChip = ({ value }: { value: string }) => {
 declare const __BUILD_DATE__: string;
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState(0);
+
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       {/* Data kompilacji — prawy dolny róg */}
@@ -112,7 +119,7 @@ export default function App() {
       </Typography>
 
       {/* Nagłówek */}
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
           StockPulse
           <Typography component="span" variant="h4" color="primary" fontWeight={700}>
@@ -122,15 +129,44 @@ export default function App() {
         <DbSummary />
       </Box>
 
-      {/* Status kolektorów */}
-      <CollectorStatus />
+      {/* Zakładki */}
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" />
+        <Tab icon={<TerminalIcon />} iconPosition="start" label="System Logs" />
+      </Tabs>
+
+      {/* Tab 0: Dashboard */}
+      {activeTab === 0 && (
+        <>
+          {/* Status kolektorów */}
+          <CollectorStatus />
 
       <Divider sx={{ my: 3 }} />
 
-      {/* Wykres sentymentu per ticker */}
-      <SentimentChart />
+      {/* Wykres sentymentu — domyślnie zwinięty */}
+      <Accordion
+        sx={{
+          mb: 2,
+          bgcolor: 'background.paper',
+          '&:before': { display: 'none' },
+        }}
+      >
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <TimelineIcon sx={{ color: '#64b5f6' }} />
+            <Typography fontWeight={600}>Wykres sentymentu</Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails sx={{ p: 0 }}>
+          <SentimentChart />
+        </AccordionDetails>
+      </Accordion>
 
-      <Divider sx={{ my: 3 }} />
+      <Divider sx={{ my: 2 }} />
 
       {/* Tabele danych — rozwijane na kliknięcie */}
       <Typography variant="h6" sx={{ mb: 2 }}>
@@ -895,6 +931,11 @@ export default function App() {
       <Typography variant="caption" color="text.secondary" sx={{ mt: 4, display: 'block' }}>
         StockPulse v1.0 — Healthcare Sentiment Analysis
       </Typography>
+        </>
+      )}
+
+      {/* Tab 1: System Logs */}
+      {activeTab === 1 && <SystemLogsTab />}
     </Container>
   );
 }

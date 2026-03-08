@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Logged } from '../common/decorators/logged.decorator';
 
 /** Wynik wzbogaconej analizy z Azure OpenAI gpt-4o-mini */
 export interface EnrichedAnalysis {
@@ -65,6 +66,7 @@ export class AzureOpenaiClientService {
    * Wywołuje POST /analyze na Azure VM.
    * Zwraca wielowymiarową analizę lub null jeśli błąd/niedostępność.
    */
+  @Logged('sentiment')
   async analyze(
     text: string,
     symbol: string,

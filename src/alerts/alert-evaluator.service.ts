@@ -9,6 +9,7 @@ import { TelegramFormatterService } from './telegram/telegram-formatter.service'
 import { SignalDirection } from '../common/types';
 import { CorrelationService } from '../correlation/correlation.service';
 import { SourceCategory, StoredSignal } from '../correlation/types/correlation.types';
+import { Logged } from '../common/decorators/logged.decorator';
 
 /**
  * Ewaluator reguł alertów.
@@ -55,6 +56,7 @@ export class AlertEvaluatorService {
    * Generuje alert "Insider Trade Large" gdy totalValue > $100K.
    * Ignoruje Finnhub MSPR (totalValue=0) i małe transakcje.
    */
+  @Logged('alerts')
   @OnEvent(EventType.NEW_INSIDER_TRADE)
   async onInsiderTrade(payload: {
     tradeId: number;
@@ -242,6 +244,7 @@ export class AlertEvaluatorService {
    * 4. High Conviction Signal: |conviction| > 1.5 (raw, nieznormalizowany)
    * 5. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
    */
+  @Logged('alerts')
   @OnEvent(EventType.SENTIMENT_SCORED)
   async onSentimentScored(payload: {
     scoreId: number;

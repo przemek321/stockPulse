@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Logged } from '../common/decorators/logged.decorator';
 
 /**
  * Klient HTTP do FinBERT sidecar (Python FastAPI).
@@ -25,6 +26,7 @@ export class FinbertClientService {
   /**
    * Analiza sentymentu pojedynczego tekstu.
    */
+  @Logged('sentiment')
   async analyze(text: string): Promise<FinbertResult> {
     const response = await fetch(`${this.baseUrl}/api/sentiment`, {
       method: 'POST',

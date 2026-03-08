@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { CollectionLog } from '../../entities';
 import { ICollector, CollectorHealth } from '../../common/interfaces/collector.interface';
 import { DataSource } from '../../common/interfaces/data-source.enum';
+import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
  * Bazowa klasa dla wszystkich kolektorów danych.
@@ -65,6 +66,7 @@ export abstract class BaseCollectorService implements ICollector {
   /**
    * Wrapper uruchamiający collect() z pomiarem czasu i logowaniem.
    */
+  @Logged('collectors')
   async runCollectionCycle(): Promise<number> {
     const start = Date.now();
     try {

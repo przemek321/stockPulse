@@ -4,6 +4,7 @@ import { HealthController } from './health/health.controller';
 import { TickersController } from './tickers/tickers.controller';
 import { SentimentController } from './sentiment/sentiment.controller';
 import { AlertsController } from './alerts/alerts.controller';
+import { SystemLogsController } from './system-logs/system-logs.controller';
 import {
   Ticker,
   SentimentScore,
@@ -22,7 +23,7 @@ import { AlertsModule } from '../alerts/alerts.module';
 
 /**
  * Moduł REST API.
- * Kontrolery: /api/health, /api/tickers, /api/sentiment, /api/alerts.
+ * Kontrolery: /api/health, /api/tickers, /api/sentiment, /api/alerts, /api/system-logs.
  */
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AlertsModule } from '../alerts/alerts.module';
     TickersController,
     SentimentController,
     AlertsController,
+    SystemLogsController,
   ],
 })
 export class ApiModule {}

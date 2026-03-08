@@ -17,6 +17,7 @@ import {
 import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
 import { AiPipelineLog } from '../entities/ai-pipeline-log.entity';
 import { DataSource } from '../common/interfaces/data-source.enum';
+import { Logged } from '../common/decorators/logged.decorator';
 
 /** Minimalna długość tekstu do analizy sentymentu (krótsze = szum) */
 const MIN_TEXT_LENGTH = 20;
@@ -76,6 +77,7 @@ export class SentimentProcessorService extends WorkerHost {
     super();
   }
 
+  @Logged('sentiment')
   async process(job: Job<SentimentJobData>): Promise<SentimentScore | null> {
     const { type, entityId, symbol, source } = job.data;
 

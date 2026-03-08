@@ -167,3 +167,41 @@ export interface SecFilingGpt {
 
 export const fetchFilingsGpt = (limit = 100) =>
   get<{ count: number; filings: SecFilingGpt[] }>(`/sentiment/filings-gpt?limit=${limit}`);
+
+/* ── System Logs ──────────────────────────────── */
+
+export interface SystemLog {
+  id: number;
+  createdAt: string;
+  module: string;
+  className: string;
+  functionName: string;
+  status: string;
+  durationMs: number;
+  input: Record<string, any> | null;
+  output: Record<string, any> | null;
+  errorMessage: string | null;
+}
+
+export interface SystemLogFilters {
+  module?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export const fetchSystemLogs = (filters: SystemLogFilters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.module) params.set('module', filters.module);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.limit) params.set('limit', String(filters.limit));
+  if (filters.offset) params.set('offset', String(filters.offset));
+  if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
+  if (filters.dateTo) params.set('dateTo', filters.dateTo);
+  const qs = params.toString();
+  return get<{ count: number; total: number; logs: SystemLog[] }>(
+    `/system-logs${qs ? `?${qs}` : ''}`,
+  );
+};
