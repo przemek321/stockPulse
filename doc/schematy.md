@@ -1,7 +1,7 @@
 # StockPulse — Schemat struktury katalogów
 
 > Szczegółowy opis każdego pliku, co robi i z czym jest powiązany.
-> Ostatnia aktualizacja: 2026-03-02
+> Ostatnia aktualizacja: 2026-03-08
 
 ## Drzewo katalogów
 
@@ -90,13 +90,38 @@ stockPulse/
 │   │   ├── sentiment-listener.service.ts   # Nasłuchuje eventów → dodaje joby
 │   │   └── sentiment-processor.service.ts  # BullMQ processor → FinBERT → eskalacja LLM → zapis + log pipeline
 │   │
+│   ├── sec-filings/                        # Warstwa 2b: Pipeline GPT dla SEC filingów
+│   │   ├── sec-filings.module.ts           # Moduł zbiorczy (pipelines, prompts, daily cap)
+│   │   ├── sec-filings.controller.ts       # POST /api/sec-filings/backfill-gpt
+│   │   ├── pipelines/
+│   │   │   ├── form4.pipeline.ts           # Event NEW_INSIDER_TRADE → GPT analiza Form 4
+│   │   │   └── form8k.pipeline.ts          # Event NEW_FILING (8-K) → per-Item GPT analiza
+│   │   ├── prompts/
+│   │   │   ├── form4.prompt.ts             # Prompt GPT dla insider trades (z historią 30d)
+│   │   │   ├── form8k-1-01.prompt.ts       # Prompt 8-K Item 1.01 — Material Agreement
+│   │   │   ├── form8k-2-02.prompt.ts       # Prompt 8-K Item 2.02 — Results of Operations
+│   │   │   ├── form8k-5-02.prompt.ts       # Prompt 8-K Item 5.02 — Leadership Changes
+│   │   │   └── form8k-other.prompt.ts      # Prompt 8-K inne Itemy (7.01, 8.01 itd.)
+│   │   ├── utils/
+│   │   │   ├── form8k-parser.ts            # Parser 8-K: detectItems(), extractItemText(), stripHtml()
+│   │   │   └── filing-scorer.ts            # scoreToAlertPriority(), mapToRuleName()
+│   │   ├── schemas/
+│   │   │   └── sec-filing-analysis.schema.ts # Zod walidacja odpowiedzi GPT
+│   │   └── daily-cap.service.ts            # Redis INCR, max 20 GPT/ticker/dzień
+│   │
+│   ├── correlation/                        # Warstwa 3: Detekcja wzorców cross-source
+│   │   ├── correlation.module.ts           # Moduł (eksportuje CorrelationService)
+│   │   ├── correlation.service.ts          # 5 detektorów wzorców, Redis Sorted Sets
+│   │   └── redis.provider.ts              # Osobna instancja Redis (keyPrefix: 'corr:')
+│   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
 │   │   ├── alert-evaluator.service.ts      # Ewaluacja reguł + throttling (z enrichedAnalysis)
 │   │   ├── summary-scheduler.service.ts    # Raport sentymentu co 2h na Telegram
 │   │   └── telegram/
+│   │       ├── telegram.module.ts          # Wydzielony TelegramModule (unikanie circular dep)
 │   │       ├── telegram.service.ts         # Wysyłka wiadomości Telegram
-│   │       └── telegram-formatter.service.ts # Formatowanie MarkdownV2 (z sekcją AI)
+│   │       └── telegram-formatter.service.ts # Formatowanie MarkdownV2 (po polsku)
 │   │
 │   └── api/                                # REST API kontrolery
 │       ├── api.module.ts                   # Zbiorczy moduł API
@@ -189,7 +214,7 @@ stockPulse/
 
 #### `src/app.module.ts`
 **Co robi:** Główny moduł — zbiera wszystkie podmoduły w jednym miejscu.
-**Importuje:** ConfigModule, DatabaseModule, EventsModule, QueuesModule, CollectorsModule, SentimentModule, AlertsModule, ApiModule.
+**Importuje:** ConfigModule, DatabaseModule, EventsModule, QueuesModule, CollectorsModule, SentimentModule, SecFilingsModule, CorrelationModule, TelegramModule, AlertsModule, ApiModule.
 
 ---
 
@@ -250,17 +275,17 @@ Każda encja = jedna tabela w PostgreSQL.
 **Używany przez:** `sentiment.controller.ts`, `sentiment-processor.service.ts`.
 
 #### `sec-filing.entity.ts` → tabela `sec_filings`
-**Co robi:** Filing SEC (8-K, 10-Q, 10-K, Form 4). Numer accession (unikalny), typ formularza, data złożenia, URL dokumentu.
-**Zasilana przez:** `sec-edgar.service.ts`.
+**Co robi:** Filing SEC (8-K, 10-Q, 10-K, Form 4). Numer accession (unikalny), typ formularza, data złożenia, URL dokumentu, gptAnalysis (JSONB — wynik GPT pipeline: conviction, price_impact, summary, conclusion, key_facts, catalyst_type), priceImpactDirection.
+**Zasilana przez:** `sec-edgar.service.ts` (zbieranie), `form8k.pipeline.ts` (analiza GPT).
 
 #### `insider-trade.entity.ts` → tabela `insider_trades`
-**Co robi:** Transakcja insiderowska z Form 4. Nazwa insidera, rola, typ (BUY/SELL), liczba akcji, wartość, data.
+**Co robi:** Transakcja insiderowska z Form 4. Nazwa insidera, rola, typ (BUY/SELL), liczba akcji, wartość, data, is10b51Plan (boolean — plan Rule 10b5-1), sharesOwnedAfter.
 **Zasilana przez:** `finnhub.service.ts` (MSPR), `sec-edgar.service.ts` (Form 4).
 
 #### `alert.entity.ts` → tabela `alerts`
-**Co robi:** Historia wysłanych alertów. Zawiera ticker, nazwę reguły, priorytet, kanał (TELEGRAM), treść wiadomości, czy dostarczono.
-**Zasilana przez:** `alert-evaluator.service.ts`.
-**Używany przez:** `alerts.controller.ts`.
+**Co robi:** Historia wysłanych alertów. Zawiera ticker, nazwę reguły (w tym 'Correlated Signal'), priorytet, kanał (TELEGRAM), treść wiadomości, catalystType (typ katalizatora — do throttlingu per catalyst), czy dostarczono.
+**Zasilana przez:** `alert-evaluator.service.ts`, `correlation.service.ts` (Correlated Signal), `form4.pipeline.ts`, `form8k.pipeline.ts`.
+**Używany przez:** `alerts.controller.ts`, frontend (filtruje `ruleName === 'Correlated Signal'` dla panelu Skorelowane Sygnały).
 
 #### `alert-rule.entity.ts` → tabela `alert_rules`
 **Co robi:** Konfiguracja reguł alertów. Nazwa, warunek (tekst), priorytet, minuty throttlingu, czy aktywna. Reguły: "Insider Trade Large", "8-K Material Event", "Sentiment Crash".
@@ -443,6 +468,67 @@ Każdy kolektor składa się z 4 plików:
 
 ---
 
+### SEC Filing GPT Pipeline (`src/sec-filings/`)
+
+Pipeline GPT analizy filingów SEC — Form 4 (insider trades) i 8-K (material events) z per-typ promptami, walidacją Zod, daily cap.
+
+#### `sec-filings.module.ts`
+**Co robi:** Moduł zbiorczy. Rejestruje encje (SecFiling, InsiderTrade), importuje TelegramModule, SentimentModule. Providerzy: Form4Pipeline, Form8kPipeline, DailyCapService, SecFilingsController.
+
+#### `sec-filings.controller.ts`
+**Co robi:** Kontroler z endpointem backfill.
+- `POST /api/sec-filings/backfill-gpt?limit=N` — backfill GPT analizy dla istniejących 8-K filingów bez gptAnalysis (max 50, delay 2s między wywołaniami)
+
+#### `pipelines/form4.pipeline.ts`
+**Co robi:** Nasłuchuje `NEW_INSIDER_TRADE` → buduje kontekst (rola, 10b5-1, historia 30d) → prompt GPT → Zod walidacja → alert Telegram. Sprawdza daily cap per ticker.
+
+#### `pipelines/form8k.pipeline.ts`
+**Co robi:** Nasłuchuje `NEW_FILING` (8-K only) → fetch tekstu z SEC EDGAR → `detectItems()` → per-Item prompt GPT → Zod walidacja → zapis gptAnalysis do encji → alert. Item 1.03 Bankruptcy → natychmiastowy alert CRITICAL bez GPT.
+
+#### `prompts/` (5 plików)
+**Co robią:** Generują prompt GPT dostosowany do typu fillingu. Kalibracja conviction per typ (skala CONVICTION SCALE). Odpowiedź po polsku (summary, conclusion, key_facts).
+- `form4.prompt.ts` — insider trades z kontekstem historii 30d
+- `form8k-1-01.prompt.ts` — Material Definitive Agreement (kontrakty)
+- `form8k-2-02.prompt.ts` — Results of Operations (earnings)
+- `form8k-5-02.prompt.ts` — Departure/Appointment of Officers
+- `form8k-other.prompt.ts` — ogólne Itemy (7.01, 8.01 itd.)
+
+#### `utils/form8k-parser.ts`
+**Co robi:** Parser treści 8-K: `detectItems()` — wykrywa numery Itemów, `extractItemText()` — wyciąga tekst per Item (limit 8000 znaków), `stripHtml()` — czyści HTML.
+
+#### `utils/filing-scorer.ts`
+**Co robi:** `scoreToAlertPriority()` — mapuje conviction na priorytet alertu, `mapToRuleName()` — mapuje catalyst_type na nazwę reguły alertów.
+
+#### `schemas/sec-filing-analysis.schema.ts`
+**Co robi:** Schemat Zod walidujący odpowiedź GPT (price_impact, conviction, summary, conclusion, key_facts, catalyst_type, requires_immediate_attention).
+
+#### `daily-cap.service.ts`
+**Co robi:** Redis INCR z TTL 24h, max 20 wywołań GPT per ticker per dzień. Zapobiega nadmiernym kosztom API.
+
+---
+
+### CorrelationService (`src/correlation/`)
+
+Detekcja wzorców między źródłami sygnałów — insider trades, 8-K, news, social media.
+
+#### `correlation.module.ts`
+**Co robi:** Moduł eksportujący CorrelationService. Importuje TelegramModule, TypeORM (Alert, AlertRule).
+
+#### `correlation.service.ts`
+**Co robi:** ~300 linii. 5 detektorów wzorców:
+- `detectInsiderPlus8K` — Form 4 + 8-K w 24h
+- `detectFilingConfirmsNews` — news → 8-K tego samego catalyst_type w 48h
+- `detectMultiSourceConvergence` — 3+ kategorie źródeł, ten sam kierunek, 24h
+- `detectInsiderCluster` — 2+ Form 4 jednego tickera w 7 dni
+- `detectEscalatingSignal` — rosnąca conviction w 72h
+
+Sygnały przechowywane w Redis Sorted Sets (timestamp jako score). Debounce 10s per ticker. Deduplikacja i throttling per pattern type w Redis. `aggregateConviction()`: najsilniejszy bazowy + 20% boost/źródło, cap 1.0. `getDominantDirection()`: wymaga 66% przewagi.
+
+#### `redis.provider.ts`
+**Co robi:** Osobna instancja Redis z `keyPrefix: 'corr:'`. Klucze: `corr:signals:short:{ticker}` (48h TTL) i `corr:signals:insider:{ticker}` (14d TTL).
+
+---
+
 ### FinBERT Sidecar (`finbert-sidecar/`)
 
 Python FastAPI app z modelem ProsusAI/finbert. Uruchamiana jako osobny kontener Docker z GPU passthrough (NVIDIA).
@@ -472,10 +558,10 @@ Python FastAPI app z modelem ProsusAI/finbert. Uruchamiana jako osobny kontener 
 Dashboard React z 10+ panelami danych, wykresem sentymentu, zakładkami AI/Pipeline/PDUFA. TextDialog do podglądu i kopiowania długich tekstów. Odpytuje REST API backendu.
 
 #### `App.tsx`
-**Co robi:** Główny layout — wykres sentymentu (SentimentChart), 10+ paneli DataPanel: Analiza AI, Pipeline AI (logi egzekucji), Tickery, Wyniki sentymentu, News, SEC EDGAR, Insider Trades, PDUFA Kalendarz, Alerty, Reguły alertów, StockTwits Wzmianki. Status kolektorów + podsumowanie bazy. Komponent `TextDialog` — klikalne okna dialogowe do podglądu i kopiowania długich tekstów (prompt AI, tekst wejściowy, błąd).
+**Co robi:** Główny layout — wykres sentymentu (SentimentChart), 12+ paneli DataPanel: Analiza AI, Pipeline AI (logi egzekucji), Analiza GPT Filingów SEC, Skorelowane Sygnały, Tickery, Wyniki sentymentu, News, SEC EDGAR, Insider Trades, PDUFA Kalendarz, Alerty, Reguły alertów, StockTwits Wzmianki. Status kolektorów + podsumowanie bazy. Komponent `TextDialog` — klikalne okna dialogowe do podglądu i kopiowania długich tekstów (prompt AI, tekst wejściowy, błąd).
 
 #### `api.ts`
-**Co robi:** Klient HTTP (fetch) do backendu. Interfejsy TypeScript: HealthData, Ticker, NewsArticle, AlertRule, Alert, SentimentScore, EnrichedAnalysis (16 pól AI), AiPipelineLog (19 pól). Endpointy: fetchHealth, fetchTickers, fetchAlertRules, fetchAlerts, fetchSentimentScores, fetchAiScores, fetchPipelineLogs.
+**Co robi:** Klient HTTP (fetch) do backendu. Interfejsy TypeScript: HealthData, Ticker, NewsArticle, AlertRule, Alert, SentimentScore, EnrichedAnalysis (16 pól AI), AiPipelineLog (19 pól). Endpointy: fetchHealth, fetchTickers, fetchAlertRules, fetchAlerts, fetchSentimentScores, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt.
 
 #### `components/CollectorStatus.tsx`
 **Co robi:** Wyświetla status 3 aktywnych kolektorów (Reddit ukryty): ostatni run, ile elementów, czas, countdown do następnego cyklu. Totale per tabela.
@@ -515,10 +601,16 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 **Zależy od:** `ConfigService` (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID).
 
 #### `telegram/telegram-formatter.service.ts`
-**Co robi:** Generuje sformatowane wiadomości alertów w MarkdownV2. Obsługuje escapowanie znaków specjalnych. Typy alertów:
+**Co robi:** Generuje sformatowane wiadomości alertów w MarkdownV2 po polsku. Obsługuje escapowanie znaków specjalnych. Typy alertów:
 - `formatSentimentAlert()` — alert sentymentu (score < -0.5) z sekcją AI (sentiment, conviction, type, urgency, price impact, catalyst, summary)
 - `formatInsiderTradeAlert()` — alert transakcji insiderskiej
 - `formatFilingAlert()` — alert nowego filingu SEC
+- `formatForm4GptAlert()` — alert GPT analizy insider trade (Form 4)
+- `formatForm8kGptAlert()` — alert GPT analizy 8-K
+- `formatBankruptcyAlert()` — alert upadłości (Item 1.03)
+- `formatCorrelatedAlert()` — alert skorelowanego wzorca (CorrelationService)
+- `formatConvictionAlert()` — alert High Conviction Signal
+- `formatSignalOverrideAlert()` — alert korekty sygnału (FinBERT vs GPT)
 
 ---
 
@@ -545,12 +637,13 @@ Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnic
 - `GET /api/sentiment/news?limit=100` — ostatnie newsy (wszystkie tickery)
 - `GET /api/sentiment/mentions?limit=100` — ostatnie wzmianki social media
 - `GET /api/sentiment/filings?limit=100` — ostatnie filingi SEC
+- `GET /api/sentiment/filings-gpt?limit=50` — filingi SEC z analizą GPT (gptAnalysis IS NOT NULL)
 - `GET /api/sentiment/insider-trades?limit=100` — transakcje insiderów (Form 4)
 - `GET /api/sentiment/pdufa?upcoming_only=true&limit=100` — kalendarz PDUFA (decyzje FDA)
 - `GET /api/sentiment/pipeline-logs?status=&symbol=&limit=200` — logi egzekucji pipeline AI
 - `GET /api/sentiment/:ticker?limit=50` — dane sentymentu per ticker (scores + mentions + news)
 
-**Powiązania:** `SentimentScoreRepository`, `RawMentionRepository`, `NewsArticleRepository`, `InsiderTradeRepository`, `PdufaCatalystRepository`, `AiPipelineLogRepository`.
+**Powiązania:** `SentimentScoreRepository`, `RawMentionRepository`, `NewsArticleRepository`, `SecFilingRepository`, `InsiderTradeRepository`, `PdufaCatalystRepository`, `AiPipelineLogRepository`.
 
 #### `alerts/alerts.controller.ts`
 **Endpoint:** `GET /api/alerts?symbol=UNH&limit=50`, `GET /api/alerts/rules`
@@ -655,7 +748,7 @@ AppModule
 ├── DatabaseModule        (TypeORM + PostgreSQL)
 ├── EventsModule          (EventEmitter2)
 ├── QueuesModule          (BullMQ + Redis)
-│   └── 6 kolejek
+│   └── 7 kolejek
 ├── CollectorsModule
 │   ├── StocktwitsModule  (service + processor + scheduler)
 │   ├── FinnhubModule     (service + processor + scheduler)
@@ -664,18 +757,27 @@ AppModule
 │   └── PdufaBioModule    (service + processor + scheduler + pdufa-parser)
 ├── SentimentModule
 │   ├── FinbertClientService         (HTTP klient → FinBERT sidecar, 1. etap)
-│   ├── AzureOpenaiClientService     (HTTP klient → Azure VM gpt-4o-mini, 2. etap)
+│   ├── AzureOpenaiClientService     (HTTP klient → Azure VM gpt-4o-mini, 2. etap + analyzeCustomPrompt)
 │   ├── SentimentListenerService     (nasłuchuje eventów → dodaje joby)
 │   └── SentimentProcessorService    (BullMQ worker → FinBERT → tier → PDUFA context → LLM → zapis + pipeline log)
-├── AlertsModule
-│   ├── AlertEvaluatorService    (nasłuchuje: insider trade, filing, sentiment + AI)
-│   ├── SummarySchedulerService  (raport 2h na Telegram)
+├── SecFilingsModule
+│   ├── Form4Pipeline            (NEW_INSIDER_TRADE → GPT analiza z kontekstem 30d)
+│   ├── Form8kPipeline           (NEW_FILING 8-K → per-Item GPT analiza)
+│   ├── DailyCapService          (Redis INCR, max 20 GPT/ticker/dzień)
+│   ├── SecFilingsController     (POST /api/sec-filings/backfill-gpt)
+│   └── 5 promptów + parser + scorer + Zod schema
+├── CorrelationModule
+│   └── CorrelationService       (5 detektorów wzorców, Redis Sorted Sets, debounce 10s)
+├── TelegramModule               (wydzielony — unikanie circular dependency)
 │   ├── TelegramService          (wysyłka)
-│   └── TelegramFormatterService (formatowanie MarkdownV2 z sekcją AI)
+│   └── TelegramFormatterService (formatowanie MarkdownV2 po polsku)
+├── AlertsModule
+│   ├── AlertEvaluatorService    (nasłuchuje: insider trade, filing, sentiment + AI + storeSignal → Correlation)
+│   └── SummarySchedulerService  (raport 2h na Telegram)
 └── ApiModule
     ├── HealthController       (GET /api/health, /api/health/stats)
     ├── TickersController      (GET /api/tickers)
-    ├── SentimentController    (GET /api/sentiment/* — 8 endpointów, w tym pipeline-logs, pdufa, insider-trades)
+    ├── SentimentController    (GET /api/sentiment/* — 9 endpointów, w tym filings-gpt, pipeline-logs, pdufa, insider-trades)
     └── AlertsController       (GET /api/alerts)
 ```
 
@@ -700,33 +802,35 @@ AppModule
 └──────────────┘     └──────────────────┘
                                                ┌──────────────────┐
 ┌──────────────┐     ┌──────────────────┐     │ insider_trades   │
-│ sec_filings  │     │ sentiment_scores │     │──────────────────│
-│──────────────│     │──────────────────│     │ id               │
-│ id           │     │ id               │     │ symbol           │
-│ symbol       │     │ symbol           │     │ insiderName      │
-│ cik          │     │ score (-1 to +1) │     │ insiderRole      │
-│ formType     │     │ confidence       │     │ transactionType  │
-│ accessionNum │     │ source (enum)    │     │ shares           │
-│ filingDate   │     │ model            │     │ pricePerShare    │
-│ description  │     │ rawText          │     │ totalValue       │
-│ documentUrl  │     │ externalId       │     │ transactionDate  │
-│ collectedAt  │     │ enrichedAnalysis │     │ accessionNumber  │
-└──────────────┘     │  (jsonb, null)   │     │ collectedAt      │
-                     │ timestamp        │     └──────────────────┘
-                     └──────────────────┘
+│ sec_filings      │  │ sentiment_scores │     │──────────────────│
+│──────────────────│  │──────────────────│     │ id               │
+│ id               │  │ id               │     │ symbol           │
+│ symbol           │  │ symbol           │     │ insiderName      │
+│ cik              │  │ score (-1 to +1) │     │ insiderRole      │
+│ formType         │  │ confidence       │     │ transactionType  │
+│ accessionNum     │  │ source (enum)    │     │ shares           │
+│ filingDate       │  │ model            │     │ pricePerShare    │
+│ description      │  │ rawText          │     │ totalValue       │
+│ documentUrl      │  │ externalId       │     │ transactionDate  │
+│ gptAnalysis(jsonb│  │ enrichedAnalysis │     │ accessionNumber  │
+│ priceImpactDir   │  │  (jsonb, null)   │     │ is10b51Plan      │
+│ collectedAt      │  │ timestamp        │     │ sharesOwnedAfter │
+└──────────────────┘  └──────────────────┘     │ collectedAt      │
+                                                └──────────────────┘
                                                └──────────────────┘
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   alerts     │     │  alert_rules     │     │ collection_logs  │
-│──────────────│     │──────────────────│     │──────────────────│
-│ id           │     │ id               │     │ id               │
-│ symbol       │     │ name (UK)        │     │ collector (enum) │
-│ ruleName     │────►│ condition        │     │ status           │
-│ priority     │     │ priority         │     │ itemsCollected   │
-│ channel      │     │ throttleMinutes  │     │ errorMessage     │
-│ message      │     │ isActive         │     │ durationMs       │
-│ delivered    │     │ createdAt        │     │ startedAt        │
-│ sentAt       │     │ updatedAt        │     └──────────────────┘
-└──────────────┘     └──────────────────┘
+│   alerts         │  │  alert_rules     │     │ collection_logs  │
+│──────────────────│  │──────────────────│     │──────────────────│
+│ id               │  │ id               │     │ id               │
+│ symbol           │  │ name (UK)        │     │ collector (enum) │
+│ ruleName     ───►│  │ condition        │     │ status           │
+│ priority         │  │ priority         │     │ itemsCollected   │
+│ channel          │  │ throttleMinutes  │     │ errorMessage     │
+│ message          │  │ isActive         │     │ durationMs       │
+│ catalystType     │  │ createdAt        │     │ startedAt        │
+│ delivered        │  │ updatedAt        │     └──────────────────┘
+│ sentAt           │  └──────────────────┘
+└──────────────────┘
 
 ┌──────────────────┐     ┌──────────────────┐
 │ pdufa_catalysts  │     │ ai_pipeline_logs │

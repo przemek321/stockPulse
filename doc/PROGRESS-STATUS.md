@@ -6,7 +6,7 @@
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4 — SEC Filing GPT Pipeline + CorrelationService** (ukończony)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony)
 
 Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + nowy pipeline GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami + CorrelationService do detekcji wzorców między źródłami sygnałów. Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: Form 4 (insider trades) i 8-K (material events) analizowane GPT z per-Item promptami (Item 1.01 contracts, 2.02 earnings, 5.02 leadership, 1.03 bankruptcy natychmiastowy CRITICAL). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców (insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h). effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 17 reguł alertów, 11 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
 
@@ -274,6 +274,25 @@ Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami +
 - [x] **Event types** — `SEC_FILING_ANALYZED`, `CORRELATION_DETECTED`
 - [x] **6 nowych reguł alertów**: 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, Form 4 Insider Signal, 8-K Bankruptcy, Correlated Signal
 
+### Sprint 4b: Dashboard GPT Filingów + polskie tłumaczenia + kalibracja conviction (ukończony 2026-03-08)
+- [x] **Frontend: 2 nowe panele**:
+  - "Analiza GPT Filingów SEC" — wyniki analizy GPT per filing (ticker, typ, wpływ cenowy, conviction, podsumowanie, data)
+  - "Skorelowane Sygnały" — alerty z CorrelationService (ticker, priorytet, wzorzec, wiadomość, data)
+- [x] **Nowe endpointy REST**:
+  - `GET /api/sentiment/filings-gpt` — filingi SEC z gptAnalysis (nie-null)
+  - `POST /api/sec-filings/backfill-gpt?limit=N` — backfill GPT analizy dla istniejących 8-K filingów (max 50)
+- [x] **Polskie tłumaczenia**:
+  - TelegramFormatterService — wszystkie etykiety, nagłówki, kierunki (BYCZY/NIEDŹWIEDZI) po polsku
+  - 5 promptów SEC (Form 4, 8-K Items 1.01/2.02/5.02/other) — `summary`, `conclusion`, `key_facts` po polsku
+  - processor.js (Azure VM) — pole `summary` po polsku
+- [x] **Kalibracja conviction w promptach SEC** — skala CONVICTION SCALE per typ filingu:
+  - Form 4: rutynowe 10b5-1 = ±0.1-0.3, klaster insiderski = ±0.9-1.2, ekstremalnie = ±1.7-2.0
+  - 8-K 2.02 (earnings): in-line = ±0.1-0.4, duży beat/miss + guidance = ±1.3-1.6
+  - 8-K 5.02 (leadership): planowana emerytura = ±0.1-0.3, nagłe odejście CEO = ±0.8-1.2
+  - 8-K 1.01 (kontrakty): rutynowy kontrakt = ±0.3-0.6, transformacyjna umowa = ±1.3-1.6
+  - 8-K other: rutynowe ujawnienie = ±0.1-0.4, FDA decyzja = ±1.3-1.6
+  - Jawny zakaz defaultowania do ±1.5, instrukcja użycia pełnego zakresu
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -289,6 +308,8 @@ GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza AP
 - [x] Panel "Pipeline AI — Logi Egzekucji" — 15 kolumn z pełną historią AI pipeline
 - [x] Panel "PDUFA Kalendarz (Decyzje FDA)" — countdown do dat, kolory wg odległości
 - [x] TextDialog — klikalne dialogi z kopiowaniem zamiast tooltipów (prompt, tekst, błąd)
+- [x] Panel "Analiza GPT Filingów SEC" — wyniki analizy GPT per filing SEC (conviction, wpływ cenowy, podsumowanie)
+- [x] Panel "Skorelowane Sygnały" — alerty z CorrelationService (wzorzec, priorytet, wiadomość)
 - [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
 - [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami
@@ -355,7 +376,7 @@ npm run test:all
 - **Reguły alertów**: 17 (11 sentyment/insider/filing + 6 nowych: 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, Form 4 Insider Signal, 8-K Bankruptcy, Correlated Signal)
 - **Encje bazy danych**: 11 tabel (sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan)
 - **Kolejki BullMQ**: 7 (5 kolektorów + sentiment-analysis + alerts)
-- **Endpointy REST**: 15 (health x2, tickers x2, sentiment x7 + ai_only + pipeline-logs + pdufa + insider-trades, alerts x2)
+- **Endpointy REST**: 18 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x2, sec-filings/backfill-gpt x1)
 - **Źródła danych**: 4 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio), 1 placeholder (Reddit)
 - **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer + SEC Filing GPT Pipeline), 1 planowany (spaCy NER)
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)

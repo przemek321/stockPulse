@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StockPulse to system analizy sentymentu rynku akcji w czasie rzeczywistym z alertami, skupiony na sektorze healthcare. Monitoruje media społecznościowe (Reddit, StockTwits), dane finansowe (Finnhub), zgłoszenia SEC (EDGAR) i wysyła alerty przez Telegram.
 
-**Aktualny stan projektu**: Faza 2 + Sprint 4 (ukończony). 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline (Form 4 + 8-K per-Item prompts) + CorrelationService (5 detektorów wzorców między źródłami). Kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier → Azure OpenAI gpt-4o-mini (2. etap) → conviction [-2.0, +2.0] → effectiveScore [-1, +1] jako źródło prawdy. SEC filingi: GPT z per-typ promptami (8-K Items 1.01/2.02/5.02/other, Form 4 z historią 30d), Zod walidacja, Item 1.03 Bankruptcy → natychmiastowy CRITICAL. CorrelationService: Redis Sorted Sets, insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h. 17 reguł alertów, ~37 tickerów, 11 tabel PostgreSQL. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
+**Aktualny stan projektu**: Faza 2 + Sprint 4/4b (ukończony). 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline (Form 4 + 8-K per-Item prompts z kalibracją conviction) + CorrelationService (5 detektorów wzorców między źródłami). Kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier → Azure OpenAI gpt-4o-mini (2. etap) → conviction [-2.0, +2.0] → effectiveScore [-1, +1] jako źródło prawdy. SEC filingi: GPT z per-typ promptami (8-K Items 1.01/2.02/5.02/other, Form 4 z historią 30d), Zod walidacja, Item 1.03 Bankruptcy → natychmiastowy CRITICAL. CorrelationService: Redis Sorted Sets, insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h. Telegram alerty + prompty SEC po polsku. Dashboard: 12+ paneli (w tym Analiza GPT Filingów SEC, Skorelowane Sygnały). Backfill: POST /api/sec-filings/backfill-gpt. 17 reguł alertów, ~37 tickerów, 11 tabel PostgreSQL. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
 
 ## Komendy (Makefile — autodetekcja środowiska)
 
@@ -62,7 +62,7 @@ npm run test:all
 
 ## Architektura
 
-### Stan obecny (Faza 2 + Sprint 3b)
+### Stan obecny (Faza 2 + Sprint 4/4b)
 
 Działający system end-to-end w 6 kontenerach Docker:
 
@@ -79,8 +79,10 @@ Działający system end-to-end w 6 kontenerach Docker:
    - Azure VM (`stockpulse-vm`, 74.248.113.3:3100) — processor.js (POST /analyze) + api.js (:8000)
    - BullMQ kolejka `sentiment-analysis`. Wyniki w `sentiment_scores` z enrichedAnalysis (jsonb).
    - **Pipeline observability**: tabela `ai_pipeline_logs` — pełna historia egzekucji (status, tier, czasy, payload, prompt, błędy)
-3. **Warstwa danych** — PostgreSQL z 11 tabelami, Redis dla 7 kolejek BullMQ. TypeORM z `synchronize: true`.
-4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z 10+ panelami (wykres sentymentu, AI Analysis, Pipeline AI, PDUFA Calendar, Insider Trades itd.), klikalne dialogi TextDialog do kopiowania. Alerty Telegram (z sekcją AI + raport 2h z PDUFA), REST API (15 endpointów) na :3000. Throttling per (rule, symbol, catalyst_type).
+   - **SEC Filing GPT Pipeline** (`src/sec-filings/`): Form 4 + 8-K per-Item prompty z kalibracją conviction, Zod walidacja, daily cap 20/ticker/dzień, backfill endpoint
+   - **CorrelationService** (`src/correlation/`): 5 detektorów wzorców (insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h), Redis Sorted Sets
+3. **Warstwa danych** — PostgreSQL z 11 tabelami, Redis dla 7 kolejek BullMQ + Redis Sorted Sets (korelacje). TypeORM z `synchronize: true`.
+4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z 12+ panelami (wykres sentymentu, AI Analysis, Pipeline AI, PDUFA Calendar, Insider Trades, Analiza GPT Filingów SEC, Skorelowane Sygnały itd.), klikalne dialogi TextDialog do kopiowania. Alerty Telegram po polsku (z sekcją AI + raport 2h z PDUFA), REST API (18 endpointów) na :3000. Throttling per (rule, symbol, catalyst_type).
 
 ### Stack technologiczny
 
