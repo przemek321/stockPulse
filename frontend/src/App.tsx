@@ -11,13 +11,14 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import RuleIcon from '@mui/icons-material/Rule';
 import ForumIcon from '@mui/icons-material/Forum';
 import PsychologyIcon from '@mui/icons-material/Psychology';
+import HubIcon from '@mui/icons-material/Hub';
 
 import CollectorStatus from './components/CollectorStatus';
 import DataPanel from './components/DataPanel';
 import DbSummary from './components/DbSummary';
 import SentimentChart from './components/SentimentChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs } from './api';
+import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt } from './api';
 
 /** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
 const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
@@ -564,6 +565,129 @@ export default function App() {
           const res = await fetch('/api/sentiment/filings?limit=100');
           if (res.ok) return (await res.json()).filings || [];
           return [];
+        }}
+      />
+
+      {/* ── Analiza GPT Filingów SEC ──────────── */}
+      <DataPanel
+        title="Analiza GPT Filingów SEC"
+        icon={<PsychologyIcon sx={{ color: '#ce93d8' }} />}
+        badgeColor="secondary"
+        defaultSortKey="filingDate"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          {
+            key: 'formType',
+            label: 'Form',
+            render: (v: string) => {
+              const color = v === '8-K' ? '#ab47bc' : v === '4' ? '#ff7043' : '#90a4ae';
+              return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+            },
+          },
+          {
+            key: 'priceImpactDirection',
+            label: 'Kierunek',
+            render: (v: string) => {
+              const color = v === 'positive' ? '#66bb6a' : v === 'negative' ? '#ef5350' : '#90a4ae';
+              const arrow = v === 'positive' ? '↑' : v === 'negative' ? '↓' : '→';
+              return <Chip label={`${arrow} ${v || 'neutral'}`} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+            },
+          },
+          {
+            key: '_conviction',
+            label: 'Conviction',
+            render: (_: any, row: any) => {
+              const conv = row.gptAnalysis?.conviction;
+              if (conv == null) return '—';
+              const color = conv > 0 ? '#66bb6a' : conv < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 700 }}>{Number(conv).toFixed(2)}</span>;
+            },
+          },
+          {
+            key: '_summary',
+            label: 'Podsumowanie',
+            render: (_: any, row: any) => {
+              const s = row.gptAnalysis?.summary;
+              if (!s) return '—';
+              return <TextDialog label={`${s.slice(0, 60)}${s.length > 60 ? '…' : ''}`} text={s} color="#ce93d8" />;
+            },
+          },
+          {
+            key: '_keyFacts',
+            label: 'Key Facts',
+            render: (_: any, row: any) => {
+              const facts = row.gptAnalysis?.key_facts;
+              if (!facts || facts.length === 0) return '—';
+              return (
+                <TextDialog
+                  label={`${facts.length} faktów`}
+                  text={facts.map((f: string, i: number) => `${i + 1}. ${f}`).join('\n')}
+                  color="#80cbc4"
+                />
+              );
+            },
+          },
+          {
+            key: 'filingDate',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+          {
+            key: 'documentUrl',
+            label: 'Link',
+            render: (v: string) =>
+              v ? (
+                <a href={v} target="_blank" rel="noreferrer" style={{ color: '#4fc3f7' }}>
+                  SEC
+                </a>
+              ) : (
+                '—'
+              ),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchFilingsGpt(100);
+          return data.filings;
+        }}
+      />
+
+      {/* ── Skorelowane Sygnały ────────────────── */}
+      <DataPanel
+        title="Skorelowane Sygnały"
+        icon={<HubIcon sx={{ color: '#42a5f5' }} />}
+        badgeColor="info"
+        defaultSortKey="sentAt"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          {
+            key: 'priority',
+            label: 'Priorytet',
+            render: (v: string) => <PriorityChip value={v} />,
+          },
+          {
+            key: 'catalystType',
+            label: 'Wzorzec',
+            render: (v: string | null) => v || '—',
+          },
+          {
+            key: 'message',
+            label: 'Wiadomość',
+            render: (v: string) => {
+              if (!v) return '—';
+              return <TextDialog label={`${v.slice(0, 80)}${v.length > 80 ? '…' : ''}`} text={v} color="#42a5f5" />;
+            },
+          },
+          {
+            key: 'sentAt',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchAlerts();
+          return (data.alerts || []).filter((a: any) => a.ruleName === 'Correlated Signal');
         }}
       />
 

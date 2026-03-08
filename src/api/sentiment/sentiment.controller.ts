@@ -95,6 +95,21 @@ export class SentimentController {
     return { count: filings.length, filings };
   }
 
+  /** Filingi SEC z analizą GPT (gptAnalysis IS NOT NULL). */
+  @Get('filings-gpt')
+  async getFilingsGpt(@Query('limit') limit?: string) {
+    const take = Math.min(parseInt(limit || '100', 10), 500);
+
+    const filings = await this.newsRepo.manager
+      .getRepository('SecFiling')
+      .createQueryBuilder('f')
+      .where('f.gptAnalysis IS NOT NULL')
+      .orderBy('f.filingDate', 'DESC')
+      .take(take)
+      .getMany();
+    return { count: filings.length, filings };
+  }
+
   /** Nadchodzące katalizatory PDUFA (daty decyzji FDA). ?upcoming_only=true → tylko pending */
   @Get('pdufa')
   async getPdufaCatalysts(

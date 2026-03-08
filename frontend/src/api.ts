@@ -99,6 +99,8 @@ export interface SentimentScore {
   rawText: string;
   externalId: string;
   enrichedAnalysis: EnrichedAnalysis | null;
+  gptConviction: number | null;
+  effectiveScore: number | null;
   timestamp: string;
 }
 
@@ -138,3 +140,30 @@ export interface AiPipelineLog {
 
 export const fetchPipelineLogs = (limit = 200) =>
   get<{ count: number; logs: AiPipelineLog[] }>(`/sentiment/pipeline-logs?limit=${limit}`);
+
+export interface SecFilingGpt {
+  id: number;
+  symbol: string;
+  formType: string;
+  filingDate: string;
+  description: string;
+  documentUrl: string;
+  gptAnalysis: {
+    conviction: number;
+    summary: string;
+    conclusion: string;
+    key_facts: string[];
+    price_impact: {
+      direction: string;
+      magnitude: string;
+      confidence: number;
+      time_horizon: string;
+    };
+    catalyst_type: string;
+    requires_immediate_attention: boolean;
+  };
+  priceImpactDirection: string;
+}
+
+export const fetchFilingsGpt = (limit = 100) =>
+  get<{ count: number; filings: SecFilingGpt[] }>(`/sentiment/filings-gpt?limit=${limit}`);
