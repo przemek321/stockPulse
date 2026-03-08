@@ -614,8 +614,9 @@ export default function App() {
         ]}
         fetchData={async () => {
           const res = await fetch('/api/sentiment/insider-trades?limit=100');
-          if (res.ok) return (await res.json()).trades || [];
-          return [];
+          if (!res.ok) return [];
+          const all = (await res.json()).trades || [];
+          return all.filter((t: any) => t.transactionType === 'BUY' || t.transactionType === 'SELL');
         }}
       />
 
