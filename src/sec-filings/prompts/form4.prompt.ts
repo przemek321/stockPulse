@@ -57,6 +57,15 @@ ANALYSIS GUIDELINES:
 - Cluster selling (2+ insiders in 7 days) amplifies bearish signal
 - Consider % of total holdings sold/bought, not just absolute value
 
+CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
+- ±0.1 to ±0.4: routine transaction, 10b5-1 plan sale, small amount, low significance
+- ±0.5 to ±0.8: notable transaction, moderate size, some signal value
+- ±0.9 to ±1.2: significant — large purchase by CEO/CFO, or cluster selling pattern
+- ±1.3 to ±1.6: very significant — massive insider buy before catalyst, or emergency sell-off
+- ±1.7 to ±2.0: extreme — only for extraordinary events (e.g., CEO buys $10M+ worth before FDA decision)
+- 0.0: truly neutral, no trading signal
+Use the FULL range. Most routine 10b5-1 sales should be ±0.1-0.3. Only exceptional events warrant ±1.5+.
+
 IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
 
 Respond with JSON only, no preamble:
@@ -67,7 +76,7 @@ Respond with JSON only, no preamble:
     "confidence": 0.0-1.0,
     "time_horizon": "immediate|short_term|medium_term"
   },
-  "conviction": -2.0 to +2.0,
+  "conviction": (use scale below),
   "summary": "jedno zdanie po polsku co się wydarzyło",
   "conclusion": "1-2 zdania po polsku: ocena wpływu na cenę i uzasadnienie",
   "key_facts": ["fakt1 po polsku", "fakt2", "fakt3"],

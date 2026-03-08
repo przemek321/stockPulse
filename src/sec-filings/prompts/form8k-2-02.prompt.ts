@@ -27,6 +27,15 @@ Price impact assessment:
 - MLR above 90% for managed care = severe bearish signal
 - Guidance cut is more impactful than earnings miss
 
+CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
+- ±0.1 to ±0.4: in-line results, guidance maintained, no surprises
+- ±0.5 to ±0.8: slight beat/miss, minor guidance adjustment
+- ±0.9 to ±1.2: solid beat/miss with guidance change in same direction
+- ±1.3 to ±1.6: large beat/miss + significant guidance revision
+- ±1.7 to ±2.0: extreme — massive earnings surprise + dramatic guidance change (e.g., MLR spike from 85% to 92%)
+- 0.0: truly neutral, results exactly as expected
+Use the FULL range. Routine earnings with in-line results should be ±0.1-0.3.
+
 IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
 
 Respond with JSON only, no preamble:
@@ -37,7 +46,7 @@ Respond with JSON only, no preamble:
     "confidence": 0.0-1.0,
     "time_horizon": "immediate|short_term|medium_term"
   },
-  "conviction": -2.0 to +2.0,
+  "conviction": (use scale below),
   "summary": "jedno zdanie po polsku: EPS beat/miss i kierunek guidance",
   "conclusion": "1-2 zdania po polsku: wpływ na cenę z kluczowymi liczbami",
   "key_facts": ["EPS raportowany vs szacunek", "przychód vs szacunek", "zmiana guidance", "MLR jeśli dotyczy"],

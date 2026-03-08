@@ -26,6 +26,15 @@ Price impact assessment:
 - Contracts creating customer concentration risk = bearish long-term
 - Healthcare-specific: Medicare/Medicaid contracts carry regulatory risk
 
+CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
+- ±0.1 to ±0.4: routine contract, standard renewal, minor agreement
+- ±0.5 to ±0.8: notable partnership, moderate contract value
+- ±0.9 to ±1.2: significant deal — large multi-year contract, important strategic partner
+- ±1.3 to ±1.6: major deal — transformative agreement, >10% revenue impact
+- ±1.7 to ±2.0: extraordinary — game-changing partnership (e.g., exclusive license for blockbuster drug)
+- 0.0: truly neutral, no price impact expected
+Use the FULL range. Most routine contracts should be ±0.3-0.6.
+
 IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
 
 Respond with JSON only, no preamble:
@@ -36,7 +45,7 @@ Respond with JSON only, no preamble:
     "confidence": 0.0-1.0,
     "time_horizon": "immediate|short_term|medium_term"
   },
-  "conviction": -2.0 to +2.0,
+  "conviction": (use scale below),
   "summary": "jedno zdanie po polsku co się wydarzyło",
   "conclusion": "1-2 zdania po polsku: ocena wpływu na cenę i uzasadnienie",
   "key_facts": ["wartość kontraktu", "kontrahent", "czas trwania", "kluczowe warunki"],

@@ -32,6 +32,15 @@ Healthcare-specific events to watch for:
 For each event type, the key question is always:
 Does this change the fundamental earnings power of the company?
 
+CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
+- ±0.1 to ±0.4: routine disclosure, minor regulatory update, standard filing
+- ±0.5 to ±0.8: notable event — CMS rate change, litigation update, clinical trial progress
+- ±0.9 to ±1.2: significant — FDA approval/rejection of secondary product, major settlement
+- ±1.3 to ±1.6: very significant — FDA decision on key product, DOJ investigation, M&A announcement
+- ±1.7 to ±2.0: extreme — only for extraordinary events (FDA rejection of sole product, bankruptcy-level litigation, hostile takeover)
+- 0.0: truly neutral, no price impact expected
+Use the FULL range. Most 7.01/8.01 filings should be ±0.2-0.6.
+
 IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
 
 Respond with JSON only, no preamble:
@@ -42,7 +51,7 @@ Respond with JSON only, no preamble:
     "confidence": 0.0-1.0,
     "time_horizon": "immediate|short_term|medium_term"
   },
-  "conviction": -2.0 to +2.0,
+  "conviction": (use scale below),
   "summary": "jedno zdanie po polsku co się wydarzyło",
   "conclusion": "1-2 zdania po polsku: wpływ na cenę i uzasadnienie",
   "key_facts": ["fakt1 po polsku", "fakt2", "fakt3"],
