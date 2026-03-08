@@ -8,7 +8,7 @@
 
 **Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców. AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 19 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców. AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 19 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -357,6 +357,19 @@ Mierzenie trafności alertów — zapis ceny akcji w momencie alertu i śledzeni
 - [x] **Nowa reguła checkUrgentSignal()** — łapie sygnały z `urgency=HIGH`, `relevance≥0.7`, `confidence≥0.6`, `|conviction|≥0.1` (pomimo niskiego conviction z powodu niedowartościowania źródła). Throttle 60 min.
 - [x] **Reguła w JSON**: "Urgent AI Signal" (priority HIGH, throttle 60 min)
 
+#### 6.3 AlertEvaluator — bugfix + optymalizacje (2026-03-08)
+9 fixów w `alert-evaluator.service.ts` + 21 nowych testów jednostkowych:
+- [x] **Fix: podwójny save w sendAlert()** — `getQuote()` przed `create()`, 1 zapis do DB zamiast 2
+- [x] **Fix: enrichedAnalysis! non-null assertion** — `enrichedAnalysis ?? {}` zamiast `!` (crash gdy null)
+- [x] **Fix: OnModuleDestroy** — czyszczenie timerów insider batches przy shutdownie NestJS
+- [x] **Fix: onFiling nazwa firmy** — pobiera z `tickerRepo` zamiast używać symbolu
+- [x] **Fix: @Logged na onFiling** — dodany brakujący decorator (spójność z innymi handlerami)
+- [x] **Fix: filtr transactionType** — odrzuca trades bez `transactionType` (wcześniej undefined trafiało jako UNKNOWN)
+- [x] **Opt: cache reguł alertów** — `getRule()` z TTL 5 min, eliminuje ~5 zapytań DB na event sentymentu
+- [x] **Opt: isThrottled count()** — `alertRepo.count()` zamiast `findOne()` (lżejsze zapytanie)
+- [x] **Opt: typ FindOptionsWhere** — `FindOptionsWhere<Alert>` zamiast `any`
+- [x] **Testy**: `test/unit/alert-evaluator.spec.ts` — 21 testów pokrywających wszystkie fixy
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -448,3 +461,4 @@ npm run test:all
 - **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
 - **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (5 detektorów wzorców, Redis Sorted Sets)
 - **Nowe moduły (Sprint 6)**: PriceOutcomeModule (CRON co 1h, Finnhub /quote, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d)
+- **Testy jednostkowe**: 5 suite'ów, 91 testów (correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator)

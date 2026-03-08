@@ -127,7 +127,7 @@ stockPulse/
 │   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
-│   │   ├── alert-evaluator.service.ts      # 6 reguł niezależnych, decyzje w logach, Price Outcome wiring
+│   │   ├── alert-evaluator.service.ts      # 6 reguł niezależnych, decyzje w logach, cache reguł (TTL 5min), OnModuleDestroy
 │   │   ├── summary-scheduler.service.ts    # Raport sentymentu co 2h na Telegram
 │   │   └── telegram/
 │   │       ├── telegram.module.ts          # Wydzielony TelegramModule (unikanie circular dep)
@@ -180,6 +180,14 @@ stockPulse/
 │
 ├── docker/                                 # Pliki konfiguracyjne Docker
 │   └── pgadmin-servers.json                # Auto-rejestracja serwera w pgAdmin
+│
+├── test/                                   # Testy jednostkowe (Jest + ts-jest)
+│   └── unit/
+│       ├── alert-evaluator.spec.ts         # 21 testów: sendAlert, cache reguł, throttling, insider batches
+│       ├── correlation.spec.ts             # Logika CorrelationService (direction, conviction, detektory)
+│       ├── form4-parser.spec.ts            # Parser Form 4 XML
+│       ├── form8k-parser.spec.ts           # Parser 8-K (Items, stripHtml)
+│       └── price-impact-scorer.spec.ts     # Scorer SEC filingów (priority, ruleName)
 │
 ├── scripts/                                # Skrypty testowe Fazy 0
 │   ├── test-all.js                         # Orchestrator testów
@@ -644,14 +652,16 @@ Dashboard React z 12+ panelami danych, wykresem sentymentu, zakładkami MUI (Das
 **Co robi:** Moduł alertów. Rejestruje encje Alert i AlertRule. Providerzy: AlertEvaluatorService, TelegramService, TelegramFormatterService.
 
 #### `alert-evaluator.service.ts`
-**Co robi:** Serce systemu alertów. Nasłuchuje na eventy przez `@OnEvent()`:
-- `NEW_INSIDER_TRADE` → sprawdza regułę "Insider Trade Large"
-- `NEW_FILING` → sprawdza regułę "8-K Material Event" (tylko 8-K)
-- `SENTIMENT_SCORED` → sprawdza regułę "Sentiment Crash" (score < -0.5, confidence > 0.7), przekazuje enrichedAnalysis do formattera
+**Co robi:** Serce systemu alertów. Implementuje `OnModuleDestroy` (czyszczenie timerów). Nasłuchuje na eventy przez `@OnEvent()`:
+- `NEW_INSIDER_TRADE` → agregacja w oknie 5 min per ticker → sprawdza regułę "Insider Trade Large" (tylko BUY/SELL >$100K)
+- `NEW_FILING` → sprawdza regułę "8-K Material Event" (tylko 8-K), `@Logged('alerts')`
+- `SENTIMENT_SCORED` → 5 niezależnych checków (`Promise.all`): Sentiment Crash, Bullish/Bearish Signal Override, High Conviction Signal, Strong FinBERT Signal, Urgent AI Signal
 
-Implementuje **throttling** — sprawdza w tabeli `alerts` czy w ciągu ostatnich N minut (z `alert_rules.throttleMinutes`) nie był już wysłany alert tego samego typu per ticker.
+**Cache reguł:** `getRule()` z TTL 5 min — reguły alertów rzadko się zmieniają, cache eliminuje ~5 zapytań DB na event sentymentu.
+**Throttling:** `isThrottled()` z `alertRepo.count()` per (rule, symbol, catalystType), minimalny throttle 1 min.
+**Price Outcome:** `sendAlert()` pobiera cenę z `FinnhubService.getQuote()` przed zapisem alertu (1 zapis do DB).
 
-**Powiązania:** Nasłuchuje eventów z kolektorów i sentiment pipeline → sprawdza reguły w `alert_rules` → wysyła przez `TelegramService` (z danymi AI jeśli dostępne) → zapisuje do `alerts`.
+**Powiązania:** Nasłuchuje eventów z kolektorów i sentiment pipeline → sprawdza reguły z cache → wysyła przez `TelegramService` → zapisuje do `alerts` z `priceAtAlert` → rejestruje sygnał w `CorrelationService`.
 
 #### `summary-scheduler.service.ts`
 **Co robi:** Cykliczny raport sentymentu co 2 godziny na Telegram. Agreguje: średni score, top 3 negatywne/pozytywne tickery, liczba alertów, liczba eskalacji AI, nadchodzące katalizatory PDUFA (w oknie 7 dni). Pierwszy raport po 15s od startu.
