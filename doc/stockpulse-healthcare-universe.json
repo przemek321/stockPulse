@@ -900,6 +900,42 @@
         "condition": "FinBERT score > 0.5 but GPT returns normalized conviction < -0.1",
         "priority": "HIGH",
         "throttle_minutes": 60
+      },
+      {
+        "name": "8-K Material Event GPT",
+        "condition": "8-K filing analyzed by GPT — material impact on price (high/critical)",
+        "priority": "CRITICAL",
+        "throttle_minutes": 120
+      },
+      {
+        "name": "8-K Earnings Miss",
+        "condition": "8-K Item 2.02 — GPT detects earnings miss or negative guidance",
+        "priority": "CRITICAL",
+        "throttle_minutes": 240
+      },
+      {
+        "name": "8-K Leadership Change",
+        "condition": "8-K Item 5.02 — CEO/CFO departure or appointment",
+        "priority": "HIGH",
+        "throttle_minutes": 240
+      },
+      {
+        "name": "Form 4 Insider Signal",
+        "condition": "Form 4 analyzed by GPT — significant insider trading pattern",
+        "priority": "HIGH",
+        "throttle_minutes": 60
+      },
+      {
+        "name": "8-K Bankruptcy",
+        "condition": "8-K Item 1.03 — bankruptcy filing (immediate alert, no GPT)",
+        "priority": "CRITICAL",
+        "throttle_minutes": 0
+      },
+      {
+        "name": "Correlated Signal",
+        "condition": "CorrelationService detects multi-source pattern convergence",
+        "priority": "CRITICAL",
+        "throttle_minutes": 120
       }
     ]
   },

@@ -6,11 +6,14 @@ import { QueuesModule } from './queues/queues.module';
 import { CollectorsModule } from './collectors/collectors.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { SentimentModule } from './sentiment/sentiment.module';
+import { SecFilingsModule } from './sec-filings/sec-filings.module';
+import { CorrelationModule } from './correlation/correlation.module';
 import { ApiModule } from './api/api.module';
 
 /**
  * Główny moduł aplikacji StockPulse.
- * Wszystkie podmoduły: konfiguracja, baza danych, eventy, kolejki, kolektory, sentyment, alerty, API.
+ * Wszystkie podmoduły: konfiguracja, baza danych, eventy, kolejki, kolektory,
+ * sentyment, SEC filings GPT, korelacja sygnałów, alerty, API.
  */
 @Module({
   imports: [
@@ -20,6 +23,8 @@ import { ApiModule } from './api/api.module';
     QueuesModule,
     CollectorsModule,
     SentimentModule,
+    SecFilingsModule,
+    CorrelationModule,
     AlertsModule,
     ApiModule,
   ],

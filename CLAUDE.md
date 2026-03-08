@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StockPulse to system analizy sentymentu rynku akcji w czasie rzeczywistym z alertami, skupiony na sektorze healthcare. Monitoruje media społecznościowe (Reddit, StockTwits), dane finansowe (Finnhub), zgłoszenia SEC (EDGAR) i wysyła alerty przez Telegram.
 
-**Aktualny stan projektu**: Faza 2 + Sprint 3b (ukończony). 2-etapowy pipeline z tier-based eskalacją + PDUFA Context Layer: kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier(confidence, absScore) → Tier 1 (silne) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 skip → PDUFA context injection → Azure OpenAI gpt-4o-mini na VM (2. etap, zwraca prompt_used) → conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0]) → alerty Telegram: Sentiment Crash, High Conviction Signal (|conv|>1.5), Strong FinBERT Signal (fallback bez VM). Throttling per (rule, symbol, catalyst_type). Pipeline observability: tabela `ai_pipeline_logs` z pełną historią egzekucji. Kolektor PDUFA.bio: scraping kalendarza FDA co 6h. Frontend z 10+ panelami (wykres sentymentu, AI Analysis, Pipeline AI, PDUFA Calendar, Insider Trades). Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
+**Aktualny stan projektu**: Faza 2 + Sprint 4 (ukończony). 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline (Form 4 + 8-K per-Item prompts) + CorrelationService (5 detektorów wzorców między źródłami). Kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier → Azure OpenAI gpt-4o-mini (2. etap) → conviction [-2.0, +2.0] → effectiveScore [-1, +1] jako źródło prawdy. SEC filingi: GPT z per-typ promptami (8-K Items 1.01/2.02/5.02/other, Form 4 z historią 30d), Zod walidacja, Item 1.03 Bankruptcy → natychmiastowy CRITICAL. CorrelationService: Redis Sorted Sets, insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h. 17 reguł alertów, ~37 tickerów, 11 tabel PostgreSQL. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
 
 ## Komendy (Makefile — autodetekcja środowiska)
 
@@ -102,7 +102,7 @@ Działający system end-to-end w 6 kontenerach Docker:
 
 ### Healthcare Universe
 
-[doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) definiuje zakres monitoringu: 27 tickerów healthcare (wg podsektora), 180+ słów kluczowych, 18 subredditów i 9 reguł alertów z priorytetami (w tym High Conviction Signal + Strong FinBERT Signal).
+[doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) definiuje zakres monitoringu: ~37 tickerów healthcare (wg podsektora), 180+ słów kluczowych, 18 subredditów i 17 reguł alertów z priorytetami (w tym SEC Filing GPT Pipeline + Correlated Signal).
 
 ### Dokumentacja szczegółowa
 

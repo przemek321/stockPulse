@@ -1,0 +1,400 @@
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import Redis from 'ioredis';
+import { CORRELATION_REDIS } from './redis.provider';
+import { TelegramService } from '../alerts/telegram/telegram.service';
+import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
+import { Alert, AlertRule } from '../entities';
+import {
+  StoredSignal,
+  DetectedPattern,
+  Direction,
+  PatternType,
+  PATTERN_LABELS,
+  PATTERN_THROTTLE,
+} from './types/correlation.types';
+
+/**
+ * CorrelationService — wykrywa wzorce między sygnałami z różnych źródeł.
+ *
+ * Obserwuje sygnały ze wszystkich pipeline'ów i wykrywa wzorce
+ * które są silniejsze niż suma części (np. insider sell + 8-K tego samego dnia).
+ *
+ * Sygnały przechowywane w Redis Sorted Sets z timestamp jako score.
+ * Dwa okna: 48h (short) i 14 dni (insider).
+ */
+
+/** Okna czasowe (ms) */
+const WINDOW_48H = 48 * 3600_000;
+const WINDOW_24H = 24 * 3600_000;
+const WINDOW_7D = 7 * 24 * 3600_000;
+const WINDOW_72H = 72 * 3600_000;
+const WINDOW_14D = 14 * 24 * 3600_000;
+
+/** Minimalny |conviction| sygnału do zapisania w Redis */
+const MIN_CONVICTION = 0.15;
+
+/** Minimalny |conviction| do wyzwolenia correlated alertu */
+const MIN_CORRELATED_CONVICTION = 0.35;
+
+/** Minimalny |conviction| ostatniego sygnału w ESCALATING_SIGNAL */
+const MIN_ESCALATING_LAST_CONVICTION = 0.25;
+
+@Injectable()
+export class CorrelationService {
+  private readonly logger = new Logger(CorrelationService.name);
+
+  /** Debounce per ticker — 10s opóźnienie przed pattern detection */
+  private readonly pendingChecks = new Map<string, ReturnType<typeof setTimeout>>();
+
+  constructor(
+    @Inject(CORRELATION_REDIS) private readonly redis: Redis,
+    private readonly telegram: TelegramService,
+    private readonly formatter: TelegramFormatterService,
+    @InjectRepository(Alert)
+    private readonly alertRepo: Repository<Alert>,
+    @InjectRepository(AlertRule)
+    private readonly ruleRepo: Repository<AlertRule>,
+  ) {}
+
+  /**
+   * Zapisuje sygnał do Redis po wysłaniu alertu.
+   * Wywoływany z AlertEvaluator, Form4Pipeline, Form8kPipeline.
+   */
+  async storeSignal(signal: StoredSignal): Promise<void> {
+    if (Math.abs(signal.conviction) < MIN_CONVICTION) return;
+
+    const redisKey = signal.source_category === 'form4'
+      ? `signals:insider:${signal.ticker}`
+      : `signals:short:${signal.ticker}`;
+
+    const ttlMs = signal.source_category === 'form4' ? WINDOW_14D : WINDOW_48H;
+
+    // Wyczyść stare sygnały przed dodaniem (fix: ZREMRANGEBYSCORE zamiast polegania na EXPIRE)
+    const cutoffTime = Date.now() - ttlMs;
+    await this.redis.zremrangebyscore(redisKey, 0, cutoffTime);
+
+    // Dodaj nowy sygnał
+    await this.redis.zadd(redisKey, signal.timestamp, JSON.stringify(signal));
+
+    // Przytnij do max 50 sygnałów per ticker — ochrona pamięci
+    await this.redis.zremrangebyrank(redisKey, 0, -51);
+
+    // EXPIRE jako safety net (gdyby ticker przestał generować sygnały)
+    const ttlSec = Math.ceil(ttlMs / 1000);
+    await this.redis.expire(redisKey, ttlSec);
+  }
+
+  /**
+   * Zaplanuj sprawdzenie wzorców z debounce 10s.
+   * Form 4 i 8-K mogą przybyć w tej samej partii SEC EDGAR (co 30 min).
+   */
+  schedulePatternCheck(ticker: string): void {
+    if (this.pendingChecks.has(ticker)) {
+      clearTimeout(this.pendingChecks.get(ticker)!);
+    }
+    const timeout = setTimeout(
+      () => this.runPatternDetection(ticker),
+      10_000,
+    );
+    this.pendingChecks.set(ticker, timeout);
+  }
+
+  /**
+   * Uruchamia detekcję wzorców dla danego tickera.
+   */
+  async runPatternDetection(ticker: string): Promise<void> {
+    this.pendingChecks.delete(ticker);
+    const now = Date.now();
+
+    try {
+      const shortSignals = await this.getSignalsInWindow(
+        `signals:short:${ticker}`, now - WINDOW_48H, now,
+      );
+      const insiderSignals = await this.getSignalsInWindow(
+        `signals:insider:${ticker}`, now - WINDOW_14D, now,
+      );
+
+      // Nie sprawdzaj wzorców gdy za mało sygnałów
+      const allSignals = [...shortSignals, ...insiderSignals];
+      if (allSignals.length < 2) return;
+
+      const patterns: DetectedPattern[] = [];
+
+      const p1 = this.detectInsiderPlus8K(shortSignals, now);
+      const p2 = this.detectFilingConfirmsNews(shortSignals, now);
+      const p3 = this.detectMultiSourceConvergence(shortSignals, now);
+      const p4 = this.detectInsiderCluster(insiderSignals, now);
+      const p5 = this.detectEscalatingSignal(shortSignals, now);
+
+      for (const p of [p1, p2, p3, p4, p5]) {
+        if (p) patterns.push(p);
+      }
+
+      for (const pattern of patterns) {
+        await this.triggerCorrelatedAlert(ticker, pattern);
+      }
+    } catch (err) {
+      this.logger.error(`Pattern detection error for ${ticker}: ${err.message}`);
+    }
+  }
+
+  // ── Detektory wzorców ──────────────────────────────────
+
+  /** Pattern 1: Insider + 8-K w ciągu 24h */
+  private detectInsiderPlus8K(signals: StoredSignal[], now: number): DetectedPattern | null {
+    const window = now - WINDOW_24H;
+    const form4 = signals.filter(s => s.source_category === 'form4' && s.timestamp > window);
+    const filing8k = signals.filter(s => s.source_category === '8k' && s.timestamp > window);
+
+    if (form4.length === 0 || filing8k.length === 0) return null;
+
+    const allSignals = [...form4, ...filing8k];
+    const dir = this.getDominantDirection(allSignals);
+    if (!dir) return null;
+
+    return {
+      type: 'INSIDER_PLUS_8K',
+      signals: allSignals,
+      correlated_conviction: this.aggregateConviction(allSignals),
+      direction: dir,
+      description: `Insider transaction + ${filing8k.length} 8-K filing(s) within 24h`,
+    };
+  }
+
+  /** Pattern 2: News potwierdzone przez filing (news PRZED filingiem) */
+  private detectFilingConfirmsNews(signals: StoredSignal[], now: number): DetectedPattern | null {
+    const window = now - WINDOW_48H;
+    const newsSignals = signals.filter(
+      s => (s.source_category === 'news' || s.source_category === 'social') && s.timestamp > window,
+    );
+    const filingSignals = signals.filter(s => s.source_category === '8k' && s.timestamp > window);
+
+    if (newsSignals.length === 0 || filingSignals.length === 0) return null;
+
+    // News musi przyjść PRZED filingiem
+    const earliestNews = Math.min(...newsSignals.map(s => s.timestamp));
+    const earliestFiling = Math.min(...filingSignals.map(s => s.timestamp));
+    if (earliestNews >= earliestFiling) return null;
+
+    // Sprawdź czy catalyst_type się zgadza
+    const newsCatalysts = new Set(newsSignals.map(s => s.catalyst_type));
+    const filingCatalysts = new Set(filingSignals.map(s => s.catalyst_type));
+    const sharedCatalyst = [...newsCatalysts].some(c => filingCatalysts.has(c));
+    if (!sharedCatalyst) return null;
+
+    const allSignals = [...newsSignals, ...filingSignals];
+    const dir = this.getDominantDirection(allSignals);
+    if (!dir) return null;
+
+    const lagMinutes = Math.round((earliestFiling - earliestNews) / 60_000);
+    return {
+      type: 'FILING_CONFIRMS_NEWS',
+      signals: allSignals,
+      correlated_conviction: this.aggregateConviction(allSignals),
+      direction: dir,
+      description: `News preceded official 8-K by ${lagMinutes} minutes`,
+    };
+  }
+
+  /** Pattern 3: 3+ różne kategorie źródeł potwierdzają ten sam kierunek w 24h */
+  private detectMultiSourceConvergence(signals: StoredSignal[], now: number): DetectedPattern | null {
+    const window = now - WINDOW_24H;
+    const recent = signals.filter(s => s.timestamp > window);
+
+    // Najsilniejszy sygnał per kategoria
+    const byCategory = new Map<string, StoredSignal>();
+    for (const sig of recent) {
+      const existing = byCategory.get(sig.source_category);
+      if (!existing || Math.abs(sig.conviction) > Math.abs(existing.conviction)) {
+        byCategory.set(sig.source_category, sig);
+      }
+    }
+
+    if (byCategory.size < 3) return null;
+
+    const best = [...byCategory.values()];
+    const dir = this.getDominantDirection(best);
+    if (!dir) return null;
+
+    const confirming = best.filter(s => s.direction === dir);
+    if (confirming.length < 3) return null;
+
+    return {
+      type: 'MULTI_SOURCE_CONVERGENCE',
+      signals: confirming,
+      correlated_conviction: this.aggregateConviction(confirming),
+      direction: dir,
+      description: `${confirming.length} independent source types confirm ${dir} signal`,
+    };
+  }
+
+  /** Pattern 4: 2+ insider transactions w ciągu 7 dni */
+  private detectInsiderCluster(signals: StoredSignal[], now: number): DetectedPattern | null {
+    const window = now - WINDOW_7D;
+    const recent = signals.filter(s => s.source_category === 'form4' && s.timestamp > window);
+
+    if (recent.length < 2) return null;
+
+    const dir = this.getDominantDirection(recent);
+    if (!dir) return null;
+
+    const confirming = recent.filter(s => s.direction === dir);
+    if (confirming.length < 2) return null;
+
+    return {
+      type: 'INSIDER_CLUSTER',
+      signals: confirming,
+      correlated_conviction: this.aggregateConviction(confirming),
+      direction: dir,
+      description: `${confirming.length} insider transactions in 7 days, all ${dir}`,
+    };
+  }
+
+  /** Pattern 5: Rosnąca conviction przez 3+ sygnały w 72h */
+  private detectEscalatingSignal(signals: StoredSignal[], now: number): DetectedPattern | null {
+    const window = now - WINDOW_72H;
+    const recent = signals
+      .filter(s => s.timestamp > window)
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (recent.length < 3) return null;
+
+    const dir = this.getDominantDirection(recent);
+    if (!dir) return null;
+
+    const directionSign = dir === 'positive' ? 1 : -1;
+
+    // Sprawdź eskalację na ostatnich 3 sygnałach
+    const last3 = recent.slice(-3);
+
+    // Moja poprawka: minimalny próg conviction na ostatnim sygnale
+    if (Math.abs(last3[2].conviction) < MIN_ESCALATING_LAST_CONVICTION) return null;
+
+    const isEscalating =
+      Math.abs(last3[1].conviction) > Math.abs(last3[0].conviction) &&
+      Math.abs(last3[2].conviction) > Math.abs(last3[1].conviction);
+
+    if (!isEscalating) return null;
+    if (!last3.every(s => s.direction === dir)) return null;
+
+    return {
+      type: 'ESCALATING_SIGNAL',
+      signals: last3,
+      correlated_conviction: Math.min(1.0, Math.abs(last3[2].conviction) * 1.3) * directionSign,
+      direction: dir,
+      description: `Conviction escalating over 3 signals: ${last3.map(s => s.conviction.toFixed(2)).join(' → ')}`,
+    };
+  }
+
+  // ── Agregacja i helpers ──────────────────────────────────
+
+  /** Agreguje conviction: bazowy = najsilniejszy, boost +20% per dodatkowe źródło */
+  private aggregateConviction(signals: StoredSignal[]): number {
+    if (signals.length === 0) return 0;
+
+    // Najsilniejszy per kategoria
+    const byCategory = new Map<string, StoredSignal>();
+    for (const sig of signals) {
+      const existing = byCategory.get(sig.source_category);
+      if (!existing || Math.abs(sig.conviction) > Math.abs(existing.conviction)) {
+        byCategory.set(sig.source_category, sig);
+      }
+    }
+
+    const best = [...byCategory.values()];
+    const strongest = best.reduce((a, b) =>
+      Math.abs(a.conviction) > Math.abs(b.conviction) ? a : b,
+    );
+
+    const sameDirection = best.filter(s => s.direction === strongest.direction);
+    const boost = 1 + 0.2 * (sameDirection.length - 1);
+
+    const sign = strongest.direction === 'positive' ? 1 : -1;
+    return Math.min(1.0, Math.abs(strongest.conviction) * boost) * sign;
+  }
+
+  /** Wyznacza dominujący kierunek (wymaga 66% przewagi) */
+  private getDominantDirection(signals: StoredSignal[]): Direction | null {
+    const pos = signals.filter(s => s.direction === 'positive').length;
+    const neg = signals.filter(s => s.direction === 'negative').length;
+    if (pos >= signals.length * 0.66) return 'positive';
+    if (neg >= signals.length * 0.66) return 'negative';
+    return null;
+  }
+
+  /** Pobiera sygnały z Redis w oknie czasowym */
+  private async getSignalsInWindow(
+    key: string,
+    from: number,
+    to: number,
+  ): Promise<StoredSignal[]> {
+    const raw = await this.redis.zrangebyscore(key, from, to);
+    return raw.map(r => {
+      try {
+        return JSON.parse(r) as StoredSignal;
+      } catch {
+        return null;
+      }
+    }).filter(Boolean) as StoredSignal[];
+  }
+
+  // ── Alert z deduplikacją ──────────────────────────────────
+
+  /** Wysyła alert correlated pattern z deduplikacją w Redis */
+  private async triggerCorrelatedAlert(
+    ticker: string,
+    pattern: DetectedPattern,
+  ): Promise<void> {
+    if (Math.abs(pattern.correlated_conviction) < MIN_CORRELATED_CONVICTION) return;
+
+    // Deduplikacja: sprawdź czy ten wzorzec nie był już alertowany
+    const dedupKey = `fired:${ticker}:${pattern.type}`;
+    const alreadyFired = await this.redis.get(dedupKey);
+    if (alreadyFired) return;
+
+    const priority = Math.abs(pattern.correlated_conviction) >= 0.6
+      ? 'CRITICAL'
+      : 'HIGH';
+
+    const message = this.formatter.formatCorrelatedAlert({
+      symbol: ticker,
+      patternType: pattern.type,
+      patternLabel: PATTERN_LABELS[pattern.type],
+      direction: pattern.direction,
+      correlatedConviction: pattern.correlated_conviction,
+      description: pattern.description,
+      signals: pattern.signals.map(s => ({
+        sourceCategory: s.source_category,
+        catalystType: s.catalyst_type,
+        conviction: s.conviction,
+      })),
+      priority,
+    });
+
+    const delivered = await this.telegram.sendMarkdown(message);
+
+    // Zapisz throttle do Redis
+    const throttleSec = PATTERN_THROTTLE[pattern.type];
+    await this.redis.set(dedupKey, '1', 'EX', throttleSec);
+
+    // Zapisz do tabeli alerts
+    await this.alertRepo.save(
+      this.alertRepo.create({
+        symbol: ticker,
+        ruleName: 'Correlated Signal',
+        priority,
+        channel: 'TELEGRAM',
+        message,
+        delivered,
+        catalystType: pattern.type,
+      }),
+    );
+
+    this.logger.log(
+      `Correlated alert: ${ticker} ${pattern.type} — ` +
+        `conviction=${pattern.correlated_conviction.toFixed(2)} ${pattern.direction}`,
+    );
+  }
+}

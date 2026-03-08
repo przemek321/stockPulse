@@ -11,6 +11,10 @@ export interface Form4Transaction {
   pricePerShare: number | null;
   totalValue: number;
   transactionDate: Date;
+  /** Czy transakcja jest częścią planu 10b5-1 (zaplanowana z góry) */
+  is10b51Plan: boolean;
+  /** Liczba akcji po transakcji (z <postTransactionAmounts>) */
+  sharesOwnedAfter: number | null;
 }
 
 /**
@@ -140,6 +144,21 @@ function parseTransaction(
       txn.transactionDate?.value ?? txn.transactionDate ?? null;
     const transactionDate = dateRaw ? new Date(dateRaw) : new Date();
 
+    // Plan 10b5-1 — zaplanowana transakcja (niższy priorytet sygnału)
+    const rule10b5Raw =
+      txn.transactionCoding?.['Rule10b5-1Transaction'] ??
+      txn.transactionCoding?.rule10b51Transaction ??
+      '';
+    const is10b51Plan = String(rule10b5Raw) === '1' || String(rule10b5Raw).toUpperCase() === 'Y';
+
+    // Akcje po transakcji (z postTransactionAmounts)
+    const sharesAfterRaw =
+      txn.postTransactionAmounts?.sharesOwnedFollowingTransaction?.value ??
+      txn.postTransactionAmounts?.sharesOwnedFollowingTransaction ??
+      null;
+    const sharesOwnedAfter =
+      sharesAfterRaw != null ? parseFloat(String(sharesAfterRaw)) || null : null;
+
     return {
       insiderName,
       insiderRole,
@@ -148,6 +167,8 @@ function parseTransaction(
       pricePerShare,
       totalValue,
       transactionDate,
+      is10b51Plan,
+      sharesOwnedAfter,
     };
   } catch {
     return null; // Błędne dane → skip transakcji

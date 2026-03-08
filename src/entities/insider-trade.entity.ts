@@ -51,6 +51,14 @@ export class InsiderTrade {
   @Column({ length: 30, nullable: true })
   accessionNumber: string;
 
+  /** Czy transakcja jest częścią planu 10b5-1 (zaplanowana z góry) */
+  @Column({ type: 'boolean', nullable: true })
+  is10b51Plan: boolean | null;
+
+  /** Liczba akcji po transakcji */
+  @Column('decimal', { precision: 15, scale: 2, nullable: true })
+  sharesOwnedAfter: number | null;
+
   @CreateDateColumn()
   collectedAt: Date;
 }

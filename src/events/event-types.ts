@@ -19,4 +19,8 @@ export enum EventType {
   ALERT_TRIGGERED = 'alert.triggered',
   /** Nowy event PDUFA (data decyzji FDA) z pdufa.bio */
   NEW_PDUFA_EVENT = 'pdufa-event.new',
+  /** Analiza GPT filingu SEC zakończona */
+  SEC_FILING_ANALYZED = 'sec-filing.analyzed',
+  /** Wykryty wzorzec korelacji między źródłami */
+  CORRELATION_DETECTED = 'correlation.detected',
 }

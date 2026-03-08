@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -7,6 +7,8 @@ import { EventType } from '../events/event-types';
 import { TelegramService } from './telegram/telegram.service';
 import { TelegramFormatterService } from './telegram/telegram-formatter.service';
 import { SignalDirection } from '../common/types';
+import { CorrelationService } from '../correlation/correlation.service';
+import { SourceCategory, StoredSignal } from '../correlation/types/correlation.types';
 
 /**
  * Ewaluator reguł alertów.
@@ -45,6 +47,7 @@ export class AlertEvaluatorService {
     private readonly tickerRepo: Repository<Ticker>,
     private readonly telegram: TelegramService,
     private readonly formatter: TelegramFormatterService,
+    @Optional() private readonly correlation?: CorrelationService,
   ) {}
 
   /**
@@ -173,7 +176,16 @@ export class AlertEvaluatorService {
       });
     }
 
-    await this.sendAlert(symbol, rule, message);
+    // Określ kierunek na podstawie typów transakcji w batchu
+    const buyCount = batch.trades.filter(t => t.transactionType === 'BUY').length;
+    const sellCount = batch.trades.filter(t => t.transactionType === 'SELL').length;
+    const insiderDirection: 'positive' | 'negative' = buyCount >= sellCount ? 'positive' : 'negative';
+
+    await this.sendAlert(symbol, rule, message, undefined, {
+      sourceCategory: 'form4',
+      conviction: Math.min(totalValue / 1_000_000, 1.0), // normalizacja: $1M = 1.0
+      direction: insiderDirection,
+    });
   }
 
   /**
@@ -214,7 +226,11 @@ export class AlertEvaluatorService {
       priority: rule.priority,
     });
 
-    await this.sendAlert(payload.symbol, rule, message);
+    await this.sendAlert(payload.symbol, rule, message, undefined, {
+      sourceCategory: '8k',
+      conviction: 0.5, // bazowy conviction dla 8-K bez analizy GPT
+      direction: 'negative', // 8-K material events domyślnie negatywne
+    });
   }
 
   /**
@@ -297,7 +313,11 @@ export class AlertEvaluatorService {
       enrichedAnalysis: payload.enrichedAnalysis,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, catalyst);
+    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+      sourceCategory: this.mapSourceCategory(payload.source),
+      conviction: Math.abs(scoreForEval),
+      direction: 'negative',
+    });
   }
 
   /**
@@ -369,7 +389,11 @@ export class AlertEvaluatorService {
       priority: rule.priority,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, catalyst);
+    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+      sourceCategory: this.mapSourceCategory(payload.source),
+      conviction: Math.abs(effectiveScore),
+      direction: direction === 'BULLISH' ? 'positive' : 'negative',
+    });
   }
 
   /**
@@ -419,7 +443,11 @@ export class AlertEvaluatorService {
       enrichedAnalysis: payload.enrichedAnalysis!,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, catalyst);
+    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+      sourceCategory: this.mapSourceCategory(payload.source),
+      conviction: Math.min(Math.abs(payload.conviction) / 2.0, 1.0), // normalizacja [-2,+2] → [0,1]
+      direction: payload.conviction > 0 ? 'positive' : 'negative',
+    });
   }
 
   /**
@@ -464,17 +492,27 @@ export class AlertEvaluatorService {
       source: payload.source,
     });
 
-    await this.sendAlert(payload.symbol, rule, message);
+    await this.sendAlert(payload.symbol, rule, message, undefined, {
+      sourceCategory: this.mapSourceCategory(payload.source),
+      conviction: Math.abs(payload.score),
+      direction: payload.score > 0 ? 'positive' : 'negative',
+    });
   }
 
   /**
    * Wysyła alert i zapisuje go w historii.
+   * Po wysłaniu rejestruje sygnał w CorrelationService do detekcji wzorców.
    */
   private async sendAlert(
     symbol: string,
     rule: AlertRule,
     message: string,
     catalystType?: string,
+    correlationData?: {
+      sourceCategory: SourceCategory;
+      conviction: number;
+      direction: 'positive' | 'negative' | 'neutral';
+    },
   ): Promise<void> {
     const delivered = await this.telegram.sendMarkdown(message);
 
@@ -493,6 +531,38 @@ export class AlertEvaluatorService {
     this.logger.log(
       `Alert wysłany: ${rule.name} dla ${symbol} (delivered: ${delivered})`,
     );
+
+    // Rejestruj sygnał w CorrelationService
+    if (this.correlation && correlationData) {
+      try {
+        const signal: StoredSignal = {
+          id: `${rule.name}-${symbol}-${Date.now()}`,
+          ticker: symbol,
+          source_category: correlationData.sourceCategory,
+          conviction: correlationData.conviction,
+          direction: correlationData.direction === 'neutral' ? 'positive' : correlationData.direction,
+          catalyst_type: catalystType ?? 'unknown',
+          timestamp: Date.now(),
+        };
+        await this.correlation.storeSignal(signal);
+        this.correlation.schedulePatternCheck(symbol);
+      } catch (err) {
+        this.logger.warn(`Correlation storeSignal error: ${err.message}`);
+      }
+    }
+  }
+
+  /** Mapuje nazwę źródła na kategorię dla CorrelationService */
+  private mapSourceCategory(source: string): SourceCategory {
+    switch (source?.toLowerCase()) {
+      case 'stocktwits':
+      case 'reddit':
+        return 'social';
+      case 'finnhub':
+        return 'news';
+      default:
+        return 'news';
+    }
   }
 
   /**

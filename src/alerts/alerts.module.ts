@@ -3,9 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Alert, AlertRule, SentimentScore, Ticker } from '../entities';
 import { AlertEvaluatorService } from './alert-evaluator.service';
 import { SummarySchedulerService } from './summary-scheduler.service';
-import { TelegramService } from './telegram/telegram.service';
-import { TelegramFormatterService } from './telegram/telegram-formatter.service';
+import { TelegramModule } from './telegram/telegram.module';
 import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
+import { CorrelationModule } from '../correlation/correlation.module';
 
 /**
  * Moduł alertów.
@@ -16,13 +16,13 @@ import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
   imports: [
     TypeOrmModule.forFeature([Alert, AlertRule, SentimentScore, Ticker]),
     PdufaBioModule,
+    TelegramModule,
+    CorrelationModule,
   ],
   providers: [
     AlertEvaluatorService,
     SummarySchedulerService,
-    TelegramService,
-    TelegramFormatterService,
   ],
-  exports: [TelegramService, AlertEvaluatorService],
+  exports: [TelegramModule, AlertEvaluatorService],
 })
 export class AlertsModule {}

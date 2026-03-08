@@ -186,6 +186,8 @@ export class SecEdgarService extends BaseCollectorService {
           totalValue: txn.totalValue,
           transactionDate: txn.transactionDate,
           accessionNumber: txnAccession,
+          is10b51Plan: txn.is10b51Plan,
+          sharesOwnedAfter: txn.sharesOwnedAfter ?? undefined,
         });
 
         await this.insiderTradeRepo.save(trade);
@@ -198,6 +200,8 @@ export class SecEdgarService extends BaseCollectorService {
           insiderRole: txn.insiderRole,
           transactionType: txn.transactionType,
           shares: txn.shares,
+          is10b51Plan: txn.is10b51Plan,
+          sharesOwnedAfter: txn.sharesOwnedAfter,
           source: 'SEC_EDGAR',
         });
 

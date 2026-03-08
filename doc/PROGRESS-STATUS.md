@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-03-02
+> Ostatnia aktualizacja: 2026-03-08
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona, tuning w Sprint 3a) + **Sprint 3b — PDUFA + Pipeline observability** (ukończony)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4 — SEC Filing GPT Pipeline + CorrelationService** (ukończony)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap): Tier 1 (silne: conf>0.7 AND abs>0.5) ZAWSZE do AI, Tier 2 (średnie) do AI jeśli VM aktywna, Tier 3 (śmieci) skip. Conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0]) → alerty: "High Conviction Signal" (|conv|>1.5) + "Strong FinBERT Signal" (fallback bez VM). Throttling per (rule, symbol, catalyst_type). PDUFA Context Layer: wstrzykiwanie nadchodzących dat FDA do prompta AI. Pipeline observability: pełne logi egzekucji AI w tabeli `ai_pipeline_logs`. Frontend React z 10+ panelami danych, wykresem sentymentu (Recharts), zakładkami AI Analysis, Pipeline AI i PDUFA Calendar. 9 reguł alertów, 11 tabel PostgreSQL, 7 kolejek Redis.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + nowy pipeline GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami + CorrelationService do detekcji wzorców między źródłami sygnałów. Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: Form 4 (insider trades) i 8-K (material events) analizowane GPT z per-Item promptami (Item 1.01 contracts, 2.02 earnings, 5.02 leadership, 1.03 bankruptcy natychmiastowy CRITICAL). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców (insider+8K 24h, filing confirms news 48h, multi-source convergence, insider cluster 7d, escalating signal 72h). effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 17 reguł alertów, 11 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -218,6 +218,62 @@ Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją: kolektory → even
   - `TextDialog` — klikalne okna dialogowe zamiast tooltipów (prompt, tekst, błąd) z możliwością zaznaczania i kopiowania
 - [x] **Telegram** — sekcja PDUFA w raportach 2h (nadchodzące katalizatory FDA w oknie 7 dni)
 
+### Sprint 3c: effectiveScore + Signal Override + bugfixy (ukończony 2026-03-08)
+- [x] **effectiveScore jako źródło prawdy** — `effectiveScore = gptConviction / 2.0` (znormalizowany [-1, +1]) zastępuje surowy FinBERT score w `AlertEvaluatorService`:
+  - `checkSentimentCrash()` używa effectiveScore zamiast score → GPT BULLISH blokuje Crash
+  - Usunięta stara logika supresji AI — effectiveScore przejmuje odpowiedzialność
+- [x] **Bullish/Bearish Signal Override** — 2 nowe reguły alertów (łącznie 11 pre-Sprint 4):
+  - Bullish Override: FinBERT < -0.5, ale GPT mówi BULLISH (effectiveScore > 0.1)
+  - Bearish Override: FinBERT > 0.5, ale GPT mówi BEARISH (effectiveScore < -0.1)
+  - Format alertu z `formatSignalOverrideAlert()` + kierunek + katalizator
+- [x] **10 tickerów pharma/biotech** — rozszerzenie healthcare universe (łącznie ~37 tickerów):
+  - ABBV, BMY, GILD, MRNA, REGN, VRTX, BIIB, AMGN + dodatkowe
+- [x] **Frontend: filtr BUY/SELL** w insider trades — wyświetlaj tylko transakcje BUY i SELL (nie GRANT, EXERCISE itp.)
+- [x] **Frontend: data kompilacji** w prawym dolnym rogu dashboardu
+- [x] **Fix conviction: AI suppress < 0.1** — conviction < 0.1 supresowane + source-based kalibracja prompta
+- [x] **Fix PDUFA context** — domyślne okno 90 dni (zamiast 30) dla wyszukiwania nadchodzących katalizatorów
+- [x] **Fix 4 krytyczne bugi w pipeline alertów**:
+  - JSON parse error: pharma_biotech inside tickers object
+  - Fix insider trade aggregation (batch per ticker)
+  - Fix throttling catalystType matching
+  - Fix alert rule lookup case sensitivity
+
+### Sprint 4: SEC Filing GPT Pipeline + CorrelationService (ukończony 2026-03-08)
+
+Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami + CorrelationService do detekcji wzorców między źródłami sygnałów.
+
+#### 4.1 Nowe moduły
+- [x] **SecFilingsModule** (`src/sec-filings/`) — pipeline GPT dla Form 4 i 8-K:
+  - `Form4Pipeline` — event NEW_INSIDER_TRADE → GPT z kontekstem (rola, 10b5-1, historia 30d) → Zod walidacja → alert
+  - `Form8kPipeline` — event NEW_FILING (8-K) → fetch tekstu z SEC EDGAR → per-Item prompt → GPT → alert
+  - `DailyCapService` — Redis INCR, max 20 wywołań GPT/ticker/dzień
+  - 5 promptów: Form 4, 8-K Item 1.01 (kontrakty), 2.02 (earnings), 5.02 (leadership), inne
+  - Item 1.03 (Bankruptcy) → natychmiastowy alert CRITICAL bez GPT
+  - Parser 8-K: `detectItems()`, `extractItemText()` (limit 8000 znaków), `stripHtml()`
+  - Scorer: `scoreToAlertPriority()`, `mapToRuleName()`
+  - Walidacja Zod z retry 1x, `SecFilingAnalysisSchema`
+- [x] **CorrelationModule** (`src/correlation/`) — detekcja wzorców między źródłami:
+  - `CorrelationService` (~300 linii) — 5 detektorów wzorców:
+    - `detectInsiderPlus8K` — Form 4 + 8-K w ciągu 24h
+    - `detectFilingConfirmsNews` — news → 8-K tego samego catalyst_type w 48h
+    - `detectMultiSourceConvergence` — 3+ kategorie źródeł, ten sam kierunek, 24h
+    - `detectInsiderCluster` — 2+ Form 4 jednego tickera w 7 dni
+    - `detectEscalatingSignal` — rosnąca conviction w 72h, min |conviction| > 0.25
+  - Redis Sorted Sets z `ZREMRANGEBYSCORE` (fix: prawidłowe czyszczenie starych danych)
+  - Debounce 10s per ticker, deduplikacja Redis, throttling per pattern type
+  - `aggregateConviction()` — bazowy najsilniejszy + 20% boost/źródło, cap 1.0
+  - `getDominantDirection()` — wymaga 66% przewagi
+
+#### 4.2 Rozszerzenia istniejących modułów
+- [x] **Encje** — rozszerzenie `SecFiling` (+gptAnalysis JSONB, +priceImpactDirection) i `InsiderTrade` (+is10b51Plan, +sharesOwnedAfter)
+- [x] **Form4 parser** — nowe pola: `is10b51Plan` (Rule 10b5-1 transaction), `sharesOwnedAfter`
+- [x] **AzureOpenaiClientService** — nowa metoda `analyzeCustomPrompt(prompt)`, graceful degradation (VM 404 → null)
+- [x] **TelegramFormatterService** — 4 nowe formaty: `formatForm4GptAlert()`, `formatForm8kGptAlert()`, `formatBankruptcyAlert()`, `formatCorrelatedAlert()`
+- [x] **TelegramModule** — wydzielony z AlertsModule (unikanie circular dependency)
+- [x] **AlertEvaluatorService** — wiring `storeSignal()` po każdym sendAlert → CorrelationService
+- [x] **Event types** — `SEC_FILING_ANALYZED`, `CORRELATION_DETECTED`
+- [x] **6 nowych reguł alertów**: 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, Form 4 Insider Signal, 8-K Bankruptcy, Correlated Signal
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -292,15 +348,16 @@ npm run test:all
 
 ## Kluczowe liczby
 
-- **Tickery do monitorowania**: 27 healthcare (zdefiniowane w healthcare-universe.json)
+- **Tickery do monitorowania**: ~37 healthcare (zdefiniowane w healthcare-universe.json)
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
-- **Pliki źródłowe**: ~70 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
-- **Reguły alertów**: 9 (Sentiment Crash, Mention Volume Spike, Insider Trade Large, 8-K Material Event, Cross-Sector Correlation, CMS Regulatory Event, Earnings Date Approaching, High Conviction Signal, Strong FinBERT Signal)
-- **Encje bazy danych**: 11 tabel (sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs)
+- **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
+- **Reguły alertów**: 17 (11 sentyment/insider/filing + 6 nowych: 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, Form 4 Insider Signal, 8-K Bankruptcy, Correlated Signal)
+- **Encje bazy danych**: 11 tabel (sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan)
 - **Kolejki BullMQ**: 7 (5 kolektorów + sentiment-analysis + alerts)
 - **Endpointy REST**: 15 (health x2, tickers x2, sentiment x7 + ai_only + pipeline-logs + pdufa + insider-trades, alerts x2)
 - **Źródła danych**: 4 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio), 1 placeholder (Reddit)
-- **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer), 1 planowany (spaCy NER)
+- **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer + SEC Filing GPT Pipeline), 1 planowany (spaCy NER)
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
 - **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
+- **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (5 detektorów wzorców, Redis Sorted Sets)

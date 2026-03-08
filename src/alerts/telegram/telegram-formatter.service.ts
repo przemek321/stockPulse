@@ -358,6 +358,175 @@ export class TelegramFormatterService {
   }
 
   /**
+   * Formatuje alert Form 4 z analizą GPT — insider info + wniosek AI.
+   */
+  formatForm4GptAlert(data: {
+    symbol: string;
+    companyName: string;
+    insiderName: string;
+    insiderRole: string | null;
+    transactionType: string;
+    totalValue: number;
+    shares: number;
+    is10b51Plan: boolean;
+    sharesOwnedAfter: number | null;
+    analysis: {
+      price_impact: { direction: string; magnitude: string; confidence: number };
+      conviction: number;
+      conclusion: string;
+      key_facts: string[];
+    };
+    priority: string;
+  }): string {
+    const icon = this.priorityIcon(data.priority);
+    const dirIcon = data.analysis.conviction > 0 ? '🟢' : '🔴';
+    const value = this.escapeMarkdown(`$${data.totalValue.toLocaleString('en-US')}`);
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
+
+    const lines = [
+      `${icon} *StockPulse Alert*`,
+      `*${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} Insider Signal`,
+      '',
+      `👤 *${this.escapeMarkdown(data.insiderName)}* \\(${this.escapeMarkdown(data.insiderRole ?? 'Unknown')}\\)`,
+      `• Transakcja: ${this.escapeMarkdown(data.transactionType)} ${this.escapeMarkdown(data.shares.toLocaleString('en-US'))} shares @ ${value}`,
+    ];
+
+    if (data.sharesOwnedAfter != null) {
+      lines.push(`• Udziały po transakcji: ${this.escapeMarkdown(data.sharesOwnedAfter.toLocaleString('en-US'))} shares`);
+    }
+
+    lines.push(`• Plan 10b5\\-1: ${data.is10b51Plan ? 'TAK' : 'NIE'}`);
+    lines.push('');
+    lines.push(`${dirIcon} *Wniosek GPT:*`);
+    lines.push(this.escapeMarkdown(data.analysis.conclusion.substring(0, 300)));
+    lines.push('');
+
+    for (const fact of data.analysis.key_facts.slice(0, 3)) {
+      lines.push(`• ${this.escapeMarkdown(fact.substring(0, 100))}`);
+    }
+
+    lines.push('');
+    lines.push(
+      `• Conviction: ${this.escapeMarkdown(data.analysis.conviction.toFixed(2))} \\| ` +
+        `Wpływ: ${this.escapeMarkdown(data.analysis.price_impact.direction)} / ${this.escapeMarkdown(data.analysis.price_impact.magnitude)}`,
+    );
+    lines.push(`⏰ ${timestamp}`);
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Formatuje alert 8-K z analizą GPT — Item number + wniosek AI.
+   */
+  formatForm8kGptAlert(data: {
+    symbol: string;
+    companyName: string;
+    itemNumber: string;
+    analysis: {
+      price_impact: { direction: string; magnitude: string; confidence: number };
+      conviction: number;
+      summary: string;
+      conclusion: string;
+      key_facts: string[];
+      catalyst_type: string;
+    };
+    priority: string;
+  }): string {
+    const icon = this.priorityIcon(data.priority);
+    const dirIcon = data.analysis.conviction > 0 ? '🟢' : '🔴';
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
+
+    const lines = [
+      `${icon} *StockPulse Alert*`,
+      `*${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} 8\\-K Item ${this.escapeMarkdown(data.itemNumber)}`,
+      '',
+      `📄 *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
+      `• Katalizator: ${this.escapeMarkdown(data.analysis.catalyst_type)}`,
+      '',
+      `${dirIcon} *Wniosek GPT:*`,
+      this.escapeMarkdown(data.analysis.conclusion.substring(0, 300)),
+      '',
+    ];
+
+    for (const fact of data.analysis.key_facts.slice(0, 4)) {
+      lines.push(`• ${this.escapeMarkdown(fact.substring(0, 100))}`);
+    }
+
+    lines.push('');
+    lines.push(
+      `• Conviction: ${this.escapeMarkdown(data.analysis.conviction.toFixed(2))} \\| ` +
+        `Wpływ: ${this.escapeMarkdown(data.analysis.price_impact.direction)} / ${this.escapeMarkdown(data.analysis.price_impact.magnitude)}`,
+    );
+    lines.push(`⏰ ${timestamp}`);
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Formatuje alert Bankruptcy (8-K Item 1.03) — CRITICAL, bez GPT.
+   */
+  formatBankruptcyAlert(data: {
+    symbol: string;
+    companyName: string;
+    filingDate: string;
+    documentUrl?: string;
+  }): string {
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
+
+    return [
+      `🔴 *StockPulse — CRITICAL*`,
+      '',
+      `⚠️ *BANKRUPTCY FILING* — \\$${this.escapeMarkdown(data.symbol)}`,
+      '',
+      `📄 *${this.escapeMarkdown(data.companyName)}* złożyło 8\\-K Item 1\\.03 \\(Bankruptcy\\)`,
+      `• Data filingu: ${this.escapeMarkdown(data.filingDate)}`,
+      data.documentUrl ? `• [Link do SEC](${data.documentUrl})` : '',
+      '',
+      `⏰ ${timestamp}`,
+    ].filter(Boolean).join('\n');
+  }
+
+  /**
+   * Formatuje alert skorelowanych sygnałów (CorrelationService).
+   */
+  formatCorrelatedAlert(data: {
+    symbol: string;
+    patternType: string;
+    patternLabel: string;
+    direction: string;
+    correlatedConviction: number;
+    description: string;
+    signals: { sourceCategory: string; catalystType: string; conviction: number }[];
+    priority: string;
+  }): string {
+    const icon = this.priorityIcon(data.priority);
+    const dirIcon = data.direction === 'positive' ? '🟢' : '🔴';
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
+
+    const lines = [
+      `${icon} *StockPulse Alert*`,
+      `*${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} ${this.escapeMarkdown(data.patternLabel)}`,
+      '',
+      `🔗 *Skorelowane sygnały:*`,
+    ];
+
+    for (const sig of data.signals.slice(0, 5)) {
+      lines.push(
+        `• ${this.escapeMarkdown(sig.sourceCategory.toUpperCase())}: ${this.escapeMarkdown(sig.catalystType)} — conviction ${this.escapeMarkdown(sig.conviction.toFixed(2))}`,
+      );
+    }
+
+    lines.push('');
+    lines.push(
+      `${dirIcon} Zagregowana conviction: ${this.escapeMarkdown(data.correlatedConviction.toFixed(2))} \\| ${this.escapeMarkdown(data.direction)}`,
+    );
+    lines.push(`ℹ️ ${this.escapeMarkdown(data.description.substring(0, 200))}`);
+    lines.push(`⏰ ${timestamp}`);
+
+    return lines.join('\n');
+  }
+
+  /**
    * Escapuje znaki specjalne MarkdownV2.
    */
   private escapeMarkdown(text: string): string {

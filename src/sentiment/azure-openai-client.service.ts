@@ -108,4 +108,42 @@ export class AzureOpenaiClientService {
       return null;
     }
   }
+
+  /**
+   * Wysyła custom prompt do Azure VM (endpoint /analyze/custom).
+   * Używany przez SEC Filing GPT Pipeline do analizy filingów z per-typ promptami.
+   * Graceful degradation: zwraca null gdy VM niedostępna lub endpoint nie istnieje.
+   */
+  async analyzeCustomPrompt(prompt: string): Promise<any | null> {
+    if (!this.enabled) return null;
+
+    try {
+      const response = await fetch(`${this.analysisUrl}/analyze/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          this.logger.warn(
+            'Azure VM nie wspiera /analyze/custom — pomijam analizę GPT. ' +
+              'Dodaj endpoint w stock_pulse_azure/processor.js.',
+          );
+        } else {
+          this.logger.error(
+            `Azure /analyze/custom error: ${response.status} — ${response.statusText}`,
+          );
+        }
+        return null;
+      }
+
+      const data = await response.json();
+      return data.result ?? data;
+    } catch (err) {
+      this.logger.error(`Błąd Azure /analyze/custom: ${err.message}`);
+      return null;
+    }
+  }
 }

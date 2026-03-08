@@ -45,6 +45,14 @@ export class SecFiling {
   @Column({ length: 500, nullable: true })
   documentUrl: string;
 
+  /** Analiza GPT filingu (price_impact, conviction, summary, key_facts itd.) */
+  @Column({ type: 'jsonb', nullable: true })
+  gptAnalysis: Record<string, any> | null;
+
+  /** Kierunek wpływu cenowego z analizy GPT (positive/negative/neutral) */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  priceImpactDirection: string | null;
+
   @CreateDateColumn()
   collectedAt: Date;
 }
