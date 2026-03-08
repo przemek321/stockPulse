@@ -936,6 +936,12 @@
         "condition": "CorrelationService detects multi-source pattern convergence",
         "priority": "CRITICAL",
         "throttle_minutes": 120
+      },
+      {
+        "name": "Urgent AI Signal",
+        "condition": "urgency=HIGH AND relevance>=0.7 AND confidence>=0.6",
+        "priority": "HIGH",
+        "throttle_minutes": 60
       }
     ]
   },

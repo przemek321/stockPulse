@@ -258,13 +258,33 @@ export class AlertEvaluatorService {
     gptConviction: number | null;
     effectiveScore: number | null;
     enrichedAnalysis: Record<string, any> | null;
-  }): Promise<void> {
-    await Promise.all([
+  }): Promise<{
+    symbol: string;
+    checks: {
+      sentimentCrash: string;
+      signalOverride: string;
+      highConviction: string;
+      strongFinbert: string;
+      urgentSignal: string;
+    };
+  }> {
+    const [crash, override, conviction, finbert, urgent] = await Promise.all([
       this.checkSentimentCrash(payload),
       this.checkSignalOverride(payload),
       this.checkHighConviction(payload),
       this.checkStrongFinbert(payload),
+      this.checkUrgentSignal(payload),
     ]);
+    return {
+      symbol: payload.symbol,
+      checks: {
+        sentimentCrash: crash,
+        signalOverride: override,
+        highConviction: conviction,
+        strongFinbert: finbert,
+        urgentSignal: urgent,
+      },
+    };
   }
 
   /**
@@ -281,10 +301,11 @@ export class AlertEvaluatorService {
     model: string;
     effectiveScore: number | null;
     enrichedAnalysis: Record<string, any> | null;
-  }): Promise<void> {
+  }): Promise<string> {
     const scoreForEval = payload.effectiveScore ?? payload.score;
 
-    if (scoreForEval >= -0.5 || payload.confidence < 0.7) return;
+    if (scoreForEval >= -0.5) return `SKIP: effectiveScore ${scoreForEval.toFixed(3)} >= -0.5`;
+    if (payload.confidence < 0.7) return `SKIP: confidence ${payload.confidence.toFixed(2)} < 0.7`;
 
     this.logger.debug(
       `Negatywny sentyment: ${payload.symbol} effectiveScore=${scoreForEval} finbert=${payload.score} (${payload.model})`,
@@ -294,7 +315,7 @@ export class AlertEvaluatorService {
     const rule = await this.ruleRepo.findOne({
       where: { name: ruleName, isActive: true },
     });
-    if (!rule) return;
+    if (!rule) return 'SKIP: reguła nieaktywna';
 
     const catalyst = payload.enrichedAnalysis?.catalyst_type;
 
@@ -304,7 +325,7 @@ export class AlertEvaluatorService {
       rule.throttleMinutes,
       catalyst,
     );
-    if (isThrottled) return;
+    if (isThrottled) return `THROTTLED: ${ruleName}`;
 
     const message = this.formatter.formatSentimentAlert({
       symbol: payload.symbol,
@@ -321,6 +342,7 @@ export class AlertEvaluatorService {
       conviction: Math.abs(scoreForEval),
       direction: 'negative',
     });
+    return `ALERT_SENT: ${ruleName}`;
   }
 
   /**
@@ -336,8 +358,9 @@ export class AlertEvaluatorService {
     gptConviction: number | null;
     effectiveScore: number | null;
     enrichedAnalysis: Record<string, any> | null;
-  }): Promise<void> {
-    if (payload.gptConviction == null || payload.effectiveScore == null) return;
+  }): Promise<string> {
+    if (payload.gptConviction == null || payload.effectiveScore == null)
+      return 'SKIP: brak gptConviction lub effectiveScore';
 
     const finbertScore = payload.score;
     const effectiveScore = payload.effectiveScore;
@@ -354,7 +377,8 @@ export class AlertEvaluatorService {
       direction = 'BEARISH';
     }
 
-    if (!direction) return;
+    if (!direction)
+      return `SKIP: brak override (finbert=${finbertScore.toFixed(3)}, effective=${effectiveScore.toFixed(3)})`;
 
     const ruleName = `${direction === 'BULLISH' ? 'Bullish' : 'Bearish'} Signal Override`;
     this.logger.debug(
@@ -364,7 +388,7 @@ export class AlertEvaluatorService {
     const rule = await this.ruleRepo.findOne({
       where: { name: ruleName, isActive: true },
     });
-    if (!rule) return;
+    if (!rule) return `SKIP: reguła ${ruleName} nieaktywna`;
 
     const catalyst = payload.enrichedAnalysis?.catalyst_type;
 
@@ -374,7 +398,7 @@ export class AlertEvaluatorService {
       rule.throttleMinutes,
       catalyst,
     );
-    if (isThrottled) return;
+    if (isThrottled) return `THROTTLED: ${ruleName}`;
 
     const ticker = await this.tickerRepo.findOne({
       where: { symbol: payload.symbol },
@@ -397,6 +421,7 @@ export class AlertEvaluatorService {
       conviction: Math.abs(effectiveScore),
       direction: direction === 'BULLISH' ? 'positive' : 'negative',
     });
+    return `ALERT_SENT: ${ruleName}`;
   }
 
   /**
@@ -411,10 +436,11 @@ export class AlertEvaluatorService {
     source: string;
     conviction: number | null;
     enrichedAnalysis: Record<string, any> | null;
-  }): Promise<void> {
-    if (payload.conviction == null || Math.abs(payload.conviction) < 1.5) {
-      return;
-    }
+  }): Promise<string> {
+    if (payload.conviction == null)
+      return 'SKIP: conviction null';
+    if (Math.abs(payload.conviction) < 1.5)
+      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 1.5`;
 
     this.logger.debug(
       `High conviction: ${payload.symbol} conviction=${payload.conviction}`,
@@ -424,7 +450,7 @@ export class AlertEvaluatorService {
     const rule = await this.ruleRepo.findOne({
       where: { name: ruleName, isActive: true },
     });
-    if (!rule) return;
+    if (!rule) return 'SKIP: reguła nieaktywna';
 
     const catalyst = payload.enrichedAnalysis?.catalyst_type;
 
@@ -434,7 +460,7 @@ export class AlertEvaluatorService {
       rule.throttleMinutes,
       catalyst,
     );
-    if (isThrottled) return;
+    if (isThrottled) return `THROTTLED: ${ruleName}`;
 
     const message = this.formatter.formatConvictionAlert({
       symbol: payload.symbol,
@@ -451,6 +477,7 @@ export class AlertEvaluatorService {
       conviction: Math.min(Math.abs(payload.conviction) / 2.0, 1.0), // normalizacja [-2,+2] → [0,1]
       direction: payload.conviction > 0 ? 'positive' : 'negative',
     });
+    return `ALERT_SENT: ${ruleName}`;
   }
 
   /**
@@ -464,11 +491,14 @@ export class AlertEvaluatorService {
     source: string;
     model: string;
     conviction: number | null;
-  }): Promise<void> {
+  }): Promise<string> {
     // Tylko sygnały bez analizy AI (VM offline lub nie eskalowany)
-    if (payload.conviction != null) return;
-    if (payload.model !== 'finbert') return;
-    if (Math.abs(payload.score) <= 0.7 || payload.confidence <= 0.8) return;
+    if (payload.conviction != null) return 'SKIP: conviction != null (ma analizę AI)';
+    if (payload.model !== 'finbert') return `SKIP: model=${payload.model} (nie finbert)`;
+    if (Math.abs(payload.score) <= 0.7)
+      return `SKIP: |score| ${Math.abs(payload.score).toFixed(3)} <= 0.7`;
+    if (payload.confidence <= 0.8)
+      return `SKIP: confidence ${payload.confidence.toFixed(2)} <= 0.8`;
 
     this.logger.debug(
       `Strong FinBERT (unconfirmed): ${payload.symbol} score=${payload.score} conf=${payload.confidence}`,
@@ -478,14 +508,14 @@ export class AlertEvaluatorService {
     const rule = await this.ruleRepo.findOne({
       where: { name: ruleName, isActive: true },
     });
-    if (!rule) return;
+    if (!rule) return 'SKIP: reguła nieaktywna';
 
     const isThrottled = await this.isThrottled(
       rule.name,
       payload.symbol,
       rule.throttleMinutes,
     );
-    if (isThrottled) return;
+    if (isThrottled) return `THROTTLED: ${ruleName}`;
 
     const message = this.formatter.formatStrongFinbertAlert({
       symbol: payload.symbol,
@@ -500,6 +530,72 @@ export class AlertEvaluatorService {
       conviction: Math.abs(payload.score),
       direction: payload.score > 0 ? 'positive' : 'negative',
     });
+    return `ALERT_SENT: ${ruleName}`;
+  }
+
+  /**
+   * Sprawdza regułę "Urgent AI Signal" — urgency=HIGH z wysoką relevance.
+   * Łapie sygnały (np. FDA approval), które mają niski conviction
+   * przez source_authority degradację (np. StockTwits = 0.15).
+   * Używa osobnej reguły z 60-min throttle per (rule, symbol, catalyst).
+   */
+  private async checkUrgentSignal(payload: {
+    symbol: string;
+    score: number;
+    confidence: number;
+    source: string;
+    conviction: number | null;
+    enrichedAnalysis: Record<string, any> | null;
+  }): Promise<string> {
+    const ea = payload.enrichedAnalysis;
+    if (!ea) return 'SKIP: brak enrichedAnalysis';
+    if (payload.conviction == null) return 'SKIP: conviction null';
+
+    if (ea.urgency !== 'HIGH')
+      return `SKIP: urgency=${ea.urgency ?? 'null'} (nie HIGH)`;
+    if ((ea.relevance ?? 0) < 0.7)
+      return `SKIP: relevance ${(ea.relevance ?? 0).toFixed(2)} < 0.7`;
+    if ((ea.confidence ?? 0) < 0.6)
+      return `SKIP: confidence ${(ea.confidence ?? 0).toFixed(2)} < 0.6`;
+    if (Math.abs(payload.conviction) < 0.1)
+      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 0.1`;
+
+    this.logger.debug(
+      `Urgent signal: ${payload.symbol} urgency=${ea.urgency} relevance=${ea.relevance} conviction=${payload.conviction}`,
+    );
+
+    const ruleName = 'Urgent AI Signal';
+    const rule = await this.ruleRepo.findOne({
+      where: { name: ruleName, isActive: true },
+    });
+    if (!rule) return 'SKIP: reguła nieaktywna';
+
+    const catalyst = ea.catalyst_type;
+
+    const isThrottled = await this.isThrottled(
+      rule.name,
+      payload.symbol,
+      rule.throttleMinutes,
+      catalyst,
+    );
+    if (isThrottled) return `THROTTLED: ${ruleName}`;
+
+    const message = this.formatter.formatConvictionAlert({
+      symbol: payload.symbol,
+      priority: rule.priority,
+      conviction: payload.conviction,
+      finbertScore: payload.score,
+      finbertConfidence: payload.confidence,
+      source: payload.source,
+      enrichedAnalysis: ea,
+    });
+
+    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+      sourceCategory: this.mapSourceCategory(payload.source),
+      conviction: Math.min(Math.abs(payload.conviction) / 2.0, 1.0),
+      direction: payload.conviction > 0 ? 'positive' : 'negative',
+    });
+    return `ALERT_SENT: ${ruleName}`;
   }
 
   /**
