@@ -304,7 +304,7 @@ export class SentimentProcessorService extends WorkerHost {
     }
 
     if (
-      result.confidence > TIER2_MIN_CONFIDENCE &&
+      result.confidence > TIER2_MIN_CONFIDENCE ||
       absScore > TIER2_MIN_ABS_SCORE
     ) {
       return {
