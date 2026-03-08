@@ -230,7 +230,9 @@ Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pi
   - ABBV, BMY, GILD, MRNA, REGN, VRTX, BIIB, AMGN + dodatkowe
 - [x] **Frontend: filtr BUY/SELL** w insider trades — wyświetlaj tylko transakcje BUY i SELL (nie GRANT, EXERCISE itp.)
 - [x] **Frontend: data kompilacji** w prawym dolnym rogu dashboardu
-- [x] **Fix conviction: AI suppress < 0.1** — conviction < 0.1 supresowane + source-based kalibracja prompta
+- [x] **Fix conviction: AI suppress + source-based kalibracja** (commit cddc7f3):
+  - **Bug: AI override suppression** — stara logika wymagała OBIE warunki (low conviction AND low urgency) do supresji, co przepuszczało garbage. Fix: usunięto dual-condition suppress, `effectiveScore = gptConviction / 2.0` bez warunków supresji. Reguła `checkUrgentSignal` łapie sygnały z urgency=HIGH nawet przy niskim conviction.
+  - **Bug: flat conviction** — `source` nie był przekazywany z NestJS → Azure VM → `buildPrompt()`, więc GPT nie mógł różnicować StockTwits (0.1-0.3) od SEC EDGAR (0.9-1.0). Fix: `source` dodany do payloadu `AzureOpenaiClientService.analyze()`, `processor.js buildPrompt()` ma `calibrationMap` per platforma (STOCKTWITS, REDDIT, FINNHUB, SEC_EDGAR)
 - [x] **Fix PDUFA context** — domyślne okno 90 dni (zamiast 30) dla wyszukiwania nadchodzących katalizatorów
 - [x] **Fix 4 krytyczne bugi w pipeline alertów**:
   - JSON parse error: pharma_biotech inside tickers object
