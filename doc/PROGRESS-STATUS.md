@@ -253,9 +253,9 @@ Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami +
   - Scorer: `scoreToAlertPriority()`, `mapToRuleName()`
   - Walidacja Zod z retry 1x, `SecFilingAnalysisSchema`
 - [x] **CorrelationModule** (`src/correlation/`) — detekcja wzorców między źródłami:
-  - `CorrelationService` (~300 linii) — 5 detektorów wzorców:
-    - `detectInsiderPlus8K` — Form 4 + 8-K w ciągu 24h
-    - `detectFilingConfirmsNews` — news → 8-K tego samego catalyst_type w 48h
+  - `CorrelationService` (~400 linii) — 5 detektorów wzorców:
+    - `detectInsiderPlus8K` — Form 4 (z `signals:insider`) + 8-K (z `signals:short`) w ciągu 24h
+    - `detectFilingConfirmsNews` — news → 8-K w 48h (catalyst_type `'unknown'` ignorowany przy matchowaniu)
     - `detectMultiSourceConvergence` — 3+ kategorie źródeł, ten sam kierunek, 24h
     - `detectInsiderCluster` — 2+ Form 4 jednego tickera w 7 dni
     - `detectEscalatingSignal` — rosnąca conviction w 72h, min |conviction| > 0.25
@@ -263,6 +263,7 @@ Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami +
   - Debounce 10s per ticker, deduplikacja Redis, throttling per pattern type
   - `aggregateConviction()` — bazowy najsilniejszy + 20% boost/źródło, cap 1.0
   - `getDominantDirection()` — wymaga 66% przewagi
+  - **Progi**: MIN_CONVICTION=0.05 (zapis do Redis), MIN_CORRELATED_CONVICTION=0.20 (wyzwolenie alertu)
 
 #### 4.2 Rozszerzenia istniejących modułów
 - [x] **Encje** — rozszerzenie `SecFiling` (+gptAnalysis JSONB, +priceImpactDirection) i `InsiderTrade` (+is10b51Plan, +sharesOwnedAfter)
