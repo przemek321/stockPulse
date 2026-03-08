@@ -10,6 +10,11 @@
 #   - pgAdmin wyłączony (oszczędność RAM-u, dostęp przez psql/DBeaver)
 
 services:
+  app:
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+
   finbert:
     build:
       context: ./finbert-sidecar

@@ -5,6 +5,7 @@ import { TickersController } from './tickers/tickers.controller';
 import { SentimentController } from './sentiment/sentiment.controller';
 import { AlertsController } from './alerts/alerts.controller';
 import { SystemLogsController } from './system-logs/system-logs.controller';
+import { SystemStatsService } from './health/system-stats.service';
 import {
   Ticker,
   SentimentScore,
@@ -50,5 +51,6 @@ import { AlertsModule } from '../alerts/alerts.module';
     AlertsController,
     SystemLogsController,
   ],
+  providers: [SystemStatsService],
 })
 export class ApiModule {}

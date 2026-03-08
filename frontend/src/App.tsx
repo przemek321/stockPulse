@@ -24,6 +24,7 @@ import SentimentChart from './components/SentimentChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt } from './api';
 import SystemLogsTab from './components/SystemLogsTab';
+import JetsonStatsBar from './components/JetsonStatsBar';
 
 /** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
 const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
@@ -143,6 +144,7 @@ export default function App() {
       {activeTab === 0 && (
         <>
           {/* Status kolektorów */}
+          <JetsonStatsBar />
           <CollectorStatus />
 
       <Divider sx={{ my: 3 }} />

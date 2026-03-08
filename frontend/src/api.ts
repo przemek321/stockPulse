@@ -192,6 +192,20 @@ export interface SystemLogFilters {
   dateTo?: string;
 }
 
+/* ── System Stats (Jetson) ─────────────────── */
+
+export interface SystemStats {
+  available: boolean;
+  temperature?: { zone: string; tempC: number }[];
+  ram?: { totalMB: number; usedMB: number; percent: number };
+  cpu?: { percent: number; cores: number };
+  gpu?: { percent: number } | null;
+}
+
+export const fetchSystemStats = () => get<SystemStats>('/health/system-stats');
+
+/* ── System Logs ──────────────────────────── */
+
 export const fetchSystemLogs = (filters: SystemLogFilters = {}) => {
   const params = new URLSearchParams();
   if (filters.module) params.set('module', filters.module);

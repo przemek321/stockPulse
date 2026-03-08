@@ -7,6 +7,7 @@ import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
 import { RedditService } from '../../collectors/reddit/reddit.service';
 import { PdufaBioService } from '../../collectors/pdufa-bio/pdufa-bio.service';
 import { TelegramService } from '../../alerts/telegram/telegram.service';
+import { SystemStatsService } from './system-stats.service';
 import {
   Ticker,
   RawMention,
@@ -42,6 +43,7 @@ export class HealthController {
     private readonly reddit: RedditService,
     private readonly pdufaBio: PdufaBioService,
     private readonly telegram: TelegramService,
+    private readonly systemStats: SystemStatsService,
     @InjectRepository(Ticker) private readonly tickerRepo: Repository<Ticker>,
     @InjectRepository(RawMention) private readonly mentionRepo: Repository<RawMention>,
     @InjectRepository(NewsArticle) private readonly newsRepo: Repository<NewsArticle>,
@@ -274,5 +276,15 @@ export class HealthController {
         pdufaStatus: pdufaStatus[0] || {},
       },
     };
+  }
+
+  /**
+   * Statystyki systemowe hosta (temperatura, RAM, CPU, GPU).
+   * Dostępne tylko na Jetson Orin NX (bind mount /proc i /sys).
+   * Na dev zwraca { available: false }.
+   */
+  @Get('system-stats')
+  async getSystemStats() {
+    return this.systemStats.getStats();
   }
 }
