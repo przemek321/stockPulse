@@ -21,6 +21,9 @@ import { DataSource } from '../common/interfaces/data-source.enum';
 /** Minimalna długość tekstu do analizy sentymentu (krótsze = szum) */
 const MIN_TEXT_LENGTH = 20;
 
+/** Maksymalny zakres conviction z GPT — normalizacja do [-1.0, +1.0] */
+const CONVICTION_MAX = 2.0;
+
 /**
  * Progi tier-based eskalacji do LLM (2. etap pipeline).
  * Tier 1 (silne): confidence > 0.7 AND absScore > 0.5 → ZAWSZE do AI (złote sygnały)
@@ -189,7 +192,15 @@ export class SentimentProcessorService extends WorkerHost {
         );
       }
 
-      // Zapisz wynik do sentiment_scores
+      // Oblicz effectiveScore — GPT ma pierwszeństwo nad FinBERT
+      const gptConviction: number | null =
+        enrichedAnalysis?.conviction ?? null;
+      const effectiveScore =
+        gptConviction !== null
+          ? this.normalizeConviction(gptConviction)
+          : result.score;
+
+      // Zapisz wynik do sentiment_scores (atomicznie z effectiveScore)
       const sentimentScore = this.sentimentRepo.create({
         symbol,
         score: result.score,
@@ -198,6 +209,8 @@ export class SentimentProcessorService extends WorkerHost {
         model: finalModel,
         rawText: textData.text.substring(0, 500),
         externalId: textData.externalId,
+        gptConviction,
+        effectiveScore,
         enrichedAnalysis,
       });
 
@@ -223,7 +236,9 @@ export class SentimentProcessorService extends WorkerHost {
         label: result.label,
         source,
         model: finalModel,
-        conviction: enrichedAnalysis?.conviction ?? null,
+        conviction: gptConviction,
+        gptConviction,
+        effectiveScore,
         enrichedAnalysis: enrichedAnalysis ?? null,
       });
 
@@ -250,6 +265,19 @@ export class SentimentProcessorService extends WorkerHost {
         `Błąd zapisu pipeline log: ${err instanceof Error ? err.message : err}`,
       );
     }
+  }
+
+  /**
+   * Normalizuje conviction z GPT [-2.0, +2.0] do zakresu [-1.0, +1.0].
+   * Dzięki temu progi w AlertEvaluator mają to samo znaczenie niezależnie od źródła.
+   */
+  private normalizeConviction(conviction: number): number {
+    if (Math.abs(conviction) > CONVICTION_MAX) {
+      this.logger.warn(
+        `Conviction ${conviction} poza zakresem [-${CONVICTION_MAX}, +${CONVICTION_MAX}] — obcięte`,
+      );
+    }
+    return Math.max(-1.0, Math.min(1.0, conviction / CONVICTION_MAX));
   }
 
   /**

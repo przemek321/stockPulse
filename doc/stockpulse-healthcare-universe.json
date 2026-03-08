@@ -888,6 +888,18 @@
         "condition": "model = 'finbert' AND abs(score) > 0.7 AND confidence > 0.8",
         "priority": "HIGH",
         "throttle_minutes": 60
+      },
+      {
+        "name": "Bullish Signal Override",
+        "condition": "FinBERT score < -0.5 but GPT returns normalized conviction > 0.1",
+        "priority": "HIGH",
+        "throttle_minutes": 60
+      },
+      {
+        "name": "Bearish Signal Override",
+        "condition": "FinBERT score > 0.5 but GPT returns normalized conviction < -0.1",
+        "priority": "HIGH",
+        "throttle_minutes": 60
       }
     ]
   },

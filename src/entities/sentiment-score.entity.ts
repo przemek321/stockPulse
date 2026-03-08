@@ -46,6 +46,22 @@ export class SentimentScore {
   externalId: string;
 
   /**
+   * Raw conviction z GPT, zakres [-2.0, +2.0].
+   * > 0 = BULLISH, < 0 = BEARISH, null = nie analizowano przez GPT.
+   * Denormalizacja — conviction jest też w enrichedAnalysis.conviction (JSONB).
+   * Osobna kolumna dla szybkich query SQL i indeksowania.
+   */
+  @Column({ type: 'float', nullable: true })
+  gptConviction: number | null;
+
+  /**
+   * Znormalizowany score do [-1.0, +1.0] — jedyne pole używane przez AlertEvaluator.
+   * = normalize(gptConviction) jeśli GPT analizował, = finbertScore jeśli FINBERT_ONLY.
+   */
+  @Column({ type: 'float', nullable: true })
+  effectiveScore: number | null;
+
+  /**
    * Wzbogacona analiza z LLM (gpt-4o-mini).
    * Nullable — wypełniane tylko gdy tekst przeszedł eskalację do 2. etapu pipeline.
    * Zawiera: sentiment, urgency, relevance, novelty, confidence, source_authority,

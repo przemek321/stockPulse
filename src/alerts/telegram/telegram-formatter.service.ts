@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { SignalDirection } from '../../common/types';
 
 /**
  * Formatter wiadomości alertów dla Telegram.
@@ -235,6 +236,52 @@ export class TelegramFormatterService {
 
     lines.push('');
     lines.push(`\u{1F4CC} Źródło: ${this.escapeMarkdown(data.source)}`);
+    lines.push(`\u23F0 ${timestamp}`);
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Formatuje alert Signal Override — GPT koryguje FinBERT (Bullish lub Bearish).
+   * Pokazuje konflikt modeli: FinBERT score vs GPT conviction + effective score.
+   */
+  formatSignalOverrideAlert(data: {
+    symbol: string;
+    companyName: string;
+    finbertScore: number;
+    gptConviction: number;
+    effectiveScore: number;
+    direction: SignalDirection;
+    catalystType: string;
+    summary: string;
+    priority: string;
+  }): string {
+    const icon = this.priorityIcon(data.priority);
+    const dirIcon = data.direction === 'BULLISH' ? '\u{1F7E2}' : '\u{1F534}';
+    const dirLabel = data.direction === 'BULLISH' ? 'Bullish' : 'Bearish';
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
+
+    const lines = [
+      `${icon} *StockPulse Alert*`,
+      '',
+      `${dirIcon} *${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} ${this.escapeMarkdown(dirLabel)} Signal Override`,
+      '',
+      `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
+      `\u2022 FinBERT: ${this.escapeMarkdown(data.finbertScore.toFixed(3))}`,
+      `\u2022 GPT override: ${this.escapeMarkdown(data.direction)} ${this.escapeMarkdown(data.gptConviction.toFixed(3))}`,
+      `\u2022 Effective score: ${this.escapeMarkdown(data.effectiveScore.toFixed(3))}`,
+    ];
+
+    if (data.catalystType && data.catalystType !== 'unknown') {
+      lines.push(`\u2022 Katalizator: ${this.escapeMarkdown(data.catalystType)}`);
+    }
+
+    if (data.summary) {
+      lines.push(`\u2022 ${this.escapeMarkdown(data.summary.substring(0, 200))}`);
+    }
+
+    lines.push('');
+    lines.push('\u26A0\uFE0F Konflikt modeli — wymaga weryfikacji');
     lines.push(`\u23F0 ${timestamp}`);
 
     return lines.join('\n');

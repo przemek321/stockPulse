@@ -6,6 +6,7 @@ import { Alert, AlertRule, Ticker } from '../entities';
 import { EventType } from '../events/event-types';
 import { TelegramService } from './telegram/telegram.service';
 import { TelegramFormatterService } from './telegram/telegram-formatter.service';
+import { SignalDirection } from '../common/types';
 
 /**
  * Ewaluator reguł alertów.
@@ -218,10 +219,12 @@ export class AlertEvaluatorService {
 
   /**
    * Reaguje na wynik analizy sentymentu.
-   * Sprawdza dwa niezależne warunki:
-   * 1. Sentiment Crash: score < -0.5 AND confidence > 0.7
-   * 2. High Conviction Signal: |conviction| > 1.5
-   * 3. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
+   * Sprawdza 5 niezależnych reguł (mogą odpalić jednocześnie):
+   * 1. Sentiment Crash: effectiveScore < -0.5 AND confidence > 0.7
+   * 2. Bullish Signal Override: FinBERT < -0.5, GPT mówi BULLISH (effectiveScore > 0.1)
+   * 3. Bearish Signal Override: FinBERT > 0.5, GPT mówi BEARISH (effectiveScore < -0.1)
+   * 4. High Conviction Signal: |conviction| > 1.5 (raw, nieznormalizowany)
+   * 5. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
    */
   @OnEvent(EventType.SENTIMENT_SCORED)
   async onSentimentScored(payload: {
@@ -233,10 +236,13 @@ export class AlertEvaluatorService {
     source: string;
     model: string;
     conviction: number | null;
+    gptConviction: number | null;
+    effectiveScore: number | null;
     enrichedAnalysis: Record<string, any> | null;
   }): Promise<void> {
     await Promise.all([
       this.checkSentimentCrash(payload),
+      this.checkSignalOverride(payload),
       this.checkHighConviction(payload),
       this.checkStrongFinbert(payload),
     ]);
@@ -244,6 +250,9 @@ export class AlertEvaluatorService {
 
   /**
    * Sprawdza regułę "Sentiment Crash" — silny negatywny sygnał.
+   * Używa effectiveScore (= znormalizowany GPT conviction LUB FinBERT score).
+   * Stara logika supresji AI usunięta — effectiveScore przejmuje tę odpowiedzialność:
+   * jeśli GPT mówi bullish/neutral, effectiveScore > -0.5, więc Crash nie odpali.
    */
   private async checkSentimentCrash(payload: {
     symbol: string;
@@ -251,37 +260,15 @@ export class AlertEvaluatorService {
     confidence: number;
     source: string;
     model: string;
+    effectiveScore: number | null;
     enrichedAnalysis: Record<string, any> | null;
   }): Promise<void> {
-    if (payload.score >= -0.5 || payload.confidence < 0.7) return;
+    const scoreForEval = payload.effectiveScore ?? payload.score;
 
-    // AI override: jeśli AI przeanalizowało tekst i mówi „to nic" → nie wysyłaj alertu
-    // FinBERT może krzyczeć -0.9, ale AI wie że tekst jest neutralny (conviction ≈ 0)
-    if (payload.enrichedAnalysis) {
-      const conviction = Number(payload.enrichedAnalysis.conviction ?? 0);
-      const urgency = payload.enrichedAnalysis.urgency;
-
-      // Poziom 1: conviction < 0.1 = śmieć, suppress zawsze (niezależnie od urgency)
-      if (Math.abs(conviction) < 0.1) {
-        this.logger.debug(
-          `Pominięto Sentiment Crash ${payload.symbol} — AI override: ` +
-            `conviction=${conviction} < 0.1 (FinBERT score=${payload.score})`,
-        );
-        return;
-      }
-
-      // Poziom 2: conviction < 0.3 + urgency LOW = nieistotne
-      if (Math.abs(conviction) < 0.3 && urgency === 'LOW') {
-        this.logger.debug(
-          `Pominięto Sentiment Crash ${payload.symbol} — AI override: ` +
-            `conviction=${conviction}, urgency=${urgency} (FinBERT score=${payload.score})`,
-        );
-        return;
-      }
-    }
+    if (scoreForEval >= -0.5 || payload.confidence < 0.7) return;
 
     this.logger.debug(
-      `Negatywny sentyment: ${payload.symbol} score=${payload.score} (${payload.model})`,
+      `Negatywny sentyment: ${payload.symbol} effectiveScore=${scoreForEval} finbert=${payload.score} (${payload.model})`,
     );
 
     const ruleName = 'Sentiment Crash';
@@ -305,7 +292,7 @@ export class AlertEvaluatorService {
       companyName: payload.symbol,
       priority: rule.priority,
       ruleName,
-      sentimentScore: payload.score,
+      sentimentScore: scoreForEval,
       details: `Model: ${payload.model}, Źródło: ${payload.source}, Confidence: ${payload.confidence.toFixed(2)}`,
       enrichedAnalysis: payload.enrichedAnalysis,
     });
@@ -314,8 +301,81 @@ export class AlertEvaluatorService {
   }
 
   /**
+   * Sprawdza reguły "Bullish/Bearish Signal Override" — GPT koryguje FinBERT.
+   * Bullish Override: FinBERT < -0.5, GPT mówi BULLISH (effectiveScore > 0.1)
+   * Bearish Override: FinBERT > 0.5, GPT mówi BEARISH (effectiveScore < -0.1)
+   */
+  private async checkSignalOverride(payload: {
+    symbol: string;
+    score: number;
+    confidence: number;
+    source: string;
+    gptConviction: number | null;
+    effectiveScore: number | null;
+    enrichedAnalysis: Record<string, any> | null;
+  }): Promise<void> {
+    if (payload.gptConviction == null || payload.effectiveScore == null) return;
+
+    const finbertScore = payload.score;
+    const effectiveScore = payload.effectiveScore;
+
+    let direction: SignalDirection | null = null;
+
+    // Bullish Override: FinBERT widzi intensywny negatywny tekst, GPT koryguje na BULLISH
+    if (finbertScore < -0.5 && effectiveScore > 0.1) {
+      direction = 'BULLISH';
+    }
+
+    // Bearish Override: FinBERT widzi pozytywny tekst, GPT koryguje na BEARISH
+    if (finbertScore > 0.5 && effectiveScore < -0.1) {
+      direction = 'BEARISH';
+    }
+
+    if (!direction) return;
+
+    const ruleName = `${direction === 'BULLISH' ? 'Bullish' : 'Bearish'} Signal Override`;
+    this.logger.debug(
+      `${ruleName}: ${payload.symbol} finbert=${finbertScore} effectiveScore=${effectiveScore} gptConviction=${payload.gptConviction}`,
+    );
+
+    const rule = await this.ruleRepo.findOne({
+      where: { name: ruleName, isActive: true },
+    });
+    if (!rule) return;
+
+    const catalyst = payload.enrichedAnalysis?.catalyst_type;
+
+    const isThrottled = await this.isThrottled(
+      rule.name,
+      payload.symbol,
+      rule.throttleMinutes,
+      catalyst,
+    );
+    if (isThrottled) return;
+
+    const ticker = await this.tickerRepo.findOne({
+      where: { symbol: payload.symbol },
+    });
+
+    const message = this.formatter.formatSignalOverrideAlert({
+      symbol: payload.symbol,
+      companyName: ticker?.name ?? payload.symbol,
+      finbertScore,
+      gptConviction: payload.gptConviction,
+      effectiveScore,
+      direction,
+      catalystType: catalyst ?? 'unknown',
+      summary: payload.enrichedAnalysis?.summary ?? '',
+      priority: rule.priority,
+    });
+
+    await this.sendAlert(payload.symbol, rule, message, catalyst);
+  }
+
+  /**
    * Sprawdza regułę "High Conviction Signal" — |conviction| > 1.5.
    * Wymaga enrichedAnalysis (wynik 2-etapowej analizy AI).
+   * UWAGA: używa raw gptConviction (skala [-2, +2]), NIE effectiveScore.
    */
   private async checkHighConviction(payload: {
     symbol: string;
