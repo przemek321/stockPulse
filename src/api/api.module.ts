@@ -21,6 +21,7 @@ import {
 } from '../entities';
 import { CollectorsModule } from '../collectors/collectors.module';
 import { AlertsModule } from '../alerts/alerts.module';
+import { PriceOutcomeModule } from '../price-outcome/price-outcome.module';
 
 /**
  * Moduł REST API.
@@ -43,6 +44,7 @@ import { AlertsModule } from '../alerts/alerts.module';
     ]),
     CollectorsModule,
     AlertsModule,
+    PriceOutcomeModule,
   ],
   controllers: [
     HealthController,

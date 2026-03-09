@@ -10,6 +10,8 @@ import { Logged } from '../common/decorators/logged.decorator';
  * CRON service uzupełniający ceny akcji po wysłaniu alertu.
  * Sprawdza co godzinę alerty z priceAtAlert, ale bez kompletnych danych cenowych.
  * Uzupełnia price1h/4h/1d/3d w zależności od czasu od alertu.
+ *
+ * Optymalizacja: grupuje alerty per symbol, 1 zapytanie Finnhub na symbol (nie na slot).
  */
 @Injectable()
 export class PriceOutcomeService {
@@ -34,6 +36,7 @@ export class PriceOutcomeService {
 
   /**
    * CRON co godzinę — uzupełnia ceny dla alertów oczekujących na outcome.
+   * Grupuje po symbolu: 1 zapytanie API = wszystkie sloty tego symbolu.
    */
   @Cron('0 * * * *')
   @Logged('price-outcome')
@@ -56,7 +59,15 @@ export class PriceOutcomeService {
     let quotesUsed = 0;
     let updated = 0;
 
+    // Grupuj alerty per symbol — 1 zapytanie API per symbol zamiast per alert
+    const bySymbol = new Map<string, Alert[]>();
     for (const alert of alerts) {
+      const list = bySymbol.get(alert.symbol) ?? [];
+      list.push(alert);
+      bySymbol.set(alert.symbol, list);
+    }
+
+    for (const [symbol, symbolAlerts] of bySymbol) {
       if (quotesUsed >= this.MAX_QUOTES_PER_CYCLE) {
         this.logger.debug(
           `PriceOutcome: limit ${this.MAX_QUOTES_PER_CYCLE} zapytań — reszta w następnym cyklu`,
@@ -64,43 +75,54 @@ export class PriceOutcomeService {
         break;
       }
 
-      const alertTime = new Date(alert.sentAt).getTime();
-      let changed = false;
+      // Sprawdź czy którykolwiek alert tego symbolu potrzebuje ceny
+      let needsQuote = false;
+      for (const alert of symbolAlerts) {
+        const alertTime = new Date(alert.sentAt).getTime();
+        for (const slot of this.SLOTS) {
+          if (alertTime + slot.delayMs <= now && alert[slot.field] == null) {
+            needsQuote = true;
+            break;
+          }
+        }
+        if (needsQuote) break;
+      }
 
-      for (const slot of this.SLOTS) {
-        // Slot jeszcze nie minął
-        if (alertTime + slot.delayMs > now) continue;
-
-        // Slot już wypełniony
-        if (alert[slot.field] != null) continue;
-
-        // Pobierz cenę
-        if (quotesUsed >= this.MAX_QUOTES_PER_CYCLE) break;
-        const price = await this.finnhub.getQuote(alert.symbol);
+      // Pobierz cenę raz per symbol
+      let price: number | null = null;
+      if (needsQuote) {
+        price = await this.finnhub.getQuote(symbol);
         quotesUsed++;
+      }
 
-        if (price != null) {
-          (alert as any)[slot.field] = price;
-          changed = true;
-          this.logger.debug(
-            `PriceOutcome: ${alert.symbol} ${slot.label}=$${price} (alert #${alert.id})`,
-          );
+      // Wypełnij WSZYSTKIE due sloty dla wszystkich alertów tego symbolu
+      for (const alert of symbolAlerts) {
+        const alertTime = new Date(alert.sentAt).getTime();
+        let changed = false;
+
+        for (const slot of this.SLOTS) {
+          if (alertTime + slot.delayMs > now) continue;
+          if (alert[slot.field] != null) continue;
+
+          if (price != null) {
+            (alert as any)[slot.field] = price;
+            changed = true;
+            this.logger.debug(
+              `PriceOutcome: ${symbol} ${slot.label}=$${price} (alert #${alert.id})`,
+            );
+          }
         }
 
-        // Dla tego alertu pobieramy jedną cenę na cykl
-        // (ta sama cena dotyczy jednego momentu — nie pobieraj wielokrotnie)
-        break;
-      }
+        // Sprawdź czy najdłuższy slot (3d) minął
+        if (alertTime + this.SLOTS[3].delayMs <= now) {
+          alert.priceOutcomeDone = true;
+          changed = true;
+        }
 
-      // Sprawdź czy najdłuższy slot (3d) się wypełnił lub minął
-      if (alertTime + this.SLOTS[3].delayMs <= now) {
-        alert.priceOutcomeDone = true;
-        changed = true;
-      }
-
-      if (changed) {
-        await this.alertRepo.save(alert);
-        updated++;
+        if (changed) {
+          await this.alertRepo.save(alert);
+          updated++;
+        }
       }
     }
 
@@ -108,5 +130,58 @@ export class PriceOutcomeService {
       `PriceOutcome: przetworzono ${updated}/${alerts.length}, zapytań Finnhub: ${quotesUsed}`,
     );
     return { processed: alerts.length, updated };
+  }
+
+  /**
+   * Backfill: ustawia priceAtAlert dla starych alertów, które go nie mają.
+   * Używa aktualnej ceny Finnhub (przybliżenie — lepsza niż null).
+   * Oznacza alerty starsze niż 3d jako priceOutcomeDone=true.
+   */
+  async backfillOldAlerts(): Promise<{ backfilled: number; closedExpired: number }> {
+    // 1. Zamknij stare alerty (>3d) bez priceAtAlert — nie da się ich uzupełnić
+    const THREE_DAYS_MS = 72 * 60 * 60 * 1000;
+    const cutoffDate = new Date(Date.now() - THREE_DAYS_MS);
+
+    const expiredAlerts = await this.alertRepo
+      .createQueryBuilder('alert')
+      .where('alert.priceAtAlert IS NULL')
+      .andWhere('alert.priceOutcomeDone = false')
+      .andWhere('alert.sentAt < :cutoff', { cutoff: cutoffDate })
+      .getMany();
+
+    let closedExpired = 0;
+    for (const alert of expiredAlerts) {
+      alert.priceOutcomeDone = true;
+      await this.alertRepo.save(alert);
+      closedExpired++;
+    }
+
+    // 2. Backfill alertów <3d bez priceAtAlert — ustaw aktualną cenę
+    const recentAlerts = await this.alertRepo
+      .createQueryBuilder('alert')
+      .where('alert.priceAtAlert IS NULL')
+      .andWhere('alert.priceOutcomeDone = false')
+      .andWhere('alert.sentAt >= :cutoff', { cutoff: cutoffDate })
+      .getMany();
+
+    let backfilled = 0;
+    const priceCache = new Map<string, number | null>();
+
+    for (const alert of recentAlerts) {
+      if (!priceCache.has(alert.symbol)) {
+        priceCache.set(alert.symbol, await this.finnhub.getQuote(alert.symbol));
+      }
+      const price = priceCache.get(alert.symbol);
+      if (price != null) {
+        alert.priceAtAlert = price as any;
+        await this.alertRepo.save(alert);
+        backfilled++;
+      }
+    }
+
+    this.logger.log(
+      `PriceOutcome backfill: zamknięto ${closedExpired} expired, backfill ${backfilled} recent`,
+    );
+    return { backfilled, closedExpired };
   }
 }

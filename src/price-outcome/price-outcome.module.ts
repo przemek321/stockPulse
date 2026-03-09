@@ -14,5 +14,6 @@ import { PriceOutcomeService } from './price-outcome.service';
     FinnhubModule,
   ],
   providers: [PriceOutcomeService],
+  exports: [PriceOutcomeService],
 })
 export class PriceOutcomeModule {}

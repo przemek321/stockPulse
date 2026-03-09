@@ -1,7 +1,8 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull } from 'typeorm';
 import { Alert, AlertRule } from '../../entities';
+import { PriceOutcomeService } from '../../price-outcome/price-outcome.service';
 
 /**
  * GET /api/alerts — historia alertów i reguły.
@@ -13,6 +14,7 @@ export class AlertsController {
     private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule)
     private readonly ruleRepo: Repository<AlertRule>,
+    private readonly priceOutcome: PriceOutcomeService,
   ) {}
 
   /**
@@ -119,5 +121,14 @@ export class AlertsController {
     });
 
     return { count: outcomes.length, outcomes };
+  }
+
+  /**
+   * Backfill starych alertów bez priceAtAlert.
+   * Zamyka expired (>3d) i uzupełnia recent (<3d) aktualną ceną.
+   */
+  @Post('outcomes/backfill')
+  async backfillOutcomes() {
+    return this.priceOutcome.backfillOldAlerts();
   }
 }
