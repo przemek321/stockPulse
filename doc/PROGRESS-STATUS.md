@@ -6,7 +6,7 @@
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 9 krytycznych fixów** (ukończony)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony)
 
 Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 19 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
 
@@ -396,6 +396,10 @@ Kompleksowy code review backendu i frontendu pod kątem spójności logicznej, r
 
 #### 7.5 Backend — cleanup
 - [x] **Fix: CorrelationService OnModuleDestroy** — brak cleanup timerów `pendingChecks` (setTimeout) przy zamknięciu modułu → potencjalny memory leak. Fix: implementacja `OnModuleDestroy` z `clearTimeout` + `clear()`.
+
+#### 7.6 SEC Filing Pipeline — martwe listenery (2026-03-09)
+- [x] **Fix: kolejność dekoratorów @OnEvent/@Logged** — `Form8kPipeline.onFiling()` i `Form4Pipeline.onInsiderTrade()` miały `@Logged` NAD `@OnEvent`. TypeScript stosuje dekoratory od dołu: `@OnEvent` (wewnętrzny) ustawiał metadata na oryginalnej funkcji przez `SetMetadata`, potem `@Logged` (zewnętrzny) podmieniał `descriptor.value` na wrapper — metadata zostawała na starej referencji. NestJS EventEmitter nie znajdował listenera → pipeline GPT dla SEC filingów **nigdy się nie uruchamiał** (0 wpisów w `system_logs` dla `module='sec-filings'`). Fix: zamiana kolejności na `@OnEvent` (góra) → `@Logged` (dół), spójnie z `alert-evaluator.service.ts` gdzie kolejność była prawidłowa.
+  - Dotyczy: `src/sec-filings/pipelines/form8k.pipeline.ts`, `src/sec-filings/pipelines/form4.pipeline.ts`
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.

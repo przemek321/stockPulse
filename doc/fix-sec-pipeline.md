@@ -1000,3 +1000,33 @@ Po ukończeniu kroków 1-7 z sekcji głównej:
 - Nie zastępuj istniejących alertów correlated alertem — ADD on top, nie REPLACE
 - Nie przechowuj pełnego tekstu sygnału w Redis — tylko metadane (StoredSignal interface)
 - Nie sprawdzaj wzorców dla tickerów gdzie w Redis jest tylko 1 sygnał
+
+---
+
+## Bugfix: kolejność dekoratorów @OnEvent / @Logged (2026-03-09)
+
+### Problem
+
+`Form8kPipeline.onFiling()` i `Form4Pipeline.onInsiderTrade()` **nigdy nie były wywoływane** przez EventEmitter2. Potwierdzone: `system_logs` miał 0 wpisów dla `module='sec-filings'` od momentu wdrożenia.
+
+### Przyczyna
+
+Zła kolejność dekoratorów w pipeline'ach SEC:
+
+```typescript
+// ❌ BŁĘDNA kolejność (form8k.pipeline.ts, form4.pipeline.ts)
+@Logged('sec-filings')          // zewnętrzny — podmienia descriptor.value na wrapper
+@OnEvent(EventType.NEW_FILING)  // wewnętrzny — ustawia metadata na ORYGINALNEJ funkcji
+async onFiling(payload) { ... }
+
+// ✅ PRAWIDŁOWA kolejność (alert-evaluator.service.ts)
+@OnEvent(EventType.NEW_FILING)  // zewnętrzny — ustawia metadata na WRAPPERZE
+@Logged('alerts')               // wewnętrzny — podmienia descriptor.value na wrapper
+async onFiling(payload) { ... }
+```
+
+TypeScript stosuje dekoratory **od dołu do góry**. NestJS `SetMetadata` (używany przez `@OnEvent`) zapisuje metadata na `descriptor.value` — konkretnej referencji do funkcji. Gdy `@Logged` potem podmienia `descriptor.value` na nową funkcję-wrapper, metadata zostaje na starej (nieużywanej) referencji. `EventSubscribersLoader` w NestJS szuka metadata na aktualnym `prototype[methodKey]` = wrapper → nie znajduje → nie rejestruje listenera.
+
+### Reguła
+
+**`@OnEvent` zawsze NAD `@Logged`** — NestJS metadata musi być ustawiona na finalnej wersji funkcji (po wrappowaniu przez `@Logged`).
