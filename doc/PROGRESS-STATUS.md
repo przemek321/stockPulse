@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-03-08
+> Ostatnia aktualizacja: 2026-03-09
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 9 krytycznych fixów** (ukończony)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców. AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 19 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 19 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -156,7 +156,7 @@ Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pi
 ### Sprint 2f: Tier-based eskalacja AI + High Conviction Signal (ukończony 2026-03-01)
 - [x] **Tier-based eskalacja** w `SentimentProcessorService` — zastąpienie prostej bramki eskalacji (conf<0.6 OR abs<0.3) systemem 3-tierowym:
   - **Tier 1 (silne)**: confidence > 0.7 AND absScore > 0.5 → ZAWSZE do AI (złote sygnały)
-  - **Tier 2 (średnie)**: confidence > 0.3 OR absScore > 0.2 → do AI jeśli VM aktywna
+  - **Tier 2 (średnie)**: confidence > 0.3 AND absScore > 0.2 → do AI jeśli VM aktywna
   - **Tier 3 (śmieci)**: skip AI, tylko FinBERT
 - [x] **Nowa reguła alertów** "High Conviction Signal" — reguła w healthcare-universe.json
   - Warunek: |conviction| > 1.5 AND enrichedAnalysis IS NOT NULL
@@ -371,6 +371,30 @@ Mierzenie trafności alertów — zapis ceny akcji w momencie alertu i śledzeni
 - [x] **Opt: isThrottled count()** — `alertRepo.count()` zamiast `findOne()` (lżejsze zapytanie)
 - [x] **Opt: typ FindOptionsWhere** — `FindOptionsWhere<Alert>` zamiast `any`
 - [x] **Testy**: `test/unit/alert-evaluator.spec.ts` — 21 testów pokrywających wszystkie fixy
+
+### Sprint 7: Przegląd logiki + 9 krytycznych fixów (ukończony 2026-03-09)
+
+Kompleksowy code review backendu i frontendu pod kątem spójności logicznej, race conditions, anty-wzorców React i brakującej persystencji danych.
+
+#### 7.1 Frontend (React)
+- [x] **Fix: setState w useMemo** — `SentimentChart.tsx`: `setSelectedTicker()` przeniesiony z `useMemo` do `useEffect` (naruszenie zasad Reacta, potencjalne nieskończone re-rendery)
+- [x] **Fix: zbędny fetchTickers()** — `SentimentChart.tsx`: usunięte wywołanie `fetchTickers()` w `Promise.all` z odrzucanym wynikiem (zbędne zapytanie API)
+
+#### 7.2 Backend — persystencja i type safety
+- [x] **Fix: Form4Pipeline brak zapisu GPT** — analiza GPT Form 4 nie była zapisywana do bazy (utrata danych). Dodany `@InjectRepository(SecFiling)`, zapis `gptAnalysis` + `priceImpactDirection` do SecFiling po bazowym accessionNumber (`trade.accessionNumber.replace(/_\d+$/, '')`)
+- [x] **Fix: SentimentController getRepository string** — `getRepository('SecFiling')` zmienione na `getRepository(SecFiling)` z klasą (type safety)
+
+#### 7.3 Backend — conviction scale i direction
+- [x] **Fix: conviction scale mismatch** — Form4Pipeline i Form8kPipeline przekazywały surowy conviction [-2.0, +2.0] do CorrelationService, podczas gdy reszta systemu normalizuje do [-1.0, +1.0]. SEC filingi miały 2x większą wagę w detektorach korelacji. Fix: `conviction / 2.0` z clamp przed zapisem do Redis.
+- [x] **Fix: neutral direction** — AlertEvaluator wymuszał `direction='positive'` gdy neutral. Fix: derywacja z `conviction >= 0 ? 'positive' : 'negative'`
+
+#### 7.4 Backend — race condition i throttling
+- [x] **Fix: DailyCapService race condition** — `canCallGpt()` (GET) + `recordGptCall()` (INCR) nie były atomowe → dwa równoczesne eventy mogły przekroczyć daily cap. Fix: atomowy `INCR` + `DECR` rollback w `canCallGpt()`, `recordGptCall()` jest teraz no-op (slot rezerwowany atomowo).
+- [x] **Fix: Tier 2 OR → AND** — `classifyTier()` używał OR zamiast AND, co eskalowało ~33% więcej sygnałów do Azure. Sygnał z confidence=0.25 i absScore=0.21 nie powinien iść do AI.
+- [x] **Fix: Form4 catalyst_type throttling** — Form4Pipeline nie przekazywał `catalyst_type` do `checkThrottled()` (w przeciwieństwie do Form8k). CEO SELL + CFO SELL tego samego dnia były throttlowane razem. Fix: dodany parametr `catalystType` do `checkThrottled()`.
+
+#### 7.5 Backend — cleanup
+- [x] **Fix: CorrelationService OnModuleDestroy** — brak cleanup timerów `pendingChecks` (setTimeout) przy zamknięciu modułu → potencjalny memory leak. Fix: implementacja `OnModuleDestroy` z `clearTimeout` + `clear()`.
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
