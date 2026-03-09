@@ -58,8 +58,8 @@ export class Form8kPipeline {
     );
   }
 
-  @Logged('sec-filings')
   @OnEvent(EventType.NEW_FILING)
+  @Logged('sec-filings')
   async onFiling(payload: {
     filingId: number;
     symbol: string;

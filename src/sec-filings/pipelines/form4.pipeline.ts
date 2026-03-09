@@ -44,8 +44,8 @@ export class Form4Pipeline {
     @Optional() private readonly correlation?: CorrelationService,
   ) {}
 
-  @Logged('sec-filings')
   @OnEvent(EventType.NEW_INSIDER_TRADE)
+  @Logged('sec-filings')
   async onInsiderTrade(payload: {
     tradeId: number;
     symbol: string;
