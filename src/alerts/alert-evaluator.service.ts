@@ -656,7 +656,9 @@ export class AlertEvaluatorService implements OnModuleDestroy {
           ticker: symbol,
           source_category: correlationData.sourceCategory,
           conviction: correlationData.conviction,
-          direction: correlationData.direction === 'neutral' ? 'positive' : correlationData.direction,
+          direction: correlationData.direction === 'neutral'
+            ? (correlationData.conviction >= 0 ? 'positive' : 'negative')
+            : correlationData.direction,
           catalyst_type: catalystType ?? 'unknown',
           timestamp: Date.now(),
         };

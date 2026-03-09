@@ -195,13 +195,15 @@ export class Form8kPipeline {
       );
 
       // Rejestruj sygnał w CorrelationService
+      // Normalizacja conviction z [-2.0, +2.0] (GPT) → [-1.0, +1.0] (CorrelationService)
       if (this.correlation) {
         try {
+          const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {
             id: `8k-gpt-${payload.symbol}-${mainItem}-${Date.now()}`,
             ticker: payload.symbol,
             source_category: '8k',
-            conviction: analysis.conviction,
+            conviction: normalizedConviction,
             direction: analysis.conviction >= 0 ? 'positive' : 'negative',
             catalyst_type: analysis.catalyst_type,
             timestamp: Date.now(),

@@ -23,7 +23,7 @@ import {
   ResponsiveContainer,
   Dot,
 } from 'recharts';
-import { fetchSentimentScores, fetchTickers, SentimentScore } from '../api';
+import { fetchSentimentScores, SentimentScore } from '../api';
 
 /** Formatowanie daty na oś X */
 const fmtShort = (ts: string) =>
@@ -157,10 +157,7 @@ export default function SentimentChart() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [scoresRes] = await Promise.all([
-          fetchSentimentScores(500),
-          fetchTickers(),
-        ]);
+        const scoresRes = await fetchSentimentScores(500);
         setAllScores(scoresRes.scores || []);
       } catch (e: any) {
         setError(e.message);
@@ -212,14 +209,16 @@ export default function SentimentChart() {
       });
     }
 
-    // Domyślnie wybierz ticker z największą liczbą wzmianek
-    if (!selectedTicker && rows.length > 0) {
-      const top = [...rows].sort((a, b) => b.total - a.total)[0];
-      setSelectedTicker(top.symbol);
-    }
-
     return rows;
   }, [allScores]);
+
+  /** Domyślnie wybierz ticker z największą liczbą wzmianek */
+  useEffect(() => {
+    if (!selectedTicker && tickerRows.length > 0) {
+      const top = [...tickerRows].sort((a, b) => b.total - a.total)[0];
+      setSelectedTicker(top.symbol);
+    }
+  }, [tickerRows, selectedTicker]);
 
   /** Posortowane wiersze tabeli */
   const sortedRows = useMemo(() => {

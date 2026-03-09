@@ -3,7 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { EventType } from '../../events/event-types';
-import { InsiderTrade, Ticker, Alert, AlertRule } from '../../entities';
+import { InsiderTrade, Ticker, Alert, AlertRule, SecFiling } from '../../entities';
 import { AzureOpenaiClientService } from '../../sentiment/azure-openai-client.service';
 import { TelegramService } from '../../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../../alerts/telegram/telegram-formatter.service';
@@ -29,6 +29,8 @@ export class Form4Pipeline {
   constructor(
     @InjectRepository(InsiderTrade)
     private readonly tradeRepo: Repository<InsiderTrade>,
+    @InjectRepository(SecFiling)
+    private readonly filingRepo: Repository<SecFiling>,
     @InjectRepository(Ticker)
     private readonly tickerRepo: Repository<Ticker>,
     @InjectRepository(Alert)
@@ -139,8 +141,19 @@ export class Form4Pipeline {
         }
       }
 
-      // Zapisz wynik do bazy — szukaj filingu Form 4 po accession number
-      // (trade ma accessionNumber = `${accession}_${idx}`)
+      // Zapisz wynik do bazy — szukaj filingu Form 4 po bazowym accession number
+      // (trade ma accessionNumber = `${accession}_${idx}`, filing ma samo `${accession}`)
+      if (trade.accessionNumber) {
+        const baseAccession = trade.accessionNumber.replace(/_\d+$/, '');
+        const filing = await this.filingRepo.findOne({
+          where: { accessionNumber: baseAccession },
+        });
+        if (filing && !filing.gptAnalysis) {
+          filing.gptAnalysis = analysis as any;
+          filing.priceImpactDirection = analysis.price_impact.direction;
+          await this.filingRepo.save(filing);
+        }
+      }
 
       // Oblicz priorytet alertu
       const priority = scoreToAlertPriority(analysis, 'Form4');
@@ -156,7 +169,9 @@ export class Form4Pipeline {
       });
       if (!rule) return;
 
-      const isThrottled = await this.checkThrottled(rule.name, payload.symbol, rule.throttleMinutes);
+      const isThrottled = await this.checkThrottled(
+        rule.name, payload.symbol, rule.throttleMinutes, analysis.catalyst_type,
+      );
       if (isThrottled) return;
 
       // Wyślij alert Telegram
@@ -195,13 +210,15 @@ export class Form4Pipeline {
       );
 
       // Rejestruj sygnał w CorrelationService
+      // Normalizacja conviction z [-2.0, +2.0] (GPT) → [-1.0, +1.0] (CorrelationService)
       if (this.correlation) {
         try {
+          const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {
             id: `form4-gpt-${payload.symbol}-${Date.now()}`,
             ticker: payload.symbol,
             source_category: 'form4',
-            conviction: analysis.conviction,
+            conviction: normalizedConviction,
             direction: analysis.conviction >= 0 ? 'positive' : 'negative',
             catalyst_type: analysis.catalyst_type,
             timestamp: Date.now(),
@@ -221,11 +238,11 @@ export class Form4Pipeline {
     ruleName: string,
     symbol: string,
     throttleMinutes: number,
+    catalystType?: string,
   ): Promise<boolean> {
     const cutoff = new Date(Date.now() - Math.max(throttleMinutes, 1) * 60_000);
-    const recent = await this.alertRepo.findOne({
-      where: { ruleName, symbol, sentAt: MoreThan(cutoff) },
-    });
-    return !!recent;
+    const where: any = { ruleName, symbol, sentAt: MoreThan(cutoff) };
+    if (catalystType) where.catalystType = catalystType;
+    return !!(await this.alertRepo.findOne({ where }));
   }
 }

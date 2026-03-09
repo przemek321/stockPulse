@@ -21,16 +21,23 @@ export class DailyCapService {
   ) {}
 
   /**
-   * Sprawdza czy ticker nie przekroczył dziennego limitu wywołań GPT.
+   * Atomowo sprawdza limit i rezerwuje slot GPT dla tickera.
+   * Zwraca true jeśli jest jeszcze miejsce (atomowy INCR unika race condition).
    */
   async canCallGpt(ticker: string): Promise<boolean> {
     const key = this.buildKey(ticker);
-    const count = await this.redis.get(key);
-    const current = count ? parseInt(count, 10) : 0;
+    const count = await this.redis.incr(key);
 
-    if (current >= MAX_DAILY_CALLS) {
+    // Ustaw TTL przy pierwszym użyciu klucza
+    if (count === 1) {
+      await this.redis.expire(key, 86400); // 24h
+    }
+
+    if (count > MAX_DAILY_CALLS) {
+      // Przekroczono limit — cofnij INCR, żeby nie zawyżać licznika
+      await this.redis.decr(key);
       this.logger.warn(
-        `Daily GPT cap reached for ${ticker}: ${current}/${MAX_DAILY_CALLS}`,
+        `Daily GPT cap reached for ${ticker}: ${count - 1}/${MAX_DAILY_CALLS}`,
       );
       return false;
     }
@@ -38,15 +45,11 @@ export class DailyCapService {
   }
 
   /**
-   * Rejestruje wywołanie GPT dla tickera.
+   * Rejestracja wywołania GPT — slot już zarezerwowany w canCallGpt().
+   * Zachowane dla wstecznej kompatybilności, ale nie inkrementuje ponownie.
    */
-  async recordGptCall(ticker: string): Promise<void> {
-    const key = this.buildKey(ticker);
-    const count = await this.redis.incr(key);
-    // Ustaw TTL tylko przy pierwszym incrze (gdy count === 1)
-    if (count === 1) {
-      await this.redis.expire(key, 86400); // 24h
-    }
+  async recordGptCall(_ticker: string): Promise<void> {
+    // Slot zarezerwowany atomowo w canCallGpt() — tu nic nie robimy
   }
 
   private buildKey(ticker: string): string {

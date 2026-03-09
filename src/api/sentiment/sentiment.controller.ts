@@ -85,9 +85,8 @@ export class SentimentController {
   async getFilings(@Query('limit') limit?: string) {
     const take = Math.min(parseInt(limit || '100', 10), 500);
 
-    // SecFiling nie jest zarejestrowany w tym module — używamy queryBuildera
     const filings = await this.newsRepo.manager
-      .getRepository('SecFiling')
+      .getRepository(SecFiling)
       .find({
         order: { filingDate: 'DESC' },
         take,
@@ -101,7 +100,7 @@ export class SentimentController {
     const take = Math.min(parseInt(limit || '100', 10), 500);
 
     const filings = await this.newsRepo.manager
-      .getRepository('SecFiling')
+      .getRepository(SecFiling)
       .createQueryBuilder('f')
       .where('f.gptAnalysis IS NOT NULL')
       .orderBy('f.filingDate', 'DESC')

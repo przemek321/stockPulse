@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Redis from 'ioredis';
@@ -43,11 +43,18 @@ const MIN_CORRELATED_CONVICTION = 0.20;
 const MIN_ESCALATING_LAST_CONVICTION = 0.25;
 
 @Injectable()
-export class CorrelationService {
+export class CorrelationService implements OnModuleDestroy {
   private readonly logger = new Logger(CorrelationService.name);
 
   /** Debounce per ticker — 10s opóźnienie przed pattern detection */
   private readonly pendingChecks = new Map<string, ReturnType<typeof setTimeout>>();
+
+  onModuleDestroy(): void {
+    for (const timer of this.pendingChecks.values()) {
+      clearTimeout(timer);
+    }
+    this.pendingChecks.clear();
+  }
 
   constructor(
     @Inject(CORRELATION_REDIS) private readonly redis: Redis,
