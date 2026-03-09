@@ -107,6 +107,7 @@ declare const __BUILD_DATE__: string;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
+  const [dashSubTab, setDashSubTab] = useState(0);
 
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
@@ -131,7 +132,7 @@ export default function App() {
         <DbSummary />
       </Box>
 
-      {/* Zakładki */}
+      {/* Zakładki główne */}
       <Tabs
         value={activeTab}
         onChange={(_, v) => setActiveTab(v)}
@@ -148,15 +149,27 @@ export default function App() {
           <JetsonStatsBar />
           <CollectorStatus />
 
-      <Divider sx={{ my: 3 }} />
+      <Divider sx={{ my: 2 }} />
 
-      {/* Wykres sentymentu — domyślnie zwinięty */}
+      {/* Pod-zakładki dashboardu */}
+      <Tabs
+        value={dashSubTab}
+        onChange={(_, v) => setDashSubTab(v)}
+        sx={{ mb: 2 }}
+        TabIndicatorProps={{ sx: { height: 3 } }}
+      >
+        <Tab label="Kluczowe" sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
+        <Tab label="Szczegóły & Dane" sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
+      </Tabs>
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* ═══ KLUCZOWE — co trzeba widzieć na co dzień             ═══ */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {dashSubTab === 0 && (<>
+
+      {/* Wykres sentymentu */}
       <Accordion
-        sx={{
-          mb: 2,
-          bgcolor: 'background.paper',
-          '&:before': { display: 'none' },
-        }}
+        sx={{ mb: 2, bgcolor: 'background.paper', '&:before': { display: 'none' } }}
       >
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -170,11 +183,6 @@ export default function App() {
       </Accordion>
 
       <Divider sx={{ my: 2 }} />
-
-      {/* Tabele danych — rozwijane na kliknięcie */}
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        Tabele danych
-      </Typography>
 
       {/* ── Analiza AI (gpt-4o-mini) ─────────── */}
       <DataPanel
@@ -294,6 +302,225 @@ export default function App() {
           return data.scores;
         }}
       />
+
+      {/* ── Skorelowane Sygnały ────────────────── */}
+      <DataPanel
+        title="Skorelowane Sygnały"
+        icon={<HubIcon sx={{ color: '#42a5f5' }} />}
+        badgeColor="info"
+        defaultSortKey="sentAt"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          {
+            key: 'priority',
+            label: 'Priorytet',
+            render: (v: string) => <PriorityChip value={v} />,
+          },
+          {
+            key: 'catalystType',
+            label: 'Wzorzec',
+            render: (v: string | null) => v || '—',
+          },
+          {
+            key: 'message',
+            label: 'Wiadomość',
+            render: (v: string) => {
+              if (!v) return '—';
+              return <TextDialog label={`${v.slice(0, 80)}${v.length > 80 ? '…' : ''}`} text={v} color="#42a5f5" />;
+            },
+          },
+          {
+            key: 'sentAt',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchAlerts();
+          return (data.alerts || []).filter((a: any) => a.ruleName === 'Correlated Signal');
+        }}
+      />
+
+      {/* ── Alerty wysłane ──────────────────── */}
+      <DataPanel
+        title="Alerty wysłane"
+        icon={<NotificationsIcon color="warning" />}
+        badgeColor="warning"
+        defaultSortKey="sentAt"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          { key: 'ruleName', label: 'Reguła' },
+          {
+            key: 'priority',
+            label: 'Priorytet',
+            render: (v: string) => <PriorityChip value={v} />,
+          },
+          { key: 'channel', label: 'Kanał' },
+          {
+            key: 'catalystType',
+            label: 'Katalizator',
+            render: (v: string | null) => v || '—',
+          },
+          {
+            key: 'message',
+            label: 'Wiadomość',
+            render: (v: string) => v?.slice(0, 100) || '—',
+          },
+          {
+            key: 'sentAt',
+            label: 'Wysłano',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchAlerts();
+          return data.alerts || [];
+        }}
+      />
+
+      {/* ── PDUFA Calendar (Decyzje FDA) ────── */}
+      <DataPanel
+        title="PDUFA Kalendarz (Decyzje FDA)"
+        icon={<EventIcon sx={{ color: '#42a5f5' }} />}
+        badgeColor="info"
+        defaultSortKey="pdufaDate"
+        defaultSortDir="asc"
+        columns={[
+          {
+            key: 'pdufaDate',
+            label: 'Data PDUFA',
+            render: (v: string) => {
+              const date = new Date(v);
+              const now = new Date();
+              const daysUntil = Math.ceil((date.getTime() - now.getTime()) / 86400000);
+              const color = daysUntil <= 1 ? '#ef5350' : daysUntil <= 3 ? '#ffa726' : daysUntil <= 7 ? '#42a5f5' : '#90a4ae';
+              const label = daysUntil > 0 ? `(${daysUntil}d)` : daysUntil === 0 ? '(dziś!)' : '';
+              return (
+                <span style={{ color, fontWeight: 700 }}>
+                  {fmtDate(v)} {label}
+                </span>
+              );
+            },
+          },
+          { key: 'symbol', label: 'Ticker' },
+          { key: 'drugName', label: 'Lek' },
+          {
+            key: 'indication',
+            label: 'Wskazanie',
+            render: (v: string) => v || '—',
+          },
+          {
+            key: 'therapeuticArea',
+            label: 'Obszar',
+            render: (v: string) => v || '—',
+          },
+          {
+            key: 'outcome',
+            label: 'Wynik',
+            render: (v: string | null) => {
+              if (!v) return <span style={{ color: '#90a4ae' }}>Oczekuje</span>;
+              const color = v === 'APPROVED' ? '#66bb6a' : v === 'CRL' ? '#ef5350' : '#ffa726';
+              return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+            },
+          },
+        ]}
+        fetchData={async () => {
+          const res = await fetch('/api/sentiment/pdufa?upcoming_only=true&limit=100');
+          if (res.ok) return (await res.json()).catalysts || [];
+          return [];
+        }}
+      />
+
+      {/* ── Trafność Alertów (Price Outcome) ─── */}
+      <DataPanel
+        title="Trafność Alertów (Price Outcome)"
+        icon={<TrendingUpIcon sx={{ color: '#66bb6a' }} />}
+        badgeColor="success"
+        defaultSortKey="sentAt"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          { key: 'ruleName', label: 'Reguła', render: (v: string) => v?.replace(' Signal', '') || '—' },
+          {
+            key: 'alertDirection',
+            label: 'Kierunek',
+            render: (v: string | null) => {
+              if (!v) return '—';
+              const color = v === 'positive' ? '#66bb6a' : '#ef5350';
+              return <span style={{ color, fontWeight: 700 }}>{v === 'positive' ? '▲ BULL' : '▼ BEAR'}</span>;
+            },
+          },
+          {
+            key: 'priceAtAlert',
+            label: 'Cena alertu',
+            render: (v: number) => v ? `$${Number(v).toFixed(2)}` : '—',
+          },
+          {
+            key: 'delta1h',
+            label: '+1h%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'delta4h',
+            label: '+4h%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'delta1d',
+            label: '+1d%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'delta3d',
+            label: '+3d%',
+            render: (v: number | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+            },
+          },
+          {
+            key: 'directionCorrect',
+            label: 'Trafny?',
+            render: (v: boolean | null) => {
+              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
+              return v
+                ? <span style={{ color: '#66bb6a', fontWeight: 700 }}>✓</span>
+                : <span style={{ color: '#ef5350', fontWeight: 700 }}>✗</span>;
+            },
+          },
+          {
+            key: 'sentAt',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
+          },
+        ]}
+        fetchData={async () => {
+          const data = await fetchAlertOutcomes(100);
+          return data.outcomes || [];
+        }}
+      />
+
+      </>)}
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* ═══ SZCZEGÓŁY & DANE — debug, dane źródłowe, config   ═══ */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {dashSubTab === 1 && (<>
 
       {/* ── Pipeline AI — Logi Egzekucji ────── */}
       <DataPanel
@@ -424,45 +651,6 @@ export default function App() {
         }}
       />
 
-      {/* ── Tickery ──────────────────────────── */}
-      <DataPanel
-        title="Tickery Healthcare"
-        icon={<ShowChartIcon color="primary" />}
-        badge={27}
-        badgeColor="primary"
-        columns={[
-          { key: 'symbol', label: 'Symbol' },
-          { key: 'name', label: 'Nazwa' },
-          { key: 'subsector', label: 'Podsektor' },
-          {
-            key: 'priority',
-            label: 'Priorytet',
-            render: (v: string) => <PriorityChip value={v} />,
-          },
-          { key: 'ceo', label: 'CEO' },
-          {
-            key: 'aliases',
-            label: 'Aliasy',
-            render: (v: string[]) => v?.slice(0, 3).join(', ') || '—',
-          },
-          {
-            key: 'isActive',
-            label: 'Aktywny',
-            render: (v: boolean) => (
-              <Chip
-                label={v ? 'TAK' : 'NIE'}
-                color={v ? 'success' : 'default'}
-                size="small"
-              />
-            ),
-          },
-        ]}
-        fetchData={async () => {
-          const data = await fetchTickers();
-          return data.tickers;
-        }}
-      />
-
       {/* ── Wyniki sentymentu ─────────── */}
       <DataPanel
         title="Wyniki sentymentu"
@@ -552,10 +740,8 @@ export default function App() {
           },
         ]}
         fetchData={async () => {
-          // Pobierz newsy bezpośrednio z API — top 100 najnowszych
           const res = await fetch('/api/sentiment/news?limit=100');
           if (res.ok) return (await res.json()).articles || [];
-          // Fallback: ticker po tickerze (ograniczone)
           const tickers = await fetchTickers();
           const all: any[] = [];
           for (const t of tickers.tickers.slice(0, 5)) {
@@ -691,45 +877,6 @@ export default function App() {
         }}
       />
 
-      {/* ── Skorelowane Sygnały ────────────────── */}
-      <DataPanel
-        title="Skorelowane Sygnały"
-        icon={<HubIcon sx={{ color: '#42a5f5' }} />}
-        badgeColor="info"
-        defaultSortKey="sentAt"
-        defaultSortDir="desc"
-        columns={[
-          { key: 'symbol', label: 'Ticker' },
-          {
-            key: 'priority',
-            label: 'Priorytet',
-            render: (v: string) => <PriorityChip value={v} />,
-          },
-          {
-            key: 'catalystType',
-            label: 'Wzorzec',
-            render: (v: string | null) => v || '—',
-          },
-          {
-            key: 'message',
-            label: 'Wiadomość',
-            render: (v: string) => {
-              if (!v) return '—';
-              return <TextDialog label={`${v.slice(0, 80)}${v.length > 80 ? '…' : ''}`} text={v} color="#42a5f5" />;
-            },
-          },
-          {
-            key: 'sentAt',
-            label: 'Data',
-            render: (v: string) => fmtDate(v),
-          },
-        ]}
-        fetchData={async () => {
-          const data = await fetchAlerts();
-          return (data.alerts || []).filter((a: any) => a.ruleName === 'Correlated Signal');
-        }}
-      />
-
       {/* ── Insider Trades (Form 4) ──────────── */}
       <DataPanel
         title="Insider Trades (Form 4)"
@@ -783,94 +930,71 @@ export default function App() {
         }}
       />
 
-      {/* ── PDUFA Calendar (Decyzje FDA) ────── */}
+      {/* ── StockTwits wzmianki ─────────────── */}
       <DataPanel
-        title="PDUFA Kalendarz (Decyzje FDA)"
-        icon={<EventIcon sx={{ color: '#42a5f5' }} />}
-        badgeColor="info"
-        defaultSortKey="pdufaDate"
-        defaultSortDir="asc"
+        title="StockTwits Wzmianki"
+        icon={<ForumIcon sx={{ color: '#66bb6a' }} />}
+        badgeColor="success"
+        defaultSortKey="publishedAt"
+        defaultSortDir="desc"
         columns={[
           {
-            key: 'pdufaDate',
-            label: 'Data PDUFA',
-            render: (v: string) => {
-              const date = new Date(v);
-              const now = new Date();
-              const daysUntil = Math.ceil((date.getTime() - now.getTime()) / 86400000);
-              const color = daysUntil <= 1 ? '#ef5350' : daysUntil <= 3 ? '#ffa726' : daysUntil <= 7 ? '#42a5f5' : '#90a4ae';
-              const label = daysUntil > 0 ? `(${daysUntil}d)` : daysUntil === 0 ? '(dziś!)' : '';
-              return (
-                <span style={{ color, fontWeight: 700 }}>
-                  {fmtDate(v)} {label}
-                </span>
-              );
-            },
+            key: 'detectedTickers',
+            label: 'Tickery',
+            render: (v: string[]) => v?.join(', ') || '—',
           },
-          { key: 'symbol', label: 'Ticker' },
-          { key: 'drugName', label: 'Lek' },
+          { key: 'body', label: 'Treść', render: (v: string) => v?.slice(0, 120) || '—' },
+          { key: 'author', label: 'Autor' },
+          { key: 'score', label: 'Score' },
           {
-            key: 'indication',
-            label: 'Wskazanie',
-            render: (v: string) => v || '—',
-          },
-          {
-            key: 'therapeuticArea',
-            label: 'Obszar',
-            render: (v: string) => v || '—',
-          },
-          {
-            key: 'outcome',
-            label: 'Wynik',
-            render: (v: string | null) => {
-              if (!v) return <span style={{ color: '#90a4ae' }}>Oczekuje</span>;
-              const color = v === 'APPROVED' ? '#66bb6a' : v === 'CRL' ? '#ef5350' : '#ffa726';
-              return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
-            },
+            key: 'publishedAt',
+            label: 'Data',
+            render: (v: string) => fmtDate(v),
           },
         ]}
         fetchData={async () => {
-          const res = await fetch('/api/sentiment/pdufa?upcoming_only=true&limit=100');
-          if (res.ok) return (await res.json()).catalysts || [];
+          const res = await fetch('/api/sentiment/mentions?limit=100');
+          if (res.ok) return (await res.json()).mentions || [];
           return [];
         }}
       />
 
-      {/* ── Alerty wysłane ──────────────────── */}
+      {/* ── Tickery ──────────────────────────── */}
       <DataPanel
-        title="Alerty wysłane"
-        icon={<NotificationsIcon color="warning" />}
-        badgeColor="warning"
-        defaultSortKey="sentAt"
-        defaultSortDir="desc"
+        title="Tickery Healthcare"
+        icon={<ShowChartIcon color="primary" />}
+        badge={27}
+        badgeColor="primary"
         columns={[
-          { key: 'symbol', label: 'Ticker' },
-          { key: 'ruleName', label: 'Reguła' },
+          { key: 'symbol', label: 'Symbol' },
+          { key: 'name', label: 'Nazwa' },
+          { key: 'subsector', label: 'Podsektor' },
           {
             key: 'priority',
             label: 'Priorytet',
             render: (v: string) => <PriorityChip value={v} />,
           },
-          { key: 'channel', label: 'Kanał' },
+          { key: 'ceo', label: 'CEO' },
           {
-            key: 'catalystType',
-            label: 'Katalizator',
-            render: (v: string | null) => v || '—',
+            key: 'aliases',
+            label: 'Aliasy',
+            render: (v: string[]) => v?.slice(0, 3).join(', ') || '—',
           },
           {
-            key: 'message',
-            label: 'Wiadomość',
-            render: (v: string) => v?.slice(0, 100) || '—',
-          },
-          {
-            key: 'sentAt',
-            label: 'Wysłano',
-            render: (v: string) => fmtDate(v),
+            key: 'isActive',
+            label: 'Aktywny',
+            render: (v: boolean) => (
+              <Chip
+                label={v ? 'TAK' : 'NIE'}
+                color={v ? 'success' : 'default'}
+                size="small"
+              />
+            ),
           },
         ]}
         fetchData={async () => {
-          const data = await fetchAlerts();
-          return data.alerts || [];
+          const data = await fetchTickers();
+          return data.tickers;
         }}
       />
 
@@ -902,116 +1026,7 @@ export default function App() {
         }}
       />
 
-      {/* ── StockTwits wzmianki ─────────────── */}
-      <DataPanel
-        title="StockTwits Wzmianki"
-        icon={<ForumIcon sx={{ color: '#66bb6a' }} />}
-        badgeColor="success"
-        defaultSortKey="publishedAt"
-        defaultSortDir="desc"
-        columns={[
-          {
-            key: 'detectedTickers',
-            label: 'Tickery',
-            render: (v: string[]) => v?.join(', ') || '—',
-          },
-          { key: 'body', label: 'Treść', render: (v: string) => v?.slice(0, 120) || '—' },
-          { key: 'author', label: 'Autor' },
-          { key: 'score', label: 'Score' },
-          {
-            key: 'publishedAt',
-            label: 'Data',
-            render: (v: string) => fmtDate(v),
-          },
-        ]}
-        fetchData={async () => {
-          const res = await fetch('/api/sentiment/mentions?limit=100');
-          if (res.ok) return (await res.json()).mentions || [];
-          return [];
-        }}
-      />
-
-      {/* ── Trafność Alertów (Price Outcome) ─── */}
-      <DataPanel
-        title="Trafność Alertów (Price Outcome)"
-        icon={<TrendingUpIcon sx={{ color: '#66bb6a' }} />}
-        badgeColor="success"
-        defaultSortKey="sentAt"
-        defaultSortDir="desc"
-        columns={[
-          { key: 'symbol', label: 'Ticker' },
-          { key: 'ruleName', label: 'Reguła', render: (v: string) => v?.replace(' Signal', '') || '—' },
-          {
-            key: 'alertDirection',
-            label: 'Kierunek',
-            render: (v: string | null) => {
-              if (!v) return '—';
-              const color = v === 'positive' ? '#66bb6a' : '#ef5350';
-              return <span style={{ color, fontWeight: 700 }}>{v === 'positive' ? '▲ BULL' : '▼ BEAR'}</span>;
-            },
-          },
-          {
-            key: 'priceAtAlert',
-            label: 'Cena alertu',
-            render: (v: number) => v ? `$${Number(v).toFixed(2)}` : '—',
-          },
-          {
-            key: 'delta1h',
-            label: '+1h%',
-            render: (v: number | null) => {
-              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
-              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
-            },
-          },
-          {
-            key: 'delta4h',
-            label: '+4h%',
-            render: (v: number | null) => {
-              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
-              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
-            },
-          },
-          {
-            key: 'delta1d',
-            label: '+1d%',
-            render: (v: number | null) => {
-              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
-              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
-            },
-          },
-          {
-            key: 'delta3d',
-            label: '+3d%',
-            render: (v: number | null) => {
-              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
-              const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
-            },
-          },
-          {
-            key: 'directionCorrect',
-            label: 'Trafny?',
-            render: (v: boolean | null) => {
-              if (v == null) return <span style={{ color: '#757575' }}>—</span>;
-              return v
-                ? <span style={{ color: '#66bb6a', fontWeight: 700 }}>✓</span>
-                : <span style={{ color: '#ef5350', fontWeight: 700 }}>✗</span>;
-            },
-          },
-          {
-            key: 'sentAt',
-            label: 'Data',
-            render: (v: string) => fmtDate(v),
-          },
-        ]}
-        fetchData={async () => {
-          const data = await fetchAlertOutcomes(100);
-          return data.outcomes || [];
-        }}
-      />
+      </>)}
 
       <Typography variant="caption" color="text.secondary" sx={{ mt: 4, display: 'block' }}>
         StockPulse v1.0 — Healthcare Sentiment Analysis
