@@ -23,6 +23,8 @@ services:
     volumes:
       - ./src:/app/src
       - ./doc:/app/doc
+      - ./test:/app/test
+      - ./jest.config.js:/app/jest.config.js
       - ./tsconfig.json:/app/tsconfig.json
       - ./tsconfig.build.json:/app/tsconfig.build.json
     # W trybie dev: buduj i uruchom
