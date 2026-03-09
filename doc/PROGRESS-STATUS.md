@@ -347,8 +347,9 @@ Mierzenie trafności alertów — zapis ceny akcji w momencie alertu i śledzeni
 - [x] **FinnhubService.getQuote()** — pobieranie bieżącej ceny z endpointu `/quote`
 - [x] **PriceOutcomeModule** (`src/price-outcome/`) — nowy moduł:
   - `PriceOutcomeService` — CRON `0 * * * *` (co godzinę), max 30 zapytań Finnhub/cykl
-  - 4 sloty czasowe: 1h → 4h → 1d → 3d, po 3 dniach `priceOutcomeDone=true`
-  - Fallback: market closed → pole pozostaje null, nie blokuje
+  - 4 sloty czasowe: 1h → 4h → 1d → 3d
+  - **NYSE market hours guard** — odpytuje Finnhub TYLKO gdy giełda otwarta (pon-pt 9:30-16:00 ET). Poza sesją cena = last close (identyczna dla wielu slotów, bezwartościowa). Helper `isNyseOpen()` w `src/common/utils/market-hours.util.ts` (Intl.DateTimeFormat, auto DST).
+  - `priceOutcomeDone` gdy: wszystkie 4 sloty wypełnione LUB hard timeout 7d (zamiast starych 72h — uwzględnia weekendy i święta)
 - [x] **Wiring w sendAlert()** — zapis `priceAtAlert` i `alertDirection` w momencie wysyłki alertu
 - [x] **Endpoint REST**: `GET /api/alerts/outcomes?limit=100&symbol=UNH` — alerty z cenami + delty % + `directionCorrect`
 - [x] **Frontend: panel "Trafność Alertów (Price Outcome)"** — tabela z kolumnami: ticker, reguła, kierunek (▲/▼), cena alertu, +1h%, +4h%, +1d%, +3d%, trafny? (✓/✗/—)
@@ -486,5 +487,5 @@ npm run test:all
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
 - **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
 - **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (5 detektorów wzorców, Redis Sorted Sets)
-- **Nowe moduły (Sprint 6)**: PriceOutcomeModule (CRON co 1h, Finnhub /quote, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d)
+- **Nowe moduły (Sprint 6)**: PriceOutcomeModule (CRON co 1h, Finnhub /quote, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d, NYSE market hours guard, hard timeout 7d)
 - **Testy jednostkowe**: 5 suite'ów, 91 testów (correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator)

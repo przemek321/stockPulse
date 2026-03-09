@@ -1,7 +1,7 @@
 # StockPulse — Schemat struktury katalogów
 
 > Szczegółowy opis każdego pliku, co robi i z czym jest powiązany.
-> Ostatnia aktualizacja: 2026-03-08
+> Ostatnia aktualizacja: 2026-03-09
 
 ## Drzewo katalogów
 
@@ -43,6 +43,8 @@ stockPulse/
 │   │   │   └── data-source.enum.ts          # Enum: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS, PDUFA_BIO
 │   │   ├── decorators/
 │   │   │   └── logged.decorator.ts          # @Logged(module) — automatyczne logowanie metod
+│   │   ├── utils/
+│   │   │   └── market-hours.util.ts          # isNyseOpen() — godziny sesji NYSE (pon-pt 9:30-16:00 ET, auto DST)
 │   │   └── filters/
 │   │       └── http-exception.filter.ts     # Globalny filtr błędów HTTP
 │   │
@@ -123,7 +125,7 @@ stockPulse/
 │   │
 │   ├── price-outcome/                      # Warstwa 3b: Price Outcome Tracker
 │   │   ├── price-outcome.module.ts         # Moduł (Alert repo + FinnhubModule)
-│   │   └── price-outcome.service.ts        # CRON co 1h — uzupełnia price1h/4h/1d/3d
+│   │   └── price-outcome.service.ts        # CRON co 1h — uzupełnia price1h/4h/1d/3d (tylko gdy NYSE otwarta)
 │   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
@@ -583,7 +585,7 @@ Mierzenie trafności alertów — zapis ceny akcji w momencie alertu i śledzeni
 **Co robi:** Moduł importujący TypeORM (Alert) i FinnhubModule (do pobierania cen). Rejestruje PriceOutcomeService.
 
 #### `price-outcome.service.ts`
-**Co robi:** CRON `0 * * * *` (co godzinę). Szuka alertów z `priceAtAlert IS NOT NULL` i `priceOutcomeDone=false`. Dla każdego sprawdza 4 sloty (1h, 4h, 1d, 3d) — jeśli czas minął i pole jest puste → pobiera cenę z `FinnhubService.getQuote()`. Max 30 zapytań Finnhub/cykl (free tier). Po 3 dniach `priceOutcomeDone=true`.
+**Co robi:** CRON `0 * * * *` (co godzinę). Early return gdy giełda NYSE zamknięta (`isNyseOpen()` z `market-hours.util.ts`) — poza sesją Finnhub zwraca cenę zamknięcia (identyczną, bezwartościową). Szuka alertów z `priceAtAlert IS NOT NULL` i `priceOutcomeDone=false`. Dla każdego sprawdza 4 sloty (1h, 4h, 1d, 3d) — jeśli czas minął i pole jest puste → pobiera cenę z `FinnhubService.getQuote()`. Max 30 zapytań Finnhub/cykl (free tier). `priceOutcomeDone=true` gdy wszystkie 4 sloty wypełnione LUB hard timeout 7d (uwzględnia weekendy i święta).
 
 ---
 
@@ -845,7 +847,7 @@ AppModule
 ├── CorrelationModule
 │   └── CorrelationService       (5 detektorów wzorców, Redis Sorted Sets, debounce 10s)
 ├── PriceOutcomeModule
-│   └── PriceOutcomeService      (CRON co 1h — uzupełnia price1h/4h/1d/3d z Finnhub /quote)
+│   └── PriceOutcomeService      (CRON co 1h — uzupełnia price1h/4h/1d/3d z Finnhub /quote, tylko gdy NYSE otwarta)
 ├── TelegramModule               (wydzielony — unikanie circular dependency)
 │   ├── TelegramService          (wysyłka)
 │   └── TelegramFormatterService (formatowanie MarkdownV2 po polsku)
