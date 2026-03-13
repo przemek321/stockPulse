@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-03-09
+> Ostatnia aktualizacja: 2026-03-14
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony) + **Sprint 8 — Optymalizacja pipeline + analiza tygodniowa** (ukończony 2026-03-14)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 19 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare.
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND, **tylko FINNHUB/SEC — StockTwits FinBERT-only**) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 18 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare. Raporty tygodniowe w [doc/reports/](doc/reports/).
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -400,6 +400,21 @@ Kompleksowy code review backendu i frontendu pod kątem spójności logicznej, r
 #### 7.6 SEC Filing Pipeline — martwe listenery (2026-03-09)
 - [x] **Fix: kolejność dekoratorów @OnEvent/@Logged** — `Form8kPipeline.onFiling()` i `Form4Pipeline.onInsiderTrade()` miały `@Logged` NAD `@OnEvent`. TypeScript stosuje dekoratory od dołu: `@OnEvent` (wewnętrzny) ustawiał metadata na oryginalnej funkcji przez `SetMetadata`, potem `@Logged` (zewnętrzny) podmieniał `descriptor.value` na wrapper — metadata zostawała na starej referencji. NestJS EventEmitter nie znajdował listenera → pipeline GPT dla SEC filingów **nigdy się nie uruchamiał** (0 wpisów w `system_logs` dla `module='sec-filings'`). Fix: zamiana kolejności na `@OnEvent` (góra) → `@Logged` (dół), spójnie z `alert-evaluator.service.ts` gdzie kolejność była prawidłowa.
   - Dotyczy: `src/sec-filings/pipelines/form8k.pipeline.ts`, `src/sec-filings/pipelines/form4.pipeline.ts`
+
+### Sprint 8: Optymalizacja pipeline + analiza tygodniowa (ukończony 2026-03-14)
+
+Analiza tygodniowa systemu (7-13 marca) ujawniła 3 problemy. Wdrożone na serwer produkcyjny (Jetson Orin NX).
+
+#### 8.1 Wyłączenie StockTwits z eskalacji GPT
+- [x] **Optymalizacja: StockTwits → FinBERT-only** — 78.1% conviction z GPT było flat (-0.01 do 0.01). Przyczyna: GPT przypisuje StockTwits `source_authority=0.15`, co zeruje conviction (conviction = sent × rel × nov × **auth** × conf × mag). 83% wywołań Azure VM generowało wartość ~0. Fix: `isGptEligibleSource = source !== DataSource.STOCKTWITS` w warunku `shouldEscalate`. Plik: `src/sentiment/sentiment-processor.service.ts:133-140`. Redukcja wywołań Azure VM o ~83% (z ~3 773 do ~640/tydzień).
+
+#### 8.2 Czyszczenie BullMQ + korekta raportu
+- [x] **Fix: 500 failed jobów BullMQ** — wszystkie "fetch failed" z 20.02.2026 (jednorazowy incident). Wyczyszczone `ZREMRANGEBYSCORE`.
+- [x] **Fix: insider trades breakdown** — agent SQL szukał kodów SEC (`'P'`/`'S'`), kolektor zapisuje pełne słowa (`'SELL'`/`'BUY'`). Poprawiony raport: 12 SELL (discretionary, is10b5-1Plan=false), 0 BUY.
+
+#### 8.3 Raport tygodniowy (7-13 marca 2026)
+- [x] **Raport**: [doc/reports/2026-03-13-weekly-report.md](doc/reports/2026-03-13-weekly-report.md) — 9 028 sygnałów, 131 alertów, 24 tickery. Hit rate: 55.4% (1d), 59.3% (3d). Alerty negatywne: 80% trafność 3d. Top: HIMS +57.7% (deal z Novo Nordisk), CNC -17.1% (8-K). Najlepsza reguła: 8-K Material Event (85.7% hit rate).
+- [x] **Changelog**: [doc/reports/2026-03-14-zmiany.md](doc/reports/2026-03-14-zmiany.md)
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.

@@ -209,7 +209,10 @@ stockPulse/
 │   ├── StockPulse-Opis-Architektury.md     # Opis architektury (markdown)
 │   ├── StockPulse-Opis-Architektury.pdf    # Opis architektury (PDF)
 │   ├── StockPulse-Plan-Dzialania.md        # Plan działania (markdown)
-│   └── StockPulse-Plan-Dzialania.pdf       # Plan działania (PDF)
+│   ├── StockPulse-Plan-Dzialania.pdf       # Plan działania (PDF)
+│   └── reports/                            # Raporty tygodniowe i changelogi
+│       ├── 2026-03-13-weekly-report.md     # Raport tygodniowy 7-13 marca 2026
+│       └── 2026-03-14-zmiany.md            # Changelog: StockTwits GPT exclusion + BullMQ cleanup
 │
 ├── Dockerfile                              # Obraz Docker dla NestJS app
 ├── docker-compose.yml                      # 6 serwisów: app, postgres, redis, frontend, finbert, pgadmin
@@ -497,7 +500,7 @@ Każdy kolektor składa się z 4 plików:
 
 #### `azure-openai-client.service.ts`
 **Co robi:** HTTP klient do Azure VM z gpt-4o-mini (2. etap pipeline). Metody:
-- `analyze(text, symbol, escalationReason, pdufaContext?)` — POST `/analyze` (wysyła tekst + opcjonalny kontekst PDUFA do analizy AI)
+- `analyze(text, symbol, escalationReason, pdufaContext?, source?)` — POST `/analyze` (wysyła tekst + opcjonalny kontekst PDUFA + źródło do analizy AI)
 - `isEnabled()` — sprawdza czy `AZURE_ANALYSIS_URL` jest skonfigurowany
 **Konfiguracja:** `AZURE_ANALYSIS_URL` (domyślnie puste — pipeline działa z FinBERT-only), `AZURE_ANALYSIS_TIMEOUT_MS` (domyślnie 30s).
 **Zwraca:** `EnrichedAnalysis` — 16-polowa wielowymiarowa analiza: sentiment, conviction, type, urgency, relevance, novelty, confidence, source_authority, temporal_signal, catalyst_type, price_impact_direction, price_impact_magnitude, summary, escalation_reason, processing_time_ms.
@@ -508,13 +511,14 @@ Każdy kolektor składa się z 4 plików:
 1. Pobiera tekst z `RawMention` (title + body) lub `NewsArticle` (headline + summary)
 2. Filtruje teksty < 20 znaków (MIN_TEXT_LENGTH — odrzuca szum: emoji, same tickery)
 3. **1. etap:** Wysyła do FinBERT sidecar przez `FinbertClientService.analyze()`
-4. **Tier-based eskalacja:** classifyTier (Tier 1 → ZAWSZE AI, Tier 2 → AI jeśli VM aktywna, Tier 3 → skip)
-5. **PDUFA Context Layer:** pobiera nadchodzące katalizatory z PdufaBioService.getUpcomingCatalysts() i wstrzykuje do prompta
-6. **2. etap:** Eskalacja do `AzureOpenaiClientService.analyze()` z pdufaContext → enrichedAnalysis
-7. Zapisuje wynik do `sentiment_scores` (model='finbert' lub 'finbert+gpt-4o-mini', enrichedAnalysis jsonb)
-8. Aktualizuje `sentimentScore` w `news_articles` (jeśli typ = article)
-9. Emituje `EventType.SENTIMENT_SCORED` (z conviction i enrichedAnalysis) → AlertEvaluator reaguje
-10. **Pipeline log:** buduje `AiPipelineLog` inkrementalnie na każdym etapie, zapisuje na każdym punkcie wyjścia
+4. **Filtr źródła:** StockTwits (`isGptEligibleSource = source !== DataSource.STOCKTWITS`) — skip GPT (source_authority=0.15 zeruje conviction, 83% wywołań GPT generowało ~0). Tylko FINNHUB/SEC do AI.
+5. **Tier-based eskalacja:** classifyTier (Tier 1 → ZAWSZE AI, Tier 2 → AI jeśli VM aktywna, Tier 3 → skip) — tylko dla źródeł GPT-eligible
+6. **PDUFA Context Layer:** pobiera nadchodzące katalizatory z PdufaBioService.getUpcomingCatalysts() i wstrzykuje do prompta
+7. **2. etap:** Eskalacja do `AzureOpenaiClientService.analyze()` z pdufaContext → enrichedAnalysis
+8. Zapisuje wynik do `sentiment_scores` (model='finbert' lub 'finbert+gpt-4o-mini', enrichedAnalysis jsonb)
+9. Aktualizuje `sentimentScore` w `news_articles` (jeśli typ = article)
+10. Emituje `EventType.SENTIMENT_SCORED` (z conviction i enrichedAnalysis) → AlertEvaluator reaguje
+11. **Pipeline log:** buduje `AiPipelineLog` inkrementalnie na każdym etapie, zapisuje na każdym punkcie wyjścia (statusy: AI_ESCALATED, FINBERT_ONLY, AI_DISABLED, AI_FAILED, SKIPPED_SHORT, ERROR)
 
 ---
 

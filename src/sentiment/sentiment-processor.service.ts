@@ -49,10 +49,11 @@ interface SentimentJobData {
  *
  * 2-etapowy pipeline z tier-based eskalacją:
  * 1. FinBERT sidecar — szybka analiza lokalna (GPU)
- * 2. Azure OpenAI gpt-4o-mini — tier-based eskalacja:
- *    - Tier 1 (silne): conf > 0.7 AND absScore > 0.5 → ZAWSZE do AI
+ * 2. Azure OpenAI gpt-4o-mini — tier-based eskalacja (tylko FINNHUB/SEC):
+ *    - Tier 1 (silne): conf > 0.7 AND absScore > 0.5 → do AI (złote sygnały)
  *    - Tier 2 (średnie): conf > 0.3 AND absScore > 0.2 → do AI jeśli VM aktywna
  *    - Tier 3 (śmieci): skip AI, tylko FinBERT
+ *    - StockTwits: ZAWSZE FinBERT-only (source_authority=0.15 zeruje conviction)
  *
  * Wynik zapisywany do sentiment_scores z opcjonalnym enrichedAnalysis (jsonb).
  */
@@ -130,8 +131,13 @@ export class SentimentProcessorService extends WorkerHost {
       pLog.tier = tier;
       pLog.tierReason = reason;
 
+      // StockTwits: skip GPT — source_authority=0.15 zeruje conviction,
+      // 83% wywołań GPT generowało wartość ~0. Tylko FINNHUB/SEC do AI.
+      const isGptEligibleSource = source !== DataSource.STOCKTWITS;
+
       const shouldEscalate =
-        tier === 1 || (tier === 2 && this.azureOpenai.isEnabled());
+        isGptEligibleSource &&
+        (tier === 1 || (tier === 2 && this.azureOpenai.isEnabled()));
 
       if (shouldEscalate && this.azureOpenai.isEnabled()) {
         this.logger.debug(
@@ -185,7 +191,12 @@ export class SentimentProcessorService extends WorkerHost {
           pLog.status = 'AI_FAILED';
           pLog.errorMessage = 'Azure VM zwróciło null (timeout lub błąd parsowania)';
         }
-      } else if (shouldEscalate && !this.azureOpenai.isEnabled()) {
+      } else if (!isGptEligibleSource && tier <= 2) {
+        pLog.status = 'FINBERT_ONLY';
+        this.logger.debug(
+          `Skip AI (${source} nie kwalifikuje się do GPT): ${symbol} — ${reason}`,
+        );
+      } else if (tier <= 2 && !this.azureOpenai.isEnabled()) {
         pLog.status = 'AI_DISABLED';
       } else if (tier === 3) {
         pLog.status = 'FINBERT_ONLY';

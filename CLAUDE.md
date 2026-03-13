@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StockPulse to system analizy sentymentu rynku akcji w czasie rzeczywistym z alertami, skupiony na sektorze healthcare. Monitoruje media społecznościowe (Reddit, StockTwits), dane finansowe (Finnhub), zgłoszenia SEC (EDGAR) i wysyła alerty przez Telegram.
 
-**Aktualny stan projektu**: Faza 2 + Sprint 4/4b (ukończony) + Sprint 5 (ukończony) + Sprint 6 (ukończony) + Sprint 7 (ukończony — przegląd logiki + 10 fixów, w tym fix kolejności @OnEvent/@Logged w SEC pipeline). 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker + System Logowania. Kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier → Azure OpenAI gpt-4o-mini (2. etap) → conviction [-2.0, +2.0] → effectiveScore [-1, +1] jako źródło prawdy. SEC filingi: GPT z per-typ promptami (8-K Items 1.01/2.02/5.02/other, Form 4 z historią 30d), Zod walidacja, Item 1.03 Bankruptcy → natychmiastowy CRITICAL. CorrelationService: Redis Sorted Sets, insider+8K 24h (Form4 z signals:insider + 8-K z signals:short), filing confirms news 48h (catalyst_type 'unknown' ignorowany), multi-source convergence, insider cluster 7d, escalating signal 72h. Progi: MIN_CONVICTION=0.05, MIN_CORRELATED_CONVICTION=0.20. AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy, nowa reguła Urgent AI Signal (urgency=HIGH + relevance≥0.7). Price Outcome Tracker: PriceOutcomeModule — zapis priceAtAlert (Finnhub /quote) w momencie alertu, CRON co 1h uzupełnia price1h/4h/1d/3d TYLKO gdy NYSE otwarta (pon-pt 9:30-16:00 ET, helper `isNyseOpen()`), max 30 zapytań/cykl, hard timeout 7d (zamiast 72h), panel trafności na froncie. System Logowania: decorator @Logged() na ~14 metodach (w tym onFiling), tabela system_logs (JSONB input/output), frontend z filtrami i eksportem JSON, auto-cleanup 7d. Telegram alerty + prompty SEC po polsku. Dashboard: MUI Tabs (Dashboard + System Logs), 13+ paneli. Backfill: POST /api/sec-filings/backfill-gpt. 19 reguł alertów, ~37 tickerów, 12 tabel PostgreSQL. Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
+**Aktualny stan projektu**: Faza 2 + Sprint 4/4b (ukończony) + Sprint 5 (ukończony) + Sprint 6 (ukończony) + Sprint 7 (ukończony — przegląd logiki + 10 fixów, w tym fix kolejności @OnEvent/@Logged w SEC pipeline) + Sprint 8 (optymalizacja pipeline — StockTwits wycięty z GPT). 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker + System Logowania. Kolektory → BullMQ → FinBERT na GPU (1. etap) → classifyTier → Azure OpenAI gpt-4o-mini (2. etap, **tylko FINNHUB/SEC** — StockTwits FinBERT-only od 14.03.2026, source_authority=0.15 zerował conviction) → conviction [-2.0, +2.0] → effectiveScore [-1, +1] jako źródło prawdy. SEC filingi: GPT z per-typ promptami (8-K Items 1.01/2.02/5.02/other, Form 4 z historią 30d), Zod walidacja, Item 1.03 Bankruptcy → natychmiastowy CRITICAL. CorrelationService: Redis Sorted Sets, insider+8K 24h (Form4 z signals:insider + 8-K z signals:short), filing confirms news 48h (catalyst_type 'unknown' ignorowany), multi-source convergence, insider cluster 7d, escalating signal 72h. Progi: MIN_CONVICTION=0.05, MIN_CORRELATED_CONVICTION=0.20. AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy, nowa reguła Urgent AI Signal (urgency=HIGH + relevance≥0.7). Price Outcome Tracker: PriceOutcomeModule — zapis priceAtAlert (Finnhub /quote) w momencie alertu, CRON co 1h uzupełnia price1h/4h/1d/3d TYLKO gdy NYSE otwarta (pon-pt 9:30-16:00 ET, helper `isNyseOpen()`), max 30 zapytań/cykl, hard timeout 7d (zamiast 72h), panel trafności na froncie. System Logowania: decorator @Logged() na ~14 metodach (w tym onFiling), tabela system_logs (JSONB input/output), frontend z filtrami i eksportem JSON, auto-cleanup 7d. Telegram alerty + prompty SEC po polsku. Dashboard: MUI Tabs (Dashboard + System Logs), 13+ paneli. Backfill: POST /api/sec-filings/backfill-gpt. 18 reguł alertów, ~37 tickerów, 12 tabel PostgreSQL. Raporty tygodniowe: [doc/reports/](doc/reports/). Szczegółowy status: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md). Struktura plików: [doc/schematy.md](doc/schematy.md).
 
 ## Komendy (Makefile — autodetekcja środowiska)
 
@@ -68,11 +68,12 @@ Działający system end-to-end w 6 kontenerach Docker:
 
 1. **Warstwa zbierania danych** — 4 aktywne kolektory (StockTwits co 5 min, Finnhub co 10 min, SEC EDGAR co 30 min, PDUFA.bio co 6h) + Reddit placeholder. Eventy `NEW_MENTION` / `NEW_ARTICLE` / `NEW_PDUFA_EVENT` przez EventEmitter2.
 2. **Warstwa AI** — 2-etapowy pipeline z tier-based eskalacją:
-   - **1. etap**: FinBERT sidecar (ProsusAI/finbert, GPU) — szybka analiza lokalna (~67ms)
-   - **Tier-based eskalacja** (classifyTier na confidence + absScore):
-     - Tier 1 (silne): conf > 0.7 AND abs > 0.5 → ZAWSZE do AI (złote sygnały)
+   - **1. etap**: FinBERT sidecar (ProsusAI/finbert, GPU) — szybka analiza lokalna (~43-46ms na Orin)
+   - **Tier-based eskalacja** (classifyTier na confidence + absScore, **tylko FINNHUB/SEC**):
+     - Tier 1 (silne): conf > 0.7 AND abs > 0.5 → do AI (złote sygnały)
      - Tier 2 (średnie): conf > 0.3 AND abs > 0.2 → do AI jeśli VM aktywna
      - Tier 3 (śmieci): skip AI, tylko FinBERT
+     - **StockTwits**: ZAWSZE FinBERT-only (source_authority=0.15 zeruje conviction — 83% wywołań GPT generowało ~0)
    - **PDUFA Context Layer**: wstrzykiwanie nadchodzących dat FDA do prompta (z tabeli `pdufa_catalysts`)
    - **2. etap**: Azure OpenAI gpt-4o-mini → wielowymiarowa analiza (relevance, novelty, source_authority, confidence, catalyst_type, price_impact) → conviction = sent × rel × nov × auth × conf × mag (range [-2.0, +2.0], magnitude: low=1.0, med=1.5, high=2.0). Zwraca `prompt_used` w odpowiedzi.
    - **Fallback**: Strong FinBERT Signal — gdy VM offline, silne sygnały (|score|>0.7, conf>0.8) generują alert "(unconfirmed)"
@@ -114,6 +115,15 @@ Działający system end-to-end w 6 kontenerach Docker:
 - **Status projektu i plan**: [doc/PROGRESS-STATUS.md](doc/PROGRESS-STATUS.md)
 - **Struktura plików**: [doc/schematy.md](doc/schematy.md)
 - **Architektura (wizualizacja)**: [doc/stockpulse-architecture.jsx](doc/stockpulse-architecture.jsx)
+- **Raporty tygodniowe**: [doc/reports/](doc/reports/) — analizy systemu z danymi z bazy
+- **Changelog zmian**: [doc/reports/2026-03-14-zmiany.md](doc/reports/2026-03-14-zmiany.md) — ostatnie zmiany z uzasadnieniem
+
+### Ważne konwencje danych
+
+- **insider_trades.transactionType**: pełne słowa (`SELL`, `BUY`, `EXERCISE`, `TAX`, `GRANT`, `OTHER`), NIE kody SEC (`P`, `S`). Zawsze filtruj po pełnych słowach.
+- **insider_trades.is10b51Plan**: `true` = automatyczny plan sprzedaży (szum), `false` = discretionary (realny sygnał insiderski). Kluczowe rozróżnienie w raportach.
+- **sentiment_scores.effectiveScore**: źródło prawdy. Gdy GPT conviction dostępne → `normalizeConviction(gptConviction)`, w przeciwnym razie → `finbertScore`.
+- **StockTwits w pipeline AI**: od 14.03.2026 ZAWSZE FinBERT-only (nie eskalowane do GPT). Przyczyna: source_authority=0.15 zeruje conviction. Zmiana w `src/sentiment/sentiment-processor.service.ts:133-140`.
 
 ## Multi-środowisko: Laptop ↔ Jetson
 
