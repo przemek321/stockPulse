@@ -83,9 +83,11 @@ export class AlertEvaluatorService implements OnModuleDestroy {
     transactionType?: string;
     shares?: number;
     source?: string;
-  }): Promise<void> {
+  }): Promise<{ action: string; symbol: string }> {
     // Próg $100K — filtruje MSPR (totalValue=0), małe transakcje i stare EFTS placeholdery
-    if (!payload.totalValue || payload.totalValue < 100_000) return;
+    if (!payload.totalValue || payload.totalValue < 100_000) {
+      return { action: 'SKIP_LOW_VALUE', symbol: payload.symbol };
+    }
 
     // Filtruj rutynowe transakcje — tylko BUY i SELL to prawdziwe sygnały handlowe
     const ALERTABLE_TYPES = ['BUY', 'SELL'];
@@ -93,7 +95,7 @@ export class AlertEvaluatorService implements OnModuleDestroy {
       this.logger.debug(
         `Pominięto insider trade ${payload.symbol} — typ ${payload.transactionType} (nie BUY/SELL)`,
       );
-      return;
+      return { action: 'SKIP_NOT_ALERTABLE', symbol: payload.symbol };
     }
 
     this.logger.debug(
@@ -117,6 +119,7 @@ export class AlertEvaluatorService implements OnModuleDestroy {
       this.logger.debug(
         `Insider batch ${payload.symbol}: ${existing.trades.length} transakcji w oknie`,
       );
+      return { action: 'BATCHED', symbol: payload.symbol };
     } else {
       // Nowy batch — ustaw timer na flush po 5 min
       const batch: InsiderBatch = {
@@ -128,6 +131,7 @@ export class AlertEvaluatorService implements OnModuleDestroy {
         ),
       };
       this.insiderBatches.set(payload.symbol, batch);
+      return { action: 'BATCH_STARTED', symbol: payload.symbol };
     }
   }
 
@@ -211,25 +215,31 @@ export class AlertEvaluatorService implements OnModuleDestroy {
     filingId: number;
     symbol: string;
     formType: string;
-  }): Promise<void> {
+  }): Promise<{ action: string; symbol: string; formType: string }> {
     this.logger.debug(
       `Filing event: ${payload.symbol} — ${payload.formType}`,
     );
 
     // Tylko 8-K generuje alert z filingów.
     // Form 4 jest obsługiwany przez onInsiderTrade — nie duplikujemy.
-    if (payload.formType !== '8-K') return;
+    if (payload.formType !== '8-K') {
+      return { action: 'SKIP_NOT_8K', symbol: payload.symbol, formType: payload.formType };
+    }
 
     const ruleName = '8-K Material Event';
     const rule = await this.getRule(ruleName);
-    if (!rule) return;
+    if (!rule) {
+      return { action: 'SKIP_NO_RULE', symbol: payload.symbol, formType: payload.formType };
+    }
 
     const isThrottled = await this.isThrottled(
       rule.name,
       payload.symbol,
       rule.throttleMinutes,
     );
-    if (isThrottled) return;
+    if (isThrottled) {
+      return { action: 'THROTTLED', symbol: payload.symbol, formType: payload.formType };
+    }
 
     const ticker = await this.tickerRepo.findOne({
       where: { symbol: payload.symbol },
@@ -247,6 +257,7 @@ export class AlertEvaluatorService implements OnModuleDestroy {
       conviction: 0.5, // bazowy conviction dla 8-K bez analizy GPT
       direction: 'negative', // 8-K material events domyślnie negatywne
     });
+    return { action: 'ALERT_SENT', symbol: payload.symbol, formType: payload.formType };
   }
 
   /**
@@ -255,8 +266,9 @@ export class AlertEvaluatorService implements OnModuleDestroy {
    * 1. Sentiment Crash: effectiveScore < -0.5 AND confidence > 0.7
    * 2. Bullish Signal Override: FinBERT < -0.5, GPT mówi BULLISH (effectiveScore > 0.1)
    * 3. Bearish Signal Override: FinBERT > 0.5, GPT mówi BEARISH (effectiveScore < -0.1)
-   * 4. High Conviction Signal: |conviction| > 1.5 (raw, nieznormalizowany)
+   * 4. High Conviction Signal: |conviction| > 0.7 (raw, nieznormalizowany)
    * 5. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
+   * 6. Urgent AI Signal: urgency=HIGH AND relevance >= 0.7
    */
   @OnEvent(EventType.SENTIMENT_SCORED)
   @Logged('alerts')
@@ -435,9 +447,11 @@ export class AlertEvaluatorService implements OnModuleDestroy {
   }
 
   /**
-   * Sprawdza regułę "High Conviction Signal" — |conviction| > 1.5.
+   * Sprawdza regułę "High Conviction Signal" — |conviction| > 0.7.
    * Wymaga enrichedAnalysis (wynik 2-etapowej analizy AI).
    * UWAGA: używa raw gptConviction (skala [-2, +2]), NIE effectiveScore.
+   * Próg obniżony z 1.5 na 0.7 — historycznie max conviction = 1.008,
+   * więc stary próg 1.5 był nieosiągalny (0 wyzwoleń ever).
    */
   private async checkHighConviction(payload: {
     symbol: string;
@@ -449,8 +463,8 @@ export class AlertEvaluatorService implements OnModuleDestroy {
   }): Promise<string> {
     if (payload.conviction == null)
       return 'SKIP: conviction null';
-    if (Math.abs(payload.conviction) < 1.5)
-      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 1.5`;
+    if (Math.abs(payload.conviction) < 0.7)
+      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 0.7`;
 
     this.logger.debug(
       `High conviction: ${payload.symbol} conviction=${payload.conviction}`,

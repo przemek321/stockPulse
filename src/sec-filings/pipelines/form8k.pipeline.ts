@@ -64,33 +64,41 @@ export class Form8kPipeline {
     filingId: number;
     symbol: string;
     formType: string;
-  }): Promise<void> {
+  }): Promise<{ action: string; symbol: string }> {
     // Tylko 8-K
-    if (payload.formType !== '8-K') return;
+    if (payload.formType !== '8-K') {
+      return { action: 'SKIP_NOT_8K', symbol: payload.symbol };
+    }
 
     try {
       // Sprawdź daily cap
-      if (!(await this.dailyCap.canCallGpt(payload.symbol))) return;
+      if (!(await this.dailyCap.canCallGpt(payload.symbol))) {
+        return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol };
+      }
 
       // Pobierz filing z bazy
       const filing = await this.filingRepo.findOne({ where: { id: payload.filingId } });
-      if (!filing || !filing.documentUrl) return;
+      if (!filing || !filing.documentUrl) {
+        return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol };
+      }
 
       // Jeśli już przeanalizowany GPT — pomiń
-      if (filing.gptAnalysis) return;
+      if (filing.gptAnalysis) {
+        return { action: 'SKIP_ALREADY_ANALYZED', symbol: payload.symbol };
+      }
 
       // Pobierz tekst filingu z SEC EDGAR
       const filingText = await this.fetchFilingText(filing.documentUrl);
       if (!filingText || filingText.length < 100) {
         this.logger.debug(`8-K ${payload.symbol}: tekst za krótki (${filingText?.length ?? 0} znaków)`);
-        return;
+        return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol };
       }
 
       // Wykryj Items w 8-K
       const items = detectItems(filingText);
       if (items.length === 0) {
         this.logger.debug(`8-K ${payload.symbol}: brak rozpoznanych Items`);
-        return;
+        return { action: 'SKIP_NO_ITEMS', symbol: payload.symbol };
       }
 
       // Sprawdź Item 1.03 (Bankruptcy) — natychmiastowy alert bez GPT
@@ -102,10 +110,10 @@ export class Form8kPipeline {
 
       // Weź najważniejszy Item (nie-bankruptcy) do analizy GPT
       const mainItem = items.find(i => !isBankruptcyItem(i));
-      if (!mainItem) return; // Tylko bankruptcy — już obsłużone
+      if (!mainItem) return { action: 'BANKRUPTCY_ONLY', symbol: payload.symbol };
 
       const promptBuilder = selectPromptBuilder(mainItem);
-      if (!promptBuilder) return;
+      if (!promptBuilder) return { action: 'SKIP_NO_PROMPT', symbol: payload.symbol };
 
       // Pobierz ticker info
       const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
@@ -117,7 +125,7 @@ export class Form8kPipeline {
 
       // Wyślij do GPT
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
-      if (!rawResponse) return; // VM niedostępna — graceful degradation
+      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol };
 
       await this.dailyCap.recordGptCall(payload.symbol);
 
@@ -137,7 +145,7 @@ export class Form8kPipeline {
           this.logger.error(
             `8-K GPT invalid JSON (2nd attempt) for ${payload.symbol} — pomijam`,
           );
-          return;
+          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol };
         }
       }
 
@@ -150,7 +158,7 @@ export class Form8kPipeline {
       const priority = scoreToAlertPriority(analysis, '8-K');
       if (!priority) {
         this.logger.debug(`8-K GPT: ${payload.symbol} Item ${mainItem} — brak alertu (low priority)`);
-        return;
+        return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol };
       }
 
       // Sprawdź regułę i throttling
@@ -158,12 +166,12 @@ export class Form8kPipeline {
       const rule = await this.ruleRepo.findOne({
         where: { name: ruleName, isActive: true },
       });
-      if (!rule) return;
+      if (!rule) return { action: 'SKIP_NO_RULE', symbol: payload.symbol };
 
       const isThrottled = await this.checkThrottled(
         rule.name, payload.symbol, rule.throttleMinutes, analysis.catalyst_type,
       );
-      if (isThrottled) return;
+      if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol };
 
       // Wyślij alert Telegram
       const message = this.formatter.formatForm8kGptAlert({
@@ -214,8 +222,11 @@ export class Form8kPipeline {
           this.logger.warn(`Correlation storeSignal error: ${err.message}`);
         }
       }
+
+      return { action: 'ALERT_SENT', symbol: payload.symbol };
     } catch (err) {
       this.logger.error(`8-K Pipeline error ${payload.symbol}: ${err.message}`);
+      return { action: 'ERROR', symbol: payload.symbol };
     }
   }
 

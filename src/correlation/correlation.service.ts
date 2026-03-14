@@ -71,8 +71,10 @@ export class CorrelationService implements OnModuleDestroy {
    * Wywoływany z AlertEvaluator, Form4Pipeline, Form8kPipeline.
    */
   @Logged('correlation')
-  async storeSignal(signal: StoredSignal): Promise<void> {
-    if (Math.abs(signal.conviction) < MIN_CONVICTION) return;
+  async storeSignal(signal: StoredSignal): Promise<{ action: string; ticker: string }> {
+    if (Math.abs(signal.conviction) < MIN_CONVICTION) {
+      return { action: 'SKIP_LOW_CONVICTION', ticker: signal.ticker };
+    }
 
     const redisKey = signal.source_category === 'form4'
       ? `signals:insider:${signal.ticker}`
@@ -93,6 +95,8 @@ export class CorrelationService implements OnModuleDestroy {
     // EXPIRE jako safety net (gdyby ticker przestał generować sygnały)
     const ttlSec = Math.ceil(ttlMs / 1000);
     await this.redis.expire(redisKey, ttlSec);
+
+    return { action: 'STORED', ticker: signal.ticker };
   }
 
   /**
@@ -114,7 +118,7 @@ export class CorrelationService implements OnModuleDestroy {
    * Uruchamia detekcję wzorców dla danego tickera.
    */
   @Logged('correlation')
-  async runPatternDetection(ticker: string): Promise<void> {
+  async runPatternDetection(ticker: string): Promise<{ ticker: string; signals: number; patterns: number }> {
     this.pendingChecks.delete(ticker);
     const now = Date.now();
 
@@ -128,7 +132,9 @@ export class CorrelationService implements OnModuleDestroy {
 
       // Nie sprawdzaj wzorców gdy za mało sygnałów
       const allSignals = [...shortSignals, ...insiderSignals];
-      if (allSignals.length < 2) return;
+      if (allSignals.length < 2) {
+        return { ticker, signals: allSignals.length, patterns: 0 };
+      }
 
       const patterns: DetectedPattern[] = [];
 
@@ -145,8 +151,11 @@ export class CorrelationService implements OnModuleDestroy {
       for (const pattern of patterns) {
         await this.triggerCorrelatedAlert(ticker, pattern);
       }
+
+      return { ticker, signals: allSignals.length, patterns: patterns.length };
     } catch (err) {
       this.logger.error(`Pattern detection error for ${ticker}: ${err.message}`);
+      return { ticker, signals: 0, patterns: 0 };
     }
   }
 

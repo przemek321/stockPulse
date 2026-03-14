@@ -16,7 +16,7 @@ export class RedditProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job): Promise<number> {
+  async process(job: Job): Promise<{ collector: string; count: number }> {
     this.logger.log(`Rozpoczynam cykl zbierania Reddit (job ${job.id})`);
     return this.redditService.runCollectionCycle();
   }

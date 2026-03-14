@@ -416,6 +416,14 @@ Analiza tygodniowa systemu (7-13 marca) ujawniła 3 problemy. Wdrożone na serwe
 - [x] **Raport**: [doc/reports/2026-03-13-weekly-report.md](doc/reports/2026-03-13-weekly-report.md) — 9 028 sygnałów, 131 alertów, 24 tickery. Hit rate: 55.4% (1d), 59.3% (3d). Alerty negatywne: 80% trafność 3d. Top: HIMS +57.7% (deal z Novo Nordisk), CNC -17.1% (8-K). Najlepsza reguła: 8-K Material Event (85.7% hit rate).
 - [x] **Changelog**: [doc/reports/2026-03-14-zmiany.md](doc/reports/2026-03-14-zmiany.md)
 
+#### 8.4 Optymalizacja system_logs (analiza 36 379 wierszy → 6 zmian)
+- [x] **Usunięcie @Logged z FinBERT analyze()** — podwójne logowanie (analyze + process) generowało 35% wolumenu. Dane FinBERTa już w output process().
+- [x] **Return values zamiast void** — 6 metod (onInsiderTrade ×2, onFiling ×2, storeSignal, runPatternDetection) zwracało void → 930 wierszy/tydzień z null output. Teraz zwracają `{ action: 'SKIP_LOW_VALUE' | 'BATCHED' | 'STORED' | ... }`.
+- [x] **Nazwa kolektora w runCollectionCycle** — input był null (brak argumentów), output `{value: N}` bez kontekstu. Teraz zwraca `{ collector: 'STOCKTWITS', count: N }`.
+- [x] **Próg highConviction: 1.5 → 0.7** — stary próg nieosiągalny (max conviction w historii = 1.008, 0 wyzwoleń ever). Nowy 0.7 łapie naprawdę silne sygnały.
+- [x] **JSDoc AlertEvaluator** — dodano brakującą regułę Urgent AI Signal do komentarza.
+- [x] **Dokumentacja** — CLAUDE.md: 5 checków / 6 reguł, ~13 metod @Logged.
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare

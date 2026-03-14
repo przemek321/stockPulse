@@ -65,19 +65,22 @@ export abstract class BaseCollectorService implements ICollector {
 
   /**
    * Wrapper uruchamiający collect() z pomiarem czasu i logowaniem.
+   * Zwraca obiekt z nazwą kolektora i liczbą zebranych elementów
+   * (zamiast samego count — @Logged loguje output do system_logs).
    */
   @Logged('collectors')
-  async runCollectionCycle(): Promise<number> {
+  async runCollectionCycle(): Promise<{ collector: string; count: number }> {
+    const collector = this.getSourceName();
     const start = Date.now();
     try {
       const count = await this.collect();
       await this.logCollection('SUCCESS', count, Date.now() - start);
-      return count;
+      return { collector, count };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Błąd cyklu zbierania: ${msg}`);
       await this.logCollection('FAILED', 0, Date.now() - start, msg);
-      return 0;
+      return { collector, count: 0 };
     }
   }
 }

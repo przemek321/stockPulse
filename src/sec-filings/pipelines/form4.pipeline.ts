@@ -57,19 +57,25 @@ export class Form4Pipeline {
     is10b51Plan?: boolean;
     sharesOwnedAfter?: number | null;
     source?: string;
-  }): Promise<void> {
+  }): Promise<{ action: string; symbol: string }> {
     // Filtruj: spójność z AlertEvaluatorService — tylko BUY/SELL > $100K
-    if (!payload.totalValue || payload.totalValue < 100_000) return;
+    if (!payload.totalValue || payload.totalValue < 100_000) {
+      return { action: 'SKIP_LOW_VALUE', symbol: payload.symbol };
+    }
     const ALERTABLE = ['BUY', 'SELL'];
-    if (payload.transactionType && !ALERTABLE.includes(payload.transactionType)) return;
+    if (payload.transactionType && !ALERTABLE.includes(payload.transactionType)) {
+      return { action: 'SKIP_NOT_ALERTABLE', symbol: payload.symbol };
+    }
 
     // Sprawdź daily cap
-    if (!(await this.dailyCap.canCallGpt(payload.symbol))) return;
+    if (!(await this.dailyCap.canCallGpt(payload.symbol))) {
+      return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol };
+    }
 
     try {
       // Pobierz trade z bazy (potrzebujemy pełne dane)
       const trade = await this.tradeRepo.findOne({ where: { id: payload.tradeId } });
-      if (!trade) return;
+      if (!trade) return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol };
 
       // Pobierz ticker info
       const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
@@ -116,7 +122,7 @@ export class Form4Pipeline {
       // Buduj prompt i wyślij do GPT
       const prompt = buildForm4Prompt(payload.symbol, companyName, parsed, recentFilings);
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
-      if (!rawResponse) return; // VM niedostępna — graceful degradation
+      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol };
 
       await this.dailyCap.recordGptCall(payload.symbol);
 
@@ -137,7 +143,7 @@ export class Form4Pipeline {
           this.logger.error(
             `Form4 GPT invalid JSON (2nd attempt) for ${payload.symbol} — pomijam`,
           );
-          return;
+          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol };
         }
       }
 
@@ -159,7 +165,7 @@ export class Form4Pipeline {
       const priority = scoreToAlertPriority(analysis, 'Form4');
       if (!priority) {
         this.logger.debug(`Form4 GPT: ${payload.symbol} — brak alertu (low priority)`);
-        return;
+        return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol };
       }
 
       // Sprawdź regułę i throttling
@@ -167,12 +173,12 @@ export class Form4Pipeline {
       const rule = await this.ruleRepo.findOne({
         where: { name: ruleName, isActive: true },
       });
-      if (!rule) return;
+      if (!rule) return { action: 'SKIP_NO_RULE', symbol: payload.symbol };
 
       const isThrottled = await this.checkThrottled(
         rule.name, payload.symbol, rule.throttleMinutes, analysis.catalyst_type,
       );
-      if (isThrottled) return;
+      if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol };
 
       // Wyślij alert Telegram
       const message = this.formatter.formatForm4GptAlert({
@@ -229,8 +235,11 @@ export class Form4Pipeline {
           this.logger.warn(`Correlation storeSignal error: ${err.message}`);
         }
       }
+
+      return { action: 'ALERT_SENT', symbol: payload.symbol };
     } catch (err) {
       this.logger.error(`Form4 Pipeline error ${payload.symbol}: ${err.message}`);
+      return { action: 'ERROR', symbol: payload.symbol };
     }
   }
 
