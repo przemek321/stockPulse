@@ -17,7 +17,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
   private timeoutRef: ReturnType<typeof setTimeout> | null = null;
 
   /** Interwał raportu: 2 godziny */
-  private readonly INTERVAL_MS = 2 * 60 * 60 * 1000;
+  private readonly INTERVAL_MS = 8 * 60 * 60 * 1000;
 
   /** Opóźnienie pierwszego raportu po starcie */
   private readonly INITIAL_DELAY_MS = 15_000;
@@ -41,10 +41,10 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     // Pierwszy raport po krótkim opóźnieniu (żeby system zdążył wystartować)
     this.timeoutRef = setTimeout(() => this.sendSummary(), this.INITIAL_DELAY_MS);
 
-    // Powtarzalny raport co 2h
+    // Powtarzalny raport co 8h
     this.intervalRef = setInterval(() => this.sendSummary(), this.INTERVAL_MS);
 
-    this.logger.log('Zaplanowano raport sentymentu co 2h na Telegram');
+    this.logger.log('Zaplanowano raport sentymentu co 8h na Telegram');
   }
 
   onModuleDestroy(): void {

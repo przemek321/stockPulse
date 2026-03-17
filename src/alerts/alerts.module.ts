@@ -11,7 +11,7 @@ import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
 /**
  * Moduł alertów.
  * Ewaluacja reguł, throttling, wysyłka przez Telegram.
- * Cykliczny raport sentymentu co 2h (z sekcją PDUFA).
+ * Cykliczny raport sentymentu co 8h (z sekcją PDUFA).
  */
 @Module({
   imports: [
