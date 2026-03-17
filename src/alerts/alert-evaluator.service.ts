@@ -281,7 +281,7 @@ export class AlertEvaluatorService implements OnModuleDestroy {
    * 3. Bearish Signal Override: FinBERT > 0.5, GPT mówi BEARISH (effectiveScore < -0.1)
    * 4. High Conviction Signal: |conviction| > 0.7 (raw, nieznormalizowany)
    * 5. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
-   * 6. Urgent AI Signal: urgency=HIGH AND relevance >= 0.7
+   * 6. Urgent AI Signal: urgency=HIGH AND relevance >= 0.7 AND |conviction| >= 0.3
    */
   @OnEvent(EventType.SENTIMENT_SCORED)
   @Logged('alerts')
@@ -590,8 +590,8 @@ export class AlertEvaluatorService implements OnModuleDestroy {
       return `SKIP: relevance ${(ea.relevance ?? 0).toFixed(2)} < 0.7`;
     if ((ea.confidence ?? 0) < 0.6)
       return `SKIP: confidence ${(ea.confidence ?? 0).toFixed(2)} < 0.6`;
-    if (Math.abs(payload.conviction) < 0.1)
-      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 0.1`;
+    if (Math.abs(payload.conviction) < 0.3)
+      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 0.3`;
 
     this.logger.debug(
       `Urgent signal: ${payload.symbol} urgency=${ea.urgency} relevance=${ea.relevance} conviction=${payload.conviction}`,
@@ -611,7 +611,7 @@ export class AlertEvaluatorService implements OnModuleDestroy {
     );
     if (isThrottled) return `THROTTLED: ${ruleName}`;
 
-    const message = this.formatter.formatConvictionAlert({
+    const message = this.formatter.formatUrgentAiAlert({
       symbol: payload.symbol,
       priority: rule.priority,
       conviction: payload.conviction,

@@ -69,7 +69,7 @@ function createMockFormatter() {
     formatSignalOverrideAlert: jest.fn(() => 'override'),
     formatConvictionAlert: jest.fn(() => 'conviction'),
     formatStrongFinbertAlert: jest.fn(() => 'finbert'),
-    formatUrgentSignalAlert: jest.fn(() => 'urgent'),
+    formatUrgentAiAlert: jest.fn(() => 'urgent'),
   };
 }
 
@@ -280,7 +280,7 @@ describe('Agent: Alert Evaluator — Reguła 6: Urgent AI Signal', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('ALERT gdy urgency=HIGH, relevance>=0.7, confidence>=0.6, |conviction|>=0.1', async () => {
+  it('ALERT gdy urgency=HIGH, relevance>=0.7, confidence>=0.6, |conviction|>=0.3', async () => {
     const { service, ruleRepo } = createService();
     ruleRepo.findOne.mockResolvedValue(createMockRule({ name: 'Urgent AI Signal' }));
 
@@ -460,17 +460,17 @@ describe('Agent: Alert Evaluator — OnModuleDestroy', () => {
   });
 });
 
-// ── Testy: conviction < 0.1 suppress w checkUrgentSignal ──
+// ── Testy: conviction < 0.3 suppress w checkUrgentSignal ──
 
-describe('Agent: Alert Evaluator — conviction < 0.1 suppress', () => {
+describe('Agent: Alert Evaluator — conviction < 0.3 suppress', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('SKIP gdy |conviction| < 0.1 (zbyt słaby sygnał dla Urgent AI)', async () => {
+  it('SKIP gdy |conviction| < 0.3 (zbyt słaby sygnał dla Urgent AI)', async () => {
     const { service } = createService();
     const result = await (service as any).checkUrgentSignal({
       symbol: 'ISRG', score: 0.5, confidence: 0.8,
-      source: 'stocktwits', conviction: 0.05,
+      source: 'stocktwits', conviction: 0.15,
       enrichedAnalysis: { urgency: 'HIGH', relevance: 0.8, confidence: 0.7 },
     });
     expect(result).toContain('SKIP');
@@ -486,13 +486,13 @@ describe('Agent: Alert Evaluator — conviction < 0.1 suppress', () => {
     expect(result).toContain('SKIP');
   });
 
-  it('ALERT gdy |conviction| = 0.1 (graniczny — próg jest >=)', async () => {
+  it('ALERT gdy |conviction| = 0.3 (graniczny — próg jest >=)', async () => {
     const { service, ruleRepo } = createService();
     ruleRepo.findOne.mockResolvedValue(createMockRule({ name: 'Urgent AI Signal' }));
 
     const result = await (service as any).checkUrgentSignal({
       symbol: 'ISRG', score: 0.5, confidence: 0.8,
-      source: 'stocktwits', conviction: 0.1,
+      source: 'stocktwits', conviction: 0.3,
       enrichedAnalysis: { urgency: 'HIGH', relevance: 0.8, confidence: 0.7 },
     });
     expect(result).toContain('ALERT_SENT');

@@ -242,6 +242,50 @@ export class TelegramFormatterService {
   }
 
   /**
+   * Formatuje alert Urgent AI Signal — GPT ocenił news jako pilny (urgency=HIGH).
+   * Osobny format od High Conviction — to nie jest sygnał siły, a pilności.
+   */
+  formatUrgentAiAlert(data: {
+    symbol: string;
+    priority: string;
+    conviction: number;
+    finbertScore: number;
+    finbertConfidence: number;
+    source: string;
+    enrichedAnalysis: Record<string, any>;
+  }): string {
+    const icon = this.priorityIcon(data.priority);
+    const ea = data.enrichedAnalysis;
+    const timestamp = this.escapeMarkdown(new Date().toISOString());
+
+    const direction = data.conviction > 0 ? 'BYCZY' : 'NIEDŹWIEDZI';
+    const dirIcon = data.conviction > 0 ? '\u{1F7E2}' : '\u{1F534}';
+
+    const lines = [
+      `${icon} *StockPulse — Pilny Sygna\u0142 AI*`,
+      '',
+      `${dirIcon} *${this.escapeMarkdown(direction)}* — \\$${this.escapeMarkdown(data.symbol)}`,
+      '',
+      `\u{1F3AF} *Conviction: ${this.escapeMarkdown(data.conviction.toFixed(3))}*`,
+    ];
+
+    if (ea.catalyst_type) {
+      lines.push('');
+      lines.push(`\u{1F3F7}\uFE0F Katalizator: ${this.escapeMarkdown(ea.catalyst_type)}`);
+    }
+
+    if (ea.summary) {
+      lines.push(`\u{1F4AC} ${this.escapeMarkdown(ea.summary.substring(0, 200))}`);
+    }
+
+    lines.push('');
+    lines.push(`\u{1F4CC} Źródło: ${this.escapeMarkdown(data.source)}`);
+    lines.push(`\u23F0 ${timestamp}`);
+
+    return lines.join('\n');
+  }
+
+  /**
    * Formatuje alert Signal Override — GPT koryguje FinBERT (Bullish lub Bearish).
    * Pokazuje konflikt modeli: FinBERT score vs GPT conviction + effective score.
    */

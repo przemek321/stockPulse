@@ -57,6 +57,7 @@ function createMockFormatter() {
     formatSentimentAlert: jest.fn(() => 'sentiment alert'),
     formatSignalOverrideAlert: jest.fn(() => 'override alert'),
     formatConvictionAlert: jest.fn(() => 'conviction alert'),
+    formatUrgentAiAlert: jest.fn(() => 'urgent ai alert'),
     formatStrongFinbertAlert: jest.fn(() => 'finbert alert'),
   };
 }
