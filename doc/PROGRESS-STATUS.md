@@ -2,11 +2,11 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-03-14
+> Ostatnia aktualizacja: 2026-03-17
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony) + **Sprint 8 — Optymalizacja pipeline + analiza tygodniowa** (ukończony 2026-03-14)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony) + **Sprint 8 — Optymalizacja pipeline + analiza tygodniowa** (ukończony 2026-03-14) + **Sprint 9 — Fixy z raportu tygodniowego: conviction sign, dual signal, noise reduction** (ukończony 2026-03-17)
 
 Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND, **tylko FINNHUB/SEC — StockTwits FinBERT-only**) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 18 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare. Raporty tygodniowe w [doc/reports/](doc/reports/).
 
@@ -423,6 +423,45 @@ Analiza tygodniowa systemu (7-13 marca) ujawniła 3 problemy. Wdrożone na serwe
 - [x] **Próg highConviction: 1.5 → 0.7** — stary próg nieosiągalny (max conviction w historii = 1.008, 0 wyzwoleń ever). Nowy 0.7 łapie naprawdę silne sygnały.
 - [x] **JSDoc AlertEvaluator** — dodano brakującą regułę Urgent AI Signal do komentarza.
 - [x] **Dokumentacja** — CLAUDE.md: 5 checków / 6 reguł, ~13 metod @Logged.
+
+### Sprint 9: Fixy z raportu tygodniowego — conviction sign, dual signal, noise reduction (ukończony 2026-03-17)
+
+Raport tygodniowy (10-17 marca) ujawnił 9% edge / 85% noise (180 alertów, 17 potencjalnie użytecznych). Walidacja na danych giełdowych: THC insider cluster = trafny (-15% w 6 dni), reszta insider signals miała odwrócony conviction sign.
+
+#### 9.1 Fix conviction sign dla Form 4 (prompt + safety net)
+- [x] **Prompt sign convention** — jawna instrukcja w `form4.prompt.ts`: SELL = conviction ujemna, BUY = conviction dodatnia. Skala zmieniona z `±0.1-0.4` na `-0.1 to -0.4 / +0.1 to +0.4`
+- [x] **Safety net post-GPT** — `form4.pipeline.ts` i `form8k.pipeline.ts`: jeśli `price_impact.direction` nie zgadza się ze znakiem `conviction`, flip sign + warn log. GPT zawsze ustawia direction poprawnie, nawet gdy sign conviction jest odwrócony.
+  - Bug: 3 z 5 insider signals (VRTX, TDOC, ISRG) miały conviction +0.90 przy SELL — zielone emoji zamiast czerwonego
+  - Przyczyna: prompt mówił `±0.9` — GPT interpretował jako magnitude, ignorując kierunek
+
+#### 9.2 Fix dual signal (AlertEvaluator + Form4Pipeline)
+- [x] **Usunięcie rejestracji korelacji z AlertEvaluator** — `flushInsiderBatch()` nie wywołuje `storeSignal()` ani `schedulePatternCheck()`. Sygnały form4 w CorrelationService wyłącznie z Form4Pipeline (GPT-enriched conviction + catalyst_type)
+  - Bug: każdy insider trade rejestrował 2 sygnały w Redis — value-based (AlertEval, conviction=totalValue/$1M, catalyst='unknown') + GPT-based (Form4Pipeline, conviction z GPT, catalyst='insider')
+  - Efekt: INSIDER_CLUSTER łączył mieszane conviction values (np. THC: -0.45, +1.00, -0.45 — ta +1.00 to AlertEval)
+  - Fix ELV INSIDER_PLUS_8K: pozytywne składowe → negatywny aggregate — wynikał z dual signal + conviction sign bug
+
+#### 9.3 Silent rules — Sentiment Crash + Strong FinBERT wyłączone z Telegrama
+- [x] **SILENT_RULES** w `alert-evaluator.service.ts` — Set z nazwami reguł zapisywanych do DB bez wysyłki Telegram
+  - Raport: 80 alertów/tydzień (44%) = czysty szum StockTwits, zero edge
+  - Dane zachowane w DB do analizy retrospektywnej (reguły aktywne, throttling działa, brak `delivered`)
+
+#### 9.4 Per-symbol daily alert limit
+- [x] **MAX_TELEGRAM_ALERTS_PER_SYMBOL_PER_DAY = 5** w `alert-evaluator.service.ts`
+  - Sprawdzenie w `sendAlert()`: count alertów z `delivered=true` dla symbolu dziś (UTC)
+  - Silent rules nie liczą się do limitu
+  - Raport: HIMS 46 alertów/tydzień (~6.5/dzień) — limit 5/dzień obcina najgorszy spam
+
+#### 9.5 Osobne progi priorytetów Form4 vs 8-K
+- [x] **scoreToAlertPriority rozbity na scoreForm4Priority + score8kPriority** w `price-impact.scorer.ts`
+  - Form 4 (leading signals): niższe progi — CRITICAL od |conviction|≥0.8, HIGH od |conviction|≥0.4, nowy MEDIUM od |conviction|≥0.2
+  - 8-K (reaktywne): wyższe progi — bez zmian vs poprzednia wersja
+  - Uzasadnienie: insider SELL $150K z conviction -0.5 to inny kaliber niż 8-K z conviction -0.5
+
+#### 9.6 Cleanup martwego kodu
+- [x] **recordGptCall() usunięty** — metoda była no-op po fix race condition w Sprint 7 (`canCallGpt()` robi atomowy INCR). Usunięta z `daily-cap.service.ts`, `form4.pipeline.ts`, `form8k.pipeline.ts`.
+
+#### 9.7 Dokumentacja
+- [x] **doc/flow-form4-8k-insider.md** — nowy plik: kompletny przepływ Form 4 + 8-K + Insider Trade Large z diagramem ASCII, 16 sekcji, mapa plików
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.

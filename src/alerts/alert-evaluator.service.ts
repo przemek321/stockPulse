@@ -21,6 +21,24 @@ import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 /** Okno agregacji insider trades — zbiera transakcje per ticker i wysyła zbiorczy alert */
 const INSIDER_AGGREGATION_WINDOW_MS = 5 * 60 * 1000; // 5 minut
 
+/**
+ * Max alertów Telegram per ticker per dzień (UTC).
+ * Raport 2026-03-17: HIMS 46 alertów/tydzień (~6.5/dzień) — nie do użycia.
+ * Limit obcina najgorszy spam, zachowując realne sygnały.
+ * Silent rules (Sentiment Crash, Strong FinBERT) nie liczą się do limitu.
+ */
+const MAX_TELEGRAM_ALERTS_PER_SYMBOL_PER_DAY = 5;
+
+/**
+ * Reguły "silent" — zapisywane do bazy, ale NIE wysyłane na Telegram.
+ * Raport 2026-03-17: Sentiment Crash + Strong FinBERT = 80 alertów/tydzień (44%), zero edge.
+ * Dane zachowane w DB do analizy, ale Telegram nie jest zasypywany szumem.
+ */
+const SILENT_RULES: ReadonlySet<string> = new Set([
+  'Sentiment Crash',
+  'Strong FinBERT Signal',
+]);
+
 interface InsiderBatch {
   symbol: string;
   trades: {
@@ -193,16 +211,11 @@ export class AlertEvaluatorService implements OnModuleDestroy {
       });
     }
 
-    // Określ kierunek na podstawie typów transakcji w batchu
-    const buyCount = batch.trades.filter(t => t.transactionType === 'BUY').length;
-    const sellCount = batch.trades.filter(t => t.transactionType === 'SELL').length;
-    const insiderDirection: 'positive' | 'negative' = buyCount >= sellCount ? 'positive' : 'negative';
-
-    await this.sendAlert(symbol, rule, message, undefined, {
-      sourceCategory: 'form4',
-      conviction: Math.min(totalValue / 1_000_000, 1.0), // normalizacja: $1M = 1.0
-      direction: insiderDirection,
-    });
+    // Nie rejestruj sygnału korelacji z AlertEvaluator — Form4Pipeline robi to
+    // z GPT-enriched conviction i poprawnym catalyst_type.
+    // Dual signal (AlertEval value-based + Form4Pipeline GPT-based) zaśmiecał
+    // INSIDER_CLUSTER mieszanymi conviction values (bug z raportu 2026-03-17).
+    await this.sendAlert(symbol, rule, message);
   }
 
   /**
@@ -631,7 +644,32 @@ export class AlertEvaluatorService implements OnModuleDestroy {
       direction: 'positive' | 'negative' | 'neutral';
     },
   ): Promise<void> {
-    const delivered = await this.telegram.sendMarkdown(message);
+    // Silent rules: zapisz do DB, ale nie wysyłaj na Telegram (szum bez edge)
+    const isSilent = SILENT_RULES.has(rule.name);
+
+    // Per-symbol daily limit: max N alertów Telegram per ticker per dzień (UTC)
+    let dailyLimitHit = false;
+    if (!isSilent) {
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+      const todayAlerts = await this.alertRepo.count({
+        where: {
+          symbol,
+          delivered: true,
+          sentAt: MoreThan(todayStart),
+        },
+      });
+      if (todayAlerts >= MAX_TELEGRAM_ALERTS_PER_SYMBOL_PER_DAY) {
+        dailyLimitHit = true;
+        this.logger.debug(
+          `Daily limit hit: ${symbol} ma ${todayAlerts} alertów dziś, pomijam Telegram`,
+        );
+      }
+    }
+
+    const delivered = (isSilent || dailyLimitHit)
+      ? false
+      : await this.telegram.sendMarkdown(message);
 
     // Price Outcome Tracker — pobierz cenę PRZED zapisem (1 zapis zamiast 2)
     let priceAtAlert: number | null = null;

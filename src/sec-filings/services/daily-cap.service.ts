@@ -44,14 +44,6 @@ export class DailyCapService {
     return true;
   }
 
-  /**
-   * Rejestracja wywołania GPT — slot już zarezerwowany w canCallGpt().
-   * Zachowane dla wstecznej kompatybilności, ale nie inkrementuje ponownie.
-   */
-  async recordGptCall(_ticker: string): Promise<void> {
-    // Slot zarezerwowany atomowo w canCallGpt() — tu nic nie robimy
-  }
-
   private buildKey(ticker: string): string {
     const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     return `gpt:daily:${ticker}:${date}`;

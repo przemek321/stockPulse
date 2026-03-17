@@ -124,8 +124,6 @@ export class Form4Pipeline {
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
       if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol };
 
-      await this.dailyCap.recordGptCall(payload.symbol);
-
       // Waliduj JSON z GPT (Zod) — retry 1x przy błędzie
       let analysis: SecFilingAnalysis;
       try {
@@ -145,6 +143,23 @@ export class Form4Pipeline {
           );
           return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol };
         }
+      }
+
+      // Safety net: jeśli GPT zwrócił conviction z odwróconym znakiem (np. SELL +0.90),
+      // skoryguj na podstawie price_impact.direction (GPT zawsze ustawia direction poprawnie)
+      const directionFromGpt = analysis.price_impact.direction;
+      if (directionFromGpt === 'negative' && analysis.conviction > 0) {
+        this.logger.warn(
+          `Form4 conviction sign fix: ${payload.symbol} ${parsed.transactionType} ` +
+            `conviction ${analysis.conviction} → ${-analysis.conviction} (direction=negative)`,
+        );
+        analysis.conviction = -analysis.conviction;
+      } else if (directionFromGpt === 'positive' && analysis.conviction < 0) {
+        this.logger.warn(
+          `Form4 conviction sign fix: ${payload.symbol} ${parsed.transactionType} ` +
+            `conviction ${analysis.conviction} → ${-analysis.conviction} (direction=positive)`,
+        );
+        analysis.conviction = -analysis.conviction;
       }
 
       // Zapisz wynik do bazy — szukaj filingu Form 4 po bazowym accession number

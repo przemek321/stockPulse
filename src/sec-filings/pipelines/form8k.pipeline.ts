@@ -127,8 +127,6 @@ export class Form8kPipeline {
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
       if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol };
 
-      await this.dailyCap.recordGptCall(payload.symbol);
-
       // Waliduj JSON z GPT (Zod) — retry 1x
       let analysis: SecFilingAnalysis;
       try {
@@ -147,6 +145,23 @@ export class Form8kPipeline {
           );
           return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol };
         }
+      }
+
+      // Safety net: korekcja znaku conviction na podstawie price_impact.direction
+      // (analogicznie jak w Form4Pipeline — GPT czasem zwraca magnitude bez znaku)
+      const directionFromGpt = analysis.price_impact.direction;
+      if (directionFromGpt === 'negative' && analysis.conviction > 0) {
+        this.logger.warn(
+          `8-K conviction sign fix: ${payload.symbol} Item ${mainItem} ` +
+            `conviction ${analysis.conviction} → ${-analysis.conviction} (direction=negative)`,
+        );
+        analysis.conviction = -analysis.conviction;
+      } else if (directionFromGpt === 'positive' && analysis.conviction < 0) {
+        this.logger.warn(
+          `8-K conviction sign fix: ${payload.symbol} Item ${mainItem} ` +
+            `conviction ${analysis.conviction} → ${-analysis.conviction} (direction=positive)`,
+        );
+        analysis.conviction = -analysis.conviction;
       }
 
       // Zapisz wynik do bazy

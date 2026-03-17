@@ -57,14 +57,19 @@ ANALYSIS GUIDELINES:
 - Cluster selling (2+ insiders in 7 days) amplifies bearish signal
 - Consider % of total holdings sold/bought, not just absolute value
 
+SIGN CONVENTION (CRITICAL — MUST follow):
+- SELL transaction → conviction MUST be NEGATIVE (e.g. -0.9, NEVER +0.9)
+- BUY/PURCHASE transaction → conviction MUST be POSITIVE (e.g. +0.9, NEVER -0.9)
+- The sign of conviction MUST match price_impact.direction (negative direction = negative conviction)
+
 CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
-- ±0.1 to ±0.4: routine transaction, 10b5-1 plan sale, small amount, low significance
-- ±0.5 to ±0.8: notable transaction, moderate size, some signal value
-- ±0.9 to ±1.2: significant — large purchase by CEO/CFO, or cluster selling pattern
-- ±1.3 to ±1.6: very significant — massive insider buy before catalyst, or emergency sell-off
-- ±1.7 to ±2.0: extreme — only for extraordinary events (e.g., CEO buys $10M+ worth before FDA decision)
+- -0.1 to -0.4 / +0.1 to +0.4: routine transaction, 10b5-1 plan sale, small amount
+- -0.5 to -0.8 / +0.5 to +0.8: notable transaction, moderate size, some signal value
+- -0.9 to -1.2 / +0.9 to +1.2: significant — large purchase by CEO/CFO, or cluster selling
+- -1.3 to -1.6 / +1.3 to +1.6: very significant — massive insider buy before catalyst, or emergency sell-off
+- -1.7 to -2.0 / +1.7 to +2.0: extreme — only for extraordinary events
 - 0.0: truly neutral, no trading signal
-Use the FULL range. Most routine 10b5-1 sales should be ±0.1-0.3. Only exceptional events warrant ±1.5+.
+Use the FULL range. Most routine 10b5-1 sales should be -0.1 to -0.3. Only exceptional events warrant |conviction| > 1.5.
 
 IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
 
