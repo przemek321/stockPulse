@@ -1,7 +1,7 @@
 # StockPulse — Schemat struktury katalogów
 
 > Szczegółowy opis każdego pliku, co robi i z czym jest powiązany.
-> Ostatnia aktualizacja: 2026-03-09
+> Ostatnia aktualizacja: 2026-03-17
 
 ## Drzewo katalogów
 
@@ -24,7 +24,7 @@ stockPulse/
 │   │
 │   ├── entities/                           # Encje (tabele bazy danych)
 │   │   ├── index.ts                        # Re-eksport wszystkich encji
-│   │   ├── ticker.entity.ts                # 32 tickery healthcare
+│   │   ├── ticker.entity.ts                # ~42 tickery healthcare
 │   │   ├── sentiment-score.entity.ts       # Wyniki sentymentu (time-series)
 │   │   ├── raw-mention.entity.ts           # Surowe wzmianki (Reddit, StockTwits)
 │   │   ├── news-article.entity.ts          # Artykuły newsowe (Finnhub)
@@ -107,12 +107,14 @@ stockPulse/
 │   │   │   ├── form8k-2-02.prompt.ts       # Prompt 8-K Item 2.02 — Results of Operations
 │   │   │   ├── form8k-5-02.prompt.ts       # Prompt 8-K Item 5.02 — Leadership Changes
 │   │   │   └── form8k-other.prompt.ts      # Prompt 8-K inne Itemy (7.01, 8.01 itd.)
-│   │   ├── utils/
-│   │   │   ├── form8k-parser.ts            # Parser 8-K: detectItems(), extractItemText(), stripHtml()
-│   │   │   └── filing-scorer.ts            # scoreToAlertPriority(), mapToRuleName()
-│   │   ├── schemas/
-│   │   │   └── sec-filing-analysis.schema.ts # Zod walidacja odpowiedzi GPT
-│   │   └── daily-cap.service.ts            # Redis INCR, max 20 GPT/ticker/dzień
+│   │   ├── parsers/
+│   │   │   └── form8k.parser.ts            # Parser 8-K: detectItems(), extractItemText(), stripHtml(), isBankruptcyItem()
+│   │   ├── scoring/
+│   │   │   └── price-impact.scorer.ts      # scoreForm4Priority(), score8kPriority(), mapToRuleName()
+│   │   ├── types/
+│   │   │   └── sec-filing-analysis.ts      # Zod walidacja odpowiedzi GPT + parseGptResponse()
+│   │   └── services/
+│   │       └── daily-cap.service.ts        # Redis INCR, max 20 GPT/ticker/dzień, canCallGpt()
 │   │
 │   ├── system-log/                        # System logowania (@Logged decorator)
 │   │   ├── system-log.module.ts           # @Global() moduł (singleton)
@@ -121,7 +123,9 @@ stockPulse/
 │   ├── correlation/                        # Warstwa 3: Detekcja wzorców cross-source
 │   │   ├── correlation.module.ts           # Moduł (eksportuje CorrelationService)
 │   │   ├── correlation.service.ts          # 5 detektorów wzorców, Redis Sorted Sets
-│   │   └── redis.provider.ts              # Osobna instancja Redis (keyPrefix: 'corr:')
+│   │   ├── redis.provider.ts              # Osobna instancja Redis (keyPrefix: 'corr:')
+│   │   └── types/
+│   │       └── correlation.types.ts       # StoredSignal, CorrelationPattern — interfejsy
 │   │
 │   ├── price-outcome/                      # Warstwa 3b: Price Outcome Tracker
 │   │   ├── price-outcome.module.ts         # Moduł (Alert repo + FinnhubModule)
@@ -152,7 +156,9 @@ stockPulse/
 ├── finbert-sidecar/                        # FinBERT sidecar — Python FastAPI (GPU/CPU)
 │   ├── Dockerfile                          # Obraz GPU (CUDA + PyTorch)
 │   ├── Dockerfile.cpu                      # Obraz CPU-only (bez CUDA)
+│   ├── Dockerfile.jetson                   # Obraz Jetson (L4T PyTorch r35.2.1, Python 3.8)
 │   ├── requirements.txt                    # Zależności Python (transformers, fastapi, torch)
+│   ├── requirements-jetson.txt             # Zależności Jetson (bez torch — wbudowany w L4T)
 │   └── app/
 │       ├── main.py                         # FastAPI app (/health, /api/sentiment, /api/sentiment/batch)
 │       └── model.py                        # Załadowanie modelu ProsusAI/finbert + inferencja
@@ -173,7 +179,9 @@ stockPulse/
 │           ├── DataPanel.tsx                # Panel danych (tabela z sortowaniem)
 │           ├── DbSummary.tsx               # Podsumowanie bazy (totale per tabela)
 │           ├── SentimentChart.tsx           # Wykres sentymentu Recharts (fioletowe AI dots)
-│           └── SystemLogsTab.tsx           # Zakładka System Logs (filtry, tabela, export JSON)
+│           ├── SystemLogsTab.tsx           # Zakładka System Logs (filtry, tabela, export JSON)
+│           ├── JetsonStatsBar.tsx         # Pasek statystyk Jetsona (temp, RAM, CPU, GPU)
+│           └── PriceOutcomePanel.tsx      # Panel "Trafność Alertów" (ceny, delty %, hit rate)
 │
 ├── azure-api/                              # Azure VM — gpt-4o-mini analysis service (osobne repo)
 │   ├── processor.js                       # POST /analyze — gpt-4o-mini eskalacja (PM2, port 3100)
@@ -183,13 +191,20 @@ stockPulse/
 ├── docker/                                 # Pliki konfiguracyjne Docker
 │   └── pgadmin-servers.json                # Auto-rejestracja serwera w pgAdmin
 │
-├── test/                                   # Testy jednostkowe (Jest + ts-jest)
-│   └── unit/
-│       ├── alert-evaluator.spec.ts         # 21 testów: sendAlert, cache reguł, throttling, insider batches
-│       ├── correlation.spec.ts             # Logika CorrelationService (direction, conviction, detektory)
-│       ├── form4-parser.spec.ts            # Parser Form 4 XML
-│       ├── form8k-parser.spec.ts           # Parser 8-K (Items, stripHtml)
-│       └── price-impact-scorer.spec.ts     # Scorer SEC filingów (priority, ruleName)
+├── test/                                   # Testy (Jest + ts-jest)
+│   ├── unit/                              # Testy jednostkowe
+│   │   ├── alert-evaluator.spec.ts         # 21 testów: sendAlert, cache reguł, throttling, insider batches
+│   │   ├── correlation.spec.ts             # Logika CorrelationService (direction, conviction, detektory)
+│   │   ├── form4-parser.spec.ts            # Parser Form 4 XML
+│   │   ├── form8k-parser.spec.ts           # Parser 8-K (Items, stripHtml)
+│   │   └── price-impact-scorer.spec.ts     # Scorer SEC filingów (priority, ruleName)
+│   └── agents/                            # Testy agentów (realne importy, nie mocki)
+│       ├── alert-evaluator-agent.spec.ts   # AlertEvaluator: reguły, throttling, silent rules
+│       ├── collectors-agent.spec.ts        # Kolektory: interwały, parsery, health
+│       ├── correlation-agent.spec.ts       # CorrelationService: detektory, Redis, progi
+│       ├── price-outcome-agent.spec.ts     # PriceOutcome: CRON, NYSE hours, sloty cenowe
+│       ├── sec-filings-agent.spec.ts       # SEC pipeline: prompty, Zod, scoring, daily cap
+│       └── sentiment-agent.spec.ts         # Sentiment: FinBERT, tier eskalacja, GPT
 │
 ├── scripts/                                # Skrypty testowe Fazy 0
 │   ├── test-all.js                         # Orchestrator testów
@@ -203,20 +218,22 @@ stockPulse/
 │   ├── PROGRESS-STATUS.md                  # Status projektu i plan sprintów
 │   ├── schematy.md                         # ← TEN PLIK
 │   ├── README.md                           # Opis projektu
-│   ├── stockpulse-healthcare-universe.json # 32 tickery, 180 keywords, reguły
-│   ├── stockpulse-architecture.jsx         # Opis architektury warstw
-│   ├── StockPulse-Setup-README.md          # Instrukcja setupu
-│   ├── StockPulse-Opis-Architektury.md     # Opis architektury (markdown)
-│   ├── StockPulse-Opis-Architektury.pdf    # Opis architektury (PDF)
-│   ├── StockPulse-Plan-Dzialania.md        # Plan działania (markdown)
-│   ├── StockPulse-Plan-Dzialania.pdf       # Plan działania (PDF)
+│   ├── PROGRESS-STATUS.md                  # Status projektu i plan działania (główny plik śledzący postęp)
+│   ├── JETSON-SETUP.md                     # Dokumentacja setupu Jetsona
+│   ├── flow-form4-8k-insider.md            # Przepływ Form 4 + 8-K + Insider Trade Large (diagram + 16 sekcji)
+│   ├── schematy.md                         # Ten plik — schemat struktury katalogów
+│   ├── stockpulse-healthcare-universe.json # ~42 tickery, 180 keywords, reguły
+│   ├── stockpulse-architecture.jsx         # Opis architektury warstw (wizualizacja)
 │   └── reports/                            # Raporty tygodniowe i changelogi
+│       ├── 2026-02-24-analiza.md           # Analiza systemu — luty 2026
 │       ├── 2026-03-13-weekly-report.md     # Raport tygodniowy 7-13 marca 2026
-│       └── 2026-03-14-zmiany.md            # Changelog: StockTwits GPT exclusion + BullMQ cleanup
+│       ├── 2026-03-14-zmiany.md            # Changelog: StockTwits GPT exclusion + BullMQ cleanup
+│       └── ai-enrichment-analiza.md        # Analiza AI enrichment pipeline
 │
 ├── Dockerfile                              # Obraz Docker dla NestJS app
 ├── docker-compose.yml                      # 6 serwisów: app, postgres, redis, frontend, finbert, pgadmin
-├── docker-compose.cpu.yml                  # Wersja CPU-only (bez GPU passthrough)
+├── docker-compose.cpu.yml                  # Override: laptop bez GPU
+├── docker-compose.jetson.yml               # Override: Jetson (L4T + runtime nvidia)
 ├── .dockerignore
 ├── tsconfig.json                           # TypeScript — konfiguracja bazowa
 ├── tsconfig.build.json                     # TypeScript — konfiguracja buildowa
@@ -265,7 +282,7 @@ stockPulse/
 **Powiązania:** Ładuje wszystkie encje z `src/entities/`. Zależy od `ConfigModule`.
 
 #### `seeds/seed.ts`
-**Co robi:** Standalone skrypt wypełniający bazę danymi początkowymi: 32 tickery healthcare + reguły alertów. Idempotentny (upsert `orUpdate`).
+**Co robi:** Standalone skrypt wypełniający bazę danymi początkowymi: ~42 tickery healthcare + reguły alertów. Idempotentny (upsert `orUpdate`).
 **Uruchomienie:** `npm run seed`
 
 #### `seeds/backfill-sentiment.ts`
@@ -547,17 +564,17 @@ Pipeline GPT analizy filingów SEC — Form 4 (insider trades) i 8-K (material e
 - `form8k-5-02.prompt.ts` — Departure/Appointment of Officers
 - `form8k-other.prompt.ts` — ogólne Itemy (7.01, 8.01 itd.)
 
-#### `utils/form8k-parser.ts`
-**Co robi:** Parser treści 8-K: `detectItems()` — wykrywa numery Itemów, `extractItemText()` — wyciąga tekst per Item (limit 8000 znaków), `stripHtml()` — czyści HTML.
+#### `parsers/form8k.parser.ts`
+**Co robi:** Parser treści 8-K: `detectItems()` — wykrywa numery Itemów, `extractItemText()` — wyciąga tekst per Item (limit 8000 znaków), `stripHtml()` — czyści HTML, `isBankruptcyItem()` — wykrywanie Item 1.03, `selectPromptBuilder()` — routowanie do per-Item prompta.
 
-#### `utils/filing-scorer.ts`
-**Co robi:** `scoreToAlertPriority()` — mapuje conviction na priorytet alertu, `mapToRuleName()` — mapuje catalyst_type na nazwę reguły alertów.
+#### `scoring/price-impact.scorer.ts`
+**Co robi:** `scoreForm4Priority()` — niższe progi (leading signals), `score8kPriority()` — wyższe progi (reaktywne). `scoreToAlertPriority()` — dispatcher wg formType. `mapToRuleName()` — mapuje catalyst_type na nazwę reguły alertów.
 
-#### `schemas/sec-filing-analysis.schema.ts`
-**Co robi:** Schemat Zod walidujący odpowiedź GPT (price_impact, conviction, summary, conclusion, key_facts, catalyst_type, requires_immediate_attention).
+#### `types/sec-filing-analysis.ts`
+**Co robi:** Schemat Zod walidujący odpowiedź GPT (price_impact, conviction, summary, conclusion, key_facts, catalyst_type, requires_immediate_attention). `parseGptResponse()` — parsowanie + walidacja JSON z GPT.
 
-#### `daily-cap.service.ts`
-**Co robi:** Redis INCR z TTL 24h, max 20 wywołań GPT per ticker per dzień. Zapobiega nadmiernym kosztom API.
+#### `services/daily-cap.service.ts`
+**Co robi:** Atomowy Redis INCR z TTL 24h w `canCallGpt()` — sprawdza i inkrementuje jednym poleceniem. Max 20 wywołań GPT per ticker per dzień. `recordGptCall()` usunięty (martwy kod po Sprint 7).
 
 ---
 
