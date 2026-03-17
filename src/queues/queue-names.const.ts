@@ -23,6 +23,9 @@ export const QUEUE_NAMES = {
 
   /** Scraping kalendarza PDUFA z pdufa.bio */
   PDUFA_BIO: 'pdufa-bio-collector',
+
+  /** Options flow z Polygon.io (EOD volume spike detection) */
+  OPTIONS_FLOW: 'options-flow-collector',
 } as const;
 
 /** Typ z nazwami kolejek */

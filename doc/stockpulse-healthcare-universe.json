@@ -942,6 +942,12 @@
         "condition": "urgency=HIGH AND relevance>=0.7 AND confidence>=0.6 AND abs(conviction)>=0.3",
         "priority": "HIGH",
         "throttle_minutes": 180
+      },
+      {
+        "name": "Unusual Options Activity",
+        "condition": "Polygon EOD volume spike >= 3x avg20d AND heuristic conviction >= 0.50",
+        "priority": "HIGH",
+        "throttle_minutes": 120
       }
     ]
   },

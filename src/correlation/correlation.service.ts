@@ -80,7 +80,7 @@ export class CorrelationService implements OnModuleDestroy {
       ? `signals:insider:${signal.ticker}`
       : `signals:short:${signal.ticker}`;
 
-    const ttlMs = signal.source_category === 'form4' ? WINDOW_14D : WINDOW_48H;
+    const ttlMs = signal.source_category === 'form4' ? WINDOW_14D : WINDOW_72H;
 
     // Wyczyść stare sygnały przed dodaniem (fix: ZREMRANGEBYSCORE zamiast polegania na EXPIRE)
     const cutoffTime = Date.now() - ttlMs;
@@ -124,7 +124,7 @@ export class CorrelationService implements OnModuleDestroy {
 
     try {
       const shortSignals = await this.getSignalsInWindow(
-        `signals:short:${ticker}`, now - WINDOW_48H, now,
+        `signals:short:${ticker}`, now - WINDOW_72H, now,
       );
       const insiderSignals = await this.getSignalsInWindow(
         `signals:insider:${ticker}`, now - WINDOW_14D, now,
@@ -143,8 +143,9 @@ export class CorrelationService implements OnModuleDestroy {
       const p3 = this.detectMultiSourceConvergence(shortSignals, now);
       const p4 = this.detectInsiderCluster(insiderSignals, now);
       const p5 = this.detectEscalatingSignal(shortSignals, now);
+      const p6 = this.detectInsiderPlusOptions(shortSignals, insiderSignals, now);
 
-      for (const p of [p1, p2, p3, p4, p5]) {
+      for (const p of [p1, p2, p3, p4, p5, p6]) {
         if (p) patterns.push(p);
       }
 
@@ -312,6 +313,38 @@ export class CorrelationService implements OnModuleDestroy {
       correlated_conviction: Math.min(1.0, Math.abs(last3[2].conviction) * 1.3) * directionSign,
       direction: dir,
       description: `Conviction escalating over 3 signals: ${last3.map(s => s.conviction.toFixed(2)).join(' → ')}`,
+    };
+  }
+
+  /**
+   * Pattern 6: Insider + Unusual Options — Form 4 + options flow w ciągu 72h.
+   * Najsilniejszy cross-signal: pieniądze insiderów + pieniądze smart money na rynku opcji.
+   */
+  private detectInsiderPlusOptions(
+    shortSignals: StoredSignal[],
+    insiderSignals: StoredSignal[],
+    now: number,
+  ): DetectedPattern | null {
+    const window = now - WINDOW_72H;
+    const form4 = insiderSignals.filter(
+      s => s.source_category === 'form4' && s.timestamp > window,
+    );
+    const options = shortSignals.filter(
+      s => s.source_category === 'options' && s.timestamp > window,
+    );
+
+    if (form4.length === 0 || options.length === 0) return null;
+
+    const allSignals = [...form4, ...options];
+    const dir = this.getDominantDirection(allSignals);
+    if (!dir) return null;
+
+    return {
+      type: 'INSIDER_PLUS_OPTIONS',
+      signals: allSignals,
+      correlated_conviction: this.aggregateConviction(allSignals),
+      direction: dir,
+      description: `Insider ${form4[0]?.direction === 'negative' ? 'SELL' : 'BUY'} + ${options.length} unusual options flow(s) within 72h`,
     };
   }
 

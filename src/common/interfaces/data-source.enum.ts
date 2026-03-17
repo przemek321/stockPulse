@@ -9,4 +9,6 @@ export enum DataSource {
   STOCKTWITS = 'STOCKTWITS',
   /** Kalendarz PDUFA z pdufa.bio (daty decyzji FDA) */
   PDUFA_BIO = 'PDUFA_BIO',
+  /** Options flow z Polygon.io (EOD volume spike detection) */
+  POLYGON = 'POLYGON',
 }

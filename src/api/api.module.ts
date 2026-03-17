@@ -5,6 +5,7 @@ import { TickersController } from './tickers/tickers.controller';
 import { SentimentController } from './sentiment/sentiment.controller';
 import { AlertsController } from './alerts/alerts.controller';
 import { SystemLogsController } from './system-logs/system-logs.controller';
+import { OptionsFlowController } from './options-flow/options-flow.controller';
 import { SystemStatsService } from './health/system-stats.service';
 import {
   Ticker,
@@ -18,6 +19,8 @@ import {
   CollectionLog,
   PdufaCatalyst,
   AiPipelineLog,
+  OptionsFlow,
+  OptionsVolumeBaseline,
 } from '../entities';
 import { CollectorsModule } from '../collectors/collectors.module';
 import { AlertsModule } from '../alerts/alerts.module';
@@ -25,7 +28,7 @@ import { PriceOutcomeModule } from '../price-outcome/price-outcome.module';
 
 /**
  * Moduł REST API.
- * Kontrolery: /api/health, /api/tickers, /api/sentiment, /api/alerts, /api/system-logs.
+ * Kontrolery: /api/health, /api/tickers, /api/sentiment, /api/alerts, /api/system-logs, /api/options-flow.
  */
 @Module({
   imports: [
@@ -41,6 +44,8 @@ import { PriceOutcomeModule } from '../price-outcome/price-outcome.module';
       CollectionLog,
       PdufaCatalyst,
       AiPipelineLog,
+      OptionsFlow,
+      OptionsVolumeBaseline,
     ]),
     CollectorsModule,
     AlertsModule,
@@ -52,6 +57,7 @@ import { PriceOutcomeModule } from '../price-outcome/price-outcome.module';
     SentimentController,
     AlertsController,
     SystemLogsController,
+    OptionsFlowController,
   ],
   providers: [SystemStatsService],
 })

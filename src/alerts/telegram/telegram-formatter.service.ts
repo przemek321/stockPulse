@@ -286,6 +286,69 @@ export class TelegramFormatterService {
   }
 
   /**
+   * Formatuje alert Unusual Options Activity — volume spike wykryty w danych EOD.
+   */
+  formatOptionsFlowAlert(data: {
+    symbol: string;
+    priority: string;
+    conviction: number;
+    direction: string;
+    callPutRatio: number;
+    headlineContract: {
+      optionType: string;
+      strike: number;
+      expiry: string;
+      dte: number;
+      dailyVolume: number;
+      avgVolume20d: number;
+      spikeRatio: number;
+      otmDistance: number;
+    };
+    pdufaBoosted: boolean;
+    sessionDate: string;
+  }): string {
+    const icon = this.priorityIcon(data.priority);
+    const h = data.headlineContract;
+
+    const dirLabel = data.direction === 'positive' ? 'BULLISH'
+      : data.direction === 'negative' ? 'BEARISH' : 'MIXED';
+    const dirIcon = data.direction === 'positive' ? '\u{1F7E2}'
+      : data.direction === 'negative' ? '\u{1F534}' : '\u{1F7E1}';
+
+    const cpPct = Math.round(data.callPutRatio * 100);
+    const cpLabel = data.direction === 'positive'
+      ? `call dominance ${cpPct}%`
+      : data.direction === 'negative'
+        ? `put dominance ${100 - cpPct}%`
+        : `mixed ${cpPct}/${100 - cpPct}`;
+
+    const typeLabel = h.optionType === 'call' ? 'Call' : 'Put';
+    const otmPct = (h.otmDistance * 100).toFixed(1);
+
+    const lines = [
+      `\u{1F4CA} *StockPulse — Unusual Options*`,
+      '',
+      `${dirIcon} *${this.escapeMarkdown(dirLabel)}* — \\$${this.escapeMarkdown(data.symbol)} \\(${this.escapeMarkdown(cpLabel)}\\)`,
+      '',
+      `\u{1F3AF} *Conviction: ${this.escapeMarkdown(data.conviction.toFixed(3))}*`,
+      '',
+      `\u{1F4C8} Headline: ${this.escapeMarkdown(data.symbol)} ${this.escapeMarkdown(h.expiry)} \\$${this.escapeMarkdown(String(h.strike))} ${this.escapeMarkdown(typeLabel)}`,
+      `  Volume: ${this.escapeMarkdown(h.dailyVolume.toLocaleString())} \\(spike ${this.escapeMarkdown(h.spikeRatio.toFixed(1))}\u00D7 vs avg ${this.escapeMarkdown(Math.round(h.avgVolume20d).toLocaleString())}\\)`,
+      `  OTM: ${this.escapeMarkdown(otmPct)}% \\| DTE: ${this.escapeMarkdown(String(h.dte))} dni`,
+    ];
+
+    if (data.pdufaBoosted) {
+      lines.push('');
+      lines.push(`\u{1F48A} *PDUFA boost aktywny*`);
+    }
+
+    lines.push('');
+    lines.push(`\u{1F4C5} Sesja: ${this.escapeMarkdown(data.sessionDate)}`);
+
+    return lines.join('\n');
+  }
+
+  /**
    * Formatuje alert Signal Override — GPT koryguje FinBERT (Bullish lub Bearish).
    * Pokazuje konflikt modeli: FinBERT score vs GPT conviction + effective score.
    */

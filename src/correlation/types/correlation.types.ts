@@ -3,7 +3,7 @@
  */
 
 /** Kategoria źródła sygnału — klucz do agregacji */
-export type SourceCategory = 'social' | 'news' | 'form4' | '8k';
+export type SourceCategory = 'social' | 'news' | 'form4' | '8k' | 'options';
 
 /** Kierunek sygnału */
 export type Direction = 'positive' | 'negative';
@@ -14,7 +14,8 @@ export type PatternType =
   | 'FILING_CONFIRMS_NEWS'     // news → potem 8-K tego samego catalyst_type
   | 'MULTI_SOURCE_CONVERGENCE' // 3+ kategorie źródeł, ten sam kierunek, 24h
   | 'INSIDER_CLUSTER'          // 2+ Form 4 tego samego tickera w ciągu 7 dni
-  | 'ESCALATING_SIGNAL';       // rosnąca conviction przez 3+ sygnały w 72h
+  | 'ESCALATING_SIGNAL'        // rosnąca conviction przez 3+ sygnały w 72h
+  | 'INSIDER_PLUS_OPTIONS';   // Form 4 + unusual options w ciągu 72h
 
 /** Sygnał przechowywany w Redis po każdym alercie */
 export interface StoredSignal {
@@ -45,6 +46,7 @@ export const PATTERN_LABELS: Record<PatternType, string> = {
   MULTI_SOURCE_CONVERGENCE: 'Multi-Source Convergence',
   INSIDER_CLUSTER: 'Insider Cluster',
   ESCALATING_SIGNAL: 'Escalating Signal',
+  INSIDER_PLUS_OPTIONS: 'Insider + Unusual Options',
 };
 
 /** Throttling per pattern type (sekundy) */
@@ -54,4 +56,5 @@ export const PATTERN_THROTTLE: Record<PatternType, number> = {
   MULTI_SOURCE_CONVERGENCE: 7200,  // 2h
   INSIDER_CLUSTER: 86400,          // 24h
   ESCALATING_SIGNAL: 21600,        // 6h
+  INSIDER_PLUS_OPTIONS: 7200,      // 2h
 };

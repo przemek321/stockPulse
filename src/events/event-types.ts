@@ -23,4 +23,6 @@ export enum EventType {
   SEC_FILING_ANALYZED = 'sec-filing.analyzed',
   /** Wykryty wzorzec korelacji między źródłami */
   CORRELATION_DETECTED = 'correlation.detected',
+  /** Wykryta nietypowa aktywność opcyjna (volume spike) */
+  NEW_OPTIONS_FLOW = 'options-flow.new',
 }

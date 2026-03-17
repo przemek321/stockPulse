@@ -11,11 +11,12 @@ import { CorrelationModule } from './correlation/correlation.module';
 import { ApiModule } from './api/api.module';
 import { SystemLogModule } from './system-log/system-log.module';
 import { PriceOutcomeModule } from './price-outcome/price-outcome.module';
+import { OptionsFlowModule } from './options-flow/options-flow.module';
 
 /**
  * Główny moduł aplikacji StockPulse.
  * Wszystkie podmoduły: konfiguracja, baza danych, eventy, kolejki, kolektory,
- * sentyment, SEC filings GPT, korelacja sygnałów, alerty, logi systemowe, API.
+ * sentyment, SEC filings GPT, korelacja sygnałów, options flow, alerty, logi systemowe, API.
  */
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PriceOutcomeModule } from './price-outcome/price-outcome.module';
     SentimentModule,
     SecFilingsModule,
     CorrelationModule,
+    OptionsFlowModule,
     AlertsModule,
     PriceOutcomeModule,
     ApiModule,
