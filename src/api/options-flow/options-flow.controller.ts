@@ -11,7 +11,7 @@ import { OptionsFlowService } from '../../collectors/options-flow/options-flow.s
  * GET /api/options-flow/stats — statystyki per ticker
  * POST /api/options-flow/backfill — jednorazowy backfill 20d baseline
  */
-@Controller('api/options-flow')
+@Controller('options-flow')
 export class OptionsFlowController {
   constructor(
     @InjectRepository(OptionsFlow)
