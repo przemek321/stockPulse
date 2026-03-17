@@ -649,12 +649,12 @@ storeSignal(signal):
   1. Filtr: |conviction| ≥ 0.05 (MIN_CONVICTION)
   2. Klucz Redis:
      - source_category 'form4'     → signals:insider:{ticker}  (TTL 14 dni)
-     - source_category '8k'/'news' → signals:short:{ticker}    (TTL 48h)
+     - source_category '8k'/'news'/'options' → signals:short:{ticker}    (TTL 72h — podniesiony z 48h, options muszą przeżyć do Form 4 filing delay)
   3. Score = timestamp (ms) — do range queries
   4. Cleanup: ZREMRANGEBYSCORE stale, max 50 per key
 ```
 
-### 5 detektorów wzorców (`runPatternDetection(ticker)`)
+### 6 detektorów wzorców (`runPatternDetection(ticker)`)
 
 #### 1. INSIDER_PLUS_8K (insider + 8-K w 24h)
 
@@ -701,6 +701,17 @@ Warunek: 3+ sygnały w 72h, ten sam kierunek, rosnąca conviction
 Throttle: 6h
 Conviction: max conviction × 1.3
 Przykład: słaby sygnał → silniejszy → najsilniejszy (eskalacja)
+```
+
+#### 6. INSIDER_PLUS_OPTIONS (insider + unusual options w 72h)
+
+```
+Warunek: Form 4 sygnał + options flow sygnał w ciągu 72h, TEN SAM kierunek
+         (72h bo: Form 4 ma 2-dniowy filing delay, opcje EOD raz/dobę)
+Throttle: 2h
+Conviction: agregacja (najsilniejszy per kategoria, boost +20% per dodatkowe źródło)
+Przykład: insider sell poniedziałek + spike put options środa → konwergencja bearish
+Źródło options: Polygon.io Free Tier EOD, volume spike ≥ 3× avg20d
 ```
 
 ### Decyzja alertu korelacji
@@ -855,15 +866,27 @@ src/
 │   └── sec-filings.module.ts          ← Moduł NestJS
 │
 ├── correlation/
-│   ├── correlation.service.ts         ← 5 detektorów wzorców (Redis)
+│   ├── correlation.service.ts         ← 6 detektorów wzorców (Redis, w tym INSIDER_PLUS_OPTIONS)
 │   ├── correlation.module.ts
 │   └── types/
-│       └── correlation.types.ts       ← StoredSignal, PatternType
+│       └── correlation.types.ts       ← StoredSignal, PatternType (+ 'options', + INSIDER_PLUS_OPTIONS)
+│
+├── collectors/options-flow/
+│   ├── options-flow.service.ts        ← Kolektor Polygon.io (EOD, CRON 22:15 UTC)
+│   ├── options-flow.processor.ts      ← BullMQ worker
+│   ├── options-flow.scheduler.ts      ← CRON pon-pt po sesji NYSE
+│   ├── options-flow.module.ts
+│   └── unusual-activity-detector.ts   ← Detekcja volume spike (3× avg20d)
+│
+├── options-flow/
+│   ├── options-flow-scoring.service.ts ← Heurystyka conviction (bez GPT)
+│   ├── options-flow-alert.service.ts   ← @OnEvent → scoring → correlation → Telegram
+│   └── options-flow.module.ts
 │
 ├── alerts/
 │   ├── alert-evaluator.service.ts     ← 5 checków / 6 reguł + batch insider
 │   └── telegram/
-│       └── telegram-formatter.service.ts ← 10 formaterów Telegram
+│       └── telegram-formatter.service.ts ← 11 formaterów Telegram (+ formatOptionsFlowAlert)
 │
 ├── entities/
 │   ├── sec-filing.entity.ts           ← Tabela sec_filings

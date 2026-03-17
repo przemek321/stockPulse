@@ -6,9 +6,9 @@
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony) + **Sprint 8 — Optymalizacja pipeline + analiza tygodniowa** (ukończony 2026-03-14) + **Sprint 9 — Fixy z raportu tygodniowego: conviction sign, dual signal, noise reduction** (ukończony 2026-03-17)
+**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony) + **Sprint 8 — Optymalizacja pipeline + analiza tygodniowa** (ukończony 2026-03-14) + **Sprint 9 — Fixy z raportu tygodniowego: conviction sign, dual signal, noise reduction** (ukończony 2026-03-17) + **Sprint 10 — Options Flow Integration: Polygon.io EOD volume spike detection** (ukończony 2026-03-17)
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND, **tylko FINNHUB/SEC — StockTwits FinBERT-only**) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 18 reguł alertów, 12 tabel PostgreSQL, 7 kolejek Redis, ~37 tickerów healthcare. Raporty tygodniowe w [doc/reports/](doc/reports/).
+Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND, **tylko FINNHUB/SEC — StockTwits FinBERT-only**) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 20 reguł alertów, 14 tabel PostgreSQL, 8 kolejek Redis, ~37 tickerów healthcare. Options Flow: Polygon.io Free Tier (EOD, 5 req/min), kolektor CRON 22:15 UTC, volume spike detection (3× avg20d), heurystyczny scoring, PDUFA boost ×1.3, nowy CorrelationService pattern INSIDER_PLUS_OPTIONS (72h). `signals:short` TTL 72h (z 48h). Raporty tygodniowe w [doc/reports/](doc/reports/).
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -480,6 +480,58 @@ Raport tygodniowy (10-17 marca) ujawnił 9% edge / 85% noise (180 alertów, 17 p
 - [x] **Paginacja w DataPanel** — 25/50/100 wierszy na stronę (TablePagination MUI), reset przy sortowaniu. Fix lagów przy otwieraniu panelu Analiza AI.
 - [x] **Cleanup doc/** — usunięcie 8 obsolete plików md zastąpionych przez CLAUDE.md i PROGRESS-STATUS.md
 
+### Sprint 10: Options Flow — Polygon.io EOD volume spike detection (ukończony 2026-03-17)
+
+#### 10.1 Infrastruktura
+- [x] **Nowy DataSource**: `POLYGON` w enum, `NEW_OPTIONS_FLOW` w EventType, `OPTIONS_FLOW` w QUEUE_NAMES
+- [x] **2 nowe encje**: `options_flow` (wykryte anomalie per kontrakt per sesja) + `options_volume_baseline` (rolling 20d avg volume per kontrakt)
+- [x] **POLYGON_API_KEY** w `.env.example`
+
+#### 10.2 Kolektor Options Flow (4 pliki)
+- [x] `options-flow.service.ts` — extends BaseCollectorService, fetch Polygon API (reference/contracts + daily aggregates), rate limit 12.5s, filter po DTE ≤ 60 i OTM ≤ 30%
+- [x] `options-flow.processor.ts` — BullMQ WorkerHost
+- [x] `options-flow.scheduler.ts` — CRON `15 22 * * 1-5` (22:15 UTC, pon-pt, po sesji NYSE)
+- [x] `options-flow.module.ts` → CollectorsModule
+
+#### 10.3 Unusual Activity Detector
+- [x] `unusual-activity-detector.ts` — pure functions: `filterContracts()`, `detectSpike()`, `aggregatePerTicker()`, `updateRollingAverage()`, `calcOtmInfo()`, `calcDte()`
+- [x] Volume spike detection: `todayVolume ≥ 3× avg20d AND todayVolume ≥ 100 AND dataPoints ≥ 5`
+- [x] Agregacja per ticker: call/put ratio, headline contract (max spikeRatio)
+
+#### 10.4 Scoring heurystyczny (bez GPT)
+- [x] `options-flow-scoring.service.ts` — 5 komponentów z wagami:
+  - 0.35 × spike ratio (volume/avg, najważniejszy)
+  - 0.20 × absolutny volume (skala log)
+  - 0.15 × OTM distance
+  - 0.15 × DTE (krócej = pilniej)
+  - 0.15 × call/put dominance clarity
+- [x] **Direction**: callPutRatio > 0.65 → positive, < 0.35 → negative, else → mixed (conviction × 0.7 penalty)
+- [x] **PDUFA boost** ×1.3 gdy nadchodząca data FDA < 30 dni (cap ±1.0)
+- [x] **Progi**: |conviction| ≥ 0.25 → CorrelationService, ≥ 0.50 → Telegram alert, ≥ 0.70 → CRITICAL
+
+#### 10.5 Alert service + Telegram
+- [x] `options-flow-alert.service.ts` — @OnEvent(NEW_OPTIONS_FLOW), scoring, correlation store, alert send
+- [x] `formatOptionsFlowAlert()` w TelegramFormatterService — "Unusual Options", direction, conviction, headline contract (volume, spike ratio, OTM, DTE), PDUFA boost
+- [x] Reguła "Unusual Options Activity" (priority HIGH, throttle 120 min) w healthcare-universe.json
+
+#### 10.6 CorrelationService — nowy detektor
+- [x] **SourceCategory** += `'options'`
+- [x] **PatternType** += `'INSIDER_PLUS_OPTIONS'` — Form 4 + unusual options w oknie 72h (najsilniejszy cross-signal)
+- [x] `detectInsiderPlusOptions()` — filtruje form4 i options z 72h, wymaga 66% agreement kierunku
+- [x] **`signals:short` TTL 48h → 72h** — options sygnały muszą przeżyć do Form 4 filing delay (2 dni)
+- [x] Throttle: 7200s (2h)
+
+#### 10.7 REST API + backfill
+- [x] `GET /api/options-flow` — lista wykrytych anomalii (limit, symbol, session_date)
+- [x] `GET /api/options-flow/stats` — statystyki per ticker
+- [x] `POST /api/options-flow/backfill` — jednorazowe wypełnienie 20d baseline (~2-3h z rate limiting)
+- [x] `OptionsFlowController` w ApiModule
+
+#### 10.8 Testy (54 testy)
+- [x] `unusual-activity-detector.spec.ts` — 30 testów (filter, spike, aggregate, rolling avg, OTM, DTE)
+- [x] `options-flow-scoring.spec.ts` — 13 testów (direction, conviction range, PDUFA boost, komponenty)
+- [x] `options-flow-agent.spec.ts` — 11 testów (routing, correlation, throttling, priority)
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -561,14 +613,15 @@ npm run test:all
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
-- **Reguły alertów**: 19 (11 sentyment/insider/filing + 6 SEC/korelacja + Urgent AI Signal + Insider Trade Large)
-- **Encje bazy danych**: 12 tabel (alerts z 7 polami price outcome, sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan)
-- **Kolejki BullMQ**: 7 (5 kolektorów + sentiment-analysis + alerts)
-- **Endpointy REST**: 20 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x3 incl. outcomes, sec-filings/backfill-gpt x1, system-logs x1)
-- **Źródła danych**: 4 aktywne kolektory (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio), 1 placeholder (Reddit)
+- **Reguły alertów**: 20 (11 sentyment/insider/filing + 6 SEC/korelacja + Urgent AI Signal + Insider Trade Large + Unusual Options Activity)
+- **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome, sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
+- **Kolejki BullMQ**: 8 (6 kolektorów + sentiment-analysis + alerts)
+- **Endpointy REST**: 23 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x3 incl. outcomes, sec-filings/backfill-gpt x1, system-logs x1, options-flow x3)
+- **Źródła danych**: 5 aktywnych kolektorów (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio, Polygon.io Options Flow), 1 placeholder (Reddit)
 - **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer + SEC Filing GPT Pipeline), 1 planowany (spaCy NER)
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
 - **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
 - **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (5 detektorów wzorców, Redis Sorted Sets)
 - **Nowe moduły (Sprint 6)**: PriceOutcomeModule (CRON co 1h, Finnhub /quote, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d, NYSE market hours guard, hard timeout 7d)
-- **Testy jednostkowe**: 5 suite'ów, 91 testów (correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator)
+- **Nowe moduły (Sprint 10)**: OptionsFlowCollectorModule (kolektor CRON 22:15 UTC, Polygon.io Free Tier, volume spike detection), OptionsFlowModule (scoring + alert + CorrelationService INSIDER_PLUS_OPTIONS)
+- **Testy jednostkowe**: 8 suite'ów, 145 testów (correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator, unusual-activity-detector, options-flow-scoring, options-flow-agent)

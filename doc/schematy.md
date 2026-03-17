@@ -873,6 +873,9 @@ AppModule
 ├── TelegramModule               (wydzielony — unikanie circular dependency)
 │   ├── TelegramService          (wysyłka)
 │   └── TelegramFormatterService (formatowanie MarkdownV2 po polsku)
+├── OptionsFlowModule
+│   ├── OptionsFlowScoringService  (heurystyka conviction bez GPT: spike ratio + volume + OTM + DTE + call/put)
+│   └── OptionsFlowAlertService    (@OnEvent NEW_OPTIONS_FLOW → scoring → correlation → Telegram)
 ├── AlertsModule
 │   ├── AlertEvaluatorService    (6 reguł niezależnych, decyzje w logach, priceAtAlert + storeSignal → Correlation)
 │   └── SummarySchedulerService  (raport 2h na Telegram)
@@ -881,12 +884,13 @@ AppModule
     ├── TickersController      (GET /api/tickers)
     ├── SentimentController    (GET /api/sentiment/* — 9 endpointów, w tym filings-gpt, pipeline-logs, pdufa, insider-trades)
     ├── AlertsController       (GET /api/alerts, /api/alerts/outcomes)
-    └── SystemLogsController   (GET /api/system-logs)
+    ├── SystemLogsController   (GET /api/system-logs)
+    └── OptionsFlowController  (GET /api/options-flow, /api/options-flow/stats, POST /api/options-flow/backfill)
 ```
 
 ---
 
-## Schemat bazy danych (12 tabel)
+## Schemat bazy danych (14 tabel)
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
@@ -977,6 +981,30 @@ AppModule
 │ output (JSONB)   │
 │ errorMessage     │
 └──────────────────┘
+
+┌────────────────────────┐     ┌────────────────────────┐
+│    options_flow        │     │options_volume_baseline  │
+│────────────────────────│     │────────────────────────│
+│ id                     │     │ id                     │
+│ symbol (INDEX)         │     │ occSymbol (UNIQUE)     │
+│ occSymbol              │     │ symbol (INDEX)         │
+│ optionType (call/put)  │     │ avgVolume20d           │
+│ strike                 │     │ dataPoints (max 20)    │
+│ underlyingPrice        │     │ lastVolume             │
+│ expiry                 │     │ lastUpdated            │
+│ dte                    │     └────────────────────────┘
+│ dailyVolume            │
+│ avgVolume20d           │
+│ volumeSpikeRatio       │
+│ isOtm                  │
+│ otmDistance             │
+│ conviction [-1, +1]    │
+│ direction              │
+│ pdufaBoosted           │
+│ sessionDate (INDEX)    │
+│ collectedAt            │
+│ UK(occSymbol,session)  │
+└────────────────────────┘
 ```
 
 ---
