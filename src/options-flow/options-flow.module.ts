@@ -8,6 +8,9 @@ import {
   AlertRule,
   PdufaCatalyst,
 } from '../entities';
+import { TelegramModule } from '../alerts/telegram/telegram.module';
+import { CorrelationModule } from '../correlation/correlation.module';
+import { CollectorsModule } from '../collectors/collectors.module';
 
 /**
  * Moduł scoringu i alertów options flow.
@@ -16,6 +19,9 @@ import {
 @Module({
   imports: [
     TypeOrmModule.forFeature([OptionsFlow, Alert, AlertRule, PdufaCatalyst]),
+    TelegramModule,
+    CorrelationModule,
+    CollectorsModule,
   ],
   providers: [OptionsFlowScoringService, OptionsFlowAlertService],
   exports: [OptionsFlowScoringService],

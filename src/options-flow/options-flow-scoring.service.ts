@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
 import { OptionsFlow, PdufaCatalyst } from '../entities';
 import { type TickerAggregation } from '../collectors/options-flow/unusual-activity-detector';
 
@@ -86,7 +86,7 @@ export class OptionsFlowScoringService {
         where: {
           symbol: agg.symbol,
           pdufaDate: LessThan(
-            new Date(Date.now() + 30 * 24 * 3600_000).toISOString().split('T')[0],
+            new Date(Date.now() + 30 * 24 * 3600_000),
           ),
         },
         order: { pdufaDate: 'ASC' },
@@ -138,7 +138,7 @@ export class OptionsFlowScoringService {
         where: {
           symbol: flow.symbol,
           pdufaDate: LessThan(
-            new Date(Date.now() + 30 * 24 * 3600_000).toISOString().split('T')[0],
+            new Date(Date.now() + 30 * 24 * 3600_000),
           ),
         },
         order: { pdufaDate: 'ASC' },
