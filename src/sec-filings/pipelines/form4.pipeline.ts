@@ -221,6 +221,9 @@ export class Form4Pipeline {
           message,
           delivered,
           catalystType: analysis.catalyst_type,
+          alertDirection: analysis.price_impact.direction === 'neutral'
+            ? (analysis.conviction >= 0 ? 'positive' : 'negative')
+            : analysis.price_impact.direction,
         }),
       );
 

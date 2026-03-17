@@ -208,6 +208,9 @@ export class Form8kPipeline {
           message,
           delivered,
           catalystType: analysis.catalyst_type,
+          alertDirection: analysis.price_impact.direction === 'neutral'
+            ? (analysis.conviction >= 0 ? 'positive' : 'negative')
+            : analysis.price_impact.direction,
         }),
       );
 
@@ -274,6 +277,7 @@ export class Form8kPipeline {
         message,
         delivered,
         catalystType: 'bankruptcy',
+        alertDirection: 'negative',
       }),
     );
 

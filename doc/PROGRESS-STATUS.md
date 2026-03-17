@@ -463,6 +463,22 @@ Raport tygodniowy (10-17 marca) ujawnił 9% edge / 85% noise (180 alertów, 17 p
 #### 9.7 Dokumentacja
 - [x] **doc/flow-form4-8k-insider.md** — nowy plik: kompletny przepływ Form 4 + 8-K + Insider Trade Large z diagramem ASCII, 16 sekcji, mapa plików
 
+#### 9.8 alertDirection w SEC pipeline
+- [x] **Form4Pipeline i Form8kPipeline ustawiają alertDirection** przy zapisie alertu — `analysis.price_impact.direction`, fallback na conviction sign przy `neutral`. Bankruptcy = `'negative'`.
+  - Blocker: bez tego pola Price Outcome Tracker nie mógł obliczyć hit rate dla najważniejszych sygnałów (insider, 8-K). AlertEvaluator ustawiał `alertDirection` tylko dla korelacji.
+
+#### 9.9 Price Outcomes w raporcie tygodniowym
+- [x] **3 nowe zapytania SQL** w `GET /api/health/weekly-report`:
+  - **priceOutcomes** — lista alertów z wypełnionymi cenami, deltami procentowymi (1h/1d/3d), direction_correct (1d + 3d)
+  - **hitRateByRule** — hit rate per `rule_name`: total, evaluated, correct, % trafności (1d + 3d)
+  - **hitRateByCatalyst** — hit rate per `catalyst_type`: to samo w rozbiciu na typ katalizatora
+  - Automatyczna odpowiedź na pytanie "czy alerty z tego tygodnia były trafne?" bez ręcznego sprawdzania giełdy
+
+#### 9.10 Frontend: Edge Signals + paginacja
+- [x] **Sekcja "Edge Signals — SEC & Insider"** na górze zakładki Kluczowe — wyróżniona wizualnie (amber border), 3 panele: GPT Filings, Insider Trades (z kolumną 10b5-1), Alerty SEC & Insider (filtr edge rules + kolumna Delivered/Silent)
+- [x] **Paginacja w DataPanel** — 25/50/100 wierszy na stronę (TablePagination MUI), reset przy sortowaniu. Fix lagów przy otwieraniu panelu Analiza AI.
+- [x] **Cleanup doc/** — usunięcie 8 obsolete plików md zastąpionych przez CLAUDE.md i PROGRESS-STATUS.md
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare

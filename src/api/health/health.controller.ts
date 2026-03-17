@@ -166,7 +166,7 @@ export class HealthController {
   }
 
   /**
-   * Raport tygodniowy — 6 zapytań SQL z doc/stockpulse-weekly-review-queries.md.
+   * Raport tygodniowy — 9 zapytań SQL (pipeline, alerty, price outcomes, hit rate).
    * Parametr ?days=7 (domyślnie 7) kontroluje zakres czasowy.
    */
   @Get('weekly-report')
@@ -181,6 +181,9 @@ export class HealthController {
       pdufaImpact,
       alertsSent,
       pdufaStatus,
+      priceOutcomes,
+      hitRateByRule,
+      hitRateByCatalyst,
     ] = await Promise.all([
       // 1. Statystyki pipeline (status × tier)
       this.dataSource.query(`
@@ -262,6 +265,154 @@ export class HealthController {
           ) as upcoming_events
         FROM pdufa_catalysts
       `),
+
+      // 7. Price outcomes — alerty z wypełnionymi cenami z okresu
+      this.dataSource.query(`
+        SELECT
+          "ruleName" as rule_name,
+          symbol,
+          priority,
+          "catalystType" as catalyst_type,
+          "alertDirection" as alert_direction,
+          "priceAtAlert" as price_at_alert,
+          "price1h", "price4h", "price1d", "price3d",
+          CASE WHEN "priceAtAlert" > 0 AND "price1h" IS NOT NULL
+            THEN ROUND((("price1h" - "priceAtAlert") / "priceAtAlert" * 100)::numeric, 2)
+          END as delta_1h_pct,
+          CASE WHEN "priceAtAlert" > 0 AND "price1d" IS NOT NULL
+            THEN ROUND((("price1d" - "priceAtAlert") / "priceAtAlert" * 100)::numeric, 2)
+          END as delta_1d_pct,
+          CASE WHEN "priceAtAlert" > 0 AND "price3d" IS NOT NULL
+            THEN ROUND((("price3d" - "priceAtAlert") / "priceAtAlert" * 100)::numeric, 2)
+          END as delta_3d_pct,
+          CASE
+            WHEN "alertDirection" IS NULL THEN NULL
+            WHEN "alertDirection" = 'positive' AND "price1d" > "priceAtAlert" THEN true
+            WHEN "alertDirection" = 'negative' AND "price1d" < "priceAtAlert" THEN true
+            WHEN "price1d" IS NULL THEN NULL
+            ELSE false
+          END as direction_correct_1d,
+          CASE
+            WHEN "alertDirection" IS NULL THEN NULL
+            WHEN "alertDirection" = 'positive' AND "price3d" > "priceAtAlert" THEN true
+            WHEN "alertDirection" = 'negative' AND "price3d" < "priceAtAlert" THEN true
+            WHEN "price3d" IS NULL THEN NULL
+            ELSE false
+          END as direction_correct_3d,
+          "sentAt" as sent_at
+        FROM alerts
+        WHERE "sentAt" > NOW() - INTERVAL '${interval}'
+          AND "priceAtAlert" IS NOT NULL
+        ORDER BY "sentAt" DESC
+      `),
+
+      // 8. Hit rate per rule_name (1d + 3d)
+      this.dataSource.query(`
+        SELECT
+          "ruleName" as rule_name,
+          COUNT(*) as total_alerts,
+          COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL) as evaluated_1d,
+          COUNT(*) FILTER (
+            WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL
+            AND (
+              ("alertDirection" = 'positive' AND "price1d" > "priceAtAlert")
+              OR ("alertDirection" = 'negative' AND "price1d" < "priceAtAlert")
+            )
+          ) as correct_1d,
+          COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL) as evaluated_3d,
+          COUNT(*) FILTER (
+            WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL
+            AND (
+              ("alertDirection" = 'positive' AND "price3d" > "priceAtAlert")
+              OR ("alertDirection" = 'negative' AND "price3d" < "priceAtAlert")
+            )
+          ) as correct_3d,
+          CASE
+            WHEN COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL) > 0
+            THEN ROUND(
+              COUNT(*) FILTER (
+                WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL
+                AND (
+                  ("alertDirection" = 'positive' AND "price1d" > "priceAtAlert")
+                  OR ("alertDirection" = 'negative' AND "price1d" < "priceAtAlert")
+                )
+              )::numeric
+              / COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL) * 100
+            , 1)
+          END as hit_rate_1d_pct,
+          CASE
+            WHEN COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL) > 0
+            THEN ROUND(
+              COUNT(*) FILTER (
+                WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL
+                AND (
+                  ("alertDirection" = 'positive' AND "price3d" > "priceAtAlert")
+                  OR ("alertDirection" = 'negative' AND "price3d" < "priceAtAlert")
+                )
+              )::numeric
+              / COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL) * 100
+            , 1)
+          END as hit_rate_3d_pct
+        FROM alerts
+        WHERE "sentAt" > NOW() - INTERVAL '${interval}'
+          AND "priceAtAlert" IS NOT NULL
+        GROUP BY "ruleName"
+        ORDER BY total_alerts DESC
+      `),
+
+      // 9. Hit rate per catalyst_type (1d + 3d)
+      this.dataSource.query(`
+        SELECT
+          COALESCE("catalystType", 'unknown') as catalyst_type,
+          COUNT(*) as total_alerts,
+          COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL) as evaluated_1d,
+          COUNT(*) FILTER (
+            WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL
+            AND (
+              ("alertDirection" = 'positive' AND "price1d" > "priceAtAlert")
+              OR ("alertDirection" = 'negative' AND "price1d" < "priceAtAlert")
+            )
+          ) as correct_1d,
+          COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL) as evaluated_3d,
+          COUNT(*) FILTER (
+            WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL
+            AND (
+              ("alertDirection" = 'positive' AND "price3d" > "priceAtAlert")
+              OR ("alertDirection" = 'negative' AND "price3d" < "priceAtAlert")
+            )
+          ) as correct_3d,
+          CASE
+            WHEN COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL) > 0
+            THEN ROUND(
+              COUNT(*) FILTER (
+                WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL
+                AND (
+                  ("alertDirection" = 'positive' AND "price1d" > "priceAtAlert")
+                  OR ("alertDirection" = 'negative' AND "price1d" < "priceAtAlert")
+                )
+              )::numeric
+              / COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price1d" IS NOT NULL) * 100
+            , 1)
+          END as hit_rate_1d_pct,
+          CASE
+            WHEN COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL) > 0
+            THEN ROUND(
+              COUNT(*) FILTER (
+                WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL
+                AND (
+                  ("alertDirection" = 'positive' AND "price3d" > "priceAtAlert")
+                  OR ("alertDirection" = 'negative' AND "price3d" < "priceAtAlert")
+                )
+              )::numeric
+              / COUNT(*) FILTER (WHERE "alertDirection" IS NOT NULL AND "price3d" IS NOT NULL) * 100
+            , 1)
+          END as hit_rate_3d_pct
+        FROM alerts
+        WHERE "sentAt" > NOW() - INTERVAL '${interval}'
+          AND "priceAtAlert" IS NOT NULL
+        GROUP BY COALESCE("catalystType", 'unknown')
+        ORDER BY total_alerts DESC
+      `),
     ]);
 
     return {
@@ -274,6 +425,9 @@ export class HealthController {
         pdufaImpact,
         alertsSent,
         pdufaStatus: pdufaStatus[0] || {},
+        priceOutcomes,
+        hitRateByRule,
+        hitRateByCatalyst,
       },
     };
   }
