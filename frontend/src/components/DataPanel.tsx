@@ -13,6 +13,7 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  TablePagination,
   CircularProgress,
   Paper,
 } from '@mui/material';
@@ -60,6 +61,8 @@ export default function DataPanel({
   const [expanded, setExpanded] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(defaultSortKey ?? null);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   /** Przełącz sortowanie po kolumnie */
   const handleSort = (key: string) => {
@@ -69,6 +72,7 @@ export default function DataPanel({
       setSortKey(key);
       setSortDir('desc');
     }
+    setPage(0);
   };
 
   /** Posortowane wiersze */
@@ -97,6 +101,12 @@ export default function DataPanel({
       return sortDir === 'asc' ? cmp : -cmp;
     });
   }, [rows, sortKey, sortDir]);
+
+  /** Wiersze na bieżącej stronie */
+  const paginatedRows = useMemo(() => {
+    if (!sortedRows) return null;
+    return sortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [sortedRows, page, rowsPerPage]);
 
   const handleToggle = async () => {
     const next = !expanded;
@@ -146,58 +156,77 @@ export default function DataPanel({
             {error}
           </Typography>
         )}
-        {sortedRows && (
-          <TableContainer component={Paper} sx={{ maxHeight: 420 }}>
-            <Table stickyHeader size="small">
-              <TableHead>
-                <TableRow>
-                  {columns.map((col) => {
-                    const isSortable = col.sortable !== false;
-                    return (
-                      <TableCell
-                        key={col.key}
-                        sx={{ fontWeight: 700, bgcolor: 'background.paper' }}
-                        sortDirection={sortKey === col.key ? sortDir : false}
-                      >
-                        {isSortable ? (
-                          <TableSortLabel
-                            active={sortKey === col.key}
-                            direction={sortKey === col.key ? sortDir : 'desc'}
-                            onClick={() => handleSort(col.key)}
-                          >
-                            {col.label}
-                          </TableSortLabel>
-                        ) : (
-                          col.label
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sortedRows.length === 0 ? (
+        {paginatedRows && sortedRows && (
+          <>
+            <TableContainer component={Paper} sx={{ maxHeight: 420 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={columns.length} align="center">
-                      Brak danych
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  sortedRows.map((row, idx) => (
-                    <TableRow key={idx} hover>
-                      {columns.map((col) => (
-                        <TableCell key={col.key} sx={{ fontSize: '0.8rem' }}>
-                          {col.render
-                            ? col.render(row[col.key], row)
-                            : row[col.key] ?? '—'}
+                    {columns.map((col) => {
+                      const isSortable = col.sortable !== false;
+                      return (
+                        <TableCell
+                          key={col.key}
+                          sx={{ fontWeight: 700, bgcolor: 'background.paper' }}
+                          sortDirection={sortKey === col.key ? sortDir : false}
+                        >
+                          {isSortable ? (
+                            <TableSortLabel
+                              active={sortKey === col.key}
+                              direction={sortKey === col.key ? sortDir : 'desc'}
+                              onClick={() => handleSort(col.key)}
+                            >
+                              {col.label}
+                            </TableSortLabel>
+                          ) : (
+                            col.label
+                          )}
                         </TableCell>
-                      ))}
+                      );
+                    })}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paginatedRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={columns.length} align="center">
+                        Brak danych
+                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ) : (
+                    paginatedRows.map((row, idx) => (
+                      <TableRow key={idx} hover>
+                        {columns.map((col) => (
+                          <TableCell key={col.key} sx={{ fontSize: '0.8rem' }}>
+                            {col.render
+                              ? col.render(row[col.key], row)
+                              : row[col.key] ?? '—'}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {sortedRows.length > 25 && (
+              <TablePagination
+                component="div"
+                count={sortedRows.length}
+                page={page}
+                onPageChange={(_, p) => setPage(p)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[25, 50, 100]}
+                labelRowsPerPage="Wierszy na stronę:"
+                labelDisplayedRows={({ from, to, count }) => `${from}–${to} z ${count}`}
+                sx={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}
+              />
+            )}
+          </>
         )}
       </AccordionDetails>
     </Accordion>

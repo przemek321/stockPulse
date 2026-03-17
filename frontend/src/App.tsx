@@ -168,6 +168,247 @@ export default function App() {
       {/* ═══════════════════════════════════════════════════════════ */}
       {dashSubTab === 0 && (<>
 
+      {/* ═══ EDGE SIGNALS — Form 4 + 8-K + Insider ═══ */}
+      <Box sx={{
+        borderLeft: '4px solid #ffa726',
+        pl: 2, mb: 3,
+        bgcolor: 'rgba(255, 167, 38, 0.04)',
+        borderRadius: '0 8px 8px 0',
+        py: 1,
+      }}>
+        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5, color: '#ffa726' }}>
+          Edge Signals — SEC & Insider
+        </Typography>
+
+        {/* ── Analiza GPT Filingów SEC ──────────── */}
+        <DataPanel
+          title="Analiza GPT Filingów SEC (Form 4 + 8-K)"
+          icon={<PsychologyIcon sx={{ color: '#ce93d8' }} />}
+          badgeColor="secondary"
+          defaultSortKey="filingDate"
+          defaultSortDir="desc"
+          columns={[
+            { key: 'symbol', label: 'Ticker' },
+            {
+              key: 'formType',
+              label: 'Form',
+              render: (v: string) => {
+                const color = v === '8-K' ? '#ab47bc' : v === '4' ? '#ff7043' : '#90a4ae';
+                return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+              },
+            },
+            {
+              key: 'priceImpactDirection',
+              label: 'Kierunek',
+              render: (v: string) => {
+                const color = v === 'positive' ? '#66bb6a' : v === 'negative' ? '#ef5350' : '#90a4ae';
+                const arrow = v === 'positive' ? '↑' : v === 'negative' ? '↓' : '→';
+                return <Chip label={`${arrow} ${v || 'neutral'}`} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+              },
+            },
+            {
+              key: '_conviction',
+              label: 'Conviction',
+              render: (_: any, row: any) => {
+                const conv = row.gptAnalysis?.conviction;
+                if (conv == null) return '—';
+                const color = conv > 0 ? '#66bb6a' : conv < 0 ? '#ef5350' : '#90a4ae';
+                return <span style={{ color, fontWeight: 700 }}>{Number(conv).toFixed(2)}</span>;
+              },
+            },
+            {
+              key: '_magnitude',
+              label: 'Magnitude',
+              render: (_: any, row: any) => {
+                const mag = row.gptAnalysis?.price_impact?.magnitude;
+                if (!mag) return '—';
+                const color = mag === 'high' ? '#ef5350' : mag === 'medium' ? '#ffa726' : '#90a4ae';
+                return <Chip label={mag} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+              },
+            },
+            {
+              key: '_summary',
+              label: 'Podsumowanie',
+              render: (_: any, row: any) => {
+                const s = row.gptAnalysis?.summary;
+                if (!s) return '—';
+                return <TextDialog label={`${s.slice(0, 60)}${s.length > 60 ? '…' : ''}`} text={s} color="#ce93d8" />;
+              },
+            },
+            {
+              key: '_keyFacts',
+              label: 'Key Facts',
+              render: (_: any, row: any) => {
+                const facts = row.gptAnalysis?.key_facts;
+                if (!facts || facts.length === 0) return '—';
+                return (
+                  <TextDialog
+                    label={`${facts.length} faktów`}
+                    text={facts.map((f: string, i: number) => `${i + 1}. ${f}`).join('\n')}
+                    color="#80cbc4"
+                  />
+                );
+              },
+            },
+            {
+              key: 'filingDate',
+              label: 'Data',
+              render: (v: string) => fmtDate(v),
+            },
+            {
+              key: 'documentUrl',
+              label: 'Link',
+              render: (v: string) =>
+                v ? (
+                  <a href={v} target="_blank" rel="noreferrer" style={{ color: '#4fc3f7' }}>
+                    SEC
+                  </a>
+                ) : (
+                  '—'
+                ),
+            },
+          ]}
+          fetchData={async () => {
+            const data = await fetchFilingsGpt(200);
+            return data.filings;
+          }}
+        />
+
+        {/* ── Insider Trades (Form 4) ──────────── */}
+        <DataPanel
+          title="Insider Trades (Form 4)"
+          icon={<PersonSearchIcon sx={{ color: '#ff7043' }} />}
+          badgeColor="warning"
+          defaultSortKey="transactionDate"
+          defaultSortDir="desc"
+          columns={[
+            { key: 'symbol', label: 'Ticker' },
+            { key: 'insiderName', label: 'Insider' },
+            { key: 'insiderRole', label: 'Rola' },
+            {
+              key: 'transactionType',
+              label: 'Typ',
+              render: (v: string) => {
+                const color = v === 'BUY' ? '#66bb6a' : v === 'SELL' ? '#ef5350' : '#90a4ae';
+                return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+              },
+            },
+            {
+              key: 'shares',
+              label: 'Akcje',
+              render: (v: number) => v ? Number(v).toLocaleString('en-US') : '—',
+            },
+            {
+              key: 'pricePerShare',
+              label: 'Cena/szt',
+              render: (v: number) => v ? `$${Number(v).toFixed(2)}` : '—',
+            },
+            {
+              key: 'totalValue',
+              label: 'Wartość',
+              render: (v: number) => {
+                const num = Number(v);
+                if (!num) return '—';
+                const color = num > 100000 ? '#ef5350' : '#90a4ae';
+                return <span style={{ color, fontWeight: 700 }}>${num.toLocaleString('en-US')}</span>;
+              },
+            },
+            {
+              key: 'is10b51Plan',
+              label: '10b5-1',
+              render: (v: boolean) => (
+                <Chip
+                  label={v ? 'Plan' : 'Discr.'}
+                  size="small"
+                  sx={{
+                    bgcolor: v ? '#616161' : '#ff7043',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.6rem',
+                  }}
+                />
+              ),
+            },
+            {
+              key: 'transactionDate',
+              label: 'Data',
+              render: (v: string) => fmtDate(v),
+            },
+          ]}
+          fetchData={async () => {
+            const res = await fetch('/api/sentiment/insider-trades?limit=200');
+            if (!res.ok) return [];
+            const all = (await res.json()).trades || [];
+            return all.filter((t: any) => t.transactionType === 'BUY' || t.transactionType === 'SELL');
+          }}
+        />
+
+        {/* ── Alerty SEC & Insider ──────────────── */}
+        <DataPanel
+          title="Alerty SEC & Insider"
+          icon={<NotificationsIcon sx={{ color: '#ffa726' }} />}
+          badgeColor="warning"
+          defaultSortKey="sentAt"
+          defaultSortDir="desc"
+          columns={[
+            { key: 'symbol', label: 'Ticker' },
+            { key: 'ruleName', label: 'Reguła' },
+            {
+              key: 'priority',
+              label: 'Priorytet',
+              render: (v: string) => <PriorityChip value={v} />,
+            },
+            {
+              key: 'catalystType',
+              label: 'Katalizator',
+              render: (v: string | null) => v || '—',
+            },
+            {
+              key: 'delivered',
+              label: 'Telegram',
+              render: (v: boolean) => (
+                <Chip
+                  label={v ? 'Wysłano' : 'Silent'}
+                  size="small"
+                  sx={{
+                    bgcolor: v ? '#66bb6a' : '#616161',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.6rem',
+                  }}
+                />
+              ),
+            },
+            {
+              key: 'message',
+              label: 'Wiadomość',
+              render: (v: string) => {
+                if (!v) return '—';
+                return <TextDialog label={`${v.slice(0, 80)}${v.length > 80 ? '…' : ''}`} text={v} color="#ffa726" />;
+              },
+            },
+            {
+              key: 'sentAt',
+              label: 'Data',
+              render: (v: string) => fmtDate(v),
+            },
+          ]}
+          fetchData={async () => {
+            const data = await fetchAlerts();
+            const edgeRules = new Set([
+              'Form 4 Insider Signal',
+              'Insider Trade Large',
+              '8-K Earnings Miss',
+              '8-K Leadership Change',
+              '8-K Material Event GPT',
+              '8-K Bankruptcy',
+              'Correlated Signal',
+            ]);
+            return (data.alerts || []).filter((a: any) => edgeRules.has(a.ruleName));
+          }}
+        />
+      </Box>
+
       {/* Wykres sentymentu */}
       <Accordion
         sx={{ mb: 2, bgcolor: 'background.paper', '&:before': { display: 'none' } }}
@@ -299,7 +540,7 @@ export default function App() {
           },
         ]}
         fetchData={async () => {
-          const data = await fetchAiScores(200);
+          const data = await fetchAiScores();
           return data.scores;
         }}
       />
@@ -712,143 +953,6 @@ export default function App() {
           const res = await fetch('/api/sentiment/filings?limit=100');
           if (res.ok) return (await res.json()).filings || [];
           return [];
-        }}
-      />
-
-      {/* ── Analiza GPT Filingów SEC ──────────── */}
-      <DataPanel
-        title="Analiza GPT Filingów SEC"
-        icon={<PsychologyIcon sx={{ color: '#ce93d8' }} />}
-        badgeColor="secondary"
-        defaultSortKey="filingDate"
-        defaultSortDir="desc"
-        columns={[
-          { key: 'symbol', label: 'Ticker' },
-          {
-            key: 'formType',
-            label: 'Form',
-            render: (v: string) => {
-              const color = v === '8-K' ? '#ab47bc' : v === '4' ? '#ff7043' : '#90a4ae';
-              return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
-            },
-          },
-          {
-            key: 'priceImpactDirection',
-            label: 'Kierunek',
-            render: (v: string) => {
-              const color = v === 'positive' ? '#66bb6a' : v === 'negative' ? '#ef5350' : '#90a4ae';
-              const arrow = v === 'positive' ? '↑' : v === 'negative' ? '↓' : '→';
-              return <Chip label={`${arrow} ${v || 'neutral'}`} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
-            },
-          },
-          {
-            key: '_conviction',
-            label: 'Conviction',
-            render: (_: any, row: any) => {
-              const conv = row.gptAnalysis?.conviction;
-              if (conv == null) return '—';
-              const color = conv > 0 ? '#66bb6a' : conv < 0 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 700 }}>{Number(conv).toFixed(2)}</span>;
-            },
-          },
-          {
-            key: '_summary',
-            label: 'Podsumowanie',
-            render: (_: any, row: any) => {
-              const s = row.gptAnalysis?.summary;
-              if (!s) return '—';
-              return <TextDialog label={`${s.slice(0, 60)}${s.length > 60 ? '…' : ''}`} text={s} color="#ce93d8" />;
-            },
-          },
-          {
-            key: '_keyFacts',
-            label: 'Key Facts',
-            render: (_: any, row: any) => {
-              const facts = row.gptAnalysis?.key_facts;
-              if (!facts || facts.length === 0) return '—';
-              return (
-                <TextDialog
-                  label={`${facts.length} faktów`}
-                  text={facts.map((f: string, i: number) => `${i + 1}. ${f}`).join('\n')}
-                  color="#80cbc4"
-                />
-              );
-            },
-          },
-          {
-            key: 'filingDate',
-            label: 'Data',
-            render: (v: string) => fmtDate(v),
-          },
-          {
-            key: 'documentUrl',
-            label: 'Link',
-            render: (v: string) =>
-              v ? (
-                <a href={v} target="_blank" rel="noreferrer" style={{ color: '#4fc3f7' }}>
-                  SEC
-                </a>
-              ) : (
-                '—'
-              ),
-          },
-        ]}
-        fetchData={async () => {
-          const data = await fetchFilingsGpt(100);
-          return data.filings;
-        }}
-      />
-
-      {/* ── Insider Trades (Form 4) ──────────── */}
-      <DataPanel
-        title="Insider Trades (Form 4)"
-        icon={<PersonSearchIcon sx={{ color: '#ff7043' }} />}
-        badgeColor="warning"
-        defaultSortKey="transactionDate"
-        defaultSortDir="desc"
-        columns={[
-          { key: 'symbol', label: 'Ticker' },
-          { key: 'insiderName', label: 'Insider' },
-          { key: 'insiderRole', label: 'Rola' },
-          {
-            key: 'transactionType',
-            label: 'Typ',
-            render: (v: string) => {
-              const color = v === 'BUY' ? '#66bb6a' : v === 'SELL' ? '#ef5350' : '#90a4ae';
-              return <Chip label={v} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
-            },
-          },
-          {
-            key: 'shares',
-            label: 'Akcje',
-            render: (v: number) => v ? Number(v).toLocaleString('en-US') : '—',
-          },
-          {
-            key: 'pricePerShare',
-            label: 'Cena/szt',
-            render: (v: number) => v ? `$${Number(v).toFixed(2)}` : '—',
-          },
-          {
-            key: 'totalValue',
-            label: 'Wartość',
-            render: (v: number) => {
-              const num = Number(v);
-              if (!num) return '—';
-              const color = num > 100000 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 700 }}>${num.toLocaleString('en-US')}</span>;
-            },
-          },
-          {
-            key: 'transactionDate',
-            label: 'Data',
-            render: (v: string) => fmtDate(v),
-          },
-        ]}
-        fetchData={async () => {
-          const res = await fetch('/api/sentiment/insider-trades?limit=100');
-          if (!res.ok) return [];
-          const all = (await res.json()).trades || [];
-          return all.filter((t: any) => t.transactionType === 'BUY' || t.transactionType === 'SELL');
         }}
       />
 
