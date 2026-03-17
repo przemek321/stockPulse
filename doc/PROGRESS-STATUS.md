@@ -357,8 +357,9 @@ Mierzenie trafności alertów — zapis ceny akcji w momencie alertu i śledzeni
 #### 6.2 AlertEvaluator — decyzje w logach + nowa reguła
 - [x] **Decyzje w logach** — metody check*() zwracają string z decyzją (SKIP/THROTTLED/ALERT_SENT) → zapisywane do system_logs przez @Logged
 - [x] **onSentimentScored()** zwraca obiekt z 6 decyzjami (sentimentCrash, signalOverride, highConviction, strongFinbert, urgentSignal, checkUrgentSignal)
-- [x] **Nowa reguła checkUrgentSignal()** — łapie sygnały z `urgency=HIGH`, `relevance≥0.7`, `confidence≥0.6`, `|conviction|≥0.1` (pomimo niskiego conviction z powodu niedowartościowania źródła). Throttle 60 min.
-- [x] **Reguła w JSON**: "Urgent AI Signal" (priority HIGH, throttle 60 min)
+- [x] **Nowa reguła checkUrgentSignal()** — łapie sygnały z `urgency=HIGH`, `relevance≥0.7`, `confidence≥0.6`, `|conviction|≥0.3` (próg podniesiony z 0.1 — conviction 0.1 to "GPT powiedział cokolwiek", bez wartości predykcyjnej). Throttle 180 min.
+- [x] **Reguła w JSON**: "Urgent AI Signal" (priority HIGH, throttle 180 min)
+- [x] **Osobna etykieta Telegram**: `formatUrgentAiAlert()` → "Pilny Sygnał AI" (zamiast wspólnego "Silny Sygnał" z High Conviction)
 
 #### 6.3 AlertEvaluator — bugfix + optymalizacje (2026-03-08)
 9 fixów w `alert-evaluator.service.ts` + 21 nowych testów jednostkowych:

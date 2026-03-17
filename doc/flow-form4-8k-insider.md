@@ -280,7 +280,7 @@ EventType.NEW_FILING (formType='8-K')
 
 EventType.SENTIMENT_SCORED
   └── AlertEvaluatorService.onSentimentScored() ← @OnEvent('SENTIMENT_SCORED')
-      (5 równoległych checków, w tym High Conviction)
+      (6 równoległych checków, w tym High Conviction i Urgent AI Signal)
 
 EventType.CORRELATION_DETECTED
   └── (logowanie / frontend refresh)
@@ -733,7 +733,8 @@ triggerCorrelatedAlert():
 | `formatBankruptcyAlert()` | Item 1.03 | CRITICAL alert, bez GPT |
 | `formatCorrelatedAlert()` | Korelacja | Pattern type, sygnały składowe, conviction boost |
 | `formatSentimentAlert()` | Sentiment crash | Score + enriched analysis |
-| `formatConvictionAlert()` | High conviction | Conviction value + catalyst |
+| `formatConvictionAlert()` | High conviction ("Silny Sygnał") | Conviction value + catalyst |
+| `formatUrgentAiAlert()` | Urgent AI Signal ("Pilny Sygnał AI") | Conviction value + catalyst |
 | `formatSignalOverrideAlert()` | FinBERT vs GPT | Konflikt: FinBERT mówi X, GPT mówi Y |
 | `formatStrongFinbertAlert()` | VM offline | Score (unconfirmed) |
 

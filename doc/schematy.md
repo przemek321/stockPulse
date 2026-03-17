@@ -703,7 +703,8 @@ Dashboard React z 12+ panelami danych, wykresem sentymentu, zakładkami MUI (Das
 - `formatForm8kGptAlert()` — alert GPT analizy 8-K
 - `formatBankruptcyAlert()` — alert upadłości (Item 1.03)
 - `formatCorrelatedAlert()` — alert skorelowanego wzorca (CorrelationService)
-- `formatConvictionAlert()` — alert High Conviction Signal
+- `formatConvictionAlert()` — alert High Conviction Signal ("Silny Sygnał")
+- `formatUrgentAiAlert()` — alert Urgent AI Signal ("Pilny Sygnał AI")
 - `formatSignalOverrideAlert()` — alert korekty sygnału (FinBERT vs GPT)
 
 ---
