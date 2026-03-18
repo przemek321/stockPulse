@@ -72,7 +72,7 @@ export class OptionsFlowAlertService {
 
     // Rejestruj w CorrelationService
     if (absConv >= MIN_CONVICTION_CORRELATION && this.correlation) {
-      this.correlation.storeSignal({
+      await this.correlation.storeSignal({
         id: `options-${flow.id}`,
         ticker: flow.symbol,
         source_category: 'options',

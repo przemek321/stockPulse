@@ -171,7 +171,7 @@ export class HealthController {
    */
   @Get('weekly-report')
   async getWeeklyReport(@Query('days') daysParam?: string) {
-    const days = parseInt(daysParam || '7', 10) || 7;
+    const days = Math.max(1, Math.min(parseInt(daysParam || '7', 10) || 7, 90));
     const interval = `${days} days`;
 
     const [

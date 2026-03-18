@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, FindOptionsWhere } from 'typeorm';
+import { Repository, MoreThan, MoreThanOrEqual, FindOptionsWhere } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Alert, AlertRule, Ticker } from '../entities';
 import { EventType } from '../events/event-types';
@@ -656,7 +656,7 @@ export class AlertEvaluatorService implements OnModuleDestroy {
         where: {
           symbol,
           delivered: true,
-          sentAt: MoreThan(todayStart),
+          sentAt: MoreThanOrEqual(todayStart),
         },
       });
       if (todayAlerts >= MAX_TELEGRAM_ALERTS_PER_SYMBOL_PER_DAY) {

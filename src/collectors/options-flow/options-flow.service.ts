@@ -136,8 +136,8 @@ export class OptionsFlowService extends BaseCollectorService {
           continue; // Za mało danych na spike detection
         }
 
-        // Pomijaj duplikat sesji
-        if (baseline.lastUpdated?.toString() === sessionDate) continue;
+        // Pomijaj duplikat sesji (lastUpdated może być Date lub string z DB)
+        if (baseline.lastUpdated && String(baseline.lastUpdated).slice(0, 10) === sessionDate) continue;
 
         // 6. Sprawdź spike
         const spike = detectSpike(bar.v, baseline.avgVolume20d, baseline.dataPoints);

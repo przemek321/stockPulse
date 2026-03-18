@@ -310,7 +310,7 @@ export class CorrelationService implements OnModuleDestroy {
     return {
       type: 'ESCALATING_SIGNAL',
       signals: last3,
-      correlated_conviction: Math.min(1.0, Math.abs(last3[2].conviction) * 1.3) * directionSign,
+      correlated_conviction: Math.max(-1.0, Math.min(1.0, last3[2].conviction * 1.3)),
       direction: dir,
       description: `Conviction escalating over 3 signals: ${last3.map(s => s.conviction.toFixed(2)).join(' → ')}`,
     };

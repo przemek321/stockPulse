@@ -537,6 +537,14 @@ Raport tygodniowy (10-17 marca) ujawnił 9% edge / 85% noise (180 alertów, 17 p
 - [x] **PDUFA query fix**: `LessThan(+30d)` → `Between(now, +30d)` — łapał wszystkie historyczne daty PDUFA zamiast tylko nadchodzących
 - [x] **Panel frontend**: nowy DataPanel "Options Flow — Nietypowa Aktywność Opcyjna" w zakładce Kluczowe (Ticker, Typ call/put, Strike, Underlying, DTE, Volume, Spike ratio, OTM%, Conviction, Kierunek, PDUFA boost, Sesja)
 
+#### 10.10 Bugfix z code review (2026-03-18)
+- [x] **Form4 parser**: brak daty transakcji → `continue` zamiast `new Date()` (korupcja danych historycznych)
+- [x] **Options Flow storeSignal**: dodany `await` (race condition — pattern detection przed zapisem sygnału)
+- [x] **Escalating signal**: boost ×1.3 zachowuje znak conviction (zamiast abs→cap→sign = zawsze ±1.0)
+- [x] **AlertEvaluator daily limit**: `MoreThan` → `MoreThanOrEqual` (alerty o północy UTC nie liczone)
+- [x] **Options Flow duplikat sesji**: `String().slice(0,10)` zamiast kruchego `.toString()` (Date vs string)
+- [x] **Weekly report days**: `Math.max(1, Math.min(..., 90))` — ograniczenie zakresu 1-90 dni (DoS protection)
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
