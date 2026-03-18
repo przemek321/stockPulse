@@ -22,7 +22,7 @@ import DataPanel from './components/DataPanel';
 import DbSummary from './components/DbSummary';
 import SentimentChart from './components/SentimentChart';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt, fetchAlertOutcomes, AlertOutcome } from './api';
+import { fetchTickers, fetchAlertRules, fetchAlerts, fetchAiScores, fetchPipelineLogs, fetchFilingsGpt, fetchAlertOutcomes, fetchOptionsFlow, AlertOutcome } from './api';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SystemLogsTab from './components/SystemLogsTab';
 import PriceOutcomePanel from './components/PriceOutcomePanel';
@@ -672,6 +672,72 @@ export default function App() {
           const res = await fetch('/api/sentiment/pdufa?upcoming_only=true&limit=100');
           if (res.ok) return (await res.json()).catalysts || [];
           return [];
+        }}
+      />
+
+      {/* ── Options Flow — Volume Spike Detection ─── */}
+      <DataPanel
+        title="Options Flow — Nietypowa Aktywność Opcyjna"
+        icon={<TrendingUpIcon sx={{ color: '#29b6f6' }} />}
+        badgeColor="info"
+        defaultSortKey="sessionDate"
+        defaultSortDir="desc"
+        columns={[
+          { key: 'symbol', label: 'Ticker' },
+          {
+            key: 'optionType',
+            label: 'Typ',
+            render: (v: string) => {
+              const color = v === 'call' ? '#66bb6a' : '#ef5350';
+              return <Chip label={v?.toUpperCase()} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+            },
+          },
+          { key: 'strike', label: 'Strike', render: (v: number) => `$${Number(v).toFixed(2)}` },
+          { key: 'underlyingPrice', label: 'Underlying', render: (v: number) => `$${Number(v).toFixed(2)}` },
+          { key: 'dte', label: 'DTE' },
+          { key: 'dailyVolume', label: 'Volume', render: (v: number) => Number(v).toLocaleString() },
+          {
+            key: 'volumeSpikeRatio',
+            label: 'Spike',
+            render: (v: number) => {
+              const ratio = Number(v);
+              const color = ratio >= 10 ? '#ef5350' : ratio >= 5 ? '#ffa726' : '#66bb6a';
+              return <span style={{ color, fontWeight: 700 }}>{ratio.toFixed(1)}×</span>;
+            },
+          },
+          {
+            key: 'otmDistance',
+            label: 'OTM',
+            render: (v: number) => `${(Number(v) * 100).toFixed(1)}%`,
+          },
+          {
+            key: 'conviction',
+            label: 'Conviction',
+            render: (v: number) => {
+              const n = Number(v);
+              const color = n > 0 ? '#66bb6a' : n < 0 ? '#ef5350' : '#90a4ae';
+              return <span style={{ color, fontWeight: 700 }}>{n.toFixed(3)}</span>;
+            },
+          },
+          {
+            key: 'direction',
+            label: 'Kierunek',
+            render: (v: string) => {
+              const color = v === 'positive' ? '#66bb6a' : v === 'negative' ? '#ef5350' : '#90a4ae';
+              const label = v === 'positive' ? 'BULL' : v === 'negative' ? 'BEAR' : 'MIX';
+              return <Chip label={label} size="small" sx={{ bgcolor: color, color: '#fff', fontSize: '0.65rem' }} />;
+            },
+          },
+          {
+            key: 'pdufaBoosted',
+            label: 'PDUFA',
+            render: (v: boolean) => v ? <Chip label="BOOST" size="small" sx={{ bgcolor: '#42a5f5', color: '#fff', fontSize: '0.6rem' }} /> : <span style={{ color: '#555' }}>—</span>,
+          },
+          { key: 'sessionDate', label: 'Sesja', render: (v: string) => fmtDate(v) },
+        ]}
+        fetchData={async () => {
+          const res = await fetchOptionsFlow(200);
+          return res.data || [];
         }}
       />
 

@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
 import { EventType } from '../events/event-types';
 import { OptionsFlow, Alert, AlertRule } from '../entities';
 import { OptionsFlowScoringService } from './options-flow-scoring.service';
@@ -141,7 +141,7 @@ export class OptionsFlowAlertService {
     const todayCount = await this.alertRepo.count({
       where: {
         symbol: flow.symbol,
-        sentAt: new Date(todayStart.toISOString()) as any,
+        sentAt: MoreThanOrEqual(todayStart),
       },
     });
     if (todayCount >= MAX_DAILY_ALERTS) return false;

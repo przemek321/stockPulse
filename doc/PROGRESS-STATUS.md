@@ -532,6 +532,11 @@ Raport tygodniowy (10-17 marca) ujawnił 9% edge / 85% noise (180 alertów, 17 p
 - [x] `options-flow-scoring.spec.ts` — 13 testów (direction, conviction range, PDUFA boost, komponenty)
 - [x] `options-flow-agent.spec.ts` — 11 testów (routing, correlation, throttling, priority)
 
+#### 10.9 Fixy post-review (2026-03-18)
+- [x] **Daily limit fix**: `sentAt: exact match` → `MoreThanOrEqual(todayStart)` — daily limit per ticker nie działał (szukał exact timestamp zamiast >= dzisiaj)
+- [x] **PDUFA query fix**: `LessThan(+30d)` → `Between(now, +30d)` — łapał wszystkie historyczne daty PDUFA zamiast tylko nadchodzących
+- [x] **Panel frontend**: nowy DataPanel "Options Flow — Nietypowa Aktywność Opcyjna" w zakładce Kluczowe (Ticker, Typ call/put, Strike, Underlying, DTE, Volume, Spike ratio, OTM%, Conviction, Kierunek, PDUFA boost, Sesja)
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -550,6 +555,7 @@ GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza AP
 - [x] Panel "Analiza GPT Filingów SEC" — wyniki analizy GPT per filing SEC (conviction, wpływ cenowy, podsumowanie)
 - [x] Panel "Skorelowane Sygnały" — alerty z CorrelationService (wzorzec, priorytet, wiadomość)
 - [x] Panel "Trafność Alertów (Price Outcome)" — cena alertu, delty %, trafność kierunku (✓/✗/—)
+- [x] Panel "Options Flow — Nietypowa Aktywność Opcyjna" — volume spike'i z Polygon.io (call/put, spike ratio, conviction, PDUFA boost)
 - [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
 - [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami

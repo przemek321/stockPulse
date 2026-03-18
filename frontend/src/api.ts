@@ -220,6 +220,42 @@ export const fetchSystemLogs = (filters: SystemLogFilters = {}) => {
   );
 };
 
+/* ── Options Flow ────────────────────── */
+
+export interface OptionsFlowData {
+  id: number;
+  symbol: string;
+  occSymbol: string;
+  optionType: string;
+  strike: number;
+  underlyingPrice: number;
+  expiry: string;
+  dte: number;
+  dailyVolume: number;
+  avgVolume20d: number;
+  volumeSpikeRatio: number;
+  isOtm: boolean;
+  otmDistance: number;
+  conviction: number;
+  direction: string;
+  pdufaBoosted: boolean;
+  sessionDate: string;
+  collectedAt: string;
+}
+
+export const fetchOptionsFlow = (limit = 100, symbol?: string) => {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (symbol) params.set('symbol', symbol);
+  return get<{ data: OptionsFlowData[]; total: number; limit: number }>(
+    `/options-flow?${params}`,
+  );
+};
+
+export const fetchOptionsFlowStats = () =>
+  get<{ stats: { symbol: string; totalFlows: number; avgConviction: number; maxSpikeRatio: number; lastSession: string }[]; baselineRecords: number }>(
+    '/options-flow/stats',
+  );
+
 /* ── Price Outcome Tracker ──────────────── */
 
 export interface AlertOutcome {

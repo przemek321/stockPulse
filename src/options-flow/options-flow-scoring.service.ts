@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { OptionsFlow, PdufaCatalyst } from '../entities';
 import { type TickerAggregation } from '../collectors/options-flow/unusual-activity-detector';
 
@@ -85,7 +85,8 @@ export class OptionsFlowScoringService {
       const upcoming = await this.pdufaRepo.findOne({
         where: {
           symbol: agg.symbol,
-          pdufaDate: LessThan(
+          pdufaDate: Between(
+            new Date(),
             new Date(Date.now() + 30 * 24 * 3600_000),
           ),
         },
@@ -137,7 +138,8 @@ export class OptionsFlowScoringService {
       const upcoming = await this.pdufaRepo.findOne({
         where: {
           symbol: flow.symbol,
-          pdufaDate: LessThan(
+          pdufaDate: Between(
+            new Date(),
             new Date(Date.now() + 30 * 24 * 3600_000),
           ),
         },
