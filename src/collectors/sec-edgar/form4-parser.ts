@@ -142,7 +142,7 @@ function parseTransaction(
     // Data transakcji
     const dateRaw =
       txn.transactionDate?.value ?? txn.transactionDate ?? null;
-    if (!dateRaw) continue; // Brak daty transakcji — pomijamy (zamiast wstawiać dzisiejszą)
+    if (!dateRaw) return null; // Brak daty transakcji — pomijamy (zamiast wstawiać dzisiejszą)
     const transactionDate = new Date(dateRaw);
 
     // Plan 10b5-1 — zaplanowana transakcja (niższy priorytet sygnału)
