@@ -490,7 +490,7 @@ export class HealthController {
         COUNT(DISTINCT symbol) as tickers,
         COUNT(*) FILTER (WHERE "sentAt" >= $1) as last_24h
       FROM alerts
-      WHERE "sentAt" >= $2
+      WHERE "sentAt" >= $2 AND archived = false
     `, [last24h, last7d]);
 
     // Pipeline GPT — ile wywołań / błędów w 24h
