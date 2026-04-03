@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
 import { StocktwitsService } from '../../collectors/stocktwits/stocktwits.service';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
@@ -429,6 +429,124 @@ export class HealthController {
         hitRateByRule,
         hitRateByCatalyst,
       },
+    };
+  }
+
+  /**
+   * Szybki przegląd zdrowia systemu — błędy kolektorów, ostatnie awarie,
+   * statystyki pipeline'u. Dla panelu "Status Systemu" na dashboardzie.
+   */
+  @Get('system-overview')
+  async getSystemOverview() {
+    const now = new Date();
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Ostatnie logi kolektorów (per kolektor: last 5 runs)
+    // Options Flow loguje jako POLYGON w collection_logs (DataSource.POLYGON)
+    const activeCollectors = ['SEC_EDGAR', 'PDUFA_BIO', 'POLYGON'];
+    const disabledCollectors = ['STOCKTWITS', 'FINNHUB', 'REDDIT'];
+
+    const collectorHealthPromises = activeCollectors.map(async (source) => {
+      const logs = await this.logRepo.find({
+        where: { collector: source as any },
+        order: { startedAt: 'DESC' },
+        take: 10,
+      });
+
+      const recentErrors = logs.filter(l => l.status === 'FAILED' || l.status === 'PARTIAL');
+      const lastSuccess = logs.find(l => l.status === 'SUCCESS');
+      const errorsLast24h = recentErrors.filter(l => l.startedAt >= last24h);
+
+      return {
+        source,
+        status: errorsLast24h.length === 0 ? 'OK' : errorsLast24h.length >= 3 ? 'CRITICAL' : 'WARNING',
+        lastRunAt: logs[0]?.startedAt?.toISOString() || null,
+        lastStatus: logs[0]?.status || null,
+        lastError: recentErrors[0]?.errorMessage || null,
+        lastErrorAt: recentErrors[0]?.startedAt?.toISOString() || null,
+        lastSuccessAt: lastSuccess?.startedAt?.toISOString() || null,
+        errorsLast24h: errorsLast24h.length,
+        lastDurationMs: logs[0]?.durationMs ?? null,
+        lastItemsCollected: logs[0]?.itemsCollected ?? 0,
+      };
+    });
+
+    // Błędy systemowe (system_logs) z ostatnich 24h
+    const systemErrors = await this.dataSource.query(`
+      SELECT module, class_name, function_name, error_message, duration_ms, created_at
+      FROM system_logs
+      WHERE status = 'error' AND created_at >= $1
+      ORDER BY created_at DESC
+      LIMIT 20
+    `, [last24h]);
+
+    // Statystyki alertów (7d)
+    const alertStats = await this.dataSource.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE delivered = true) as delivered,
+        COUNT(*) FILTER (WHERE delivered = false) as silent,
+        COUNT(DISTINCT symbol) as tickers,
+        COUNT(*) FILTER (WHERE "sentAt" >= $1) as last_24h
+      FROM alerts
+      WHERE "sentAt" >= $2
+    `, [last24h, last7d]);
+
+    // Pipeline GPT — ile wywołań / błędów w 24h
+    const pipelineStats = await this.dataSource.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'AI_ESCALATED') as escalated,
+        COUNT(*) FILTER (WHERE status = 'AI_FAILED') as failed,
+        COUNT(*) FILTER (WHERE status = 'FINBERT_ONLY') as finbert_only
+      FROM ai_pipeline_logs
+      WHERE created_at >= $1
+    `, [last24h]);
+
+    // BullMQ failed jobs — via collection_logs FAILED w 7d
+    const failedJobs7d = await this.logRepo.count({
+      where: {
+        status: 'FAILED' as any,
+        startedAt: MoreThanOrEqual(last7d),
+      },
+    });
+
+    const collectorHealth = await Promise.all(collectorHealthPromises);
+
+    return {
+      timestamp: now.toISOString(),
+      overall: collectorHealth.every(c => c.status === 'OK') && systemErrors.length === 0
+        ? 'HEALTHY'
+        : collectorHealth.some(c => c.status === 'CRITICAL')
+          ? 'CRITICAL'
+          : 'WARNING',
+      collectors: {
+        active: collectorHealth,
+        disabled: disabledCollectors,
+      },
+      systemErrors: systemErrors.map((e: any) => ({
+        module: e.module,
+        className: e.class_name,
+        function: e.function_name,
+        error: e.error_message?.substring(0, 200),
+        durationMs: e.duration_ms,
+        at: e.created_at,
+      })),
+      alerts: alertStats[0] ? {
+        total7d: parseInt(alertStats[0].total),
+        delivered7d: parseInt(alertStats[0].delivered),
+        silent7d: parseInt(alertStats[0].silent),
+        tickers7d: parseInt(alertStats[0].tickers),
+        last24h: parseInt(alertStats[0].last_24h),
+      } : null,
+      pipeline: pipelineStats[0] ? {
+        total24h: parseInt(pipelineStats[0].total),
+        escalated24h: parseInt(pipelineStats[0].escalated),
+        failed24h: parseInt(pipelineStats[0].failed),
+        finbertOnly24h: parseInt(pipelineStats[0].finbert_only),
+      } : null,
+      failedJobs7d,
     };
   }
 

@@ -220,6 +220,56 @@ export const fetchSystemLogs = (filters: SystemLogFilters = {}) => {
   );
 };
 
+/* ── System Overview (status systemu) ── */
+
+export interface CollectorHealth {
+  source: string;
+  status: 'OK' | 'WARNING' | 'CRITICAL';
+  lastRunAt: string | null;
+  lastStatus: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+  lastSuccessAt: string | null;
+  errorsLast24h: number;
+  lastDurationMs: number | null;
+  lastItemsCollected: number;
+}
+
+export interface SystemError {
+  module: string;
+  className: string;
+  function: string;
+  error: string;
+  durationMs: number;
+  at: string;
+}
+
+export interface SystemOverview {
+  timestamp: string;
+  overall: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+  collectors: {
+    active: CollectorHealth[];
+    disabled: string[];
+  };
+  systemErrors: SystemError[];
+  alerts: {
+    total7d: number;
+    delivered7d: number;
+    silent7d: number;
+    tickers7d: number;
+    last24h: number;
+  } | null;
+  pipeline: {
+    total24h: number;
+    escalated24h: number;
+    failed24h: number;
+    finbertOnly24h: number;
+  } | null;
+  failedJobs7d: number;
+}
+
+export const fetchSystemOverview = () => get<SystemOverview>('/health/system-overview');
+
 /* ── Options Flow ────────────────────── */
 
 export interface OptionsFlowData {

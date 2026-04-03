@@ -20,6 +20,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SystemLogsTab from './components/SystemLogsTab';
 import PriceOutcomePanel from './components/PriceOutcomePanel';
 import JetsonStatsBar from './components/JetsonStatsBar';
+import SystemHealthPanel from './components/SystemHealthPanel';
 
 /** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
 const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
@@ -160,6 +161,9 @@ export default function App() {
       {/* ═══ KLUCZOWE — co trzeba widzieć na co dzień             ═══ */}
       {/* ═══════════════════════════════════════════════════════════ */}
       {dashSubTab === 0 && (<>
+
+      {/* ═══ STATUS SYSTEMU — szybki przeglad zdrowia ═══ */}
+      <SystemHealthPanel />
 
       {/* ═══ EDGE SIGNALS — Form 4 + 8-K + Insider ═══ */}
       <Box sx={{
