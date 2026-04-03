@@ -12,6 +12,17 @@ import { fetchSystemOverview, SystemOverview, CollectorHealth, SystemError } fro
 const fmtDate = (v: string | null) =>
   v ? new Date(v).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
+/** Formatowanie czasu trwania (ms → czytelna forma) */
+const fmtDuration = (ms: number | null) => {
+  if (!ms) return '—';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ${sec % 60}s`;
+  const h = Math.floor(min / 60);
+  return `${h}h ${min % 60}m`;
+};
+
 /** Formatowanie czasu "X min temu" */
 const timeAgo = (v: string | null) => {
   if (!v) return '—';
@@ -113,7 +124,7 @@ export default function SystemHealthPanel() {
               </Box>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, fontSize: '0.7rem', color: 'text.secondary' }}>
                 <Typography variant="caption">
-                  Ostatni run: {timeAgo(c.lastRunAt)} ({c.lastItemsCollected} elem., {c.lastDurationMs ? `${(c.lastDurationMs / 1000).toFixed(1)}s` : '—'})
+                  Ostatni run: {timeAgo(c.lastRunAt)} ({c.lastItemsCollected} elem., {fmtDuration(c.lastDurationMs)})
                 </Typography>
               </Box>
               {c.errorsLast24h > 0 && (
