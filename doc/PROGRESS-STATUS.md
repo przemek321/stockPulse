@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-03-17
+> Ostatnia aktualizacja: 2026-04-03
 
 ## Gdzie jesteśmy
 
-**Faza 2 — Analiza AI sentymentu** (ukończona) + **Sprint 4/4b — SEC Filing GPT Pipeline + CorrelationService + Dashboard + PL** (ukończony) + **Sprint 5 — System Logowania @Logged()** (ukończony) + **Sprint 6 — Price Outcome Tracker + Urgent AI Signal** (ukończony) + **Sprint 7 — Przegląd logiki + 10 fixów** (ukończony) + **Sprint 8 — Optymalizacja pipeline + analiza tygodniowa** (ukończony 2026-03-14) + **Sprint 9 — Fixy z raportu tygodniowego: conviction sign, dual signal, noise reduction** (ukończony 2026-03-17) + **Sprint 10 — Options Flow Integration: Polygon.io EOD volume spike detection** (ukończony 2026-03-17)
+**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03). Analiza 2 tygodni (962 alertów, 55.5% hit rate) wykazała brak edge'u na sentymencie. System przebudowany: wyłączenie szumu (StockTwits, Finnhub news, 6 reguł sentymentowych, 3 wzorców korelacji), focus na insider pipeline + PDUFA + korelacje insider×options.
 
-Pełny 2-etapowy pipeline sentymentu z tier-based eskalacją + SEC Filing GPT Pipeline + CorrelationService + Price Outcome Tracker (mierzenie trafności alertów). Kolektory → eventy → BullMQ → FinBERT na GPU (1. etap) → tier-based eskalacja (AND, **tylko FINNHUB/SEC — StockTwits FinBERT-only**) do Azure OpenAI gpt-4o-mini (2. etap). SEC filingi: GPT z per-typ promptami (8-K Items, Form 4 z zapisem gptAnalysis do SecFiling). CorrelationService: Redis Sorted Sets, 5 detektorów wzorców, conviction znormalizowany [-1,+1]. DailyCapService: atomowy Redis INCR (bez race condition). AlertEvaluator: 6 reguł niezależnych (Promise.all), decyzje SKIP/THROTTLED/ALERT_SENT w logach, cache reguł (TTL 5 min), OnModuleDestroy. Price Outcome Tracker: zapis ceny w momencie alertu → CRON co 1h uzupełnia price1h/4h/1d/3d → panel trafności na froncie. effectiveScore = gptConviction / 2.0 (znormalizowany [-1,+1]) jako źródło prawdy. 20 reguł alertów, 14 tabel PostgreSQL, 8 kolejek Redis, ~37 tickerów healthcare. Options Flow: Polygon.io Free Tier (EOD, 5 req/min), kolektor CRON 22:15 UTC, volume spike detection (3× avg20d), heurystyczny scoring, PDUFA boost ×1.3, nowy CorrelationService pattern INSIDER_PLUS_OPTIONS (72h). `signals:short` TTL 72h (z 48h). Raporty tygodniowe w [doc/reports/](doc/reports/).
+**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → GPT analiza → 3 wzorce korelacji (INSIDER_CLUSTER, INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary C-suite only (is10b51Plan=true → skip). 7 aktywnych reguł alertów, 12 wyłączonych. Cel: 3-5 alertów/tydzień z realnym edge zamiast 50/dzień z szumem. Raporty tygodniowe w [doc/reports/](doc/reports/).
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -621,21 +621,45 @@ npm run test:all
 | PostgreSQL | 5432 | — |
 | Redis | 6379 | — |
 
+### Sprint 11: Przebudowa — focus na edge (ukończony 2026-04-03)
+
+Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = moneta. FinBERT/Sentiment Crash/Options bez PDUFA = szum. Realny edge: discretionary insider SELL (GILD CEO -1.29%, HIMS CFO -12.5%), INSIDER_PLUS_OPTIONS, FDA/PDUFA catalyst.
+
+**Faza A — Wyciszenie szumu (odwracalne)**:
+- [x] 12 reguł alertów → `isActive=false` w DB seed (odwracalne SQL)
+- [x] StockTwits collector: scheduler czyści repeatable joby, loguje WARN
+- [x] Finnhub collector: `collect()` zwraca 0, endpoint `/quote` zachowany (Price Outcome)
+- [x] Sentiment listener: `@OnEvent` dekoratory usunięte z onNewMention/onNewArticle
+- [x] 3 wzorce korelacji wyłączone: FILING_CONFIRMS_NEWS, MULTI_SOURCE_CONVERGENCE, ESCALATING_SIGNAL
+
+**Faza B — Wzmocnienie edge'u**:
+- [x] Form4Pipeline: skip `is10b51Plan=true`, C-suite regex boost (CEO/CFO/President/Chairman/EVP)
+- [x] Options: standalone alert **tylko z pdufaBoosted=true** (reszta → do Redis dla korelacji)
+- [x] Spike ratio > 1000 → suspicious flag, conviction ×0.5 (safety net anomalii danych)
+- [x] 8-K Item 5.02 prompt: voluntary+successor vs crisis+no successor vs relief rally
+- [x] `priceAtAlert` fix: dodany Finnhub getQuote do CorrelationService, Form4Pipeline, Form8kPipeline
+
+**Faza C — Dokumentacja**:
+- [x] `CLAUDE.md` — architektura zsynchronizowana ze Sprint 11
+- [x] `PROGRESS-STATUS.md` — Sprint 11 + Kluczowe liczby
+- [x] `doc/reports/2026-04-02-analiza-2-tygodnie.md` — pełna analiza danych
+
 ## Kluczowe liczby
 
 - **Tickery do monitorowania**: ~37 healthcare (zdefiniowane w healthcare-universe.json)
 - **Słowa kluczowe**: 180+
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
-- **Reguły alertów**: 20 (11 sentyment/insider/filing + 6 SEC/korelacja + Urgent AI Signal + Insider Trade Large + Unusual Options Activity)
-- **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome, sentiment_scores z enrichedAnalysis jsonb, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
-- **Kolejki BullMQ**: 8 (6 kolektorów + sentiment-analysis + alerts)
-- **Endpointy REST**: 23 (health x2, tickers x2, sentiment x8 + ai_only + pipeline-logs + pdufa + insider-trades + filings-gpt, alerts x3 incl. outcomes, sec-filings/backfill-gpt x1, system-logs x1, options-flow x3)
-- **Źródła danych**: 5 aktywnych kolektorów (StockTwits, Finnhub, SEC EDGAR, PDUFA.bio, Polygon.io Options Flow), 1 placeholder (Reddit)
-- **Modele AI**: 2 aktywne (FinBERT lokalnie na GPU, Azure OpenAI gpt-4o-mini na VM z PDUFA Context Layer + SEC Filing GPT Pipeline), 1 planowany (spaCy NER)
+- **Reguły alertów**: 19 total — **7 aktywnych** (Form 4 Insider Signal, 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, 8-K Bankruptcy, Correlated Signal, Unusual Options Activity), **12 wyłączonych** (isActive=false — sentyment, niezaimplementowane)
+- **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome + priceAtAlert, sentiment_scores, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
+- **Kolejki BullMQ**: 8 (6 kolektorów + sentiment-analysis + alerts) — StockTwits/Finnhub schedulery wyłączone
+- **Endpointy REST**: 23 (health x2, tickers x2, sentiment x8, alerts x3 incl. outcomes, sec-filings/backfill-gpt x1, system-logs x1, options-flow x3, pipeline-logs x1, pdufa x1, insider-trades x1)
+- **Źródła danych**: **3 aktywne kolektory** (SEC EDGAR, PDUFA.bio, Polygon.io Options Flow), **3 wyłączone** (StockTwits, Finnhub news/MSPR, Reddit placeholder). Finnhub `/quote` zachowany.
+- **Modele AI**: Azure OpenAI gpt-4o-mini (Form 4 + 8-K). FinBERT sidecar (kontener działa, nie otrzymuje jobów — pipeline sentymentu wyłączony)
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
 - **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
-- **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (5 detektorów wzorców, Redis Sorted Sets)
+- **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (**3 aktywne** detektory wzorców, Redis Sorted Sets)
 - **Nowe moduły (Sprint 6)**: PriceOutcomeModule (CRON co 1h, Finnhub /quote, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d, NYSE market hours guard, hard timeout 7d)
 - **Nowe moduły (Sprint 10)**: OptionsFlowCollectorModule (kolektor CRON 22:15 UTC, Polygon.io Free Tier, volume spike detection), OptionsFlowModule (scoring + alert + CorrelationService INSIDER_PLUS_OPTIONS)
+- **Sprint 11**: Przebudowa — focus na edge. Wyłączenie szumu (StockTwits, Finnhub news, sentiment pipeline, 12 reguł, 3 wzorców korelacji). Wzmocnienie: Form4 discretionary C-suite filter, spike ratio cap, 8-K leadership prompt fix, priceAtAlert fix
 - **Testy jednostkowe**: 8 suite'ów, 145 testów (correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator, unusual-activity-detector, options-flow-scoring, options-flow-agent)

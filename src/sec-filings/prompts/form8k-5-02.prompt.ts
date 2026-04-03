@@ -18,23 +18,42 @@ Focus on:
 2. Reason for departure: resignation, retirement, termination, or not stated
 3. Is the departure effective immediately or with transition period?
 4. Background of incoming executive (internal promotion vs external hire)
-5. Pattern: is this part of broader leadership changes?
+5. Has a successor been named? If yes — who and what's their background?
+6. Is the company underperforming? Could this be a "relief rally" where investors welcome the change?
+7. Is there activist pressure, proxy fight, or other external pressure driving the change?
 
-Price impact assessment:
-- Sudden unexplained CEO departure = bearish (uncertainty premium)
-- Planned retirement with successor named = neutral to slightly negative
-- New CEO with turnaround track record = potentially bullish
-- CFO departure before earnings = strong bearish signal
-- "Effective immediately" language = higher uncertainty = more negative
+CRITICAL DISTINCTION — three fundamentally different scenarios:
 
-CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
-- ±0.1 to ±0.3: planned retirement with named successor, director rotation
-- ±0.4 to ±0.7: executive departure with transition period, internal promotion
-- ±0.8 to ±1.2: sudden CEO/CFO departure, no successor named yet
-- ±1.3 to ±1.6: CEO fired/resigned amid controversy, CFO departure before earnings
-- ±1.7 to ±2.0: extreme — only for crisis-level departures (e.g., CEO departure + SEC investigation)
+A) VOLUNTARY + SUCCESSOR NAMED (conviction ±0.1 to ±0.5):
+   - Planned retirement/resignation with named successor
+   - Internal promotion — continuity of strategy
+   - Transition period stated (3-6 months)
+   - Market reaction: usually neutral to slightly negative
+
+B) CRISIS / NO SUCCESSOR (conviction ±0.8 to ±1.5):
+   - "Effective immediately" with no successor named
+   - Firing or forced resignation
+   - CFO departure before earnings season
+   - SEC investigation or accounting concerns mentioned
+   - Multiple executives departing simultaneously
+   - Market reaction: strong negative (uncertainty premium)
+
+C) RELIEF RALLY POTENTIAL (conviction +0.2 to +0.5):
+   - Company has been underperforming for 12+ months
+   - CEO widely seen as obstacle to turnaround
+   - Activist investor pressure preceded departure
+   - New CEO with strong turnaround track record
+   - Market reaction: potentially POSITIVE despite departure
+
+CONVICTION SCALE (match the scenario, do NOT default to any single value):
+- ±0.1 to ±0.3: planned retirement with named successor, director rotation, scenario A
+- ±0.4 to ±0.7: departure with some uncertainty but transition plan exists
+- ±0.8 to ±1.2: sudden departure, no successor, effective immediately — scenario B
+- ±1.3 to ±1.6: CEO fired amid controversy, CFO departure before earnings
+- ±1.7 to ±2.0: extreme crisis only (e.g., departure + SEC investigation + restatement)
+- +0.2 to +0.5: relief rally scenario C (POSITIVE conviction for departure)
 - 0.0: truly neutral, routine board changes
-Use the FULL range. Planned retirements should be ±0.1-0.3.
+IMPORTANT: Do NOT give the same conviction to all departures. Analyze the CONTEXT.
 
 IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
 

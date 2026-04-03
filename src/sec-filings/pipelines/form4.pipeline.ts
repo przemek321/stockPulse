@@ -13,6 +13,7 @@ import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysi
 import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
+import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -42,6 +43,7 @@ export class Form4Pipeline {
     private readonly formatter: TelegramFormatterService,
     private readonly dailyCap: DailyCapService,
     @Optional() private readonly correlation?: CorrelationService,
+    @Optional() private readonly finnhub?: FinnhubService,
   ) {}
 
   @OnEvent(EventType.NEW_INSIDER_TRADE)
@@ -58,13 +60,19 @@ export class Form4Pipeline {
     sharesOwnedAfter?: number | null;
     source?: string;
   }): Promise<{ action: string; symbol: string }> {
-    // Filtruj: spójność z AlertEvaluatorService — tylko BUY/SELL > $100K
+    // Filtruj: tylko BUY/SELL > $100K
     if (!payload.totalValue || payload.totalValue < 100_000) {
       return { action: 'SKIP_LOW_VALUE', symbol: payload.symbol };
     }
     const ALERTABLE = ['BUY', 'SELL'];
     if (payload.transactionType && !ALERTABLE.includes(payload.transactionType)) {
       return { action: 'SKIP_NOT_ALERTABLE', symbol: payload.symbol };
+    }
+
+    // Sprint 11: wyfiltruj planowe transakcje 10b5-1 (szum, nie realny sygnał insiderski)
+    if (payload.is10b51Plan === true) {
+      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP 10b5-1 plan`);
+      return { action: 'SKIP_10B51_PLAN', symbol: payload.symbol };
     }
 
     // Sprawdź daily cap
@@ -176,10 +184,25 @@ export class Form4Pipeline {
         }
       }
 
+      // Sprint 11: C-suite priorytet — CEO/CFO/President/Chairman/EVP/CMO/COO/CTO
+      const C_SUITE_PATTERNS = [
+        /\bC[EFO][OFT]O?\b/i, /\bPresident\b/i, /\bChair/i,
+        /\bEVP\b/i, /\bCMO\b/i, /\bCOO\b/i, /\bCTO\b/i,
+        /\bChief\b/i, /\bExecutive Vice/i,
+      ];
+      const isCsuite = C_SUITE_PATTERNS.some(
+        p => p.test(parsed.insiderRole ?? '') || p.test(parsed.insiderName),
+      );
+
       // Oblicz priorytet alertu
-      const priority = scoreToAlertPriority(analysis, 'Form4');
+      let priority = scoreToAlertPriority(analysis, 'Form4');
+
+      // C-suite boost: podnieś priorytet jeśli discretionary C-suite
+      if (isCsuite && priority === 'MEDIUM') priority = 'HIGH';
+      if (isCsuite && !priority) priority = 'HIGH';
+
       if (!priority) {
-        this.logger.debug(`Form4 GPT: ${payload.symbol} — brak alertu (low priority)`);
+        this.logger.debug(`Form4 GPT: ${payload.symbol} — brak alertu (low priority, non-C-suite)`);
         return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol };
       }
 
@@ -212,6 +235,14 @@ export class Form4Pipeline {
 
       const delivered = await this.telegram.sendMarkdown(message);
 
+      // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
+      let priceAtAlert: number | undefined;
+      try {
+        if (this.finnhub) {
+          priceAtAlert = (await this.finnhub.getQuote(payload.symbol)) ?? undefined;
+        }
+      } catch { /* noop — cena niedostępna po sesji */ }
+
       await this.alertRepo.save(
         this.alertRepo.create({
           symbol: payload.symbol,
@@ -224,6 +255,7 @@ export class Form4Pipeline {
           alertDirection: analysis.price_impact.direction === 'neutral'
             ? (analysis.conviction >= 0 ? 'positive' : 'negative')
             : analysis.price_impact.direction,
+          priceAtAlert,
         }),
       );
 

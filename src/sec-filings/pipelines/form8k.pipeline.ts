@@ -20,6 +20,7 @@ import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysi
 import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
+import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -51,6 +52,7 @@ export class Form8kPipeline {
     private readonly dailyCap: DailyCapService,
     private readonly config: ConfigService,
     @Optional() private readonly correlation?: CorrelationService,
+    @Optional() private readonly finnhub?: FinnhubService,
   ) {
     this.userAgent = this.config.get<string>(
       'SEC_USER_AGENT',
@@ -199,6 +201,14 @@ export class Form8kPipeline {
 
       const delivered = await this.telegram.sendMarkdown(message);
 
+      // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
+      let priceAtAlert: number | undefined;
+      try {
+        if (this.finnhub) {
+          priceAtAlert = (await this.finnhub.getQuote(payload.symbol)) ?? undefined;
+        }
+      } catch { /* noop */ }
+
       await this.alertRepo.save(
         this.alertRepo.create({
           symbol: payload.symbol,
@@ -211,6 +221,7 @@ export class Form8kPipeline {
           alertDirection: analysis.price_impact.direction === 'neutral'
             ? (analysis.conviction >= 0 ? 'positive' : 'negative')
             : analysis.price_impact.direction,
+          priceAtAlert,
         }),
       );
 
@@ -268,6 +279,14 @@ export class Form8kPipeline {
 
     const delivered = await this.telegram.sendMarkdown(message);
 
+    // Sprint 11: pobierz cenę dla bankruptcy alertu
+    let priceAtAlert: number | undefined;
+    try {
+      if (this.finnhub) {
+        priceAtAlert = (await this.finnhub.getQuote(symbol)) ?? undefined;
+      }
+    } catch { /* noop */ }
+
     await this.alertRepo.save(
       this.alertRepo.create({
         symbol,
@@ -278,6 +297,7 @@ export class Form8kPipeline {
         delivered,
         catalystType: 'bankruptcy',
         alertDirection: 'negative',
+        priceAtAlert,
       }),
     );
 

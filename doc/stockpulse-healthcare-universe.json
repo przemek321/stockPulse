@@ -839,67 +839,89 @@
         "name": "Sentiment Crash",
         "condition": "sentiment_score < -0.5 AND ticker IN managed_care_insurers",
         "priority": "CRITICAL",
-        "throttle_minutes": 120
+        "throttle_minutes": 120,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: hit rate 56.4% = brak edge'u, wyłączone na rzecz insider pipeline"
       },
       {
         "name": "Mention Volume Spike",
         "condition": "mention_volume > 3 * stddev(baseline)",
         "priority": "HIGH",
-        "throttle_minutes": 30
+        "throttle_minutes": 30,
+        "is_active": false,
+        "_disabled_reason": "Niezaimplementowane w kodzie"
       },
       {
         "name": "Insider Trade Large",
         "condition": "form_type = '4' AND transaction_value > 100000",
         "priority": "CRITICAL",
-        "throttle_minutes": 0
+        "throttle_minutes": 0,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: duplikat Form4Pipeline (GPT) — wyłączony na rzecz Form 4 Insider Signal"
       },
       {
         "name": "8-K Material Event",
         "condition": "form_type = '8-K' AND ticker IN all_tickers",
         "priority": "HIGH",
-        "throttle_minutes": 0
+        "throttle_minutes": 0,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: basic alert bez GPT — duplikat Form8kPipeline"
       },
       {
         "name": "Cross-Sector Correlation",
         "condition": "anomaly_detected IN correlation_group AND count_affected >= 2",
         "priority": "HIGH",
-        "throttle_minutes": 15
+        "throttle_minutes": 15,
+        "is_active": false,
+        "_disabled_reason": "Niezaimplementowane w kodzie"
       },
       {
         "name": "CMS Regulatory Event",
         "condition": "keyword_match IN regulatory_events AND source = 'SEC_EDGAR' OR source = 'FINNHUB_NEWS'",
         "priority": "CRITICAL",
-        "throttle_minutes": 0
+        "throttle_minutes": 0,
+        "is_active": false,
+        "_disabled_reason": "Niezaimplementowane w kodzie"
       },
       {
         "name": "Earnings Date Approaching",
         "condition": "days_to_earnings <= 3",
         "priority": "MEDIUM",
-        "throttle_minutes": 1440
+        "throttle_minutes": 1440,
+        "is_active": false,
+        "_disabled_reason": "Niezaimplementowane w kodzie"
       },
       {
         "name": "High Conviction Signal",
-        "condition": "abs(conviction) > 1.5 AND enrichedAnalysis IS NOT NULL",
+        "condition": "abs(conviction) > 0.7 AND enrichedAnalysis IS NOT NULL",
         "priority": "HIGH",
-        "throttle_minutes": 60
+        "throttle_minutes": 60,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: hit rate 60% ale oparty na sentymencie newsów — brak edge'u vs HFT"
       },
       {
         "name": "Strong FinBERT Signal",
         "condition": "model = 'finbert' AND abs(score) > 0.7 AND confidence > 0.8",
         "priority": "HIGH",
-        "throttle_minutes": 60
+        "throttle_minutes": 60,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: hit rate 55.7% = moneta, wyłączone"
       },
       {
         "name": "Bullish Signal Override",
         "condition": "FinBERT score < -0.5 but GPT returns normalized conviction > 0.1",
         "priority": "HIGH",
-        "throttle_minutes": 60
+        "throttle_minutes": 60,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: 0% hit rate na 4 alertach"
       },
       {
         "name": "Bearish Signal Override",
         "condition": "FinBERT score > 0.5 but GPT returns normalized conviction < -0.1",
         "priority": "HIGH",
-        "throttle_minutes": 60
+        "throttle_minutes": 60,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: 50% hit rate na 2 alertach"
       },
       {
         "name": "8-K Material Event GPT",
@@ -941,13 +963,16 @@
         "name": "Urgent AI Signal",
         "condition": "urgency=HIGH AND relevance>=0.7 AND confidence>=0.6 AND abs(conviction)>=0.3",
         "priority": "HIGH",
-        "throttle_minutes": 180
+        "throttle_minutes": 180,
+        "is_active": false,
+        "_disabled_reason": "Sprint 11: oparty na sentymencie newsów — brak edge'u"
       },
       {
         "name": "Unusual Options Activity",
-        "condition": "Polygon EOD volume spike >= 3x avg20d AND heuristic conviction >= 0.50",
+        "condition": "Polygon EOD volume spike >= 3x avg20d AND heuristic conviction >= 0.50 AND pdufaBoosted=true",
         "priority": "HIGH",
-        "throttle_minutes": 120
+        "throttle_minutes": 120,
+        "_note": "Sprint 11: standalone alert TYLKO z PDUFA boost, reszta → tylko sygnał do korelacji"
       }
     ]
   },

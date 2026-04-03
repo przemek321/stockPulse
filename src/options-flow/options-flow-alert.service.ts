@@ -86,8 +86,9 @@ export class OptionsFlowAlertService {
       this.correlation.schedulePatternCheck(flow.symbol);
     }
 
-    // Standalone alert Telegram
-    if (absConv >= MIN_CONVICTION_ALERT) {
+    // Sprint 11: Standalone alert TYLKO gdy pdufaBoosted=true
+    // Bez PDUFA kontekstu options spike = szum (52.5% hit rate)
+    if (absConv >= MIN_CONVICTION_ALERT && result.pdufaBoosted) {
       const sent = await this.sendAlert(flow, result);
       if (sent) {
         return {

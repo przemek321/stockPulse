@@ -17,23 +17,13 @@ export class StocktwitsScheduler implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    // Usuń poprzednie repeatable joby (żeby uniknąć duplikatów po restarcie)
+    // Sprint 11: StockTwits wyłączony — hit rate 55.7% = brak edge'u.
+    // Kolektor generował 77% wolumenu (2362/2tyg) z zerową wartością predykcyjną.
+    // Kod zachowany na wypadek ponownego włączenia.
     const existing = await this.queue.getRepeatableJobs();
     for (const job of existing) {
       await this.queue.removeRepeatableByKey(job.key);
     }
-
-    // Dodaj nowy repeatable job — co 5 minut
-    await this.queue.add(
-      'collect-stocktwits',
-      {},
-      {
-        repeat: { every: 5 * 60 * 1000 }, // 5 minut
-        removeOnComplete: { count: 10 },
-        removeOnFail: { count: 50 },
-      },
-    );
-
-    this.logger.log('Zaplanowano zbieranie StockTwits co 5 minut');
+    this.logger.warn('StockTwits collector WYŁĄCZONY (Sprint 11 — brak edge)');
   }
 }

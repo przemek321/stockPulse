@@ -44,6 +44,14 @@ export class OptionsFlowScoringService {
   async score(agg: TickerAggregation): Promise<ScoringResult> {
     const h = agg.headlineContract;
 
+    // Sprint 11: spike ratio > 1000 → anomalia danych (MRNA 5032× = false positive)
+    const suspicious = h.spikeRatio > 1000;
+    if (suspicious) {
+      this.logger.warn(
+        `${agg.symbol}: spike ratio ${h.spikeRatio.toFixed(0)}× > 1000 — suspicious, conviction ×0.5`,
+      );
+    }
+
     // Składniki rawScore
     const spikeComponent = 0.35 * clamp(h.spikeRatio / 10, 0, 1);
     const volumeComponent = 0.20 * clamp(Math.log10(h.dailyVolume / 500), 0, 1);
@@ -77,7 +85,8 @@ export class OptionsFlowScoringService {
     }
 
     const mixedPenalty = direction === 'mixed' ? 0.7 : 1.0;
-    let conviction = rawScore * directionSign * mixedPenalty;
+    const suspiciousPenalty = suspicious ? 0.5 : 1.0;
+    let conviction = rawScore * directionSign * mixedPenalty * suspiciousPenalty;
 
     // PDUFA boost
     let pdufaBoosted = false;
@@ -119,6 +128,14 @@ export class OptionsFlowScoringService {
    * Scoruje pojedynczy OptionsFlow record (dla use case bez agregacji).
    */
   async scoreFlow(flow: OptionsFlow): Promise<ScoringResult> {
+    // Sprint 11: spike ratio > 1000 → anomalia danych
+    const suspicious = flow.volumeSpikeRatio > 1000;
+    if (suspicious) {
+      this.logger.warn(
+        `${flow.symbol}: spike ratio ${flow.volumeSpikeRatio.toFixed(0)}× > 1000 — suspicious, conviction ×0.5`,
+      );
+    }
+
     const spikeComponent = 0.35 * clamp(flow.volumeSpikeRatio / 10, 0, 1);
     const volumeComponent = 0.20 * clamp(Math.log10(flow.dailyVolume / 500), 0, 1);
     const otmComponent = 0.15 * clamp(flow.otmDistance / 0.15, 0, 1);
@@ -130,7 +147,8 @@ export class OptionsFlowScoringService {
       spikeComponent + volumeComponent + otmComponent + dteComponent + dominanceComponent;
 
     const directionSign = flow.optionType === 'call' ? 1 : -1;
-    let conviction = rawScore * directionSign;
+    const suspiciousPenalty = suspicious ? 0.5 : 1.0;
+    let conviction = rawScore * directionSign * suspiciousPenalty;
 
     // PDUFA boost (identyczny jak w score())
     let pdufaBoosted = false;

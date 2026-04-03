@@ -20,62 +20,32 @@ export class SentimentListenerService {
   ) {}
 
   /**
-   * Nowa wzmianka z Reddit/StockTwits → kolejka sentymentu.
-   * Dla każdego wykrytego tickera tworzymy osobny job.
+   * Sprint 11: Sentiment pipeline WYŁĄCZONY.
+   * FinBERT na StockTwits = 55.7% hit rate (moneta).
+   * GPT na Finnhub news = powtarzanie HFT.
+   * System skupia się na insider pipeline + PDUFA + korelacji insider×options.
+   *
+   * Event handlery wyłączone — kolektory StockTwits i Finnhub news też zatrzymane.
+   * Kod zachowany na wypadek ponownego włączenia.
    */
-  @OnEvent(EventType.NEW_MENTION)
+
+  // @OnEvent(EventType.NEW_MENTION) — WYŁĄCZONY Sprint 11
   async onNewMention(payload: {
     mentionId: number;
     symbol: string;
     source: DataSource;
   }): Promise<void> {
-    this.logger.debug(
-      `Nowa wzmianka: ${payload.symbol} z ${payload.source} (mention #${payload.mentionId})`,
-    );
-
-    await this.sentimentQueue.add(
-      'analyze-mention',
-      {
-        type: 'mention',
-        entityId: payload.mentionId,
-        symbol: payload.symbol,
-        source: payload.source,
-      },
-      {
-        // Reddit/StockTwits = wyższy priorytet (real-time social sentiment)
-        priority: payload.source === DataSource.REDDIT ? 5 : 10,
-        // Drobny delay — pewność że encja jest zapisana w bazie
-        delay: 500,
-      },
-    );
+    // Sprint 11: nie dodajemy do kolejki sentymentu
+    this.logger.debug(`Mention ${payload.symbol} z ${payload.source} — POMINIĘTY (Sprint 11)`);
   }
 
-  /**
-   * Nowy artykuł z Finnhub → kolejka sentymentu.
-   */
-  @OnEvent(EventType.NEW_ARTICLE)
+  // @OnEvent(EventType.NEW_ARTICLE) — WYŁĄCZONY Sprint 11
   async onNewArticle(payload: {
     articleId: number;
     symbol: string;
     source: DataSource;
   }): Promise<void> {
-    this.logger.debug(
-      `Nowy artykuł: ${payload.symbol} z ${payload.source} (article #${payload.articleId})`,
-    );
-
-    await this.sentimentQueue.add(
-      'analyze-article',
-      {
-        type: 'article',
-        entityId: payload.articleId,
-        symbol: payload.symbol,
-        source: payload.source,
-      },
-      {
-        // Artykuły news mają wyższy priorytet (ważniejsze źródło)
-        priority: 3,
-        delay: 500,
-      },
-    );
+    // Sprint 11: nie dodajemy do kolejki sentymentu
+    this.logger.debug(`Article ${payload.symbol} z ${payload.source} — POMINIĘTY (Sprint 11)`);
   }
 }

@@ -46,31 +46,14 @@ export class FinnhubService extends BaseCollectorService {
   }
 
   /**
-   * Zbiera newsy i dane insiderów dla wszystkich tickerów.
+   * Sprint 11: Finnhub collector WYŁĄCZONY.
+   * News articles = powtarzanie tego co HFT przetworzyły milisekundy wcześniej.
+   * Insider MSPR = totalValue=0, filtrowane przez AlertEvaluator.
+   * Endpoint /quote zostawiony — używany przez Price Outcome Tracker.
    */
   async collect(): Promise<number> {
-    if (!this.apiKey) {
-      throw new Error('Brak FINNHUB_API_KEY w konfiguracji');
-    }
-
-    const tickers = await this.tickerRepo.find({ where: { isActive: true } });
-    let totalNew = 0;
-
-    for (const ticker of tickers) {
-      try {
-        const newsCount = await this.collectNews(ticker.symbol);
-        const insiderCount = await this.collectInsiderTrades(ticker.symbol);
-        totalNew += newsCount + insiderCount;
-        // Rate limit: 60 req/min → ~1 req/sec
-        await this.delay(1500);
-      } catch (error) {
-        this.logger.warn(
-          `Błąd Finnhub dla ${ticker.symbol}: ${error instanceof Error ? error.message : error}`,
-        );
-      }
-    }
-
-    return totalNew;
+    this.logger.warn('Finnhub collector WYŁĄCZONY (Sprint 11 — news/MSPR brak edge)');
+    return 0;
   }
 
   /**

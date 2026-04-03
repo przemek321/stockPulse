@@ -42,6 +42,7 @@ interface AlertRuleJson {
   condition: string;
   priority: string;
   throttle_minutes: number;
+  is_active?: boolean;
 }
 
 async function seed() {
@@ -136,10 +137,10 @@ async function seed() {
         condition: rule.condition,
         priority: rule.priority,
         throttleMinutes: rule.throttle_minutes,
-        isActive: true,
+        isActive: rule.is_active !== false,
       })
       .orUpdate(
-        ['condition', 'priority', 'throttleMinutes'],
+        ['condition', 'priority', 'throttleMinutes', 'isActive'],
         ['name'],
       )
       .execute();

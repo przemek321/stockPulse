@@ -1,10 +1,11 @@
-import { Injectable, Logger, Inject, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, Inject, OnModuleDestroy, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Redis from 'ioredis';
 import { CORRELATION_REDIS } from './redis.provider';
 import { TelegramService } from '../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
+import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 import { Alert, AlertRule } from '../entities';
 import {
   StoredSignal,
@@ -64,6 +65,7 @@ export class CorrelationService implements OnModuleDestroy {
     private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule)
     private readonly ruleRepo: Repository<AlertRule>,
+    @Optional() private readonly finnhub?: FinnhubService,
   ) {}
 
   /**
@@ -138,14 +140,14 @@ export class CorrelationService implements OnModuleDestroy {
 
       const patterns: DetectedPattern[] = [];
 
+      // Sprint 11: tylko 3 wzorce z realnym edge'em (insider-centric)
+      // Wyłączone: FILING_CONFIRMS_NEWS (bazuje na sentymencie), MULTI_SOURCE_CONVERGENCE
+      // (wymaga social/news), ESCALATING_SIGNAL (kaskada sygnałów social bez edge'u)
       const p1 = this.detectInsiderPlus8K(shortSignals, insiderSignals, now);
-      const p2 = this.detectFilingConfirmsNews(shortSignals, now);
-      const p3 = this.detectMultiSourceConvergence(shortSignals, now);
       const p4 = this.detectInsiderCluster(insiderSignals, now);
-      const p5 = this.detectEscalatingSignal(shortSignals, now);
       const p6 = this.detectInsiderPlusOptions(shortSignals, insiderSignals, now);
 
-      for (const p of [p1, p2, p3, p4, p5, p6]) {
+      for (const p of [p1, p4, p6]) {
         if (p) patterns.push(p);
       }
 
@@ -435,6 +437,14 @@ export class CorrelationService implements OnModuleDestroy {
 
     const delivered = await this.telegram.sendMarkdown(message);
 
+    // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
+    let priceAtAlert: number | undefined;
+    try {
+      if (this.finnhub) {
+        priceAtAlert = (await this.finnhub.getQuote(ticker)) ?? undefined;
+      }
+    } catch { /* noop — cena niedostępna po sesji */ }
+
     // Zapisz throttle do Redis
     const throttleSec = PATTERN_THROTTLE[pattern.type];
     await this.redis.set(dedupKey, '1', 'EX', throttleSec);
@@ -449,6 +459,8 @@ export class CorrelationService implements OnModuleDestroy {
         message,
         delivered,
         catalystType: pattern.type,
+        alertDirection: pattern.direction,
+        priceAtAlert,
       }),
     );
 
