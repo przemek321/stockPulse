@@ -28,7 +28,7 @@ export class AlertsController {
     @Query('symbol') symbol?: string,
   ) {
     const take = Math.min(parseInt(limit || '50', 10), 200);
-    const where: Record<string, any> = { archived: false };
+    const where: Record<string, any> = {};
     if (symbol) {
       where.symbol = symbol.toUpperCase();
     }
@@ -73,7 +73,6 @@ export class AlertsController {
     const take = Math.min(parseInt(limit || '100', 10), 500);
     const where: Record<string, any> = {
       priceAtAlert: Not(IsNull()),
-      archived: false,
     };
     if (symbol) {
       where.symbol = symbol.toUpperCase();

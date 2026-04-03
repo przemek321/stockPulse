@@ -74,8 +74,4 @@ export class Alert {
   /** Czy CRON zakończył zbieranie cen (po 3d) */
   @Column({ type: 'boolean', default: false })
   priceOutcomeDone: boolean;
-
-  /** Zarchiwizowany — ukryty z widoku dashboard, zachowany w bazie do analizy SQL */
-  @Column({ type: 'boolean', default: false })
-  archived: boolean;
 }
