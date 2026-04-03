@@ -6,7 +6,7 @@
 
 ## Gdzie jesteśmy
 
-**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03). Analiza 2 tygodni (962 alertów, 55.5% hit rate) wykazała brak edge'u na sentymencie. System przebudowany: wyłączenie szumu (StockTwits, Finnhub news, 6 reguł sentymentowych, 3 wzorców korelacji), focus na insider pipeline + PDUFA + korelacje insider×options.
+**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03) + **Sprint 11b — Cleanup martwego kodu** (2026-04-03). Analiza 2 tygodni (962 alertów, 55.5% hit rate) wykazała brak edge'u na sentymencie. System przebudowany: wyłączenie szumu (StockTwits, Finnhub news, 6 reguł sentymentowych + Insider Trade Large, 3 wzorców korelacji), focus na insider pipeline + PDUFA + korelacje insider×options. Sprint 11b: audyt spójności docs vs kod → wyłączenie Finnhub scheduler, early return w AlertEvaluator, usunięcie martwego kodu insider aggregation.
 
 **Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → GPT analiza → 3 wzorce korelacji (INSIDER_CLUSTER, INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary C-suite only (is10b51Plan=true → skip). 7 aktywnych reguł alertów, 12 wyłączonych. Cel: 3-5 alertów/tydzień z realnym edge zamiast 50/dzień z szumem. Raporty tygodniowe w [doc/reports/](doc/reports/).
 
@@ -544,6 +544,26 @@ Raport tygodniowy (10-17 marca) ujawnił 9% edge / 85% noise (180 alertów, 17 p
 - [x] **AlertEvaluator daily limit**: `MoreThan` → `MoreThanOrEqual` (alerty o północy UTC nie liczone)
 - [x] **Options Flow duplikat sesji**: `String().slice(0,10)` zamiast kruchego `.toString()` (Date vs string)
 - [x] **Weekly report days**: `Math.max(1, Math.min(..., 90))` — ograniczenie zakresu 1-90 dni (DoS protection)
+
+### Sprint 11b: Cleanup martwego kodu — audyt spójności (ukończony 2026-04-03)
+
+Audyt spójności CLAUDE.md / PROGRESS-STATUS.md vs kod ujawnił martwy kod i niespójności. Cleanup bez zmiany zachowania systemu.
+
+#### 11b.1 Finnhub Scheduler wyłączony
+- [x] **FinnhubScheduler** — scheduler dodawał repeatable job co 10 min mimo wyłączenia kolektora (news/MSPR). Puste joby BullMQ marnotrawiły zasoby. Fix: scheduler czyści repeatable jobs przy starcie (identycznie jak StockTwits). `/quote` zachowany dla Price Outcome Tracker.
+
+#### 11b.2 AlertEvaluator — czyste wyłączenie martwego kodu
+- [x] **`onSentimentScored()` — early return** — handler wołał 5 reguł sentymentowych (checkSentimentCrash, checkSignalOverride, checkHighConviction, checkStrongFinbert, checkUrgentSignal), które wszystkie miały isActive=false → getRule() zwracał null → cichy skip. Early return z logiem `POMINIĘTY (Sprint 11)` zamiast zbędnych zapytań do DB. Private metody check*() zachowane na wypadek reaktywacji.
+- [x] **`onInsiderTrade()` — early return** — reguła "Insider Trade Large" ma isActive=false. Handler agregował surowe trades bez GPT (dual signal bug z raportu 2026-03-17). Early return `SKIP_RULE_INACTIVE`. Form4Pipeline obsługuje insider trades z GPT-enriched conviction.
+- [x] **Usunięty martwy kod** — `InsiderBatch` interface, `insiderBatches` Map, `INSIDER_AGGREGATION_WINDOW_MS`, `flushInsiderBatch()`, `OnModuleDestroy` (cleanup timerów insiderBatches).
+
+#### 11b.3 Testy zaktualizowane
+- [x] **alert-evaluator.spec.ts** — testy insider batches/OnModuleDestroy zastąpione testami SKIP_RULE_INACTIVE, testy onSentimentScored sprawdzają Sprint 11 early return
+- [x] **alert-evaluator-agent.spec.ts** — insider aggregation, OnModuleDestroy, flushInsiderBatch direction testy zastąpione Sprint 11 testami
+
+#### 11b.4 Dokumentacja
+- [x] **CLAUDE.md** — zaktualizowany opis schedulerów (Finnhub/StockTwits czyszczą repeatable jobs), AlertEvaluator (early return, usunięty martwy kod)
+- [x] **PROGRESS-STATUS.md** — dodana sekcja Sprint 11b
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.

@@ -17,22 +17,13 @@ export class FinnhubScheduler implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    // Sprint 11: Finnhub news/MSPR wyłączony — HFT lag, brak edge'u.
+    // Finnhub /quote zachowany dla Price Outcome Tracker (wywoływany bezpośrednio).
+    // Kod schedulera zachowany na wypadek ponownego włączenia.
     const existing = await this.queue.getRepeatableJobs();
     for (const job of existing) {
       await this.queue.removeRepeatableByKey(job.key);
     }
-
-    // Co 10 minut — Finnhub ma limit 60 req/min, 32 tickery × 2 endpointy = 64 req
-    await this.queue.add(
-      'collect-finnhub',
-      {},
-      {
-        repeat: { every: 10 * 60 * 1000 }, // 10 minut
-        removeOnComplete: { count: 10 },
-        removeOnFail: { count: 50 },
-      },
-    );
-
-    this.logger.log('Zaplanowano zbieranie Finnhub co 10 minut');
+    this.logger.warn('Finnhub collector WYŁĄCZONY (Sprint 11 — news/MSPR brak edge, /quote zachowany)');
   }
 }

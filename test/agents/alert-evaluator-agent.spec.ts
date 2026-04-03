@@ -313,61 +313,27 @@ describe('Agent: Alert Evaluator — Reguła 6: Urgent AI Signal', () => {
   });
 });
 
-// ── Testy: Insider trade aggregation ──
+// ── Testy: Insider trade — Sprint 11 early return ──
 
-describe('Agent: Alert Evaluator — Agregacja insider trades', () => {
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
-
-  it('odrzuca trade < $100K', async () => {
+describe('Agent: Alert Evaluator — Insider trades (Sprint 11)', () => {
+  it('zawsze zwraca SKIP_RULE_INACTIVE (reguła Insider Trade Large wyłączona)', async () => {
     const { service } = createService();
-    await service.onInsiderTrade({
-      tradeId: 1, symbol: 'ISRG', totalValue: 50_000,
-      transactionType: 'BUY', insiderName: 'John',
-    });
-    const batches = (service as any).insiderBatches as Map<string, any>;
-    expect(batches.size).toBe(0);
-  });
 
-  it('odrzuca GIFT/EXERCISE/inne typy', async () => {
-    const { service } = createService();
-    for (const type of ['GIFT', 'EXERCISE', 'CONVERSION', undefined]) {
-      await service.onInsiderTrade({
-        tradeId: 1, symbol: 'ISRG', totalValue: 500_000,
-        transactionType: type, insiderName: 'John',
-      });
-    }
-    const batches = (service as any).insiderBatches as Map<string, any>;
-    expect(batches.size).toBe(0);
-  });
-
-  it('akceptuje BUY i SELL', async () => {
-    const { service } = createService();
-    await service.onInsiderTrade({
+    const result = await service.onInsiderTrade({
       tradeId: 1, symbol: 'ISRG', totalValue: 500_000,
       transactionType: 'BUY', insiderName: 'John',
     });
-    await service.onInsiderTrade({
-      tradeId: 2, symbol: 'MRNA', totalValue: 200_000,
-      transactionType: 'SELL', insiderName: 'Jane',
-    });
-    const batches = (service as any).insiderBatches as Map<string, any>;
-    expect(batches.size).toBe(2);
+    expect(result.action).toBe('SKIP_RULE_INACTIVE');
   });
 
-  it('grupuje trades per ticker w jednym batchu', async () => {
+  it('SKIP nawet dla dużych trades ($5M)', async () => {
     const { service } = createService();
-    await service.onInsiderTrade({
-      tradeId: 1, symbol: 'ISRG', totalValue: 500_000,
-      transactionType: 'BUY', insiderName: 'John',
+
+    const result = await service.onInsiderTrade({
+      tradeId: 1, symbol: 'ISRG', totalValue: 5_000_000,
+      transactionType: 'SELL', insiderName: 'CEO',
     });
-    await service.onInsiderTrade({
-      tradeId: 2, symbol: 'ISRG', totalValue: 300_000,
-      transactionType: 'BUY', insiderName: 'Jane',
-    });
-    const batches = (service as any).insiderBatches as Map<string, any>;
-    expect(batches.size).toBe(1);
-    expect(batches.get('ISRG').trades.length).toBe(2);
+    expect(result.action).toBe('SKIP_RULE_INACTIVE');
   });
 });
 
@@ -438,27 +404,7 @@ describe('Agent: Alert Evaluator — Throttling', () => {
   });
 });
 
-// ── Testy: OnModuleDestroy ──
-
-describe('Agent: Alert Evaluator — OnModuleDestroy', () => {
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
-
-  it('czyści timery insider batches', async () => {
-    const { service } = createService();
-    await service.onInsiderTrade({
-      tradeId: 1, symbol: 'ISRG', totalValue: 500_000,
-      transactionType: 'BUY', insiderName: 'John',
-    });
-    await service.onInsiderTrade({
-      tradeId: 2, symbol: 'MRNA', totalValue: 200_000,
-      transactionType: 'SELL', insiderName: 'Jane',
-    });
-    expect((service as any).insiderBatches.size).toBe(2);
-    service.onModuleDestroy();
-    expect((service as any).insiderBatches.size).toBe(0);
-  });
-});
+// ── Sprint 11: OnModuleDestroy usunięty (insiderBatches usunięte) ──
 
 // ── Testy: conviction < 0.3 suppress w checkUrgentSignal ──
 
@@ -523,78 +469,37 @@ describe('Agent: Alert Evaluator — Insider vs Sentiment throttling', () => {
   });
 });
 
-// ── Testy: Promise.all — brak izolacji per-rule ──
+// ── Testy: onSentimentScored — Sprint 11 early return ──
 
-describe('Agent: Alert Evaluator — Promise.all exception', () => {
-  // W kodzie: Promise.all([check1(), check2(), ...]) — brak per-rule try/catch
-  // Jeśli jedna reguła rzuci wyjątek, cały Promise.all failuje
+describe('Agent: Alert Evaluator — onSentimentScored (Sprint 11)', () => {
+  it('zwraca SKIP dla wszystkich reguł sentymentowych', async () => {
+    const { service } = createService();
 
-  it('Promise.all: 5 reguł uruchamianych równolegle', async () => {
-    // Weryfikacja: onSentimentScored wywołuje 5 checków w Promise.all
-    const { service, ruleRepo } = createService();
-    ruleRepo.findOne.mockResolvedValue(createMockRule({ name: 'Test' }));
+    const result = await service.onSentimentScored({
+      scoreId: 1, symbol: 'ISRG', score: -0.9, confidence: 0.95,
+      label: 'negative', source: 'stocktwits', model: 'finbert',
+      conviction: -1.8, gptConviction: -1.8,
+      effectiveScore: -0.9, enrichedAnalysis: { urgency: 'HIGH', relevance: 0.9, confidence: 0.8 },
+    });
 
-    // Sprawdzamy że metoda istnieje i przyjmuje payload
-    expect(typeof service.onSentimentScored).toBe('function');
+    // Sprint 11: early return bez wywołania check*() ani zapisu do DB
+    expect(result.checks.sentimentCrash).toContain('Sprint 11');
+    expect(result.checks.signalOverride).toContain('Sprint 11');
+    expect(result.checks.highConviction).toContain('Sprint 11');
+    expect(result.checks.strongFinbert).toContain('Sprint 11');
+    expect(result.checks.urgentSignal).toContain('Sprint 11');
   });
 
-  it('brak per-rule catch → wyjątek w jednej regule przerywa wszystkie', () => {
-    // To jest znana cecha architektury — nie bug:
-    // jeśli jedna reguła rzuca, cały onSentimentScored failuje
-    // Testujemy przez weryfikację braku try/catch w source code pattern
-    const checkNames = [
-      'checkSentimentCrash',
-      'checkSignalOverride',
-      'checkHighConviction',
-      'checkStrongFinbert',
-      'checkUrgentSignal',
-    ];
-    // Wszystkie 5 metod powinny istnieć jako private
+  it('private check*() metody nadal istnieją (zachowane na wypadek reaktywacji)', () => {
     const { service } = createService();
+    const checkNames = [
+      'checkSentimentCrash', 'checkSignalOverride',
+      'checkHighConviction', 'checkStrongFinbert', 'checkUrgentSignal',
+    ];
     for (const name of checkNames) {
       expect(typeof (service as any)[name]).toBe('function');
     }
   });
 });
 
-// ── Testy: flushInsiderBatch — kierunek buy vs sell ──
-
-describe('Agent: Alert Evaluator — flushInsiderBatch direction', () => {
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
-
-  it('buyCount >= sellCount → direction "positive"', () => {
-    const trades = [
-      { transactionType: 'BUY', totalValue: 500_000 },
-      { transactionType: 'BUY', totalValue: 300_000 },
-      { transactionType: 'SELL', totalValue: 200_000 },
-    ];
-    const buyCount = trades.filter(t => t.transactionType === 'BUY').length;
-    const sellCount = trades.filter(t => t.transactionType === 'SELL').length;
-    const direction = buyCount >= sellCount ? 'positive' : 'negative';
-    expect(direction).toBe('positive');
-  });
-
-  it('sellCount > buyCount → direction "negative"', () => {
-    const trades = [
-      { transactionType: 'SELL', totalValue: 500_000 },
-      { transactionType: 'SELL', totalValue: 300_000 },
-      { transactionType: 'BUY', totalValue: 200_000 },
-    ];
-    const buyCount = trades.filter(t => t.transactionType === 'BUY').length;
-    const sellCount = trades.filter(t => t.transactionType === 'SELL').length;
-    const direction = buyCount >= sellCount ? 'positive' : 'negative';
-    expect(direction).toBe('negative');
-  });
-
-  it('equal buy/sell count → direction "positive" (>= nie >)', () => {
-    const trades = [
-      { transactionType: 'BUY', totalValue: 500_000 },
-      { transactionType: 'SELL', totalValue: 300_000 },
-    ];
-    const buyCount = trades.filter(t => t.transactionType === 'BUY').length;
-    const sellCount = trades.filter(t => t.transactionType === 'SELL').length;
-    const direction = buyCount >= sellCount ? 'positive' : 'negative';
-    expect(direction).toBe('positive');
-  });
-});
+// Sprint 11: flushInsiderBatch direction testy usunięte — insider trades obsługiwane przez Form4Pipeline

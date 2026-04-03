@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, MoreThanOrEqual, FindOptionsWhere } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -18,8 +18,7 @@ import { FinnhubService } from '../collectors/finnhub/finnhub.service';
  * i sprawdza czy pasują do aktywnych reguł.
  * Implementuje throttling — minimalna przerwa między alertami tego samego typu per ticker.
  */
-/** Okno agregacji insider trades — zbiera transakcje per ticker i wysyła zbiorczy alert */
-const INSIDER_AGGREGATION_WINDOW_MS = 5 * 60 * 1000; // 5 minut
+// Sprint 11: INSIDER_AGGREGATION_WINDOW_MS usunięty — insider trades obsługiwane przez Form4Pipeline
 
 /**
  * Max alertów Telegram per ticker per dzień (UTC).
@@ -39,38 +38,16 @@ const SILENT_RULES: ReadonlySet<string> = new Set([
   'Strong FinBERT Signal',
 ]);
 
-interface InsiderBatch {
-  symbol: string;
-  trades: {
-    insiderName: string;
-    insiderRole?: string | null;
-    transactionType: string;
-    totalValue: number;
-    shares: number;
-  }[];
-  timer: ReturnType<typeof setTimeout>;
-}
+// Sprint 11: InsiderBatch interface usunięty — insider trades obsługiwane przez Form4Pipeline
 
 @Injectable()
-export class AlertEvaluatorService implements OnModuleDestroy {
+export class AlertEvaluatorService {
   private readonly logger = new Logger(AlertEvaluatorService.name);
-
-  /** Bufor agregacji insider trades per ticker */
-  private readonly insiderBatches = new Map<string, InsiderBatch>();
 
   /** Cache reguł alertów — TTL 5 min, unika powtarzanych zapytań do DB */
   private rulesCache: Map<string, AlertRule | null> = new Map();
   private rulesCacheExpiry = 0;
   private static readonly RULES_CACHE_TTL_MS = 5 * 60 * 1000;
-
-  /** Czyści timery insider batches przy shutdownie */
-  onModuleDestroy(): void {
-    for (const [symbol, batch] of this.insiderBatches) {
-      clearTimeout(batch.timer);
-      this.logger.debug(`Wyczyszczono timer insider batch: ${symbol}`);
-    }
-    this.insiderBatches.clear();
-  }
 
   constructor(
     @InjectRepository(Alert)
@@ -87,8 +64,11 @@ export class AlertEvaluatorService implements OnModuleDestroy {
 
   /**
    * Reaguje na event nowej transakcji insiderskiej.
-   * Generuje alert "Insider Trade Large" gdy totalValue > $100K.
-   * Ignoruje Finnhub MSPR (totalValue=0) i małe transakcje.
+   *
+   * Sprint 11: Reguła "Insider Trade Large" ma isActive=false w bazie.
+   * Insider trades są obsługiwane przez Form4Pipeline (GPT-enriched conviction).
+   * Ten handler agregował surowe trades bez analizy GPT — szum bez edge'u.
+   * Handler zachowany na wypadek ponownego włączenia reguły.
    */
   @OnEvent(EventType.NEW_INSIDER_TRADE)
   @Logged('alerts')
@@ -102,121 +82,14 @@ export class AlertEvaluatorService implements OnModuleDestroy {
     shares?: number;
     source?: string;
   }): Promise<{ action: string; symbol: string }> {
-    // Próg $100K — filtruje MSPR (totalValue=0), małe transakcje i stare EFTS placeholdery
-    if (!payload.totalValue || payload.totalValue < 100_000) {
-      return { action: 'SKIP_LOW_VALUE', symbol: payload.symbol };
-    }
-
-    // Filtruj rutynowe transakcje — tylko BUY i SELL to prawdziwe sygnały handlowe
-    const ALERTABLE_TYPES = ['BUY', 'SELL'];
-    if (!payload.transactionType || !ALERTABLE_TYPES.includes(payload.transactionType)) {
-      this.logger.debug(
-        `Pominięto insider trade ${payload.symbol} — typ ${payload.transactionType} (nie BUY/SELL)`,
-      );
-      return { action: 'SKIP_NOT_ALERTABLE', symbol: payload.symbol };
-    }
-
-    this.logger.debug(
-      `Insider trade >$100K: ${payload.symbol} ${payload.insiderName} ` +
-        `${payload.transactionType} $${payload.totalValue.toLocaleString('en-US')}`,
-    );
-
-    // Agregacja: zbierz trades per ticker w oknie 5 min, wyślij zbiorczy alert
-    const existing = this.insiderBatches.get(payload.symbol);
-    const trade = {
-      insiderName: payload.insiderName ?? 'Unknown',
-      insiderRole: payload.insiderRole,
-      transactionType: payload.transactionType ?? 'UNKNOWN',
-      totalValue: payload.totalValue,
-      shares: payload.shares ?? 0,
-    };
-
-    if (existing) {
-      // Dodaj do istniejącego batcha — timer już biegnie
-      existing.trades.push(trade);
-      this.logger.debug(
-        `Insider batch ${payload.symbol}: ${existing.trades.length} transakcji w oknie`,
-      );
-      return { action: 'BATCHED', symbol: payload.symbol };
-    } else {
-      // Nowy batch — ustaw timer na flush po 5 min
-      const batch: InsiderBatch = {
-        symbol: payload.symbol,
-        trades: [trade],
-        timer: setTimeout(
-          () => this.flushInsiderBatch(payload.symbol),
-          INSIDER_AGGREGATION_WINDOW_MS,
-        ),
-      };
-      this.insiderBatches.set(payload.symbol, batch);
-      return { action: 'BATCH_STARTED', symbol: payload.symbol };
-    }
+    // Sprint 11: Reguła "Insider Trade Large" wyłączona (isActive=false).
+    // Form4Pipeline obsługuje insider trades z GPT-enriched conviction i catalyst_type.
+    // Ten handler agregował surowe trades bez GPT — szum, dual signal bug (raport 2026-03-17).
+    return { action: 'SKIP_RULE_INACTIVE', symbol: payload.symbol };
   }
 
-  /**
-   * Wysyła zbiorczy alert insider trade po zakończeniu okna agregacji.
-   * Grupuje transakcje: "3 insider trades for $ISRG totaling $3.5M"
-   */
-  private async flushInsiderBatch(symbol: string): Promise<void> {
-    const batch = this.insiderBatches.get(symbol);
-    if (!batch || batch.trades.length === 0) {
-      this.insiderBatches.delete(symbol);
-      return;
-    }
-
-    this.insiderBatches.delete(symbol);
-
-    const rule = await this.getRule('Insider Trade Large');
-    if (!rule) return;
-
-    const isThrottled = await this.isThrottled(
-      rule.name,
-      symbol,
-      rule.throttleMinutes,
-    );
-    if (isThrottled) return;
-
-    const ticker = await this.tickerRepo.findOne({
-      where: { symbol },
-    });
-
-    const totalValue = batch.trades.reduce((s, t) => s + t.totalValue, 0);
-    const totalShares = batch.trades.reduce((s, t) => s + t.shares, 0);
-
-    let message: string;
-
-    if (batch.trades.length === 1) {
-      // Pojedynczy trade — standardowy format
-      const t = batch.trades[0];
-      message = this.formatter.formatInsiderTradeAlert({
-        symbol,
-        companyName: ticker?.name ?? symbol,
-        insiderName: t.insiderName,
-        insiderRole: t.insiderRole ?? undefined,
-        transactionType: t.transactionType,
-        totalValue: t.totalValue,
-        shares: t.shares,
-        priority: rule.priority,
-      });
-    } else {
-      // Wiele trades — zbiorczy format
-      message = this.formatter.formatInsiderBatchAlert({
-        symbol,
-        companyName: ticker?.name ?? symbol,
-        tradeCount: batch.trades.length,
-        totalValue,
-        totalShares,
-        trades: batch.trades,
-        priority: rule.priority,
-      });
-    }
-
-    // Nie rejestruj sygnału korelacji z AlertEvaluator — Form4Pipeline robi to
-    // z GPT-enriched conviction i poprawnym catalyst_type.
-    // Dual signal (AlertEval value-based + Form4Pipeline GPT-based) zaśmiecał
-    // INSIDER_CLUSTER mieszanymi conviction values (bug z raportu 2026-03-17).
-    await this.sendAlert(symbol, rule, message);
-  }
+  // Sprint 11: flushInsiderBatch() usunięty — insider trades obsługiwane przez Form4Pipeline
+  // z GPT-enriched conviction i catalyst_type. Dual signal bug naprawiony.
 
   /**
    * Reaguje na event nowego filingu SEC.
@@ -275,7 +148,13 @@ export class AlertEvaluatorService implements OnModuleDestroy {
 
   /**
    * Reaguje na wynik analizy sentymentu.
-   * Sprawdza 5 niezależnych reguł (mogą odpalić jednocześnie):
+   *
+   * Sprint 11: WYŁĄCZONY — sentiment pipeline nie emituje SENTIMENT_SCORED
+   * (SentimentListenerService ma skomentowane @OnEvent).
+   * Wszystkie 6 reguł sentymentowych ma isActive=false w bazie (seed z healthcare-universe.json).
+   * Handler zachowany na wypadek ponownego włączenia pipeline'u.
+   *
+   * Reguły (wszystkie nieaktywne):
    * 1. Sentiment Crash: effectiveScore < -0.5 AND confidence > 0.7
    * 2. Bullish Signal Override: FinBERT < -0.5, GPT mówi BULLISH (effectiveScore > 0.1)
    * 3. Bearish Signal Override: FinBERT > 0.5, GPT mówi BEARISH (effectiveScore < -0.1)
@@ -307,21 +186,21 @@ export class AlertEvaluatorService implements OnModuleDestroy {
       urgentSignal: string;
     };
   }> {
-    const [crash, override, conviction, finbert, urgent] = await Promise.all([
-      this.checkSentimentCrash(payload),
-      this.checkSignalOverride(payload),
-      this.checkHighConviction(payload),
-      this.checkStrongFinbert(payload),
-      this.checkUrgentSignal(payload),
-    ]);
+    // Sprint 11: Sentiment pipeline wyłączony — ten handler nie powinien być wywoływany.
+    // Gdyby jednak SENTIMENT_SCORED został wyemitowany, reguły mają isActive=false
+    // w bazie, więc getRule() zwróci null i alerty nie wyjdą.
+    // Early return zapobiega zbędnym zapytaniom do DB.
+    this.logger.debug(
+      `onSentimentScored: ${payload.symbol} — POMINIĘTY (Sprint 11, reguły sentymentowe wyłączone)`,
+    );
     return {
       symbol: payload.symbol,
       checks: {
-        sentimentCrash: crash,
-        signalOverride: override,
-        highConviction: conviction,
-        strongFinbert: finbert,
-        urgentSignal: urgent,
+        sentimentCrash: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
+        signalOverride: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
+        highConviction: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
+        strongFinbert: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
+        urgentSignal: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
       },
     };
   }

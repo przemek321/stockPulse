@@ -108,16 +108,13 @@ describe('AlertEvaluatorService', () => {
     jest.useRealTimers();
   });
 
-  // ── Fix #1: Pojedynczy save w sendAlert ──────────────
+  // ── Fix #1: onSentimentScored — Sprint 11 early return ──────────────
 
-  describe('Fix #1: sendAlert — 1 zapis do DB zamiast 2', () => {
-    it('powinien zapisać alert z priceAtAlert w jednym save()', async () => {
-      const { service, alertRepo, ruleRepo, finnhub } = createService();
-      const rule = createMockRule({ name: 'Sentiment Crash' });
-      ruleRepo.findOne.mockResolvedValue(rule);
-      finnhub.getQuote.mockResolvedValue(150.25);
+  describe('Fix #1: onSentimentScored — Sprint 11 early return', () => {
+    it('powinien zwrócić SKIP dla wszystkich reguł sentymentowych (Sprint 11)', async () => {
+      const { service, alertRepo } = createService();
 
-      await (service as any).onSentimentScored({
+      const result = await service.onSentimentScored({
         scoreId: 1,
         symbol: 'ISRG',
         score: -0.8,
@@ -131,41 +128,13 @@ describe('AlertEvaluatorService', () => {
         enrichedAnalysis: null,
       });
 
-      // save powinien być wywołany dokładnie 1 raz (nie 2)
-      expect(alertRepo.save).toHaveBeenCalledTimes(1);
-
-      // priceAtAlert powinien być w obiekcie create
-      const createArg = alertRepo.create.mock.calls[0]?.[0];
-      if (createArg) {
-        expect(createArg.priceAtAlert).toBe(150.25);
-      }
-    });
-
-    it('powinien ustawić priceAtAlert=null gdy getQuote rzuci błąd', async () => {
-      const { service, alertRepo, ruleRepo, finnhub } = createService();
-      const rule = createMockRule({ name: 'Sentiment Crash' });
-      ruleRepo.findOne.mockResolvedValue(rule);
-      finnhub.getQuote.mockRejectedValue(new Error('API timeout'));
-
-      await (service as any).onSentimentScored({
-        scoreId: 1,
-        symbol: 'ISRG',
-        score: -0.8,
-        confidence: 0.9,
-        label: 'negative',
-        source: 'stocktwits',
-        model: 'finbert+gpt-4o-mini',
-        conviction: null,
-        gptConviction: null,
-        effectiveScore: -0.7,
-        enrichedAnalysis: null,
-      });
-
-      expect(alertRepo.save).toHaveBeenCalledTimes(1);
-      const createArg = alertRepo.create.mock.calls[0]?.[0];
-      if (createArg) {
-        expect(createArg.priceAtAlert).toBeNull();
-      }
+      // Sprint 11: early return bez wywołania żadnych check*() ani zapisu do DB
+      expect(alertRepo.save).not.toHaveBeenCalled();
+      expect(result.checks.sentimentCrash).toContain('Sprint 11');
+      expect(result.checks.signalOverride).toContain('Sprint 11');
+      expect(result.checks.highConviction).toContain('Sprint 11');
+      expect(result.checks.strongFinbert).toContain('Sprint 11');
+      expect(result.checks.urgentSignal).toContain('Sprint 11');
     });
   });
 
@@ -194,33 +163,20 @@ describe('AlertEvaluatorService', () => {
 
   // ── Fix #3: OnModuleDestroy ──────────────────────────
 
-  describe('Fix #3: OnModuleDestroy — czyszczenie timerów', () => {
-    it('powinien wyczyścić wszystkie timery insider batches', async () => {
+  describe('Fix #3: onInsiderTrade — Sprint 11 early return', () => {
+    it('powinien zwrócić SKIP_RULE_INACTIVE (reguła Insider Trade Large wyłączona)', async () => {
       const { service } = createService();
 
-      // Dodaj insider trades żeby stworzyć batche z timerami
-      await service.onInsiderTrade({
+      const result = await service.onInsiderTrade({
         tradeId: 1,
         symbol: 'ISRG',
         totalValue: 500_000,
         transactionType: 'BUY',
         insiderName: 'John CEO',
       });
-      await service.onInsiderTrade({
-        tradeId: 2,
-        symbol: 'MRNA',
-        totalValue: 200_000,
-        transactionType: 'SELL',
-        insiderName: 'Jane CFO',
-      });
 
-      const batches = (service as any).insiderBatches as Map<string, any>;
-      expect(batches.size).toBe(2);
-
-      // OnModuleDestroy powinien wyczyścić wszystkie timery
-      service.onModuleDestroy();
-
-      expect(batches.size).toBe(0);
+      expect(result.action).toBe('SKIP_RULE_INACTIVE');
+      expect(result.symbol).toBe('ISRG');
     });
   });
 
@@ -246,43 +202,13 @@ describe('AlertEvaluatorService', () => {
     });
   });
 
-  // ── Fix #6: filtr transactionType ──────────────────────
+  // ── Fix #6: onInsiderTrade — Sprint 11 zawsze SKIP ──────────────────────
 
-  describe('Fix #6: onInsiderTrade — filtruje undefined transactionType', () => {
-    it('powinien odrzucić trade bez transactionType', async () => {
+  describe('Fix #6: onInsiderTrade — Sprint 11 zawsze SKIP_RULE_INACTIVE', () => {
+    it('powinien zwrócić SKIP niezależnie od transactionType', async () => {
       const { service } = createService();
 
-      await service.onInsiderTrade({
-        tradeId: 1,
-        symbol: 'ISRG',
-        totalValue: 500_000,
-        // transactionType: undefined — brak
-        insiderName: 'John CEO',
-      });
-
-      const batches = (service as any).insiderBatches as Map<string, any>;
-      expect(batches.size).toBe(0); // nie powinien trafić do batcha
-    });
-
-    it('powinien odrzucić trade z transactionType GIFT', async () => {
-      const { service } = createService();
-
-      await service.onInsiderTrade({
-        tradeId: 1,
-        symbol: 'ISRG',
-        totalValue: 500_000,
-        transactionType: 'GIFT',
-        insiderName: 'John CEO',
-      });
-
-      const batches = (service as any).insiderBatches as Map<string, any>;
-      expect(batches.size).toBe(0);
-    });
-
-    it('powinien przepuścić trade z BUY', async () => {
-      const { service } = createService();
-
-      await service.onInsiderTrade({
+      const result = await service.onInsiderTrade({
         tradeId: 1,
         symbol: 'ISRG',
         totalValue: 500_000,
@@ -290,8 +216,7 @@ describe('AlertEvaluatorService', () => {
         insiderName: 'John CEO',
       });
 
-      const batches = (service as any).insiderBatches as Map<string, any>;
-      expect(batches.size).toBe(1);
+      expect(result.action).toBe('SKIP_RULE_INACTIVE');
     });
   });
 
@@ -391,56 +316,9 @@ describe('AlertEvaluatorService', () => {
     });
   });
 
-  // ── Agregacja insider trades ──────────────────────────
-
-  describe('Agregacja insider trades — okno 5 min', () => {
-    it('powinien grupować trades tego samego tickera w jeden batch', async () => {
-      const { service } = createService();
-
-      await service.onInsiderTrade({
-        tradeId: 1,
-        symbol: 'ISRG',
-        totalValue: 500_000,
-        transactionType: 'BUY',
-        insiderName: 'John CEO',
-      });
-
-      await service.onInsiderTrade({
-        tradeId: 2,
-        symbol: 'ISRG',
-        totalValue: 300_000,
-        transactionType: 'BUY',
-        insiderName: 'Jane CFO',
-      });
-
-      const batches = (service as any).insiderBatches as Map<string, any>;
-      expect(batches.size).toBe(1);
-      expect(batches.get('ISRG').trades.length).toBe(2);
-    });
-
-    it('powinien rozdzielać batche per ticker', async () => {
-      const { service } = createService();
-
-      await service.onInsiderTrade({
-        tradeId: 1,
-        symbol: 'ISRG',
-        totalValue: 500_000,
-        transactionType: 'BUY',
-        insiderName: 'John',
-      });
-
-      await service.onInsiderTrade({
-        tradeId: 2,
-        symbol: 'MRNA',
-        totalValue: 200_000,
-        transactionType: 'SELL',
-        insiderName: 'Jane',
-      });
-
-      const batches = (service as any).insiderBatches as Map<string, any>;
-      expect(batches.size).toBe(2);
-    });
-  });
+  // ── Sprint 11: Agregacja insider trades usunięta ──────────────────────────
+  // Insider trades obsługiwane przez Form4Pipeline z GPT-enriched conviction.
+  // Reguła "Insider Trade Large" wyłączona (isActive=false).
 
   // ── checkSentimentCrash ──────────────────────────
 

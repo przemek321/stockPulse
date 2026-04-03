@@ -70,7 +70,7 @@ Działający system end-to-end w 6 kontenerach Docker. Po Sprint 11 system skupi
    - **SEC EDGAR** co 30 min — Form 4 (insider trades) + 8-K (material events). Eventy `NEW_INSIDER_TRADE` / `NEW_FILING`.
    - **Options Flow** (Polygon.io EOD) CRON 22:15 UTC — volume spike detection (3× avg20d). Event `NEW_OPTIONS_FLOW`.
    - **PDUFA.bio** co 6h — kalendarz dat FDA. Event `NEW_PDUFA_EVENT`. Używany do PDUFA boost w options scoring.
-   - **WYŁĄCZONE (Sprint 11)**: StockTwits (77% wolumenu, 0% edge), Finnhub news/MSPR (HFT lag), Reddit (placeholder). Finnhub `/quote` zachowany dla Price Outcome Tracker.
+   - **WYŁĄCZONE (Sprint 11)**: StockTwits (77% wolumenu, 0% edge), Finnhub news/MSPR (HFT lag), Reddit (placeholder). Schedulery StockTwits i Finnhub czyszczą repeatable jobs przy starcie (zero pustych jobów BullMQ). Finnhub `/quote` zachowany dla Price Outcome Tracker.
 2. **Warstwa AI** — SEC Filing GPT Pipeline (bez sentymentu):
    - **Form4Pipeline** (`src/sec-filings/pipelines/form4.pipeline.ts`): GPT analiza insider trades. Filtr: **discretionary only** (is10b51Plan=true → skip), **C-suite priorytet** (CEO/CFO/President/Chairman/EVP → boost). Prompt z 30-dniową historią, sign convention SELL=ujemna/BUY=dodatnia, safety net post-GPT. Conviction [-2,+2] → [-1,+1] do CorrelationService.
    - **Form8kPipeline** (`src/sec-filings/pipelines/form8k.pipeline.ts`): GPT per-Item prompty (1.01/2.02/5.02/other). Item 5.02 prompt rozróżnia **voluntary+successor vs crisis vs relief rally**. Item 1.03 Bankruptcy → natychmiastowy CRITICAL bez GPT. Zod walidacja, daily cap 20/ticker/dzień.
@@ -79,8 +79,8 @@ Działający system end-to-end w 6 kontenerach Docker. Po Sprint 11 system skupi
    - **Azure VM** (`stockpulse-vm`, 74.248.113.3:3100) — gpt-4o-mini dla Form 4 + 8-K.
    - **Pipeline observability**: `ai_pipeline_logs` + `system_logs` (decorator @Logged, cleanup 7d).
    - **Price Outcome Tracker** (`src/price-outcome/`): priceAtAlert (Finnhub /quote) w momencie alertu (naprawiony Sprint 11 — wcześniej NULL dla Correlated/Form4/8-K), CRON co 1h price1h/4h/1d/3d (NYSE open only), hard timeout 7d.
-   - **AlertEvaluator**: 7 aktywnych reguł, 12 wyłączonych. Per-symbol daily limit 5 alertów. Throttling per (rule, symbol, catalyst_type).
-   - **WYŁĄCZONE (Sprint 11)**: FinBERT sidecar (kontener działa ale nie otrzymuje jobów), sentiment pipeline (listener bez @OnEvent), 6 reguł sentymentowych (isActive=false).
+   - **AlertEvaluator**: 7 aktywnych reguł, 12 wyłączonych. Per-symbol daily limit 5 alertów. Throttling per (rule, symbol, catalyst_type). `onSentimentScored()` i `onInsiderTrade()` mają early return (Sprint 11 — reguły sentymentowe i Insider Trade Large wyłączone). Martwy kod insider aggregation usunięty (InsiderBatch, flushInsiderBatch, insiderBatches).
+   - **WYŁĄCZONE (Sprint 11)**: FinBERT sidecar (kontener działa ale nie otrzymuje jobów), sentiment pipeline (listener bez @OnEvent), 6 reguł sentymentowych + Insider Trade Large (isActive=false, early return w handlerach).
 3. **Warstwa danych** — PostgreSQL z 14 tabelami (w tym `options_flow`, `options_volume_baseline`, alerts z 7 polami price outcome), Redis dla kolejek BullMQ + Sorted Sets (korelacje). TypeORM z `synchronize: true`.
 4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z MUI Tabs (Dashboard + System Logs), 14+ panelami. Alerty Telegram po polsku. REST API (20 endpointów) na :3000.
 
