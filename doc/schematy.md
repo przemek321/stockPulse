@@ -751,140 +751,122 @@ Dashboard React z 12+ panelami danych, wykresem sentymentu, zakładkami MUI (Das
 
 ---
 
-## Schemat przepływu danych
+## Schemat przepływu danych (aktualny — Sprint 13)
 
 ```
-                         ┌─────────────┐
-                         │  Scheduler  │  (co N min dodaje job do kolejki)
-                         └──────┬──────┘
-                                │
-                         ┌──────▼──────┐
-                         │  BullMQ     │  (kolejka kolektora w Redis)
-                         │  Queue      │
-                         └──────┬──────┘
-                                │
-                         ┌──────▼──────┐
-                         │  Processor  │  (BullMQ Worker przetwarza job)
-                         └──────┬──────┘
-                                │
-                         ┌──────▼──────┐
-                         │  Service    │  (HTTP → parse → deduplikacja → zapis)
-                         └──────┬──────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                  │
-       ┌──────▼──────┐   ┌─────▼──────┐   ┌──────▼──────────┐
-       │ PostgreSQL   │   │ Event Bus  │   │ collection_logs │
-       │ (encja)      │   └─────┬──────┘   └─────────────────┘
-       └──────────────┘         │
-                          ┌─────▼──────────────┐
-                          │ SentimentListener   │  (nasłuchuje NEW_MENTION / NEW_ARTICLE)
-                          └─────┬──────────────┘
-                                │
-                         ┌──────▼──────────┐
-                         │ BullMQ Queue    │  (sentiment-analysis)
-                         │ sentiment       │
-                         └──────┬──────────┘
-                                │
-                         ┌──────▼──────────┐
-                         │ Sentiment       │  (pobiera tekst z DB)
-                         │ Processor       │
-                         └──────┬──────────┘
-                                │
-                         ┌──────▼──────────┐
-                         │ FinBERT Sidecar │  (GPU: ProsusAI/finbert — 1. etap)
-                         │ POST /api/sent. │
-                         └──────┬──────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │  Tier-based eskalacja │  (T1: conf>0.7 & abs>0.5 → ZAWSZE)
-                    │  T2: do AI jeśli VM   │  (T3: skip → FINBERT_ONLY)
-                    └───────────┬───────────┘
-                                │ (Tier 1 lub 2)
-                    ┌───────────▼───────────┐
-                    │  PDUFA Context Layer  │  (pdufa_catalysts → tekst kontekstu)
-                    └───────────┬───────────┘
-                                │
-                         ┌──────▼──────────┐
-                         │ Azure VM        │  (gpt-4o-mini — 2. etap + prompt_used)
-                         │ POST /analyze   │  (74.248.113.3:3100)
-                         └──────┬──────────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                  │
-       ┌──────▼──────────┐ ┌───▼───────────┐ ┌───▼──────────────────┐
-       │ sentiment_scores │ │ Event Bus     │ │ news_articles        │
-       │ (+ enriched     │ │ SENTIMENT_    │ │ (update sentScore)   │
-       │   Analysis)     │ │ SCORED        │ └──────────────────────┘
-       └─────────────────┘ │ (+conviction) │
-                           └───┬───────────┘
-                               │
-                         ┌─────▼────────────┐
-                         │ AlertEvaluator   │  (sprawdza reguły + throttling)
-                         └─────┬────────────┘
-                               │
-                         ┌─────▼────────────┐
-                         │ TelegramService  │  → Telegram Bot API
-                         └─────┬────────────┘
-                               │
-                         ┌─────▼────────────┐
-                         │ alerts (tabela)  │  (historia wysyłki)
-                         └──────────────────┘
+═══════════════════════════════════════════════════════════════════
+ AKTYWNY PIPELINE: SEC EDGAR → Claude Sonnet → Korelacje → Alerty
+═══════════════════════════════════════════════════════════════════
 
-                    (Na każdym etapie pipeline buduje AiPipelineLog)
-                         ┌──────────────────┐
-                         │ ai_pipeline_logs │  (pełna historia egzekucji)
-                         └──────────────────┘
+ ┌─────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+ │  SEC EDGAR      │   │  Options Flow    │   │  PDUFA.bio       │
+ │  co 30 min      │   │  CRON 22:15 UTC  │   │  co 6h           │
+ │  Form 4 + 8-K   │   │  Polygon.io EOD  │   │  kalendarz FDA   │
+ └────────┬────────┘   └────────┬─────────┘   └────────┬─────────┘
+          │                     │                       │
+          │ NEW_INSIDER_TRADE   │ NEW_OPTIONS_FLOW      │ NEW_PDUFA_EVENT
+          │ NEW_FILING          │                       │
+          │                     │                       │
+ ┌────────▼────────┐   ┌───────▼──────────┐   ┌───────▼──────────┐
+ │ Form4Pipeline   │   │ OptionsFlow      │   │ PDUFA Context    │
+ │ Form8kPipeline  │   │ ScoringService   │   │ (wstrzykiwany    │
+ │                 │   │ (heurystyka,     │   │  do promptów AI) │
+ │ ┌─────────────┐ │   │  bez GPT)        │   └──────────────────┘
+ │ │ Claude      │ │   │                  │
+ │ │ Sonnet      │ │   │ spike ratio,     │
+ │ │ (Anthropic  │ │   │ PDUFA boost,     │
+ │ │  API)       │ │   │ call/put ratio   │
+ │ └──────┬──────┘ │   └───────┬──────────┘
+ │        │        │           │
+ │  Zod walidacja  │           │
+ │  conviction     │           │
+ │  [-2,+2]→[-1,+1]│          │
+ └────────┬────────┘           │
+          │                    │
+          │    ┌───────────────┘
+          │    │
+ ┌────────▼────▼───────┐
+ │  CorrelationService │  (Redis Sorted Sets)
+ │  3 aktywne wzorce:  │
+ │  INSIDER_CLUSTER    │  (2+ C-suite w 7d)
+ │  INSIDER_PLUS_8K    │  (insider + 8-K w 24h)
+ │  INSIDER_PLUS_OPT.  │  (insider + opcje w 72h)
+ └────────┬────────────┘
+          │
+ ┌────────▼────────────┐
+ │  AlertEvaluator     │  7 aktywnych reguł
+ │  + throttling       │  per-symbol daily limit 5
+ │  + priceAtAlert     │  (Finnhub /quote)
+ └────────┬────────────┘
+          │
+ ┌────────▼────────┐   ┌──────────────────┐
+ │ TelegramService │   │ PriceOutcome     │
+ │ → alerty PL     │   │ CRON co 1h (NYSE)│
+ └────────┬────────┘   │ 1h/4h/1d/3d     │
+          │            │ od effectiveStart│
+ ┌────────▼────────┐   └──────────────────┘
+ │ alerts (tabela) │
+ │ + system_logs   │
+ └─────────────────┘
+
+═══════════════════════════════════════════════════════════════════
+ WYŁĄCZONE (Sprint 11): StockTwits, Finnhub news, FinBERT pipeline
+ Sentiment pipeline: @OnEvent skomentowane, zero jobów
+ 6 reguł sentymentowych: isActive=false, early return w handlerach
+═══════════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## Schemat modułów NestJS
+## Schemat modułów NestJS (aktualny — Sprint 13)
 
 ```
 AppModule
 ├── ConfigModule          (globalny — .env + Joi)
-├── DatabaseModule        (TypeORM + PostgreSQL)
+├── DatabaseModule        (TypeORM + PostgreSQL, synchronize: true)
+├── SystemLogModule       (@Global — singleton, @Logged decorator, cleanup 7d)
 ├── EventsModule          (EventEmitter2)
 ├── QueuesModule          (BullMQ + Redis)
-│   └── 7 kolejek
+│   └── 8 kolejek (+ options-flow-collector)
 ├── CollectorsModule
-│   ├── StocktwitsModule  (service + processor + scheduler)
-│   ├── FinnhubModule     (service + processor + scheduler)
-│   ├── SecEdgarModule    (service + processor + scheduler + form4-parser)
-│   ├── RedditModule      (service + processor + scheduler)
-│   └── PdufaBioModule    (service + processor + scheduler + pdufa-parser)
+│   ├── StocktwitsModule  (WYŁĄCZONY — scheduler czyści repeatable jobs)
+│   ├── FinnhubModule     (WYŁĄCZONY news/MSPR — scheduler czyści jobs, /quote zachowany)
+│   ├── SecEdgarModule    (AKTYWNY co 30 min — Form 4 + 8-K)
+│   ├── RedditModule      (placeholder — czeka na API access)
+│   ├── PdufaBioModule    (AKTYWNY co 6h — kalendarz FDA)
+│   └── OptionsFlowModule (AKTYWNY CRON 22:15 UTC — Polygon.io EOD)
 ├── SentimentModule
-│   ├── FinbertClientService         (HTTP klient → FinBERT sidecar, 1. etap)
-│   ├── AzureOpenaiClientService     (HTTP klient → Azure VM gpt-4o-mini, 2. etap + analyzeCustomPrompt)
-│   ├── SentimentListenerService     (nasłuchuje eventów → dodaje joby)
-│   └── SentimentProcessorService    (BullMQ worker → FinBERT → tier → PDUFA context → LLM → zapis + pipeline log)
+│   ├── FinbertClientService         (HTTP klient → FinBERT sidecar, Sprint 11: nieaktywny)
+│   ├── AnthropicClientService       (Anthropic Claude Sonnet API — Sprint 12, NOWY)
+│   ├── AzureOpenaiClientService     (provider alias → AnthropicClientService)
+│   ├── SentimentListenerService     (Sprint 11: @OnEvent wyłączone)
+│   └── SentimentProcessorService    (Sprint 11: nieaktywny — zero jobów w kolejce)
 ├── SecFilingsModule
-│   ├── Form4Pipeline            (NEW_INSIDER_TRADE → GPT analiza z kontekstem 30d)
-│   ├── Form8kPipeline           (NEW_FILING 8-K → per-Item GPT analiza)
-│   ├── DailyCapService          (Redis INCR, max 20 GPT/ticker/dzień)
+│   ├── Form4Pipeline            (NEW_INSIDER_TRADE → Claude Sonnet z kontekstem 30d)
+│   ├── Form8kPipeline           (NEW_FILING 8-K → per-Item Claude analiza + fix inline XBRL)
+│   ├── DailyCapService          (Redis INCR, max 20 AI/ticker/dzień)
 │   ├── SecFilingsController     (POST /api/sec-filings/backfill-gpt)
-│   └── 5 promptów + parser + scorer + Zod schema
+│   └── 5 promptów + parser (stripHtml + XBRL cleanup) + scorer + Zod schema
 ├── CorrelationModule
-│   └── CorrelationService       (5 detektorów wzorców, Redis Sorted Sets, debounce 10s)
+│   └── CorrelationService       (6 detektorów: 3 aktywne + 3 wyłączone, Redis Sorted Sets)
 ├── PriceOutcomeModule
-│   └── PriceOutcomeService      (CRON co 1h — uzupełnia price1h/4h/1d/3d z Finnhub /quote, tylko gdy NYSE otwarta)
+│   └── PriceOutcomeService      (CRON co 1h, NYSE open, sloty od getEffectiveStartTime)
 ├── TelegramModule               (wydzielony — unikanie circular dependency)
 │   ├── TelegramService          (wysyłka)
 │   └── TelegramFormatterService (formatowanie MarkdownV2 po polsku)
 ├── OptionsFlowModule
-│   ├── OptionsFlowScoringService  (heurystyka conviction bez GPT: spike ratio + volume + OTM + DTE + call/put)
+│   ├── OptionsFlowScoringService  (heurystyka conviction: spike + volume + OTM + DTE + call/put)
 │   └── OptionsFlowAlertService    (@OnEvent NEW_OPTIONS_FLOW → scoring → correlation → Telegram)
 ├── AlertsModule
-│   ├── AlertEvaluatorService    (6 reguł niezależnych, decyzje w logach, priceAtAlert + storeSignal → Correlation)
-│   └── SummarySchedulerService  (raport 2h na Telegram)
+│   ├── AlertEvaluatorService    (7 aktywnych reguł, early return Sprint 11, cache TTL 5min)
+│   └── SummarySchedulerService  (raport co 8h na Telegram)
 └── ApiModule
-    ├── HealthController       (GET /api/health, /api/health/stats)
-    ├── TickersController      (GET /api/tickers)
-    ├── SentimentController    (GET /api/sentiment/* — 9 endpointów, w tym filings-gpt, pipeline-logs, pdufa, insider-trades)
-    ├── AlertsController       (GET /api/alerts, /api/alerts/outcomes)
-    ├── SystemLogsController   (GET /api/system-logs)
-    └── OptionsFlowController  (GET /api/options-flow, /api/options-flow/stats, POST /api/options-flow/backfill)
+    ├── HealthController       (/health, /health/stats, /health/system-overview, /health/weekly-report, /health/system-stats)
+    ├── TickersController      (/tickers, /tickers/:symbol)
+    ├── SentimentController    (/sentiment/* — 7 endpointów: scores, filings-gpt, pipeline-logs, pdufa, insider-trades, news, :ticker)
+    ├── AlertsController       (/alerts, /alerts/rules, /alerts/outcomes, /alerts/timeline, /alerts/timeline/symbols)
+    ├── SystemLogsController   (/system-logs)
+    └── OptionsFlowController  (/options-flow, /options-flow/stats, POST /options-flow/backfill)
 ```
 
 ---
