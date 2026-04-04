@@ -347,14 +347,15 @@ export class Form8kPipeline {
       const items = indexData?.directory?.item;
       if (!Array.isArray(items)) return this.fetchDirectDocument(documentUrl);
 
-      // Znajdź główny dokument 8-K (nie XBRL, nie exhibit)
+      // Znajdź główny dokument 8-K (nie XBRL, nie exhibit, nie index)
       const mainDoc = items.find((item: any) => {
         const name = item.name?.toLowerCase() ?? '';
         return (
-          (name.endsWith('.htm') || name.endsWith('.html') || name.endsWith('.txt')) &&
+          (name.endsWith('.htm') || name.endsWith('.html')) &&
           !name.startsWith('r1') && !name.startsWith('r2') &&
           !name.includes('exhibit') && !name.includes('ex-') &&
-          !name.includes('xbrl')
+          !name.includes('xbrl') &&
+          !name.includes('index') && !name.includes('-headers')
         );
       });
 

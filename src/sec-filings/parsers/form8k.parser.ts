@@ -98,6 +98,10 @@ export function isBankruptcyItem(item: string): boolean {
  */
 export function stripHtml(html: string): string {
   return html
+    // Usuń ukryte divy z inline XBRL (metadane, taksonomia — nie treść dokumentu)
+    .replace(/<div[^>]*display:\s*none[^>]*>[\s\S]*?<\/div>/gi, '')
+    // Usuń nagłówek inline XBRL (schematy, konteksty, linki)
+    .replace(/<ix:header>[\s\S]*?<\/ix:header>/gi, '')
     // Zamień <br>, <p>, <div> na newline
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|tr|li)>/gi, '\n')
@@ -110,6 +114,11 @@ export function stripHtml(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ')
+    .replace(/&#160;/g, ' ')
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#\d+;/g, ' ')
     // Normalizuj whitespace
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
