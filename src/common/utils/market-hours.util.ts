@@ -55,3 +55,43 @@ export function isNyseOpen(now: Date = new Date()): boolean {
 
   return timeMinutes >= openMinutes && timeMinutes < closeMinutes;
 }
+
+/**
+ * Zwraca efektywny czas startu dla Price Outcome slotów.
+ * Jeśli alert wysłany w trakcie sesji → czas alertu.
+ * Jeśli alert wysłany poza sesją → najbliższe otwarcie NYSE (9:30 ET).
+ *
+ * Dzięki temu alerty Options Flow (22:15 UTC) i SEC pre-market (7:00 UTC)
+ * mają sloty 1h/4h liczone od otwarcia sesji, nie od czasu alertu.
+ * Efekt: price1h ≠ price4h (realne zmiany intraday zamiast identycznych wartości).
+ */
+export function getEffectiveStartTime(alertSentAt: Date): Date {
+  if (isNyseOpen(alertSentAt)) return alertSentAt;
+
+  // Znajdź najbliższe otwarcie NYSE po alercie
+  const d = new Date(alertSentAt);
+
+  // Sprawdzaj po dniu aż znajdziesz dzień roboczy
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { weekday, hour, minute } = parseET(d);
+
+    if (TRADING_DAYS.has(weekday)) {
+      const timeMinutes = hour * 60 + minute;
+      const openMinutes = OPEN_HOUR * 60 + OPEN_MINUTE;
+
+      if (timeMinutes < openMinutes) {
+        // Przed otwarciem tego dnia — zwróć 9:30 ET tego dnia
+        const diffMinutes = openMinutes - timeMinutes;
+        return new Date(d.getTime() + diffMinutes * 60_000);
+      }
+    }
+
+    // Po zamknięciu lub weekend — przejdź do następnego dnia 0:00 ET
+    // Ustawiamy na następny dzień rano (5:00 UTC ~ 0:00-1:00 ET)
+    d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCHours(5, 0, 0, 0);
+  }
+
+  // Fallback — zwróć oryginalny czas
+  return alertSentAt;
+}

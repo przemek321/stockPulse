@@ -5,7 +5,7 @@ import { Cron } from '@nestjs/schedule';
 import { Alert } from '../entities';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 import { Logged } from '../common/decorators/logged.decorator';
-import { isNyseOpen } from '../common/utils/market-hours.util';
+import { isNyseOpen, getEffectiveStartTime } from '../common/utils/market-hours.util';
 
 /**
  * CRON service uzupełniający ceny akcji po wysłaniu alertu.
@@ -91,9 +91,9 @@ export class PriceOutcomeService {
       // Sprawdź czy którykolwiek alert tego symbolu potrzebuje ceny
       let needsQuote = false;
       for (const alert of symbolAlerts) {
-        const alertTime = new Date(alert.sentAt).getTime();
+        const effectiveStart = getEffectiveStartTime(new Date(alert.sentAt)).getTime();
         for (const slot of this.SLOTS) {
-          if (alertTime + slot.delayMs <= now && alert[slot.field] == null) {
+          if (effectiveStart + slot.delayMs <= now && alert[slot.field] == null) {
             needsQuote = true;
             break;
           }
@@ -108,13 +108,14 @@ export class PriceOutcomeService {
         quotesUsed++;
       }
 
-      // Wypełnij WSZYSTKIE due sloty dla wszystkich alertów tego symbolu
+      // Wypełnij WSZYSTKIE due sloty dla wszystkich alertów tego symbolu.
+      // Sloty liczone od efektywnego startu (otwarcie NYSE dla alertów pre-market).
       for (const alert of symbolAlerts) {
-        const alertTime = new Date(alert.sentAt).getTime();
+        const effectiveStart = getEffectiveStartTime(new Date(alert.sentAt)).getTime();
         let changed = false;
 
         for (const slot of this.SLOTS) {
-          if (alertTime + slot.delayMs > now) continue;
+          if (effectiveStart + slot.delayMs > now) continue;
           if (alert[slot.field] != null) continue;
 
           if (price != null) {
@@ -126,11 +127,11 @@ export class PriceOutcomeService {
           }
         }
 
-        // Oznacz jako done gdy: wszystkie 4 sloty wypełnione LUB hard timeout 7d
+        // Oznacz jako done gdy: wszystkie 4 sloty wypełnione LUB hard timeout 7d od alertu
         const allSlotsFilled = this.SLOTS.every(
           (s) => alert[s.field] != null,
         );
-        const hardTimeout = alertTime + this.HARD_TIMEOUT_MS <= now;
+        const hardTimeout = new Date(alert.sentAt).getTime() + this.HARD_TIMEOUT_MS <= now;
         if (allSlotsFilled || hardTimeout) {
           alert.priceOutcomeDone = true;
           changed = true;
