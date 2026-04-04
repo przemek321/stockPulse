@@ -36,7 +36,7 @@
 
 ### Krok 2: Baza danych + encje TypeORM
 - [x] `src/database/database.module.ts` — połączenie TypeORM z PostgreSQL
-- [x] 9 encji w `src/entities/` (ticker, sentiment_score, raw_mention, news_article, sec_filing, insider_trade, alert, alert_rule, collection_log)
+- [x] 14 encji w `src/entities/` (ticker, sentiment_score, raw_mention, news_article, sec_filing, insider_trade, alert, alert_rule, collection_log, pdufa_catalyst, ai_pipeline_log, system_log, options_flow, options_volume_baseline)
 - [x] Tabele tworzone automatycznie przez `synchronize: true`
 
 ### Krok 3: Kolejki BullMQ
@@ -65,8 +65,8 @@
 
 ## Faza 1.5 — Seed + monitoring (ukończona)
 
-- [x] **Seed tickerów** — 27 spółek healthcare z `healthcare-universe.json` (5 ETF-ów osobno)
-- [x] **Seed reguł alertów** — 9 reguł z `healthcare-universe.json` (w tym High Conviction Signal + Strong FinBERT Signal)
+- [x] **Seed tickerów** — ~37 spółek healthcare z `healthcare-universe.json`
+- [x] **Seed reguł alertów** — 19 reguł z `healthcare-universe.json` (7 aktywnych, 12 wyłączonych)
 - [x] Komenda `npm run seed` / `docker exec stockpulse-app npm run seed`
 - [x] Weryfikacja kolektorów — dane zbierają się do bazy
 - [x] **Fix alert spam** — naprawiony podwójny trigger Form 4 + minimalny throttle 1 min
@@ -132,15 +132,15 @@
 - [x] Filtrowanie krótkich tekstów < 20 znaków (MIN_TEXT_LENGTH — odrzuca szum)
 - [x] Skrypt idempotentny — pomija rekordy z istniejącym wynikiem w sentiment_scores
 
-### Sprint 2d: Azure OpenAI gpt-4o-mini — analiza niuansowa (ukończony 2026-03-01)
-- [x] Azure OpenAI gpt-4o-mini — 2-etapowy pipeline: FinBERT (szybki bulk) → gpt-4o-mini (high-priority)
+### Sprint 2d: Azure OpenAI gpt-4o-mini — analiza niuansowa (ukończony 2026-03-01, **zastąpiony w Sprint 12 przez Anthropic Claude Sonnet**)
+- [x] ~~Azure OpenAI gpt-4o-mini~~ → **Anthropic Claude Sonnet** (Sprint 12) — 2-etapowy pipeline: FinBERT (szybki bulk) → Claude Sonnet (high-priority)
 - [x] Eskalacja do LLM gdy: confidence < 0.6 lub |score| < 0.3 (niezdecydowany)
-- [x] Analiza kontekstu: sarkasm, porównania, złożone zdania finansowe
-- [x] Kolumna `enrichedAnalysis` (jsonb) w SentimentScore — wielowymiarowa analiza (conviction, relevance, novelty, catalyst_type, price_impact)
-- [x] `AzureOpenaiClientService` — NestJS injectable, wywołuje Azure VM HTTP endpoint (POST /analyze na :3100)
-- [x] Graceful degradation — bez konfiguracji pipeline działa z FinBERT-only
-- [x] Azure VM (`stockpulse-vm`, 74.248.113.3:3100) — PM2: processor.js (gpt-4o-mini) + api.js (signals :8000)
-- [x] Zmienne środowiskowe: `AZURE_ANALYSIS_URL`, `AZURE_ANALYSIS_TIMEOUT_MS`
+- [x] Kolumna `enrichedAnalysis` (jsonb) w SentimentScore — wielowymiarowa analiza
+- [x] `AnthropicClientService` — NestJS injectable, SDK `@anthropic-ai/sdk`, bezpośrednio do API (bez pośrednika Azure VM)
+- [x] `AzureOpenaiClientService` — provider alias → AnthropicClientService (backward compatible)
+- [x] Graceful degradation — bez `ANTHROPIC_API_KEY` pipeline działa bez AI
+- [x] Azure VM (`74.248.113.3:3100`) — na standby jako fallback
+- [x] Zmienne środowiskowe: `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (domyślnie `claude-sonnet-4-6`)
 
 ### Sprint 2e: Frontend AI + Telegram AI + ukrycie Reddit (ukończony 2026-03-01)
 - [x] **Telegram alerty AI** — sekcja "Analiza AI (gpt-4o-mini)" w alertach sentymentu (sentiment, conviction, type, urgency, price impact, catalyst, summary)
@@ -317,15 +317,18 @@ Globalny system logowania funkcji z automatycznym pomiarem czasu, rejestracją w
 - [x] **Kontroler** (`src/api/system-logs/system-logs.controller.ts`):
   - `GET /api/system-logs?module=&function=&status=&dateFrom=&dateTo=&limit=&offset=`
 
-#### 5.2 Zastosowanie @Logged() — ~13 metod w 8 serwisach
+#### 5.2 Zastosowanie @Logged() — ~15 metod w 10 serwisach
 - [x] `BaseCollectorService.runCollectionCycle()` — moduł `collectors`
-- [x] `FinbertClientService.analyze()` — moduł `sentiment`
-- [x] `AzureOpenaiClientService.analyze()` — moduł `sentiment`
+- [x] ~~`FinbertClientService.analyze()`~~ — usunięty @Logged (Sprint 8 — podwójne logowanie)
+- [x] `AnthropicClientService.analyze()` — moduł `sentiment`
 - [x] `SentimentProcessorService.process()` — moduł `sentiment`
 - [x] `Form4Pipeline.onInsiderTrade()` — moduł `sec-filings`
 - [x] `Form8kPipeline.onFiling()` — moduł `sec-filings`
 - [x] `CorrelationService.storeSignal()`, `runPatternDetection()` — moduł `correlation`
-- [x] `AlertEvaluatorService.onSentimentScored()`, `onInsiderTrade()` — moduł `alerts`
+- [x] `AlertEvaluatorService.onSentimentScored()`, `onInsiderTrade()`, `onFiling()` — moduł `alerts`
+- [x] `TelegramService.sendMarkdown()` — moduł `telegram`
+- [x] `OptionsFlowAlertService.onOptionsFlow()` — moduł `options-flow`
+- [x] `PriceOutcomeService.fillPriceOutcomes()` — moduł `price-outcome`
 
 #### 5.3 Frontend: zakładka System Logs
 - [x] **MUI Tabs** w `App.tsx` — Dashboard + System Logs (2 zakładki)
@@ -739,4 +742,4 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 - **Sprint 12**: Migracja AI (gpt-4o-mini → Claude Sonnet), panel Status Systemu (`/api/health/system-overview`), fix parsowania 8-K (inline XBRL + filtr index.html), hard delete 1585 alertów z wyłączonych reguł
 - **Sprint 13**: Signal Timeline (`/api/alerts/timeline`) — sekwencja sygnałów per ticker z conviction, deltami cenowymi, gap czasowym. Fix Price Outcome: sloty od otwarcia NYSE (`getEffectiveStartTime`)
 - **Dashboard**: 3 zakładki (Dashboard + Signal Timeline + System Logs), panel Status Systemu, ~25 endpointów REST
-- **Testy jednostkowe**: 8 suite'ów, 145 testów (correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator, unusual-activity-detector, options-flow-scoring, options-flow-agent)
+- **Testy jednostkowe**: 14 plików spec.ts, ~420 testów (unit: correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator; agents: alert-evaluator-agent, correlation-agent, collectors-agent, price-outcome-agent, sec-filings-agent, sentiment-agent, options-flow-scoring, options-flow-agent, unusual-activity-detector)

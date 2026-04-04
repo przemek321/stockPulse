@@ -142,6 +142,7 @@ export class OptionsFlowAlertService {
     const todayCount = await this.alertRepo.count({
       where: {
         symbol: flow.symbol,
+        delivered: true,
         sentAt: MoreThanOrEqual(todayStart),
       },
     });
