@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-03
+> Ostatnia aktualizacja: 2026-04-05
 
 ## Gdzie jesteśmy
 
-**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03) + **Sprint 11b — Cleanup martwego kodu** (2026-04-03). Analiza 2 tygodni (962 alertów, 55.5% hit rate) wykazała brak edge'u na sentymencie. System przebudowany: wyłączenie szumu (StockTwits, Finnhub news, 6 reguł sentymentowych + Insider Trade Large, 3 wzorców korelacji), focus na insider pipeline + PDUFA + korelacje insider×options. Sprint 11b: audyt spójności docs vs kod → wyłączenie Finnhub scheduler, early return w AlertEvaluator, usunięcie martwego kodu insider aggregation.
+**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03) + **Sprint 11b — Cleanup martwego kodu** (2026-04-03) + **Sprint 12 — Migracja AI + dashboard** (ukończony 2026-04-04). Analiza 2 tygodni (962 alertów, 55.5% hit rate) wykazała brak edge'u na sentymencie. System przebudowany: wyłączenie szumu, focus na insider pipeline + PDUFA + korelacje insider×options. Sprint 12: migracja z Azure OpenAI gpt-4o-mini na Anthropic Claude Sonnet (bezpośrednio z NestJS), panel Status Systemu na dashboardzie, fix parsowania 8-K (inline XBRL), hard delete 1585 alertów z wyłączonych reguł.
 
-**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → GPT analiza → 3 wzorce korelacji (INSIDER_CLUSTER, INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary C-suite only (is10b51Plan=true → skip). 7 aktywnych reguł alertów, 12 wyłączonych. Cel: 3-5 alertów/tydzień z realnym edge zamiast 50/dzień z szumem. Raporty tygodniowe w [doc/reports/](doc/reports/).
+**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER, INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary C-suite only (is10b51Plan=true → skip). 7 aktywnych reguł alertów, 12 wyłączonych. Cel: 3-5 alertów/tydzień z realnym edge zamiast 50/dzień z szumem. Raporty tygodniowe w [doc/reports/](doc/reports/).
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -564,6 +564,34 @@ Audyt spójności CLAUDE.md / PROGRESS-STATUS.md vs kod ujawnił martwy kod i ni
 #### 11b.4 Dokumentacja
 - [x] **CLAUDE.md** — zaktualizowany opis schedulerów (Finnhub/StockTwits czyszczą repeatable jobs), AlertEvaluator (early return, usunięty martwy kod)
 - [x] **PROGRESS-STATUS.md** — dodana sekcja Sprint 11b
+
+### Sprint 12: Migracja AI (Claude Sonnet) + Dashboard Status + fix 8-K parser (ukończony 2026-04-04)
+
+Migracja AI pipeline z Azure OpenAI gpt-4o-mini na Anthropic Claude Sonnet, nowy panel Status Systemu na dashboardzie, fix parsowania 8-K (inline XBRL), hard delete starych alertów.
+
+#### 12.1 Migracja AI: Azure OpenAI gpt-4o-mini → Anthropic Claude Sonnet
+- [x] **AnthropicClientService** (`src/sentiment/anthropic-client.service.ts`) — nowy serwis NestJS z SDK `@anthropic-ai/sdk`. Bezpośrednie wywołanie Anthropic API bez pośrednika Azure VM. Identyczny interfejs publiczny z `AzureOpenaiClientService` (`isEnabled()`, `analyze()`, `analyzeCustomPrompt()`).
+- [x] **Provider alias** w `SentimentModule` — `{ provide: AzureOpenaiClientService, useExisting: AnthropicClientService }`. Zero zmian w Form4Pipeline, Form8kPipeline, promptach, Zod schema. Rollback = zmiana jednej linii.
+- [x] **Konfiguracja** — `ANTHROPIC_API_KEY` (wymagany), `ANTHROPIC_MODEL` (domyślnie `claude-sonnet-4-6`), `ANTHROPIC_TIMEOUT_MS` (domyślnie 30000). `.env.example` zaktualizowany.
+- [x] **Graceful degradation** — brak klucza → pipeline GPT wyłączony (jak wcześniej z Azure VM).
+- [x] **Azure VM** (`74.248.113.3:3100`) — na standby jako fallback. PM2 processy nadal uruchomione.
+- [x] **Oczekiwane poprawy**: lepszy rozkład conviction (pełna skala zamiast flat ±0.3), lepsza interpretacja 8-K 5.02 (voluntary vs crisis vs relief rally), lepsze polskie podsumowania.
+
+#### 12.2 Panel Status Systemu na dashboardzie
+- [x] **Nowy endpoint** `GET /api/health/system-overview` — szybki przegląd zdrowia: status kolektorów (OK/WARNING/CRITICAL), błędy 24h, statystyki alertów 7d, pipeline AI 24h, failed jobs.
+- [x] **Nowy komponent** `SystemHealthPanel` (`frontend/src/components/SystemHealthPanel.tsx`) — karty 3 aktywnych kolektorów (SEC EDGAR, PDUFA.bio, Polygon), statystyki alertów, rozwijalna tabela błędów systemowych. Auto-refresh 60s.
+- [x] **Formatowanie czasu** — czytelna forma (`8h 52m` zamiast `31970.5s`).
+- [x] **Lokalizacja** — sekcja Kluczowe na dashboardzie, przed Edge Signals.
+
+#### 12.3 Hard delete alertów z wyłączonych reguł
+- [x] **Usunięto 1585 alertów** z wyłączonych reguł (Sentiment Crash, Strong FinBERT, Urgent AI, High Conviction, Signal Override, Insider Trade Large). Zostało 340 alertów z 7 aktywnych reguł.
+- [x] **Czysty dashboard** — API `/api/alerts` i `/api/alerts/outcomes` pokazują tylko realne sygnały edge.
+
+#### 12.4 Fix parsowania 8-K (inline XBRL)
+- [x] **Filtr plików** — `fetchFilingText()` wybierał `index.html` (metadane) zamiast `form8-k.htm` (właściwy dokument). Fix: wykluczenie plików z `index` i `headers` w nazwie.
+- [x] **stripHtml cleanup XBRL** — usunięcie ukrytych divów z `display:none` (metadane XBRL) i `<ix:header>` przed strippowaniem tagów HTML.
+- [x] **Dekodowanie encji HTML** — dodane `&#160;`, `&#8217;`, `&#8220;`, `&#8221;` + catch-all `&#\d+;`.
+- [x] **Efekt**: przed fixem Claude dostawał "metadane i strukturę pliku", po fixie — właściwą treść ("Susan H. Alexander, Chief Legal Officer, will depart...").
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
