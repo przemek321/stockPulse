@@ -63,8 +63,7 @@ export class AnthropicClientService {
         model: this.model,
         max_tokens: 1024,
         messages: [
-          { role: 'user', content: prompt },
-          { role: 'assistant', content: '{' },
+          { role: 'user', content: prompt + '\n\nRespond with JSON only. No markdown, no preamble, no explanation.' },
         ],
       });
 
@@ -74,11 +73,8 @@ export class AnthropicClientService {
         return null;
       }
 
-      // Prefill "{" + response Claude = kompletny JSON
-      const jsonStr = '{' + block.text;
-
-      // Wyczyść markdown wrapper gdyby Claude go dodał mimo prefill
-      const cleaned = jsonStr
+      // Wyczyść markdown wrapper gdyby Claude go dodał
+      const cleaned = block.text
         .replace(/^```json?\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
@@ -130,15 +126,13 @@ export class AnthropicClientService {
         system: systemPrompt,
         messages: [
           { role: 'user', content: text },
-          { role: 'assistant', content: '{' },
         ],
       });
 
       const block = message.content[0];
       if (block.type !== 'text') return null;
 
-      const jsonStr = '{' + block.text;
-      const cleaned = jsonStr
+      const cleaned = block.text
         .replace(/^```json?\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
