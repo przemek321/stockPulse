@@ -727,13 +727,16 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 - **Reguły alertów**: 19 total — **7 aktywnych** (Form 4 Insider Signal, 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, 8-K Bankruptcy, Correlated Signal, Unusual Options Activity), **12 wyłączonych** (isActive=false — sentyment, niezaimplementowane)
 - **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome + priceAtAlert, sentiment_scores, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
 - **Kolejki BullMQ**: 8 (6 kolektorów + sentiment-analysis + alerts) — StockTwits/Finnhub schedulery wyłączone
-- **Endpointy REST**: 23 (health x2, tickers x2, sentiment x8, alerts x3 incl. outcomes, sec-filings/backfill-gpt x1, system-logs x1, options-flow x3, pipeline-logs x1, pdufa x1, insider-trades x1)
+- **Endpointy REST**: ~25 (health x5, tickers x2, sentiment x7, alerts x6 incl. timeline, sec-filings x1, system-logs x1, options-flow x3)
 - **Źródła danych**: **3 aktywne kolektory** (SEC EDGAR, PDUFA.bio, Polygon.io Options Flow), **3 wyłączone** (StockTwits, Finnhub news/MSPR, Reddit placeholder). Finnhub `/quote` zachowany.
-- **Modele AI**: Azure OpenAI gpt-4o-mini (Form 4 + 8-K). FinBERT sidecar (kontener działa, nie otrzymuje jobów — pipeline sentymentu wyłączony)
-- **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin) + Azure VM (processor.js + api.js na PM2)
-- **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA, Azure VM z gpt-4o-mini
-- **Nowe moduły (Sprint 4)**: SecFilingsModule (5 promptów, parser 8-K, scorer, Zod validation, daily cap), CorrelationModule (**3 aktywne** detektory wzorców, Redis Sorted Sets)
-- **Nowe moduły (Sprint 6)**: PriceOutcomeModule (CRON co 1h, Finnhub /quote, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d, NYSE market hours guard, hard timeout 7d)
-- **Nowe moduły (Sprint 10)**: OptionsFlowCollectorModule (kolektor CRON 22:15 UTC, Polygon.io Free Tier, volume spike detection), OptionsFlowModule (scoring + alert + CorrelationService INSIDER_PLUS_OPTIONS)
-- **Sprint 11**: Przebudowa — focus na edge. Wyłączenie szumu (StockTwits, Finnhub news, sentiment pipeline, 12 reguł, 3 wzorców korelacji). Wzmocnienie: Form4 discretionary C-suite filter, spike ratio cap, 8-K leadership prompt fix, priceAtAlert fix
+- **Modele AI**: **Anthropic Claude Sonnet** (`claude-sonnet-4-6`, SDK `@anthropic-ai/sdk`) — bezpośrednio z NestJS (Sprint 12). FinBERT sidecar (kontener działa, nie otrzymuje jobów). Azure VM (`74.248.113.3:3100`) na standby jako fallback.
+- **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin). Azure VM na standby (PM2: processor.js + api.js)
+- **Środowiska**: Laptop WSL2 (dev), serwer produkcyjny z NVIDIA CUDA
+- **Sprint 4**: SecFilingsModule (5 promptów, parser 8-K z cleanup inline XBRL, scorer, Zod validation, daily cap), CorrelationModule (**3 aktywne** detektory wzorców, Redis Sorted Sets)
+- **Sprint 6**: PriceOutcomeModule (CRON co 1h, sloty od `getEffectiveStartTime()`, max 30 zapytań/cykl, 4 sloty: 1h/4h/1d/3d, NYSE market hours guard, hard timeout 7d)
+- **Sprint 10**: OptionsFlowCollectorModule (kolektor CRON 22:15 UTC, Polygon.io Free Tier, volume spike detection), OptionsFlowModule (scoring + alert + CorrelationService INSIDER_PLUS_OPTIONS)
+- **Sprint 11**: Przebudowa — focus na edge. Wyłączenie szumu (StockTwits, Finnhub news, sentiment pipeline, 12 reguł, 3 wzorców korelacji). Early return w AlertEvaluator, usunięty martwy kod insider aggregation.
+- **Sprint 12**: Migracja AI (gpt-4o-mini → Claude Sonnet), panel Status Systemu (`/api/health/system-overview`), fix parsowania 8-K (inline XBRL + filtr index.html), hard delete 1585 alertów z wyłączonych reguł
+- **Sprint 13**: Signal Timeline (`/api/alerts/timeline`) — sekwencja sygnałów per ticker z conviction, deltami cenowymi, gap czasowym. Fix Price Outcome: sloty od otwarcia NYSE (`getEffectiveStartTime`)
+- **Dashboard**: 3 zakładki (Dashboard + Signal Timeline + System Logs), panel Status Systemu, ~25 endpointów REST
 - **Testy jednostkowe**: 8 suite'ów, 145 testów (correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator, unusual-activity-detector, options-flow-scoring, options-flow-agent)
