@@ -612,6 +612,13 @@ Nowy widok chronologicznej sekwencji sygnałów na danym tickerze. Pokazuje delt
 - [x] **Ekstrakcja conviction z message** — regex z MarkdownV2 unescaping (`\\.` → `.`, `\\-` → `-`). Obsługuje wszystkie typy alertów (Form 4, 8-K, Options, Correlated).
 - [x] **Chip conviction** — widoczna różnica między granicznym conv=-0.50 (pomarańczowy) a silnym conv=+0.74 (czerwony border).
 
+#### 13.4 Fix Price Outcome: sloty od otwarcia NYSE
+- [x] **Problem**: alerty pre-market (Options Flow 22:15 UTC, SEC 7:00 UTC) miały identyczne price1h i price4h — oba wypełniane w pierwszym CRON po otwarciu NYSE tą samą ceną.
+- [x] **`getEffectiveStartTime()`** (`src/common/utils/market-hours.util.ts`) — dla alertów poza sesją zwraca najbliższe otwarcie NYSE (9:30 ET). Alerty w trakcie sesji — bez zmian.
+- [x] **`PriceOutcomeService`** — sloty 1h/4h/1d/3d liczone od `effectiveStart` zamiast `sentAt`. Hard timeout 7d nadal od `sentAt`.
+- [x] **Efekt**: price1h = cena 1h po open (10:30 ET), price4h = cena 4h po open (13:30 ET). Realne zmiany intraday zamiast identycznych wartości.
+- [x] **Reset** 30 alertów z identycznymi price1h/price4h do ponownego wypełnienia przez CRON.
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
