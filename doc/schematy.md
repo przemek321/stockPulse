@@ -35,9 +35,12 @@ stockPulse/
 │   │   ├── collection-log.entity.ts        # Logi cykli zbierania danych
 │   │   ├── pdufa-catalyst.entity.ts       # Katalizatory PDUFA (decyzje FDA)
 │   │   ├── ai-pipeline-log.entity.ts      # Logi egzekucji pipeline AI
-│   │   └── system-log.entity.ts           # Logi systemowe (@Logged decorator)
+│   │   ├── system-log.entity.ts           # Logi systemowe (@Logged decorator)
+│   │   ├── options-flow.entity.ts         # Wykryte anomalie opcyjne per kontrakt per sesja
+│   │   └── options-volume-baseline.entity.ts # Rolling 20d avg volume per kontrakt
 │   │
 │   ├── common/                             # Współdzielone utility
+│   │   ├── types.ts                        # Typy globalne (SignalDirection)
 │   │   ├── interfaces/
 │   │   │   ├── collector.interface.ts       # Interfejs ICollector
 │   │   │   └── data-source.enum.ts          # Enum: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS, PDUFA_BIO
@@ -87,6 +90,12 @@ stockPulse/
 │   │       ├── pdufa-bio.processor.ts      # BullMQ worker
 │   │       ├── pdufa-bio.scheduler.ts      # Co 6h + natychmiastowy pierwszy run
 │   │       └── pdufa-parser.ts             # Parser HTML tabeli kalendarza PDUFA
+│   │   └── options-flow/
+│   │       ├── options-flow.module.ts      # Moduł kolektora Options Flow
+│   │       ├── options-flow.service.ts     # Fetch Polygon API (contracts + aggregates), rate limit 12.5s
+│   │       ├── options-flow.processor.ts   # BullMQ worker
+│   │       ├── options-flow.scheduler.ts   # CRON 22:15 UTC pon-pt (po sesji NYSE)
+│   │       └── unusual-activity-detector.ts # Pure functions: filterContracts, detectSpike, aggregatePerTicker
 │   │
 │   ├── sentiment/                          # Warstwa 2: Analiza sentymentu (2-etapowy pipeline)
 │   │   ├── sentiment.module.ts             # Moduł zbiorczy + provider alias (Azure→Anthropic)
@@ -131,6 +140,11 @@ stockPulse/
 │   ├── price-outcome/                      # Warstwa 3b: Price Outcome Tracker
 │   │   ├── price-outcome.module.ts         # Moduł (Alert repo + FinnhubModule)
 │   │   └── price-outcome.service.ts        # CRON co 1h — uzupełnia price1h/4h/1d/3d (NYSE open, sloty od getEffectiveStartTime)
+│   │
+│   ├── options-flow/                       # Scoring + Alert Services (osobny moduł od kolektora)
+│   │   ├── options-flow.module.ts          # Moduł (OptionsFlowScoringService + AlertService)
+│   │   ├── options-flow-scoring.service.ts # Heurystyka conviction: spike + volume + OTM + DTE + call/put + PDUFA boost
+│   │   └── options-flow-alert.service.ts   # @OnEvent NEW_OPTIONS_FLOW → scoring → correlation → Telegram
 │   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
@@ -488,6 +502,42 @@ Każdy kolektor składa się z 4 plików:
 - **Emituje:** `EventType.NEW_PDUFA_EVENT`
 - **Cykl:** Co 6 godzin + natychmiastowy pierwszy run po starcie
 - **Dodatkowa rola:** `buildPdufaContext()` — buduje tekst kontekstu PDUFA wstrzykiwany do prompta Claude Sonnet (Context Layer)
+
+---
+
+### Options Flow (`src/collectors/options-flow/` + `src/options-flow/`)
+
+Detekcja anomalii w wolumenie opcji na tickerach healthcare. Kolektor pobiera dane EOD z Polygon.io, detector wykrywa spike'i, scoring oblicza conviction, alert service wysyła na Telegram.
+
+#### Kolektor (`src/collectors/options-flow/`)
+
+#### `options-flow.service.ts`
+**Co robi:** Extends `BaseCollectorService`. Fetch Polygon API: reference/contracts (aktywne opcje) + daily aggregates (volume). Rate limit 12.5s między requestami. Filtr: DTE ≤ 60, OTM ≤ 30%.
+**Zapisuje do:** `options_flow`, `options_volume_baseline`
+**Emituje:** `EventType.NEW_OPTIONS_FLOW` per ticker z wykrytymi anomaliami
+
+#### `unusual-activity-detector.ts`
+**Co robi:** Pure functions (bez side effects): `filterContracts()`, `detectSpike()` (volume ≥ 3× avg20d AND ≥ 100 AND dataPoints ≥ 5), `aggregatePerTicker()` (call/put ratio, headline contract), `updateRollingAverage()`, `calcOtmInfo()`, `calcDte()`.
+
+#### `options-flow.scheduler.ts`
+**Co robi:** CRON `15 22 * * 1-5` (22:15 UTC, pon-pt, po sesji NYSE). Dodaje repeatable job do kolejki `options-flow-collector`.
+
+#### Scoring + Alert (`src/options-flow/`)
+
+#### `options-flow-scoring.service.ts`
+**Co robi:** Heurystyczny scoring conviction (bez GPT). 5 komponentów z wagami:
+- 0.35 × spike ratio (volume/avg, najważniejszy)
+- 0.20 × absolutny volume (skala log)
+- 0.15 × OTM distance
+- 0.15 × DTE (krócej = pilniej)
+- 0.15 × call/put dominance clarity
+**Direction:** callPutRatio > 0.65 → positive, < 0.35 → negative, else mixed (×0.7 penalty)
+**Spike ratio > 1000:** suspicious, conviction ×0.5 (anomalia danych Polygon)
+**PDUFA boost:** ×1.3 gdy nadchodząca data FDA < 30 dni (cap ±1.0)
+
+#### `options-flow-alert.service.ts`
+**Co robi:** `@OnEvent(NEW_OPTIONS_FLOW)` → scoring → rejestracja w CorrelationService (|conviction| ≥ 0.25) → alert Telegram (|conviction| ≥ 0.50 AND pdufaBoosted=true). Priority CRITICAL gdy |conviction| ≥ 0.70.
+**Throttle:** 120 min per (rule, symbol).
 
 ---
 
@@ -871,7 +921,7 @@ AppModule
 
 ---
 
-## Schemat bazy danych (14 tabel)
+## Schemat bazy danych (16 tabel)
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
