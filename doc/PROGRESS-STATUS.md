@@ -593,6 +593,25 @@ Migracja AI pipeline z Azure OpenAI gpt-4o-mini na Anthropic Claude Sonnet, nowy
 - [x] **Dekodowanie encji HTML** — dodane `&#160;`, `&#8217;`, `&#8220;`, `&#8221;` + catch-all `&#\d+;`.
 - [x] **Efekt**: przed fixem Claude dostawał "metadane i strukturę pliku", po fixie — właściwą treść ("Susan H. Alexander, Chief Legal Officer, will depart...").
 
+### Sprint 13: Signal Timeline — widok sekwencji sygnałów per ticker (ukończony 2026-04-05)
+
+Nowy widok chronologicznej sekwencji sygnałów na danym tickerze. Pokazuje delty cenowe między sygnałami, odstępy czasowe, zgodność kierunków i conviction score. Fundament pod wstrzykiwanie historii do promptu AI (Task 03).
+
+#### 13.1 Backend: 2 nowe endpointy
+- [x] **`GET /api/alerts/timeline`** — sekwencja alertów per ticker z window functions (LAG). Parametry: `symbol` (wymagany), `days` (domyślnie 30), `limit` (domyślnie 50). Zwraca: alerty + `priceDeltaFromPrevPct`, `hoursSincePrev`, `sameDirectionAsPrev`, `directionCorrect1d`, `conviction` (wyciągnięty z message regex z MarkdownV2 unescaping). Summary: `totalAlerts`, `avgHoursBetween`, `directionConsistency` (%), `hitRate1d` (%), `dominantDirection`.
+- [x] **`GET /api/alerts/timeline/symbols`** — tickery z >=2 alertami w ostatnich N dni, posortowane po ilości. Do dropdown na froncie.
+
+#### 13.2 Frontend: komponent SignalTimeline + nowa zakładka
+- [x] **`SignalTimeline.tsx`** — MUI Autocomplete (dropdown tickerów), ToggleButtons (7/14/30/60/90d), summary bar (consistency %, hit rate, avg gap), pionowa lista kart sygnałów.
+- [x] **Karty sygnałów** — kierunek (▲/▼), reguła, catalyst type, conviction chip (kolor wg siły: >=0.7 czerwony, >=0.4 pomarańczowy), cena + delty 1h/4h/1d/3d, trafność (✓/✗).
+- [x] **Gap separatory** — między kartami: zielony border (zgodny kierunek = pattern się buduje), czerwony (sprzeczny = mixed signal). Czas gap + delta cenowa od poprzedniego.
+- [x] **Rozwijane karty** — kliknięcie → rozwinięcie → "Pokaż pełną treść alertu" (TextDialog).
+- [x] **Nowa zakładka** "Signal Timeline" w App.tsx (między Dashboard a System Logs). Auto-refresh 60s.
+
+#### 13.3 Conviction score na timeline
+- [x] **Ekstrakcja conviction z message** — regex z MarkdownV2 unescaping (`\\.` → `.`, `\\-` → `-`). Obsługuje wszystkie typy alertów (Form 4, 8-K, Options, Correlated).
+- [x] **Chip conviction** — widoczna różnica między granicznym conv=-0.50 (pomarańczowy) a silnym conv=+0.74 (czerwony border).
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
