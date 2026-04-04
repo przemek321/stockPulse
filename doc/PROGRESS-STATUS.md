@@ -40,7 +40,7 @@
 - [x] Tabele tworzone automatycznie przez `synchronize: true`
 
 ### Krok 3: Kolejki BullMQ
-- [x] `src/queues/` — 6 kolejek (4 kolektory + sentiment + alerts)
+- [x] `src/queues/` — 8 kolejek (6 kolektorów + sentiment + alerts)
 - [x] Połączenie z Redis, domyślne retry (3 próby, exponential backoff)
 
 ### Krok 4: Kolektory danych
@@ -255,12 +255,13 @@ Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami +
   - Scorer: `scoreToAlertPriority()`, `mapToRuleName()`
   - Walidacja Zod z retry 1x, `SecFilingAnalysisSchema`
 - [x] **CorrelationModule** (`src/correlation/`) — detekcja wzorców między źródłami:
-  - `CorrelationService` (~400 linii) — 5 detektorów wzorców:
-    - `detectInsiderPlus8K` — Form 4 (z `signals:insider`) + 8-K (z `signals:short`) w ciągu 24h
-    - `detectFilingConfirmsNews` — news → 8-K w 48h (catalyst_type `'unknown'` ignorowany przy matchowaniu)
-    - `detectMultiSourceConvergence` — 3+ kategorie źródeł, ten sam kierunek, 24h
-    - `detectInsiderCluster` — 2+ Form 4 jednego tickera w 7 dni
-    - `detectEscalatingSignal` — rosnąca conviction w 72h, min |conviction| > 0.25
+  - `CorrelationService` (~400 linii) — 6 detektorów wzorców (**3 aktywne**, 3 wyłączone Sprint 11):
+    - `detectInsiderPlus8K` — Form 4 + 8-K w ciągu 24h (**AKTYWNY**)
+    - `detectInsiderCluster` — 2+ Form 4 jednego tickera w 7 dni (**AKTYWNY**)
+    - `detectInsiderPlusOptions` — Form 4 + unusual options w 72h (**AKTYWNY**, Sprint 10)
+    - ~~`detectFilingConfirmsNews`~~ — news → 8-K w 48h (WYŁĄCZONY Sprint 11 — wymaga sentymentu)
+    - ~~`detectMultiSourceConvergence`~~ — 3+ kategorie źródeł, 24h (WYŁĄCZONY Sprint 11)
+    - ~~`detectEscalatingSignal`~~ — rosnąca conviction w 72h (WYŁĄCZONY Sprint 11)
   - Redis Sorted Sets z `ZREMRANGEBYSCORE` (fix: prawidłowe czyszczenie starych danych)
   - Debounce 10s per ticker, deduplikacja Redis, throttling per pattern type
   - `aggregateConviction()` — bazowy najsilniejszy + 20% boost/źródło, cap 1.0
@@ -289,7 +290,7 @@ Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami +
   - 5 promptów SEC (Form 4, 8-K Items 1.01/2.02/5.02/other) — `summary`, `conclusion`, `key_facts` po polsku
   - processor.js (Azure VM) — pole `summary` po polsku
 - [x] **Kalibracja conviction w promptach SEC** — skala CONVICTION SCALE per typ filingu:
-  - Form 4: rutynowe 10b5-1 = ±0.1-0.3, klaster insiderski = ±0.9-1.2, ekstremalnie = ±1.7-2.0
+  - Form 4: rutynowe 10b5-1 = ±0.1-0.4, klaster insiderski = ±0.9-1.2, ekstremalnie = ±1.7-2.0
   - 8-K 2.02 (earnings): in-line = ±0.1-0.4, duży beat/miss + guidance = ±1.3-1.6
   - 8-K 5.02 (leadership): planowana emerytura = ±0.1-0.3, nagłe odejście CEO = ±0.8-1.2
   - 8-K 1.01 (kontrakty): rutynowy kontrakt = ±0.3-0.6, transformacyjna umowa = ±1.3-1.6
@@ -723,14 +724,14 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 
 ## Kluczowe liczby
 
-- **Tickery do monitorowania**: ~37 healthcare (zdefiniowane w healthcare-universe.json)
-- **Słowa kluczowe**: 180+
+- **Tickery do monitorowania**: 42 healthcare (zdefiniowane w healthcare-universe.json, metadata mówi 42)
+- **Słowa kluczowe**: 201
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
 - **Reguły alertów**: 19 total — **7 aktywnych** (Form 4 Insider Signal, 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, 8-K Bankruptcy, Correlated Signal, Unusual Options Activity), **12 wyłączonych** (isActive=false — sentyment, niezaimplementowane)
 - **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome + priceAtAlert, sentiment_scores, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
 - **Kolejki BullMQ**: 8 (6 kolektorów + sentiment-analysis + alerts) — StockTwits/Finnhub schedulery wyłączone
-- **Endpointy REST**: ~25 (health x5, tickers x2, sentiment x7, alerts x6 incl. timeline, sec-filings x1, system-logs x1, options-flow x3)
+- **Endpointy REST**: 26 (health x5, tickers x2, sentiment x9, alerts x6 incl. timeline, sec-filings x1, system-logs x1, options-flow x3)
 - **Źródła danych**: **3 aktywne kolektory** (SEC EDGAR, PDUFA.bio, Polygon.io Options Flow), **3 wyłączone** (StockTwits, Finnhub news/MSPR, Reddit placeholder). Finnhub `/quote` zachowany.
 - **Modele AI**: **Anthropic Claude Sonnet** (`claude-sonnet-4-6`, SDK `@anthropic-ai/sdk`) — bezpośrednio z NestJS (Sprint 12). FinBERT sidecar (kontener działa, nie otrzymuje jobów). Azure VM (`74.248.113.3:3100`) na standby jako fallback.
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin). Azure VM na standby (PM2: processor.js + api.js)

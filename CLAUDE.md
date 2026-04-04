@@ -82,7 +82,7 @@ Działający system end-to-end w 6 kontenerach Docker. Po Sprint 11 system skupi
    - **AlertEvaluator**: 7 aktywnych reguł, 12 wyłączonych. Per-symbol daily limit 5 alertów. Throttling per (rule, symbol, catalyst_type). `onSentimentScored()` i `onInsiderTrade()` mają early return (Sprint 11 — reguły sentymentowe i Insider Trade Large wyłączone). Martwy kod insider aggregation usunięty (InsiderBatch, flushInsiderBatch, insiderBatches).
    - **WYŁĄCZONE (Sprint 11)**: FinBERT sidecar (kontener działa ale nie otrzymuje jobów), sentiment pipeline (listener bez @OnEvent), 6 reguł sentymentowych + Insider Trade Large (isActive=false, early return w handlerach).
 3. **Warstwa danych** — PostgreSQL z 14 tabelami (w tym `options_flow`, `options_volume_baseline`, alerts z 7 polami price outcome), Redis dla kolejek BullMQ + Sorted Sets (korelacje). TypeORM z `synchronize: true`.
-4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z MUI Tabs (Dashboard + Signal Timeline + System Logs). Panel Status Systemu (kolektory, błędy, pipeline). Signal Timeline (`/api/alerts/timeline`) — sekwencja sygnałów per ticker z deltami cenowymi, gap czasowym, conviction, zgodność kierunków. Alerty Telegram po polsku. REST API (~25 endpointów) na :3000.
+4. **Warstwa dostarczania** — Dashboard React (MUI 5 + Recharts) na :3001 z MUI Tabs (Dashboard + Signal Timeline + System Logs). Panel Status Systemu (kolektory, błędy, pipeline). Signal Timeline (`/api/alerts/timeline`) — sekwencja sygnałów per ticker z deltami cenowymi, gap czasowym, conviction, zgodność kierunków. Alerty Telegram po polsku. REST API (26 endpointów) na :3000.
 
 ### Stack technologiczny
 
@@ -104,7 +104,7 @@ Działający system end-to-end w 6 kontenerach Docker. Po Sprint 11 system skupi
 
 ### Healthcare Universe
 
-[doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) definiuje zakres monitoringu: ~37 tickerów healthcare (wg podsektora), 180+ słów kluczowych, 18 subredditów i 17 reguł alertów z priorytetami (w tym SEC Filing GPT Pipeline + Correlated Signal).
+[doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) definiuje zakres monitoringu: 42 tickery healthcare (wg podsektora), 201 słów kluczowych, 18 subredditów i 19 reguł alertów (7 aktywnych, 12 wyłączonych).
 
 ### Dokumentacja szczegółowa
 
