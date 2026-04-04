@@ -306,6 +306,54 @@ export const fetchOptionsFlowStats = () =>
     '/options-flow/stats',
   );
 
+/* ── Signal Timeline ────────────────────── */
+
+export interface TimelineAlert {
+  id: number;
+  symbol: string;
+  ruleName: string;
+  priority: string;
+  alertDirection: 'positive' | 'negative' | null;
+  catalystType: string | null;
+  message: string;
+  priceAtAlert: number | null;
+  price1h: number | null;
+  price4h: number | null;
+  price1d: number | null;
+  price3d: number | null;
+  sentAt: string;
+  priceDeltaFromPrevPct: number | null;
+  hoursSincePrev: number | null;
+  sameDirectionAsPrev: boolean | null;
+  directionCorrect1d: boolean | null;
+}
+
+export interface TimelineSummary {
+  totalAlerts: number;
+  avgHoursBetween: number | null;
+  directionConsistency: number | null;
+  hitRate1d: number | null;
+  dominantDirection: 'positive' | 'negative' | 'mixed';
+}
+
+export interface TimelineResponse {
+  symbol: string;
+  alerts: TimelineAlert[];
+  summary: TimelineSummary;
+}
+
+export interface TimelineSymbol {
+  symbol: string;
+  alertCount: number;
+  lastAlert: string;
+}
+
+export const fetchTimeline = (symbol: string, days = 30, limit = 50) =>
+  get<TimelineResponse>(`/alerts/timeline?symbol=${symbol}&days=${days}&limit=${limit}`);
+
+export const fetchTimelineSymbols = (days = 30) =>
+  get<{ symbols: TimelineSymbol[] }>(`/alerts/timeline/symbols?days=${days}`);
+
 /* ── Price Outcome Tracker ──────────────── */
 
 export interface AlertOutcome {

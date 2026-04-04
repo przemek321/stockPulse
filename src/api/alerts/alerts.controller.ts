@@ -1,11 +1,11 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull } from 'typeorm';
+import { Repository, Not, IsNull, DataSource } from 'typeorm';
 import { Alert, AlertRule } from '../../entities';
 import { PriceOutcomeService } from '../../price-outcome/price-outcome.service';
 
 /**
- * GET /api/alerts — historia alertów i reguły.
+ * GET /api/alerts — historia alertów, reguły, timeline sygnałów.
  */
 @Controller('alerts')
 export class AlertsController {
@@ -15,6 +15,7 @@ export class AlertsController {
     @InjectRepository(AlertRule)
     private readonly ruleRepo: Repository<AlertRule>,
     private readonly priceOutcome: PriceOutcomeService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -121,6 +122,125 @@ export class AlertsController {
     });
 
     return { count: outcomes.length, outcomes };
+  }
+
+  /**
+   * Timeline sygnałów per ticker — chronologiczna sekwencja alertów
+   * z deltami cenowymi między sygnałami, odstępami czasowymi i trafnością.
+   * ?symbol=GILD (required) &days=30 &limit=50
+   */
+  @Get('timeline')
+  async getTimeline(
+    @Query('symbol') symbol?: string,
+    @Query('days') daysParam?: string,
+    @Query('limit') limitParam?: string,
+  ) {
+    if (!symbol) return { error: 'symbol is required' };
+
+    const sym = symbol.toUpperCase();
+    const days = Math.max(1, Math.min(parseInt(daysParam || '30', 10) || 30, 365));
+    const limit = Math.max(1, Math.min(parseInt(limitParam || '50', 10) || 50, 200));
+
+    const rows = await this.dataSource.query(`
+      SELECT
+        id,
+        symbol,
+        "ruleName",
+        priority,
+        "alertDirection",
+        "catalystType",
+        message,
+        "priceAtAlert",
+        price1h, price4h, price1d, price3d,
+        "sentAt",
+        CASE
+          WHEN LAG("priceAtAlert") OVER w IS NOT NULL AND LAG("priceAtAlert") OVER w > 0
+          THEN ROUND(("priceAtAlert" / LAG("priceAtAlert") OVER w - 1) * 100, 2)
+          ELSE NULL
+        END AS "priceDeltaFromPrevPct",
+        EXTRACT(EPOCH FROM ("sentAt" - LAG("sentAt") OVER w)) / 3600 AS "hoursSincePrev",
+        CASE
+          WHEN LAG("alertDirection") OVER w IS NOT NULL AND "alertDirection" IS NOT NULL
+          THEN LAG("alertDirection") OVER w = "alertDirection"
+          ELSE NULL
+        END AS "sameDirectionAsPrev",
+        CASE
+          WHEN price1d IS NOT NULL AND "priceAtAlert" IS NOT NULL AND "alertDirection" IS NOT NULL
+          THEN CASE
+            WHEN "alertDirection" = 'positive' AND price1d > "priceAtAlert" THEN true
+            WHEN "alertDirection" = 'negative' AND price1d < "priceAtAlert" THEN true
+            ELSE false
+          END
+          ELSE NULL
+        END AS "directionCorrect1d"
+      FROM alerts
+      WHERE symbol = $1
+        AND "priceAtAlert" IS NOT NULL
+        AND "sentAt" > NOW() - INTERVAL '1 day' * $2
+      WINDOW w AS (PARTITION BY symbol ORDER BY "sentAt")
+      ORDER BY "sentAt" DESC
+      LIMIT $3
+    `, [sym, days, limit]);
+
+    const alerts = rows.map((r: any) => ({
+      ...r,
+      priceAtAlert: r.priceAtAlert != null ? Number(r.priceAtAlert) : null,
+      price1h: r.price1h != null ? Number(r.price1h) : null,
+      price4h: r.price4h != null ? Number(r.price4h) : null,
+      price1d: r.price1d != null ? Number(r.price1d) : null,
+      price3d: r.price3d != null ? Number(r.price3d) : null,
+      priceDeltaFromPrevPct: r.priceDeltaFromPrevPct != null ? Number(r.priceDeltaFromPrevPct) : null,
+      hoursSincePrev: r.hoursSincePrev != null ? Math.round(Number(r.hoursSincePrev) * 10) / 10 : null,
+    }));
+
+    // Summary
+    const directions = alerts.filter((a: any) => a.alertDirection).map((a: any) => a.alertDirection);
+    const positive = directions.filter((d: string) => d === 'positive').length;
+    const negative = directions.filter((d: string) => d === 'negative').length;
+    const totalDir = directions.length;
+    const consistency = totalDir > 0 ? Math.round(Math.max(positive, negative) / totalDir * 100) : null;
+    const dominant = positive > negative ? 'positive' : negative > positive ? 'negative' : 'mixed';
+
+    const correct = alerts.filter((a: any) => a.directionCorrect1d === true).length;
+    const evaluated = alerts.filter((a: any) => a.directionCorrect1d != null).length;
+    const hitRate = evaluated > 0 ? Math.round(correct / evaluated * 100) : null;
+
+    const gaps = alerts.filter((a: any) => a.hoursSincePrev != null).map((a: any) => a.hoursSincePrev);
+    const avgGap = gaps.length > 0 ? Math.round(gaps.reduce((s: number, v: number) => s + v, 0) / gaps.length * 10) / 10 : null;
+
+    return {
+      symbol: sym,
+      alerts,
+      summary: {
+        totalAlerts: alerts.length,
+        avgHoursBetween: avgGap,
+        directionConsistency: consistency,
+        hitRate1d: hitRate,
+        dominantDirection: dominant,
+      },
+    };
+  }
+
+  /**
+   * Tickery z alertami — do dropdown na froncie Signal Timeline.
+   * Zwraca tickery z >= 2 alertami w ostatnich N dni, posortowane po ilości alertów.
+   */
+  @Get('timeline/symbols')
+  async getTimelineSymbols(@Query('days') daysParam?: string) {
+    const days = Math.max(1, Math.min(parseInt(daysParam || '30', 10) || 30, 365));
+
+    const rows = await this.dataSource.query(`
+      SELECT symbol, COUNT(*)::int AS "alertCount",
+        MAX("sentAt") AS "lastAlert"
+      FROM alerts
+      WHERE "priceAtAlert" IS NOT NULL
+        AND "sentAt" > NOW() - INTERVAL '1 day' * $1
+      GROUP BY symbol
+      HAVING COUNT(*) >= 2
+      ORDER BY COUNT(*) DESC
+    `, [days]);
+
+    return { symbols: rows };
   }
 
   /**

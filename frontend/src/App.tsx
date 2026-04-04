@@ -21,6 +21,8 @@ import SystemLogsTab from './components/SystemLogsTab';
 import PriceOutcomePanel from './components/PriceOutcomePanel';
 import JetsonStatsBar from './components/JetsonStatsBar';
 import SystemHealthPanel from './components/SystemHealthPanel';
+import SignalTimeline from './components/SignalTimeline';
+import TimelineIcon from '@mui/icons-material/Timeline';
 
 /** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
 const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
@@ -134,6 +136,7 @@ export default function App() {
         sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" />
+        <Tab icon={<TimelineIcon />} iconPosition="start" label="Signal Timeline" />
         <Tab icon={<TerminalIcon />} iconPosition="start" label="System Logs" />
       </Tabs>
 
@@ -825,7 +828,11 @@ export default function App() {
       )}
 
       {/* Tab 1: System Logs */}
-      {activeTab === 1 && <SystemLogsTab />}
+      {/* Tab 1: Signal Timeline */}
+      {activeTab === 1 && <SignalTimeline />}
+
+      {/* Tab 2: System Logs */}
+      {activeTab === 2 && <SystemLogsTab />}
     </Container>
   );
 }
