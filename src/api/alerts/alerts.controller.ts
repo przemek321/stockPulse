@@ -153,6 +153,11 @@ export class AlertsController {
         "priceAtAlert",
         price1h, price4h, price1d, price3d,
         "sentAt",
+        -- Conviction wyciągnięty z message (MarkdownV2 escaping: "Conviction: 0\.505")
+        (regexp_match(
+          replace(replace(message, E'\\\\.', '.'), E'\\\\-', '-'),
+          'Conviction:\\s*([+-]?\\d+\\.?\\d*)', 'i'
+        ))[1]::numeric AS conviction,
         CASE
           WHEN LAG("priceAtAlert") OVER w IS NOT NULL AND LAG("priceAtAlert") OVER w > 0
           THEN ROUND(("priceAtAlert" / LAG("priceAtAlert") OVER w - 1) * 100, 2)
@@ -189,6 +194,7 @@ export class AlertsController {
       price4h: r.price4h != null ? Number(r.price4h) : null,
       price1d: r.price1d != null ? Number(r.price1d) : null,
       price3d: r.price3d != null ? Number(r.price3d) : null,
+      conviction: r.conviction != null ? Number(r.conviction) : null,
       priceDeltaFromPrevPct: r.priceDeltaFromPrevPct != null ? Number(r.priceDeltaFromPrevPct) : null,
       hoursSincePrev: r.hoursSincePrev != null ? Math.round(Number(r.hoursSincePrev) * 10) / 10 : null,
     }));

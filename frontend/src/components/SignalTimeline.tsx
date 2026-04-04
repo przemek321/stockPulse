@@ -217,6 +217,19 @@ export default function SignalTimeline() {
                 {a.catalystType && (
                   <Chip label={a.catalystType} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
                 )}
+                {a.conviction != null && (
+                  <Chip
+                    label={`conv: ${a.conviction > 0 ? '+' : ''}${a.conviction.toFixed(2)}`}
+                    size="small"
+                    sx={{
+                      height: 18, fontSize: '0.65rem', fontWeight: 700,
+                      bgcolor: Math.abs(a.conviction) >= 0.7 ? 'rgba(239,83,80,0.15)' : Math.abs(a.conviction) >= 0.4 ? 'rgba(255,167,38,0.15)' : 'rgba(255,255,255,0.05)',
+                      color: a.conviction > 0 ? '#66bb6a' : a.conviction < 0 ? '#ef5350' : '#999',
+                      border: '1px solid',
+                      borderColor: Math.abs(a.conviction) >= 0.7 ? 'rgba(239,83,80,0.3)' : 'rgba(255,255,255,0.1)',
+                    }}
+                  />
+                )}
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>

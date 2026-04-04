@@ -321,6 +321,7 @@ export interface TimelineAlert {
   price4h: number | null;
   price1d: number | null;
   price3d: number | null;
+  conviction: number | null;
   sentAt: string;
   priceDeltaFromPrevPct: number | null;
   hoursSincePrev: number | null;
