@@ -8,6 +8,7 @@ import { NewsArticle } from '../entities/news-article.entity';
 import { AiPipelineLog } from '../entities/ai-pipeline-log.entity';
 import { FinbertClientService } from './finbert-client.service';
 import { AzureOpenaiClientService } from './azure-openai-client.service';
+import { AnthropicClientService } from './anthropic-client.service';
 import { SentimentListenerService } from './sentiment-listener.service';
 import { SentimentProcessorService } from './sentiment-processor.service';
 import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
@@ -19,7 +20,8 @@ import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
  *
  * Serwisy:
  * - FinbertClientService — HTTP klient do FinBERT sidecar (1. etap: szybka analiza)
- * - AzureOpenaiClientService — klient Azure OpenAI gpt-4o-mini (2. etap: niuansowa analiza)
+ * - AnthropicClientService — klient Anthropic Claude Sonnet (2. etap: niuansowa analiza)
+ * - AzureOpenaiClientService — alias → AnthropicClientService (backward compatible)
  * - SentimentListenerService — nasłuchuje eventów NEW_MENTION/NEW_ARTICLE
  * - SentimentProcessorService — BullMQ processor kolejki sentiment-analysis
  */
@@ -31,7 +33,15 @@ import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
   ],
   providers: [
     FinbertClientService,
-    AzureOpenaiClientService,
+    AnthropicClientService,
+    // Provider alias: kto wstrzykuje AzureOpenaiClientService, dostaje AnthropicClientService.
+    // Dzięki temu Form4Pipeline, Form8kPipeline i SentimentProcessorService
+    // nie wymagają żadnych zmian — inject po typie działa transparentnie.
+    // Rollback: zamień useExisting na useClass: AzureOpenaiClientService
+    {
+      provide: AzureOpenaiClientService,
+      useExisting: AnthropicClientService,
+    },
     SentimentListenerService,
     SentimentProcessorService,
   ],
