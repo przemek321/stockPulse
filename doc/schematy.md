@@ -1,7 +1,7 @@
 # StockPulse — Schemat struktury katalogów
 
 > Szczegółowy opis każdego pliku, co robi i z czym jest powiązany.
-> Ostatnia aktualizacja: 2026-03-17
+> Ostatnia aktualizacja: 2026-04-05
 
 ## Drzewo katalogów
 
@@ -24,13 +24,13 @@ stockPulse/
 │   │
 │   ├── entities/                           # Encje (tabele bazy danych)
 │   │   ├── index.ts                        # Re-eksport wszystkich encji
-│   │   ├── ticker.entity.ts                # ~42 tickery healthcare
+│   │   ├── ticker.entity.ts                # ~37 tickery healthcare
 │   │   ├── sentiment-score.entity.ts       # Wyniki sentymentu (time-series)
 │   │   ├── raw-mention.entity.ts           # Surowe wzmianki (Reddit, StockTwits)
 │   │   ├── news-article.entity.ts          # Artykuły newsowe (Finnhub)
 │   │   ├── sec-filing.entity.ts            # Filingi SEC (8-K, 10-Q, Form 4)
 │   │   ├── insider-trade.entity.ts         # Transakcje insiderów
-│   │   ├── alert.entity.ts                 # Historia alertów + Price Outcome (7 pól cenowych)
+│   │   ├── alert.entity.ts                 # Historia alertów + Price Outcome (7 pól cenowych, kolumna archived usunięta)
 │   │   ├── alert-rule.entity.ts            # Reguły generowania alertów
 │   │   ├── collection-log.entity.ts        # Logi cykli zbierania danych
 │   │   ├── pdufa-catalyst.entity.ts       # Katalizatory PDUFA (decyzje FDA)
@@ -44,7 +44,7 @@ stockPulse/
 │   │   ├── decorators/
 │   │   │   └── logged.decorator.ts          # @Logged(module) — automatyczne logowanie metod
 │   │   ├── utils/
-│   │   │   └── market-hours.util.ts          # isNyseOpen() — godziny sesji NYSE (pon-pt 9:30-16:00 ET, auto DST)
+│   │   │   └── market-hours.util.ts          # isNyseOpen() + getEffectiveStartTime() — godziny sesji NYSE, sloty od open dla pre-market
 │   │   └── filters/
 │   │       └── http-exception.filter.ts     # Globalny filtr błędów HTTP
 │   │
@@ -53,7 +53,7 @@ stockPulse/
 │   │   └── event-types.ts                  # Enum typów eventów
 │   │
 │   ├── queues/                             # Kolejki zadań BullMQ
-│   │   ├── queue-names.const.ts            # Nazwy 7 kolejek
+│   │   ├── queue-names.const.ts            # Nazwy 8 kolejek (+ options-flow-collector)
 │   │   └── queues.module.ts                # Rejestracja kolejek + Redis
 │   │
 │   ├── collectors/                         # Warstwa 1: Zbieranie danych
@@ -89,11 +89,12 @@ stockPulse/
 │   │       └── pdufa-parser.ts             # Parser HTML tabeli kalendarza PDUFA
 │   │
 │   ├── sentiment/                          # Warstwa 2: Analiza sentymentu (2-etapowy pipeline)
-│   │   ├── sentiment.module.ts             # Moduł zbiorczy (encje, kolejka, serwisy)
+│   │   ├── sentiment.module.ts             # Moduł zbiorczy + provider alias (Azure→Anthropic)
 │   │   ├── finbert-client.service.ts       # HTTP klient do FinBERT sidecar (1. etap)
-│   │   ├── azure-openai-client.service.ts  # HTTP klient do Azure VM gpt-4o-mini (2. etap)
-│   │   ├── sentiment-listener.service.ts   # Nasłuchuje eventów → dodaje joby
-│   │   └── sentiment-processor.service.ts  # BullMQ processor → FinBERT → eskalacja LLM → zapis + log pipeline
+│   │   ├── anthropic-client.service.ts     # Klient Anthropic Claude Sonnet (2. etap — Sprint 12)
+│   │   ├── azure-openai-client.service.ts  # Provider alias → AnthropicClientService (backward compatible)
+│   │   ├── sentiment-listener.service.ts   # Nasłuchuje eventów → dodaje joby (Sprint 11: @OnEvent wyłączone)
+│   │   └── sentiment-processor.service.ts  # BullMQ processor → FinBERT → eskalacja LLM (Sprint 11: nieaktywny)
 │   │
 │   ├── sec-filings/                        # Warstwa 2b: Pipeline GPT dla SEC filingów
 │   │   ├── sec-filings.module.ts           # Moduł zbiorczy (pipelines, prompts, daily cap)
@@ -122,18 +123,18 @@ stockPulse/
 │   │
 │   ├── correlation/                        # Warstwa 3: Detekcja wzorców cross-source
 │   │   ├── correlation.module.ts           # Moduł (eksportuje CorrelationService)
-│   │   ├── correlation.service.ts          # 5 detektorów wzorców, Redis Sorted Sets
+│   │   ├── correlation.service.ts          # 6 detektorów wzorców (3 aktywne, 3 wyłączone), Redis Sorted Sets
 │   │   ├── redis.provider.ts              # Osobna instancja Redis (keyPrefix: 'corr:')
 │   │   └── types/
 │   │       └── correlation.types.ts       # StoredSignal, CorrelationPattern — interfejsy
 │   │
 │   ├── price-outcome/                      # Warstwa 3b: Price Outcome Tracker
 │   │   ├── price-outcome.module.ts         # Moduł (Alert repo + FinnhubModule)
-│   │   └── price-outcome.service.ts        # CRON co 1h — uzupełnia price1h/4h/1d/3d (tylko gdy NYSE otwarta)
+│   │   └── price-outcome.service.ts        # CRON co 1h — uzupełnia price1h/4h/1d/3d (NYSE open, sloty od getEffectiveStartTime)
 │   │
 │   ├── alerts/                             # Warstwa 4: Powiadomienia
 │   │   ├── alerts.module.ts                # Moduł alertów
-│   │   ├── alert-evaluator.service.ts      # 6 reguł niezależnych, decyzje w logach, cache reguł (TTL 5min), OnModuleDestroy
+│   │   ├── alert-evaluator.service.ts      # 7 aktywnych reguł, early return onSentimentScored/onInsiderTrade (Sprint 11), cache reguł TTL 5min
 │   │   ├── summary-scheduler.service.ts    # Raport sentymentu co 2h na Telegram
 │   │   └── telegram/
 │   │       ├── telegram.module.ts          # Wydzielony TelegramModule (unikanie circular dep)
@@ -143,15 +144,18 @@ stockPulse/
 │   └── api/                                # REST API kontrolery
 │       ├── api.module.ts                   # Zbiorczy moduł API
 │       ├── health/
-│       │   └── health.controller.ts        # GET /api/health, GET /api/health/stats
+│       │   ├── health.controller.ts        # GET /health, /health/stats, /health/system-overview, /health/weekly-report, /health/system-stats
+│       │   └── system-stats.service.ts     # Statystyki Jetsona (temp, RAM, CPU, GPU)
 │       ├── tickers/
 │       │   └── tickers.controller.ts       # GET /api/tickers
 │       ├── sentiment/
 │       │   └── sentiment.controller.ts     # GET /api/sentiment/* (5 endpointów)
 │       ├── system-logs/
 │       │   └── system-logs.controller.ts   # GET /api/system-logs (z filtrami)
-│       └── alerts/
-│           └── alerts.controller.ts        # GET /api/alerts, GET /api/alerts/outcomes
+│       ├── alerts/
+│       │   └── alerts.controller.ts        # GET /alerts, /alerts/rules, /alerts/outcomes, /alerts/timeline, /alerts/timeline/symbols
+│       └── options-flow/
+│           └── options-flow.controller.ts  # GET /options-flow, /options-flow/stats, POST /options-flow/backfill
 │
 ├── finbert-sidecar/                        # FinBERT sidecar — Python FastAPI (GPU/CPU)
 │   ├── Dockerfile                          # Obraz GPU (CUDA + PyTorch)
@@ -171,20 +175,22 @@ stockPulse/
 │   ├── tsconfig.json                       # TypeScript frontend
 │   └── src/
 │       ├── main.tsx                        # Punkt wejścia React
-│       ├── App.tsx                         # Layout główny (MUI Tabs: Dashboard + System Logs, 12+ paneli)
-│       ├── api.ts                          # Klient HTTP do backendu (/api/*, fetchAiScores, fetchPipelineLogs, fetchSystemLogs)
+│       ├── App.tsx                         # Layout główny (MUI Tabs: Dashboard + Signal Timeline + System Logs)
+│       ├── api.ts                          # Klient HTTP (/api/*, fetchTimeline, fetchSystemOverview, fetchOptionsFlow itd.)
 │       ├── vite-env.d.ts                   # Typy Vite
 │       └── components/
 │           ├── CollectorStatus.tsx          # Status kolektorów (health + countdown, ukryty Reddit)
 │           ├── DataPanel.tsx                # Panel danych (tabela z sortowaniem)
 │           ├── DbSummary.tsx               # Podsumowanie bazy (totale per tabela)
-│           ├── SentimentChart.tsx           # Wykres sentymentu Recharts (fioletowe AI dots)
+│           ├── SentimentChart.tsx           # Wykres sentymentu Recharts (Sprint 11: nieużywany)
 │           ├── SystemLogsTab.tsx           # Zakładka System Logs (filtry, tabela, export JSON)
+│           ├── SystemHealthPanel.tsx       # Panel Status Systemu (kolektory, błędy, alerty, pipeline)
+│           ├── SignalTimeline.tsx          # Signal Timeline — sekwencja sygnałów per ticker
 │           ├── JetsonStatsBar.tsx         # Pasek statystyk Jetsona (temp, RAM, CPU, GPU)
 │           └── PriceOutcomePanel.tsx      # Panel "Trafność Alertów" (ceny, delty %, hit rate)
 │
-├── azure-api/                              # Azure VM — gpt-4o-mini analysis service (osobne repo)
-│   ├── processor.js                       # POST /analyze — gpt-4o-mini eskalacja (PM2, port 3100)
+├── azure-api/                              # Azure VM — legacy gpt-4o-mini (STANDBY od Sprint 12)
+│   ├── processor.js                       # POST /analyze — gpt-4o-mini (nieaktywny, zastąpiony Claude Sonnet)
 │   ├── api.js                             # Signals API (PM2, port 8000)
 │   └── ecosystem.config.js               # PM2 konfiguracja (2 procesy)
 │
@@ -193,7 +199,7 @@ stockPulse/
 │
 ├── test/                                   # Testy (Jest + ts-jest)
 │   ├── unit/                              # Testy jednostkowe
-│   │   ├── alert-evaluator.spec.ts         # 21 testów: sendAlert, cache reguł, throttling, insider batches
+│   │   ├── alert-evaluator.spec.ts         # Testy: Sprint 11 early return, cache reguł, throttling
 │   │   ├── correlation.spec.ts             # Logika CorrelationService (direction, conviction, detektory)
 │   │   ├── form4-parser.spec.ts            # Parser Form 4 XML
 │   │   ├── form8k-parser.spec.ts           # Parser 8-K (Items, stripHtml)
@@ -222,7 +228,7 @@ stockPulse/
 │   ├── JETSON-SETUP.md                     # Dokumentacja setupu Jetsona
 │   ├── flow-form4-8k-insider.md            # Przepływ Form 4 + 8-K + Insider Trade Large (diagram + 16 sekcji)
 │   ├── schematy.md                         # Ten plik — schemat struktury katalogów
-│   ├── stockpulse-healthcare-universe.json # ~42 tickery, 180 keywords, reguły
+│   ├── stockpulse-healthcare-universe.json # ~37 tickery, 180 keywords, 19 reguł (7 aktywnych, 12 wyłączonych)
 │   ├── stockpulse-architecture.jsx         # Opis architektury warstw (wizualizacja)
 │   └── reports/                            # Raporty tygodniowe i changelogi
 │       ├── 2026-02-24-analiza.md           # Analiza systemu — luty 2026
@@ -258,7 +264,7 @@ stockPulse/
 
 #### `src/app.module.ts`
 **Co robi:** Główny moduł — zbiera wszystkie podmoduły w jednym miejscu.
-**Importuje:** ConfigModule, DatabaseModule, EventsModule, QueuesModule, CollectorsModule, SentimentModule, SecFilingsModule, CorrelationModule, TelegramModule, AlertsModule, ApiModule.
+**Importuje:** ConfigModule, DatabaseModule, SystemLogModule, EventsModule, QueuesModule, CollectorsModule, SentimentModule, SecFilingsModule, CorrelationModule, OptionsFlowModule, AlertsModule, PriceOutcomeModule, ApiModule.
 
 ---
 
@@ -282,7 +288,7 @@ stockPulse/
 **Powiązania:** Ładuje wszystkie encje z `src/entities/`. Zależy od `ConfigModule`.
 
 #### `seeds/seed.ts`
-**Co robi:** Standalone skrypt wypełniający bazę danymi początkowymi: ~42 tickery healthcare + reguły alertów. Idempotentny (upsert `orUpdate`).
+**Co robi:** Standalone skrypt wypełniający bazę danymi początkowymi: ~37 tickery healthcare + 19 reguł alertów (7 aktywnych, 12 wyłączonych). Idempotentny (upsert `orUpdate`).
 **Uruchomienie:** `npm run seed`
 
 #### `seeds/backfill-sentiment.ts`
@@ -300,7 +306,7 @@ Każda encja = jedna tabela w PostgreSQL.
 **Co robi:** Re-eksportuje wszystkie encje z jednego miejsca. Pozwala importować `{ Ticker, Alert } from '../entities'`.
 
 #### `ticker.entity.ts` → tabela `tickers`
-**Co robi:** 32 spółek healthcare do monitorowania. Zawiera symbol, nazwę, CIK (SEC), podsektor, priorytet, aliasy (JSONB), kluczowe metryki (JSONB), CEO, CFO.
+**Co robi:** 37 spółek healthcare do monitorowania. Zawiera symbol, nazwę, CIK (SEC), podsektor, priorytet, aliasy (JSONB), kluczowe metryki (JSONB), CEO, CFO.
 **Używany przez:** Wszystkie kolektory (pobierają listę aktywnych tickerów), `tickers.controller.ts`.
 
 #### `sentiment-score.entity.ts` → tabela `sentiment_scores`
@@ -361,7 +367,7 @@ Każda encja = jedna tabela w PostgreSQL.
 ### Współdzielone (`src/common/`)
 
 #### `interfaces/data-source.enum.ts`
-**Co robi:** Enum `DataSource` z wartościami: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS, PDUFA_BIO.
+**Co robi:** Enum `DataSource` z wartościami: REDDIT, FINNHUB, SEC_EDGAR, STOCKTWITS, PDUFA_BIO, POLYGON.
 **Używany przez:** Encje (`sentiment_scores.source`, `raw_mentions.source`, `collection_logs.collector`), kolektory, `sentiment-listener.service.ts`.
 
 #### `interfaces/collector.interface.ts`
@@ -415,11 +421,11 @@ Globalny moduł logowania wywołań funkcji — singleton pattern z fire-and-for
 ### Kolejki (`src/queues/`)
 
 #### `queue-names.const.ts`
-**Co robi:** Definiuje nazwy 7 kolejek BullMQ: `stocktwits-collector`, `finnhub-collector`, `sec-edgar-collector`, `reddit-collector`, `pdufa-bio`, `sentiment-analysis`, `alert-processing`.
+**Co robi:** Definiuje nazwy 8 kolejek BullMQ: `stocktwits-collector`, `finnhub-collector`, `sec-edgar-collector`, `reddit-collector`, `pdufa-bio-collector`, `sentiment-analysis`, `alert-processing`, `options-flow-collector`.
 **Używany przez:** `queues.module.ts`, moduły kolektorów, schedulery, processory, `sentiment.module.ts`.
 
 #### `queues.module.ts`
-**Co robi:** Konfiguruje BullMQ — połączenie z Redis, domyślne opcje jobów (3 próby, exponential backoff), rejestruje wszystkie 7 kolejek. Eksportuje `BullModule` do użytku w kolektorach.
+**Co robi:** Konfiguruje BullMQ — połączenie z Redis, domyślne opcje jobów (3 próby, exponential backoff), rejestruje wszystkie 8 kolejek. Eksportuje `BullModule` do użytku w kolektorach.
 **Zależy od:** `ConfigService` (REDIS_HOST, REDIS_PORT).
 
 ---
@@ -443,25 +449,16 @@ Każdy kolektor składa się z 4 plików:
 **Dziedziczą:** StocktwitsService, FinnhubService, SecEdgarService, RedditService.
 
 #### `collectors.module.ts`
-**Co robi:** Zbiorczy moduł importujący wszystkie 5 modułów kolektorów (StockTwits, Finnhub, SEC EDGAR, Reddit, PDUFA.bio). Eksportuje je do użytku w `ApiModule` (health controller).
+**Co robi:** Zbiorczy moduł importujący wszystkie 6 modułów kolektorów (StockTwits, Finnhub, SEC EDGAR, Reddit, PDUFA.bio, Options Flow). Eksportuje je do użytku w `ApiModule` (health controller).
 
-#### StockTwits (`stocktwits/`)
-- **API:** `https://api.stocktwits.com/api/2`
-- **Auth:** Brak (publiczne endpointy)
-- **Limit:** ~200 req/hour
-- **Co zbiera:** Stream wiadomości per ticker z wbudowanym sentymentem (Bullish/Bearish)
-- **Zapisuje do:** `raw_mentions`
-- **Emituje:** `EventType.NEW_MENTION` → pipeline sentymentu
-- **Cykl:** Co 5 minut
+#### StockTwits (`stocktwits/`) — **WYŁĄCZONY Sprint 11**
+- **Status:** Scheduler czyści repeatable jobs przy starcie. 77% wolumenu, 0% edge.
+- **Cykl:** Wyłączony (kod zachowany na wypadek reaktywacji)
 
-#### Finnhub (`finnhub/`)
-- **API:** `https://finnhub.io/api/v1`
-- **Auth:** API Key (FINNHUB_API_KEY)
-- **Limit:** 60 req/min (free tier)
-- **Co zbiera:** Newsy spółek (ostatnie 7 dni) + insider sentiment (MSPR)
-- **Zapisuje do:** `news_articles`, `insider_trades`
-- **Emituje:** `EventType.NEW_ARTICLE` → pipeline sentymentu, `EventType.NEW_INSIDER_TRADE` → alert
-- **Cykl:** Co 10 minut
+#### Finnhub (`finnhub/`) — **WYŁĄCZONY Sprint 11** (news/MSPR)
+- **Status:** Scheduler czyści repeatable jobs przy starcie. HFT lag, brak edge.
+- **Zachowany:** `getQuote(symbol)` — endpoint `/quote` używany przez Price Outcome Tracker
+- **Cykl:** Wyłączony (kod zachowany)
 
 #### SEC EDGAR (`sec-edgar/`)
 - **API:** `https://data.sec.gov` + `https://efts.sec.gov/LATEST`
@@ -490,16 +487,16 @@ Każdy kolektor składa się z 4 plików:
 - **Zapisuje do:** `pdufa_catalysts`
 - **Emituje:** `EventType.NEW_PDUFA_EVENT`
 - **Cykl:** Co 6 godzin + natychmiastowy pierwszy run po starcie
-- **Dodatkowa rola:** `buildPdufaContext()` — buduje tekst kontekstu PDUFA wstrzykiwany do prompta GPT-4o-mini (Context Layer)
+- **Dodatkowa rola:** `buildPdufaContext()` — buduje tekst kontekstu PDUFA wstrzykiwany do prompta Claude Sonnet (Context Layer)
 
 ---
 
 ### Analiza sentymentu (`src/sentiment/`)
 
-2-etapowy pipeline: event z kolektora → BullMQ → FinBERT sidecar (1. etap) → eskalacja do gpt-4o-mini (2. etap, opcjonalny) → zapis do bazy → alert.
+2-etapowy pipeline: event z kolektora → BullMQ → FinBERT sidecar (1. etap) → eskalacja do Claude Sonnet (2. etap, opcjonalny) → zapis do bazy → alert. **Sprint 11: pipeline wyłączony** (listener bez @OnEvent). **Sprint 12: migracja z Azure OpenAI gpt-4o-mini na Anthropic Claude Sonnet**.
 
 #### `sentiment.module.ts`
-**Co robi:** Moduł zbiorczy. Rejestruje encje (SentimentScore, RawMention, NewsArticle), kolejkę `sentiment-analysis`. Providerzy: FinbertClientService, AzureOpenaiClientService, SentimentListenerService, SentimentProcessorService. Eksportuje FinbertClientService.
+**Co robi:** Moduł zbiorczy. Provider alias: `AzureOpenaiClientService` → `AnthropicClientService` (backward compatible — Form4Pipeline i Form8kPipeline nie wymagają zmian). Providerzy: FinbertClientService, AnthropicClientService, SentimentListenerService, SentimentProcessorService.
 
 #### `finbert-client.service.ts`
 **Co robi:** HTTP klient do FinBERT sidecar (Python FastAPI). Metody:
@@ -510,18 +507,20 @@ Każdy kolektor składa się z 4 plików:
 **Zwraca:** `FinbertResult` — label (positive/negative/neutral), score (-1.0 do +1.0), confidence, probabilities, processing_time_ms.
 
 #### `sentiment-listener.service.ts`
-**Co robi:** Nasłuchuje eventów z kolektorów i dodaje joby do kolejki `sentiment-analysis`:
-- `@OnEvent(NEW_MENTION)` → job `analyze-mention` (priorytet: Reddit=5, StockTwits=10)
-- `@OnEvent(NEW_ARTICLE)` → job `analyze-article` (priorytet: 3 — najwyższy)
-**Delay:** 500ms na każdy job — pewność że encja jest zapisana w bazie.
+**Co robi:** Nasłuchuje eventów z kolektorów i dodaje joby do kolejki `sentiment-analysis`.
+**Sprint 11: WYŁĄCZONY** — `@OnEvent` skomentowane, handlery logują "POMINIĘTY (Sprint 11)". Zero jobów w kolejce sentiment.
+**Zachowane na wypadek reaktywacji:** `@OnEvent(NEW_MENTION)` → job `analyze-mention`, `@OnEvent(NEW_ARTICLE)` → job `analyze-article`.
 
-#### `azure-openai-client.service.ts`
-**Co robi:** HTTP klient do Azure VM z gpt-4o-mini (2. etap pipeline). Metody:
-- `analyze(text, symbol, escalationReason, pdufaContext?, source?)` — POST `/analyze` (wysyła tekst + opcjonalny kontekst PDUFA + źródło do analizy AI)
-- `isEnabled()` — sprawdza czy `AZURE_ANALYSIS_URL` jest skonfigurowany
-**Konfiguracja:** `AZURE_ANALYSIS_URL` (domyślnie puste — pipeline działa z FinBERT-only), `AZURE_ANALYSIS_TIMEOUT_MS` (domyślnie 30s).
-**Zwraca:** `EnrichedAnalysis` — 16-polowa wielowymiarowa analiza: sentiment, conviction, type, urgency, relevance, novelty, confidence, source_authority, temporal_signal, catalyst_type, price_impact_direction, price_impact_magnitude, summary, escalation_reason, processing_time_ms.
-**Graceful degradation:** Jeśli brak konfiguracji lub błąd HTTP — zwraca null, pipeline kontynuuje z FinBERT-only.
+#### `anthropic-client.service.ts` (NOWY — Sprint 12)
+**Co robi:** Klient Anthropic Claude Sonnet (SDK `@anthropic-ai/sdk`). Bezpośrednie wywołanie API z NestJS — bez pośrednika Azure VM. Metody:
+- `analyzeCustomPrompt(prompt)` — wysyła prompt do Claude, parsuje JSON response
+- `analyze(text, symbol, escalationReason, pdufaContext?, source?)` — wzbogacona analiza sentymentu (kompatybilność z AzureOpenaiClientService)
+- `isEnabled()` — sprawdza czy `ANTHROPIC_API_KEY` jest skonfigurowany
+**Konfiguracja:** `ANTHROPIC_API_KEY` (wymagany), `ANTHROPIC_MODEL` (domyślnie `claude-sonnet-4-6`), `ANTHROPIC_TIMEOUT_MS` (domyślnie 30s).
+**Graceful degradation:** Brak klucza → zwraca null, pipeline bez AI.
+
+#### `azure-openai-client.service.ts` (LEGACY — provider alias od Sprint 12)
+**Co robi:** Provider alias → AnthropicClientService w SentimentModule. Identyczny interfejs (`isEnabled`, `analyze`, `analyzeCustomPrompt`). Form4Pipeline i Form8kPipeline wstrzykują ten typ, ale faktycznie dostają AnthropicClientService. Azure VM (`74.248.113.3:3100`) na standby jako fallback. Rollback: zmiana `useExisting` na `useClass` w module.
 
 #### `sentiment-processor.service.ts`
 **Co robi:** BullMQ processor (Worker) kolejki `sentiment-analysis`. 2-etapowy pipeline z logowaniem:
