@@ -89,6 +89,14 @@ const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: s
 const fmtDate = (v: string | null) =>
   v ? new Date(v).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
+/** Formatowanie daty bez godziny (dla filingow, insider trades) */
+const fmtDateShort = (v: string | null) =>
+  v ? new Date(v).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+/** Usuniecie escapowania MarkdownV2 z wiadomosci Telegram */
+const stripMd = (v: string) =>
+  v?.replace(/\\([_*\[\]()~`>#+\-=|{}.!\\$])/g, '$1') || '';
+
 /** Chip z kolorem wg priorytetu */
 const PriorityChip = ({ value }: { value: string }) => {
   const color =
@@ -256,7 +264,7 @@ export default function App() {
             {
               key: 'filingDate',
               label: 'Data',
-              render: (v: string) => fmtDate(v),
+              render: (v: string) => fmtDateShort(v),
             },
             {
               key: 'documentUrl',
@@ -335,14 +343,17 @@ export default function App() {
             {
               key: 'transactionDate',
               label: 'Data',
-              render: (v: string) => fmtDate(v),
+              render: (v: string) => fmtDateShort(v),
             },
           ]}
           fetchData={async () => {
             const res = await fetch('/api/sentiment/insider-trades?limit=200');
             if (!res.ok) return [];
             const all = (await res.json()).trades || [];
-            return all.filter((t: any) => t.transactionType === 'BUY' || t.transactionType === 'SELL');
+            return all.filter((t: any) =>
+              (t.transactionType === 'BUY' || t.transactionType === 'SELL') &&
+              Number(t.totalValue) >= 100000
+            );
           }}
         />
 
@@ -387,7 +398,8 @@ export default function App() {
               label: 'Wiadomość',
               render: (v: string) => {
                 if (!v) return '—';
-                return <TextDialog label={`${v.slice(0, 80)}${v.length > 80 ? '…' : ''}`} text={v} color="#ffa726" />;
+                const clean = stripMd(v);
+                return <TextDialog label={`${clean.slice(0, 80)}${clean.length > 80 ? '…' : ''}`} text={clean} color="#ffa726" />;
               },
             },
             {
@@ -438,7 +450,8 @@ export default function App() {
             label: 'Wiadomość',
             render: (v: string) => {
               if (!v) return '—';
-              return <TextDialog label={`${v.slice(0, 80)}${v.length > 80 ? '…' : ''}`} text={v} color="#42a5f5" />;
+              const clean = stripMd(v);
+              return <TextDialog label={`${clean.slice(0, 80)}${clean.length > 80 ? '…' : ''}`} text={clean} color="#42a5f5" />;
             },
           },
           {
