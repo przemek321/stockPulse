@@ -400,20 +400,19 @@ export default function App() {
             const data = await fetchAlerts();
             const edgeRules = new Set([
               'Form 4 Insider Signal',
-              'Insider Trade Large',
               '8-K Earnings Miss',
               '8-K Leadership Change',
               '8-K Material Event GPT',
+              '8-K Material Event',
               '8-K Bankruptcy',
               'Correlated Signal',
+              'Unusual Options Activity',
             ]);
             return (data.alerts || []).filter((a: any) => edgeRules.has(a.ruleName));
           }}
         />
       </Box>
 
-      {/* Sprint 11: usunięte panele Wykres sentymentu i Analiza AI (gpt-4o-mini)
-         — sentiment pipeline wyłączony, dane mieszały aktywne i wyłączone źródła */}
 
       {/* ── Skorelowane Sygnały ────────────────── */}
       <DataPanel
@@ -454,43 +453,7 @@ export default function App() {
         }}
       />
 
-      {/* ── Alerty wysłane ──────────────────── */}
-      <DataPanel
-        title="Alerty wysłane"
-        icon={<NotificationsIcon color="warning" />}
-        badgeColor="warning"
-        defaultSortKey="sentAt"
-        defaultSortDir="desc"
-        columns={[
-          { key: 'symbol', label: 'Ticker' },
-          { key: 'ruleName', label: 'Reguła' },
-          {
-            key: 'priority',
-            label: 'Priorytet',
-            render: (v: string) => <PriorityChip value={v} />,
-          },
-          { key: 'channel', label: 'Kanał' },
-          {
-            key: 'catalystType',
-            label: 'Katalizator',
-            render: (v: string | null) => v || '—',
-          },
-          {
-            key: 'message',
-            label: 'Wiadomość',
-            render: (v: string) => v?.slice(0, 100) || '—',
-          },
-          {
-            key: 'sentAt',
-            label: 'Wysłano',
-            render: (v: string) => fmtDate(v),
-          },
-        ]}
-        fetchData={async () => {
-          const data = await fetchAlerts();
-          return data.alerts || [];
-        }}
-      />
+      {/* Panel "Alerty wysłane" usunięty — duplikował "Alerty SEC & Insider" bez filtra */}
 
       {/* ── PDUFA Calendar (Decyzje FDA) ────── */}
       <DataPanel
@@ -750,16 +713,11 @@ export default function App() {
         }}
       />
 
-      {/* Sprint 11: usunięty panel Wyniki sentymentu — pipeline wyłączony */}
-
-      {/* Sprint 11: usunięte panele News (Finnhub), SEC EDGAR Filings (surowe), StockTwits Wzmianki
-         — źródła danych wyłączone, panele pokazywały stare/puste dane */}
 
       {/* ── Tickery ──────────────────────────── */}
       <DataPanel
         title="Tickery Healthcare"
         icon={<ShowChartIcon color="primary" />}
-        badge={27}
         badgeColor="primary"
         columns={[
           { key: 'symbol', label: 'Symbol' },
