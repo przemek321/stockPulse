@@ -2,7 +2,7 @@
  * Prompt GPT do analizy 8-K Item 5.02 — Departure/Appointment of Officers.
  * Zmiana CEO, CFO, dyrektorów.
  */
-export function buildForm8k502Prompt(ticker: string, companyName: string, text: string): string {
+export function buildForm8k502Prompt(ticker: string, companyName: string, text: string, _itemNumber?: string, tickerProfile?: string | null): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
 Analyze this SEC 8-K Item 5.02 (Departure/Appointment of Officers) filing.
@@ -44,6 +44,8 @@ C) RELIEF RALLY POTENTIAL (conviction +0.2 to +0.5):
    - Activist investor pressure preceded departure
    - New CEO with strong turnaround track record
    - Market reaction: potentially POSITIVE despite departure
+
+${tickerProfile ? tickerProfile : 'No historical signal data available for this ticker — use baseline conviction scale.'}
 
 CONVICTION SCALE (match the scenario, do NOT default to any single value):
 - ±0.1 to ±0.3: planned retirement with named successor, director rotation, scenario A

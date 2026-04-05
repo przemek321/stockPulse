@@ -7,6 +7,7 @@ export function buildForm8kOtherPrompt(
   companyName: string,
   text: string,
   itemNumber?: string,
+  tickerProfile?: string | null,
 ): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
@@ -31,6 +32,8 @@ Healthcare-specific events to watch for:
 
 For each event type, the key question is always:
 Does this change the fundamental earnings power of the company?
+
+${tickerProfile ? tickerProfile : 'No historical signal data available for this ticker — use baseline conviction scale.'}
 
 CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
 - ±0.1 to ±0.4: routine disclosure, minor regulatory update, standard filing

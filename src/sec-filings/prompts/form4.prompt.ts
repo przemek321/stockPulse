@@ -23,6 +23,7 @@ export function buildForm4Prompt(
   companyName: string,
   parsed: Form4PromptData,
   recentFilings: Form4PromptData[],
+  tickerProfile?: string | null,
 ): string {
   return `You are a financial analyst specializing in insider trading signals for US healthcare stocks.
 
@@ -56,6 +57,8 @@ ANALYSIS GUIDELINES:
 - Role hierarchy: CEO/Founder > CFO > Director > VP
 - Cluster selling (2+ insiders in 7 days) amplifies bearish signal
 - Consider % of total holdings sold/bought, not just absolute value
+
+${tickerProfile ? tickerProfile : 'No historical signal data available for this ticker — use baseline conviction scale.'}
 
 SIGN CONVENTION (CRITICAL — MUST follow):
 - SELL transaction → conviction MUST be NEGATIVE (e.g. -0.9, NEVER +0.9)

@@ -14,6 +14,7 @@ import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.sco
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
+import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -44,6 +45,7 @@ export class Form4Pipeline {
     private readonly dailyCap: DailyCapService,
     @Optional() private readonly correlation?: CorrelationService,
     @Optional() private readonly finnhub?: FinnhubService,
+    @Optional() private readonly tickerProfile?: TickerProfileService,
   ) {}
 
   @OnEvent(EventType.NEW_INSIDER_TRADE)
@@ -127,8 +129,11 @@ export class Form4Pipeline {
           transactionDate: t.transactionDate?.toISOString?.() ?? '',
         }));
 
-      // Buduj prompt i wyślij do GPT
-      const prompt = buildForm4Prompt(payload.symbol, companyName, parsed, recentFilings);
+      // Pobierz profil historyczny tickera (kontekst kalibrujący conviction)
+      const signalProfile = await this.tickerProfile?.getSignalProfile(payload.symbol) ?? null;
+
+      // Buduj prompt i wyślij do Claude
+      const prompt = buildForm4Prompt(payload.symbol, companyName, parsed, recentFilings, signalProfile);
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
       if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol };
 

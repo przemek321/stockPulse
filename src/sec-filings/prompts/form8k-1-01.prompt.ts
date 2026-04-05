@@ -2,7 +2,7 @@
  * Prompt GPT do analizy 8-K Item 1.01 — Material Definitive Agreement.
  * Kontrakty, umowy, partnerstwa, licencje.
  */
-export function buildForm8k101Prompt(ticker: string, companyName: string, text: string): string {
+export function buildForm8k101Prompt(ticker: string, companyName: string, text: string, _itemNumber?: string, tickerProfile?: string | null): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
 Analyze this SEC 8-K Item 1.01 (Material Definitive Agreement) filing.
@@ -25,6 +25,8 @@ Price impact assessment:
 - Short-term or easily terminable contracts = neutral
 - Contracts creating customer concentration risk = bearish long-term
 - Healthcare-specific: Medicare/Medicaid contracts carry regulatory risk
+
+${tickerProfile ? tickerProfile : 'No historical signal data available for this ticker — use baseline conviction scale.'}
 
 CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
 - ±0.1 to ±0.4: routine contract, standard renewal, minor agreement

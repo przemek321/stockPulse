@@ -71,7 +71,7 @@ export function extractItemText(filingText: string, itemNumber: string): string 
  */
 export function selectPromptBuilder(
   item: string,
-): ((ticker: string, companyName: string, text: string, itemNumber?: string) => string) | null {
+): ((ticker: string, companyName: string, text: string, itemNumber?: string, tickerProfile?: string | null) => string) | null {
   const map: Record<string, typeof buildForm8k101Prompt | typeof buildForm8kOtherPrompt | null> = {
     '1.01': buildForm8k101Prompt,
     '1.03': null,                    // Bankruptcy — CRITICAL bez GPT

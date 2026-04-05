@@ -7,6 +7,7 @@ import { SentimentModule } from '../sentiment/sentiment.module';
 import { TelegramModule } from '../alerts/telegram/telegram.module';
 import { CorrelationModule } from '../correlation/correlation.module';
 import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
+import { TickerProfileModule } from '../ticker-profile/ticker-profile.module';
 import { Form4Pipeline } from './pipelines/form4.pipeline';
 import { Form8kPipeline } from './pipelines/form8k.pipeline';
 import { DailyCapService, SEC_FILINGS_REDIS } from './services/daily-cap.service';
@@ -25,6 +26,7 @@ import { SecFilingsController } from './sec-filings.controller';
     TelegramModule,      // TelegramService, TelegramFormatterService
     CorrelationModule,   // CorrelationService (storeSignal)
     FinnhubModule,       // FinnhubService (priceAtAlert dla Form4/8-K alertów)
+    TickerProfileModule, // TickerProfileService (kontekst historyczny w promptach)
   ],
   controllers: [SecFilingsController],
   providers: [

@@ -21,6 +21,7 @@ import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.sco
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
+import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -53,6 +54,7 @@ export class Form8kPipeline {
     private readonly config: ConfigService,
     @Optional() private readonly correlation?: CorrelationService,
     @Optional() private readonly finnhub?: FinnhubService,
+    @Optional() private readonly tickerProfile?: TickerProfileService,
   ) {
     this.userAgent = this.config.get<string>(
       'SEC_USER_AGENT',
@@ -121,9 +123,12 @@ export class Form8kPipeline {
       const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
       const companyName = ticker?.name ?? payload.symbol;
 
+      // Pobierz profil historyczny tickera (kontekst kalibrujący conviction)
+      const signalProfile = await this.tickerProfile?.getSignalProfile(payload.symbol) ?? null;
+
       // Wyciągnij tekst sekcji i zbuduj prompt
       const itemText = extractItemText(filingText, mainItem);
-      const prompt = promptBuilder(payload.symbol, companyName, itemText, mainItem);
+      const prompt = promptBuilder(payload.symbol, companyName, itemText, mainItem, signalProfile);
 
       // Wyślij do GPT
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);

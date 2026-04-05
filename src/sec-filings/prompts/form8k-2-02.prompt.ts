@@ -2,7 +2,7 @@
  * Prompt GPT do analizy 8-K Item 2.02 — Results of Operations (wyniki kwartalne).
  * Earnings beat/miss, guidance, MLR, membership.
  */
-export function buildForm8k202Prompt(ticker: string, companyName: string, text: string): string {
+export function buildForm8k202Prompt(ticker: string, companyName: string, text: string, _itemNumber?: string, tickerProfile?: string | null): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
 Analyze this SEC 8-K Item 2.02 (Results of Operations) earnings filing.
@@ -26,6 +26,8 @@ Price impact assessment:
 - Miss on EPS + lowered guidance = strongly bearish
 - MLR above 90% for managed care = severe bearish signal
 - Guidance cut is more impactful than earnings miss
+
+${tickerProfile ? tickerProfile : 'No historical signal data available for this ticker — use baseline conviction scale.'}
 
 CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
 - ±0.1 to ±0.4: in-line results, guidance maintained, no surprises
