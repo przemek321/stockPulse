@@ -6,7 +6,7 @@
 
 ## Gdzie jesteśmy
 
-**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03) + **Sprint 11b — Cleanup martwego kodu** (2026-04-03) + **Sprint 12 — Migracja AI + dashboard** (ukończony 2026-04-04). Analiza 2 tygodni (962 alertów, 55.5% hit rate) wykazała brak edge'u na sentymencie. System przebudowany: wyłączenie szumu, focus na insider pipeline + PDUFA + korelacje insider×options. Sprint 12: migracja z Azure OpenAI gpt-4o-mini na Anthropic Claude Sonnet (bezpośrednio z NestJS), panel Status Systemu na dashboardzie, fix parsowania 8-K (inline XBRL), hard delete 1585 alertów z wyłączonych reguł.
+**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03) + **Sprint 12 — Migracja AI + dashboard** (ukończony 2026-04-04) + **Sprint 13 — Signal Timeline** (2026-04-05) + **Sprint 14 — TickerProfileService + Słownik** (2026-04-05). System przebudowany: wyłączenie szumu, focus na insider pipeline + PDUFA + korelacje. Sprint 12: Claude Sonnet, Status Systemu, fix 8-K XBRL. Sprint 13: Signal Timeline (sekwencja sygnałów per ticker). Sprint 14: kontekst historyczny w promptach Claude (profil tickera 90d), słownik terminów na dashboardzie.
 
 **Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER, INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary C-suite only (is10b51Plan=true → skip). 7 aktywnych reguł alertów, 12 wyłączonych. Cel: 3-5 alertów/tydzień z realnym edge zamiast 50/dzień z szumem. Raporty tygodniowe w [doc/reports/](doc/reports/).
 
@@ -622,6 +622,29 @@ Nowy widok chronologicznej sekwencji sygnałów na danym tickerze. Pokazuje delt
 - [x] **`PriceOutcomeService`** — sloty 1h/4h/1d/3d liczone od `effectiveStart` zamiast `sentAt`. Hard timeout 7d nadal od `sentAt`.
 - [x] **Efekt**: price1h = cena 1h po open (10:30 ET), price4h = cena 4h po open (13:30 ET). Realne zmiany intraday zamiast identycznych wartości.
 - [x] **Reset** 30 alertów z identycznymi price1h/price4h do ponownego wypełnienia przez CRON.
+
+### Sprint 14: TickerProfileService — kontekst historyczny w promptach Claude (ukończony 2026-04-05)
+
+Profil historyczny per ticker (200-400 tokenów) wstrzykiwany do promptów Claude Sonnet. Claude kalibruje conviction na podstawie track recordu (hit rate, dominant direction, recent signals).
+
+#### 14.1 TickerProfileService
+- [x] **Nowy moduł** `src/ticker-profile/` — `TickerProfileModule` + `TickerProfileService`
+- [x] **`getSignalProfile(symbol)`** — pobiera alerty z 90 dni (min 3 z price1d), oblicza metryki: hit rate 1d, avgAbsMove1d, ruleBreakdown (per reguła), dominantDirection, directionConsistency, recentSignals (ostatnie 3)
+- [x] **In-memory cache** — Map z TTL 2h (42 tickery × ~300 znaków = trivial, Redis overkill)
+- [x] **Skrócone nazwy reguł** — Form4, 8-K, Options, Correlated (oszczędność tokenów)
+- [x] **Calibration Rules** — konkretne instrukcje: hit rate >70% → boost |conviction| 0.1-0.3, <40% → reduce
+
+#### 14.2 Wstrzyknięcie w pipeline
+- [x] **Form4Pipeline** — inject TickerProfileService, wywołanie `getSignalProfile()` przed `buildForm4Prompt()`
+- [x] **Form8kPipeline** — analogicznie, profil przekazywany do prompt buildera
+- [x] **5 promptów** zaktualizowanych — `form4.prompt.ts`, `form8k-1-01/2-02/5-02/other.prompt.ts` — parametr `tickerProfile`, wstawiony po danych transakcji przed CONVICTION SCALE
+- [x] **Fallback** — "No historical signal data available" dla tickerów z <3 alertami
+- [x] **`selectPromptBuilder()`** — zaktualizowana sygnatura z `tickerProfile`
+
+#### 14.3 Słownik terminów
+- [x] **`doc/slownik-terminow.md`** — kompletny słownik terminów i skrótów (10 tabel)
+- [x] **Zakładka "Słownik"** na dashboardzie (`GlossaryTab.tsx`) — 9 rozwijalnych sekcji z pełnymi wyjaśnieniami, przykładami, instrukcją "Jak czytać Signal Timeline"
+- [x] **4 zakładki** na dashboardzie: Dashboard + Signal Timeline + System Logs + Słownik
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.

@@ -111,8 +111,8 @@ export default function CollectorStatus() {
     PDUFA_BIO: ['pdufa_catalysts'],
   };
 
-  // Ukryj Reddit — placeholder, nie zbiera danych
-  const HIDDEN_COLLECTORS = ['REDDIT'];
+  // Ukryj wyłączone kolektory (Sprint 11) — nie wnoszą wartości na dashboard
+  const HIDDEN_COLLECTORS = ['REDDIT', 'STOCKTWITS', 'FINNHUB'];
 
   return (
     <Box>

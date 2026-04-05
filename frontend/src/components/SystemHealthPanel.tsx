@@ -170,13 +170,7 @@ export default function SystemHealthPanel() {
             <Typography variant="caption" color="error.main">Failed jobs 7d: {data.failedJobs7d}</Typography>
           </Box>
         )}
-        {data.collectors.disabled.length > 0 && (
-          <Box>
-            <Typography variant="caption" color="text.secondary">
-              Wylaczone: {data.collectors.disabled.join(', ')}
-            </Typography>
-          </Box>
-        )}
+{/* Wyłączone kolektory (StockTwits, Finnhub, Reddit) — ukryte z widoku, nie wnoszą wartości */}
       </Box>
 
       {/* Bledy systemowe (rozwjalne) */}
