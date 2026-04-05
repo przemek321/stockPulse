@@ -22,7 +22,9 @@ import PriceOutcomePanel from './components/PriceOutcomePanel';
 import JetsonStatsBar from './components/JetsonStatsBar';
 import SystemHealthPanel from './components/SystemHealthPanel';
 import SignalTimeline from './components/SignalTimeline';
+import GlossaryTab from './components/GlossaryTab';
 import TimelineIcon from '@mui/icons-material/Timeline';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 /** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
 const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
@@ -138,6 +140,7 @@ export default function App() {
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" />
         <Tab icon={<TimelineIcon />} iconPosition="start" label="Signal Timeline" />
         <Tab icon={<TerminalIcon />} iconPosition="start" label="System Logs" />
+        <Tab icon={<MenuBookIcon />} iconPosition="start" label="Slownik" />
       </Tabs>
 
       {/* Tab 0: Dashboard */}
@@ -833,6 +836,9 @@ export default function App() {
 
       {/* Tab 2: System Logs */}
       {activeTab === 2 && <SystemLogsTab />}
+
+      {/* Tab 3: Slownik terminow */}
+      {activeTab === 3 && <GlossaryTab />}
     </Container>
   );
 }
