@@ -1,14 +1,15 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
-import { SentimentScore, Alert } from '../entities';
+import { Alert, InsiderTrade } from '../entities';
 import { TelegramService } from './telegram/telegram.service';
 import { TelegramFormatterService } from './telegram/telegram-formatter.service';
 import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
 
 /**
- * Cykliczne podsumowanie sentymentu wysyłane na Telegram co 2 godziny.
- * Agreguje dane z ostatnich 2h: średni score, top negatywne/pozytywne tickery, liczba alertów.
+ * Raport statusu systemu wysyłany na Telegram co 8 godzin.
+ * Agreguje: alerty, insider trades, options flow, nadchodzące PDUFA.
+ * Sprint 15: usunięto sentyment (wyłączony od Sprint 11, zero danych).
  */
 @Injectable()
 export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
@@ -16,17 +17,17 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
   private intervalRef: ReturnType<typeof setInterval> | null = null;
   private timeoutRef: ReturnType<typeof setTimeout> | null = null;
 
-  /** Interwał raportu: 2 godziny */
+  /** Interwał raportu: 8 godzin */
   private readonly INTERVAL_MS = 8 * 60 * 60 * 1000;
 
   /** Opóźnienie pierwszego raportu po starcie */
   private readonly INITIAL_DELAY_MS = 15_000;
 
   constructor(
-    @InjectRepository(SentimentScore)
-    private readonly sentimentRepo: Repository<SentimentScore>,
     @InjectRepository(Alert)
     private readonly alertRepo: Repository<Alert>,
+    @InjectRepository(InsiderTrade)
+    private readonly tradeRepo: Repository<InsiderTrade>,
     private readonly telegram: TelegramService,
     private readonly formatter: TelegramFormatterService,
     private readonly pdufaBio: PdufaBioService,
@@ -34,7 +35,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     if (!this.telegram.isConfigured()) {
-      this.logger.warn('Telegram nie skonfigurowany — raport 2h wyłączony');
+      this.logger.warn('Telegram nie skonfigurowany — raport 8h wyłączony');
       return;
     }
 
@@ -44,7 +45,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     // Powtarzalny raport co 8h
     this.intervalRef = setInterval(() => this.sendSummary(), this.INTERVAL_MS);
 
-    this.logger.log('Zaplanowano raport sentymentu co 8h na Telegram');
+    this.logger.log('Zaplanowano raport systemowy co 8h na Telegram');
   }
 
   onModuleDestroy(): void {
@@ -53,57 +54,34 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Zbiera dane z ostatnich 2h i wysyła podsumowanie na Telegram.
+   * Zbiera dane z ostatnich 8h i wysyła podsumowanie na Telegram.
    */
   async sendSummary(): Promise<void> {
     try {
       const since = new Date(Date.now() - this.INTERVAL_MS);
 
-      // Agregacja ogólna
-      const stats = await this.sentimentRepo
-        .createQueryBuilder('s')
-        .select('COUNT(*)', 'total')
-        .addSelect('ROUND(AVG(s.score::numeric), 2)', 'avgScore')
-        .where('s.timestamp > :since', { since })
-        .getRawOne();
-
-      const total = parseInt(stats?.total ?? '0', 10);
-      const avgScore = parseFloat(stats?.avgScore ?? '0');
-
-      // Liczba alertów
-      const alertCount = await this.alertRepo.count({
-        where: { sentAt: MoreThan(since) },
-      });
-
-      // Liczba eskalacji do AI (model zawiera gpt-4o-mini)
-      const aiEscalated = await this.sentimentRepo
-        .createQueryBuilder('s')
-        .where('s.timestamp > :since', { since })
-        .andWhere("s.model LIKE '%gpt-4o-mini%'")
-        .getCount();
-
-      // Top 3 negatywne tickery
-      const negative = await this.sentimentRepo
-        .createQueryBuilder('s')
-        .select('s.symbol', 'symbol')
-        .addSelect('ROUND(AVG(s.score::numeric), 2)', 'avg')
-        .where('s.timestamp > :since', { since })
-        .groupBy('s.symbol')
-        .having('COUNT(*) >= 2')
-        .orderBy('avg', 'ASC')
-        .limit(3)
+      // Alerty per typ
+      const alerts = await this.alertRepo
+        .createQueryBuilder('a')
+        .select('a.ruleName', 'rule')
+        .addSelect('COUNT(*)', 'count')
+        .addSelect('SUM(CASE WHEN a.delivered = true THEN 1 ELSE 0 END)', 'delivered')
+        .where('a.sentAt > :since', { since })
+        .groupBy('a.ruleName')
         .getRawMany();
 
-      // Top 3 pozytywne tickery
-      const positive = await this.sentimentRepo
-        .createQueryBuilder('s')
-        .select('s.symbol', 'symbol')
-        .addSelect('ROUND(AVG(s.score::numeric), 2)', 'avg')
-        .where('s.timestamp > :since', { since })
-        .groupBy('s.symbol')
-        .having('COUNT(*) >= 2')
-        .orderBy('avg', 'DESC')
-        .limit(3)
+      const totalAlerts = alerts.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
+      const totalDelivered = alerts.reduce((sum, r) => sum + parseInt(r.delivered ?? '0', 10), 0);
+
+      // Insider trades (discretionary BUY/SELL, non-10b5-1)
+      const trades = await this.tradeRepo
+        .createQueryBuilder('t')
+        .select('t.transactionType', 'type')
+        .addSelect('COUNT(*)', 'count')
+        .addSelect('SUM(t.totalValue)', 'totalValue')
+        .where('t.collectedAt > :since', { since })
+        .andWhere('t.transactionType IN (:...types)', { types: ['BUY', 'SELL'] })
+        .groupBy('t.transactionType')
         .getRawMany();
 
       // Nadchodzące katalizatory PDUFA (7 dni)
@@ -117,11 +95,13 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         // Brak danych PDUFA nie blokuje raportu
       }
 
-      const message = this.formatSummary(total, avgScore, alertCount, aiEscalated, negative, positive) + pdufaSection;
+      const message = this.formatSummary(alerts, totalAlerts, totalDelivered, trades) + pdufaSection;
       const sent = await this.telegram.sendMarkdown(message);
 
       if (sent) {
-        this.logger.log(`Raport 2h wysłany (${total} analiz, ${alertCount} alertów)`);
+        this.logger.log(`Raport 8h wysłany (${totalAlerts} alertów)`);
+      } else {
+        this.logger.error('TELEGRAM FAILED: raport 8h nie wysłany');
       }
     } catch (error) {
       this.logger.error(
@@ -134,47 +114,43 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
    * Formatuje wiadomość podsumowania w MarkdownV2.
    */
   private formatSummary(
-    total: number,
-    avgScore: number,
-    alertCount: number,
-    aiEscalated: number,
-    negative: { symbol: string; avg: string }[],
-    positive: { symbol: string; avg: string }[],
+    alertsByRule: { rule: string; count: string; delivered: string }[],
+    totalAlerts: number,
+    totalDelivered: number,
+    trades: { type: string; count: string; totalValue: string }[],
   ): string {
     const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const fmtValue = (v: number) => v >= 1_000_000
+      ? `$${(v / 1_000_000).toFixed(1)}M`
+      : `$${(v / 1_000).toFixed(0)}K`;
 
     const lines: string[] = [
-      '📋 *StockPulse — Raport 2h*',
+      '📋 *StockPulse — Raport 8h*',
       '',
-      `📊 *Sentyment \\(ostatnie 2h\\):*`,
-      `• Nowych analiz: ${esc(String(total))}`,
-      `• Średni score: ${esc(avgScore.toFixed(2))}`,
-      `• Alertów: ${esc(String(alertCount))}`,
-      `• 🤖 Eskalacji AI: ${esc(String(aiEscalated))}`,
     ];
 
-    if (negative.length > 0) {
-      lines.push('');
-      lines.push('🔴 *Najbardziej negatywne:*');
-      const neg = negative
-        .map((r) => `${esc(r.symbol)} ${esc(String(r.avg))}`)
-        .join(' \\| ');
-      lines.push(`  ${neg}`);
+    // Alerty
+    lines.push(`🔔 *Alerty \\(ostatnie 8h\\):*`);
+    if (totalAlerts === 0) {
+      lines.push('  Brak alertów w tym okresie');
+    } else {
+      lines.push(`  Łącznie: ${esc(String(totalAlerts))} \\(dostarczono: ${esc(String(totalDelivered))}\\)`);
+      for (const r of alertsByRule) {
+        lines.push(`  • ${esc(r.rule)}: ${esc(r.count)}`);
+      }
     }
 
-    if (positive.length > 0) {
-      lines.push('');
-      lines.push('🟢 *Najbardziej pozytywne:*');
-      const pos = positive
-        .map((r) => `${esc(r.symbol)} \\+${esc(String(r.avg).replace('-', ''))}`)
-        .join(' \\| ');
-      lines.push(`  ${pos}`);
-    }
-
-    if (total === 0) {
-      lines.push('');
-      lines.push('ℹ️ Brak nowych danych w tym okresie');
+    // Insider trades
+    lines.push('');
+    lines.push('👤 *Insider Trades \\(zebrane\\):*');
+    if (trades.length === 0) {
+      lines.push('  Brak nowych BUY/SELL');
+    } else {
+      for (const t of trades) {
+        const val = parseFloat(t.totalValue || '0');
+        lines.push(`  • ${esc(t.type)}: ${esc(t.count)} transakcji \\(${esc(fmtValue(val))}\\)`);
+      }
     }
 
     lines.push('');

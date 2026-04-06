@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Alert, AlertRule, SentimentScore, Ticker } from '../entities';
+import { Alert, AlertRule, InsiderTrade, SentimentScore, Ticker } from '../entities';
 import { AlertEvaluatorService } from './alert-evaluator.service';
 import { SummarySchedulerService } from './summary-scheduler.service';
 import { TelegramModule } from './telegram/telegram.module';
@@ -11,11 +11,11 @@ import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
 /**
  * Moduł alertów.
  * Ewaluacja reguł, throttling, wysyłka przez Telegram.
- * Cykliczny raport sentymentu co 8h (z sekcją PDUFA).
+ * Cykliczny raport systemowy co 8h (alerty, insider trades, PDUFA).
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Alert, AlertRule, SentimentScore, Ticker]),
+    TypeOrmModule.forFeature([Alert, AlertRule, InsiderTrade, SentimentScore, Ticker]),
     PdufaBioModule,
     TelegramModule,
     CorrelationModule,
