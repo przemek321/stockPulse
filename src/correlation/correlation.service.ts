@@ -32,6 +32,8 @@ const WINDOW_48H = 48 * 3600_000;
 const WINDOW_24H = 24 * 3600_000;
 const WINDOW_7D = 7 * 24 * 3600_000;
 const WINDOW_72H = 72 * 3600_000;
+/** Okno INSIDER_PLUS_OPTIONS: 120h (5 dni) — pokrywa weekend + 2 dni robocze na Form 4 filing */
+const WINDOW_120H = 120 * 3600_000;
 const WINDOW_14D = 14 * 24 * 3600_000;
 
 /** Minimalny |conviction| sygnału do zapisania w Redis (obniżony z 0.15 — insider trades $100K mają conviction 0.1) */
@@ -85,7 +87,8 @@ export class CorrelationService implements OnModuleDestroy {
       ? `signals:insider:${signal.ticker}`
       : `signals:short:${signal.ticker}`;
 
-    const ttlMs = signal.source_category === 'form4' ? WINDOW_14D : WINDOW_72H;
+    // Options sygnały żyją 120h (5 dni) — pokrycie weekendu + Form 4 filing delay
+    const ttlMs = signal.source_category === 'form4' ? WINDOW_14D : WINDOW_120H;
 
     try {
       const cutoffTime = Date.now() - ttlMs;
@@ -142,7 +145,7 @@ export class CorrelationService implements OnModuleDestroy {
 
     try {
       const shortSignals = await this.getSignalsInWindow(
-        `signals:short:${ticker}`, now - WINDOW_72H, now,
+        `signals:short:${ticker}`, now - WINDOW_120H, now,
       );
       const insiderSignals = await this.getSignalsInWindow(
         `signals:insider:${ticker}`, now - WINDOW_14D, now,
@@ -335,7 +338,8 @@ export class CorrelationService implements OnModuleDestroy {
   }
 
   /**
-   * Pattern 6: Insider + Unusual Options — Form 4 + options flow w ciągu 72h.
+   * Pattern 6: Insider + Unusual Options — Form 4 + options flow w ciągu 120h (5 dni).
+   * Okno 120h pokrywa weekend + 2 dni robocze na Form 4 filing delay.
    * Najsilniejszy cross-signal: pieniądze insiderów + pieniądze smart money na rynku opcji.
    */
   private detectInsiderPlusOptions(
@@ -343,7 +347,7 @@ export class CorrelationService implements OnModuleDestroy {
     insiderSignals: StoredSignal[],
     now: number,
   ): DetectedPattern | null {
-    const window = now - WINDOW_72H;
+    const window = now - WINDOW_120H;
     const form4 = insiderSignals.filter(
       s => s.source_category === 'form4' && s.timestamp > window,
     );
@@ -362,7 +366,7 @@ export class CorrelationService implements OnModuleDestroy {
       signals: allSignals,
       correlated_conviction: this.aggregateConviction(allSignals),
       direction: dir,
-      description: `Insider ${form4[0]?.direction === 'negative' ? 'SELL' : 'BUY'} + ${options.length} unusual options flow(s) within 72h`,
+      description: `Insider ${form4[0]?.direction === 'negative' ? 'SELL' : 'BUY'} + ${options.length} unusual options flow(s) within 5d`,
     };
   }
 
