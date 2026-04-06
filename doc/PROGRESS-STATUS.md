@@ -684,6 +684,15 @@ Backtest 3 lat danych SEC EDGAR Form 4 (kwiecień 2023 – kwiecień 2026), wali
 - [x] **Summary bar** w kolumnach (Sygnały/Kierunek/Hit rate/Avg gap)
 - [x] **Gap separator** wycentrowany, proporcjonalny do czasu, biały tekst
 - [x] **Conviction badge** z kolorowym tłem proporcjonalnym do siły
+- [x] **Domyślny widok** — ostatnie alerty ze wszystkich tickerów (bez wymagania wyboru tickera)
+- [x] **Ticker na karcie** — niebieski, widoczny na każdej karcie sygnału
+- [x] **Sortowanie** — zawsze od najnowszych (sentAt DESC)
+
+#### 15.6 Poprawki parsera i narzędzia
+- [x] **8-K parser fix** — `documentUrl` z `primaryDocument` (pełny URL do `.htm`) zamiast katalogu archiwum
+- [x] **Endpoint reprocess** — `POST /api/alerts/reprocess-filing?id=X` (czyści gptAnalysis, emituje NEW_FILING)
+- [x] **Options Flow CRON** — 20:30 UTC (22:30 CEST), 30 min po NYSE close (było 22:15 UTC = 2h15m po close)
+- [x] **Hard delete 344 alertów** — czysty start walidacji live nowego pipeline (2026-04-07)
 
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
@@ -806,5 +815,5 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 - **Sprint 13**: Signal Timeline (`/api/alerts/timeline`) — sekwencja sygnałów per ticker z conviction, deltami cenowymi, gap czasowym. Fix Price Outcome: sloty od otwarcia NYSE (`getEffectiveStartTime`)
 - **Sprint 14**: TickerProfileService — kontekst historyczny w promptach Claude (profil tickera 90d), słownik terminów na dashboardzie
 - **Sprint 15**: Backtest 3Y (43 946 tx, 6 hipotez), BUY rule (d=0.43), Director SELL skip, INSIDER_CLUSTER SELL observation, 7 bugfixów, raport 8h bez sentymentu, Signal Timeline redesign. **Kod zamrożony na tydzień (walidacja live)**
-- **Dashboard**: 4 zakładki (Dashboard + Signal Timeline + System Logs + Słownik), panel Status Systemu, ~26 endpointów REST
+- **Dashboard**: 4 zakładki (Dashboard + Signal Timeline + System Logs + Słownik), panel Status Systemu, ~27 endpointów REST (w tym reprocess-filing)
 - **Testy jednostkowe**: 14 plików spec.ts, ~420 testów (unit: correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator; agents: alert-evaluator-agent, correlation-agent, collectors-agent, price-outcome-agent, sec-filings-agent, sentiment-agent, options-flow-scoring, options-flow-agent, unusual-activity-detector)

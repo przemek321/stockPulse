@@ -1,7 +1,9 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, DataSource } from 'typeorm';
-import { Alert, AlertRule } from '../../entities';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Alert, AlertRule, SecFiling } from '../../entities';
+import { EventType } from '../../events/event-types';
 import { PriceOutcomeService } from '../../price-outcome/price-outcome.service';
 
 /**
@@ -14,8 +16,11 @@ export class AlertsController {
     private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule)
     private readonly ruleRepo: Repository<AlertRule>,
+    @InjectRepository(SecFiling)
+    private readonly filingRepo: Repository<SecFiling>,
     private readonly priceOutcome: PriceOutcomeService,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -295,6 +300,33 @@ export class AlertsController {
     }));
 
     return { symbol: null, alerts, summary: null };
+  }
+
+  /**
+   * Reprocess filingu 8-K — czyści gptAnalysis i emituje NEW_FILING event.
+   * POST /api/alerts/reprocess-filing?id=1400
+   */
+  @Post('reprocess-filing')
+  async reprocessFiling(@Query('id') idParam?: string) {
+    const id = parseInt(idParam || '0', 10);
+    if (!id) return { error: 'id is required' };
+
+    const filing = await this.filingRepo.findOne({ where: { id } });
+    if (!filing) return { error: `filing ${id} not found` };
+
+    // Wyczyść gptAnalysis żeby pipeline nie pominął
+    filing.gptAnalysis = null as any;
+    filing.priceImpactDirection = null as any;
+    await this.filingRepo.save(filing);
+
+    // Emituj event — Form8kPipeline nasłuchuje na NEW_FILING
+    this.eventEmitter.emit(EventType.NEW_FILING, {
+      filingId: filing.id,
+      symbol: filing.symbol,
+      formType: filing.formType,
+    });
+
+    return { status: 'reprocessing', filingId: filing.id, symbol: filing.symbol, formType: filing.formType };
   }
 
   /**
