@@ -47,13 +47,13 @@ const MIN_ESCALATING_LAST_CONVICTION = 0.25;
 export class CorrelationService implements OnModuleDestroy {
   private readonly logger = new Logger(CorrelationService.name);
 
-  /** Debounce per ticker — 10s opóźnienie przed pattern detection */
-  private readonly pendingChecks = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Debounce per ticker — 10s opóźnienie przed pattern detection.
+   *  Nie nadpisuje istniejącego timera — jeśli check jest zaplanowany, nowe sygnały
+   *  zostaną uwzględnione bo pattern detection czyta z Redis (aktualny stan).
+   */
+  private readonly pendingChecks = new Map<string, number>(); // ticker → scheduled timestamp
 
   onModuleDestroy(): void {
-    for (const timer of this.pendingChecks.values()) {
-      clearTimeout(timer);
-    }
     this.pendingChecks.clear();
   }
 
@@ -84,36 +84,46 @@ export class CorrelationService implements OnModuleDestroy {
 
     const ttlMs = signal.source_category === 'form4' ? WINDOW_14D : WINDOW_72H;
 
-    // Wyczyść stare sygnały przed dodaniem (fix: ZREMRANGEBYSCORE zamiast polegania na EXPIRE)
-    const cutoffTime = Date.now() - ttlMs;
-    await this.redis.zremrangebyscore(redisKey, 0, cutoffTime);
-
-    // Dodaj nowy sygnał
-    await this.redis.zadd(redisKey, signal.timestamp, JSON.stringify(signal));
-
-    // Przytnij do max 50 sygnałów per ticker — ochrona pamięci
-    await this.redis.zremrangebyrank(redisKey, 0, -51);
-
-    // EXPIRE jako safety net (gdyby ticker przestał generować sygnały)
-    const ttlSec = Math.ceil(ttlMs / 1000);
-    await this.redis.expire(redisKey, ttlSec);
+    try {
+      const cutoffTime = Date.now() - ttlMs;
+      await this.redis.zremrangebyscore(redisKey, 0, cutoffTime);
+      await this.redis.zadd(redisKey, signal.timestamp, JSON.stringify(signal));
+      await this.redis.zremrangebyrank(redisKey, 0, -51);
+      const ttlSec = Math.ceil(ttlMs / 1000);
+      await this.redis.expire(redisKey, ttlSec);
+    } catch (err) {
+      this.logger.error(`Redis storeSignal failed for ${signal.ticker}: ${err.message} — signal not correlated`);
+      return { action: 'REDIS_ERROR', ticker: signal.ticker };
+    }
 
     return { action: 'STORED', ticker: signal.ticker };
   }
 
   /**
    * Zaplanuj sprawdzenie wzorców z debounce 10s.
-   * Form 4 i 8-K mogą przybyć w tej samej partii SEC EDGAR (co 30 min).
+   * Nie nadpisuje istniejącego timera — pattern detection czyta z Redis,
+   * więc nowe sygnały będą uwzględnione nawet jeśli timer był ustawiony wcześniej.
+   * Cleanup: stale entries (>60s) usuwane przy każdym wywołaniu.
    */
   schedulePatternCheck(ticker: string): void {
-    if (this.pendingChecks.has(ticker)) {
-      clearTimeout(this.pendingChecks.get(ticker)!);
+    const now = Date.now();
+
+    // Cleanup stale entries (>60s) — zapobiega memory leak
+    if (this.pendingChecks.size > 50) {
+      for (const [t, ts] of this.pendingChecks) {
+        if (now - ts > 60_000) this.pendingChecks.delete(t);
+      }
     }
-    const timeout = setTimeout(
-      () => this.runPatternDetection(ticker),
-      10_000,
-    );
-    this.pendingChecks.set(ticker, timeout);
+
+    // Jeśli check jest już zaplanowany i nie minął — skip (nie nadpisuj timera)
+    const existing = this.pendingChecks.get(ticker);
+    if (existing && now - existing < 10_000) return;
+
+    this.pendingChecks.set(ticker, now);
+    setTimeout(() => {
+      this.pendingChecks.delete(ticker);
+      this.runPatternDetection(ticker);
+    }, 10_000);
   }
 
   /**

@@ -173,6 +173,9 @@ export class OptionsFlowAlertService {
     });
 
     const delivered = await this.telegram.sendMarkdown(message);
+    if (!delivered) {
+      this.logger.error(`TELEGRAM FAILED: Options Flow alert for ${flow.symbol} not delivered — saved to DB`);
+    }
 
     // Price at alert
     let priceAtAlert: number | undefined;
@@ -183,19 +186,23 @@ export class OptionsFlowAlertService {
     } catch { /* noop */ }
 
     // Zapisz alert
-    await this.alertRepo.save(
-      this.alertRepo.create({
-        symbol: flow.symbol,
-        ruleName: rule.name,
-        priority,
-        channel: 'TELEGRAM',
-        message,
-        delivered,
-        catalystType: 'unusual_options',
-        alertDirection: scoring.conviction > 0 ? 'positive' : 'negative',
-        priceAtAlert,
-      }),
-    );
+    try {
+      await this.alertRepo.save(
+        this.alertRepo.create({
+          symbol: flow.symbol,
+          ruleName: rule.name,
+          priority,
+          channel: 'TELEGRAM',
+          message,
+          delivered,
+          catalystType: 'unusual_options',
+          alertDirection: scoring.conviction > 0 ? 'positive' : 'negative',
+          priceAtAlert,
+        }),
+      );
+    } catch (err) {
+      this.logger.error(`Failed to save Options Flow alert for ${flow.symbol}: ${err.message}`);
+    }
 
     this.logger.log(
       `Alert: ${flow.symbol} unusual options conviction=${scoring.conviction.toFixed(3)} ${scoring.direction}`,

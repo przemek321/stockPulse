@@ -205,6 +205,9 @@ export class Form8kPipeline {
       });
 
       const delivered = await this.telegram.sendMarkdown(message);
+      if (!delivered) {
+        this.logger.error(`TELEGRAM FAILED: 8-K alert for ${payload.symbol} not delivered — saved to DB`);
+      }
 
       // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
       let priceAtAlert: number | undefined;
@@ -214,21 +217,25 @@ export class Form8kPipeline {
         }
       } catch { /* noop */ }
 
-      await this.alertRepo.save(
-        this.alertRepo.create({
-          symbol: payload.symbol,
-          ruleName: rule.name,
-          priority,
-          channel: 'TELEGRAM',
-          message,
-          delivered,
-          catalystType: analysis.catalyst_type,
-          alertDirection: analysis.price_impact.direction === 'neutral'
-            ? (analysis.conviction >= 0 ? 'positive' : 'negative')
-            : analysis.price_impact.direction,
-          priceAtAlert,
-        }),
-      );
+      try {
+        await this.alertRepo.save(
+          this.alertRepo.create({
+            symbol: payload.symbol,
+            ruleName: rule.name,
+            priority,
+            channel: 'TELEGRAM',
+            message,
+            delivered,
+            catalystType: analysis.catalyst_type,
+            alertDirection: analysis.price_impact.direction === 'neutral'
+              ? (analysis.conviction >= 0 ? 'positive' : 'negative')
+              : analysis.price_impact.direction,
+            priceAtAlert,
+          }),
+        );
+      } catch (err) {
+        this.logger.error(`Failed to save 8-K alert for ${payload.symbol}: ${err.message}`);
+      }
 
       this.logger.log(
         `8-K GPT alert: ${payload.symbol} Item ${mainItem} — ` +
@@ -283,6 +290,9 @@ export class Form8kPipeline {
     });
 
     const delivered = await this.telegram.sendMarkdown(message);
+    if (!delivered) {
+      this.logger.error(`TELEGRAM FAILED: 8-K Bankruptcy alert for ${symbol} not delivered — saved to DB`);
+    }
 
     // Sprint 11: pobierz cenę dla bankruptcy alertu
     let priceAtAlert: number | undefined;
@@ -292,19 +302,23 @@ export class Form8kPipeline {
       }
     } catch { /* noop */ }
 
-    await this.alertRepo.save(
-      this.alertRepo.create({
-        symbol,
-        ruleName: rule.name,
-        priority: 'CRITICAL',
-        channel: 'TELEGRAM',
-        message,
-        delivered,
-        catalystType: 'bankruptcy',
-        alertDirection: 'negative',
-        priceAtAlert,
-      }),
-    );
+    try {
+      await this.alertRepo.save(
+        this.alertRepo.create({
+          symbol,
+          ruleName: rule.name,
+          priority: 'CRITICAL',
+          channel: 'TELEGRAM',
+          message,
+          delivered,
+          catalystType: 'bankruptcy',
+          alertDirection: 'negative',
+          priceAtAlert,
+        }),
+      );
+    } catch (err) {
+      this.logger.error(`Failed to save bankruptcy alert for ${symbol}: ${err.message}`);
+    }
 
     this.logger.log(`BANKRUPTCY alert: ${symbol} — 8-K Item 1.03`);
 

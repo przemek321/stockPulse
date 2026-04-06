@@ -22,26 +22,38 @@ export class DailyCapService {
 
   /**
    * Atomowo sprawdza limit i rezerwuje slot GPT dla tickera.
-   * Zwraca true jeśli jest jeszcze miejsce (atomowy INCR unika race condition).
+   * Lua script gwarantuje atomowość — brak race condition między INCR a DECR.
    */
+  private static readonly LUA_CHECK_AND_RESERVE = `
+    local count = redis.call('INCR', KEYS[1])
+    if count == 1 then
+      redis.call('EXPIRE', KEYS[1], 86400)
+    end
+    if count > tonumber(ARGV[1]) then
+      redis.call('DECR', KEYS[1])
+      return 0
+    end
+    return 1
+  `;
+
   async canCallGpt(ticker: string): Promise<boolean> {
     const key = this.buildKey(ticker);
-    const count = await this.redis.incr(key);
-
-    // Ustaw TTL przy pierwszym użyciu klucza
-    if (count === 1) {
-      await this.redis.expire(key, 86400); // 24h
-    }
-
-    if (count > MAX_DAILY_CALLS) {
-      // Przekroczono limit — cofnij INCR, żeby nie zawyżać licznika
-      await this.redis.decr(key);
-      this.logger.warn(
-        `Daily GPT cap reached for ${ticker}: ${count - 1}/${MAX_DAILY_CALLS}`,
+    try {
+      const result = await this.redis.eval(
+        DailyCapService.LUA_CHECK_AND_RESERVE,
+        1,
+        key,
+        MAX_DAILY_CALLS,
       );
-      return false;
+      if (result === 0) {
+        this.logger.warn(`Daily GPT cap reached for ${ticker}: ${MAX_DAILY_CALLS}/${MAX_DAILY_CALLS}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.error(`DailyCap Redis error for ${ticker}: ${err.message}`);
+      return true; // fail-open: nie blokuj pipeline przy problemach Redis
     }
-    return true;
   }
 
   private buildKey(ticker: string): string {

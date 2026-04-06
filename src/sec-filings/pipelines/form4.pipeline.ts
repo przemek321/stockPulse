@@ -190,7 +190,9 @@ export class Form4Pipeline {
         const filing = await this.filingRepo.findOne({
           where: { accessionNumber: baseAccession },
         });
-        if (filing && !filing.gptAnalysis) {
+        if (!filing) {
+          this.logger.warn(`Form4: filing not found for accession ${baseAccession} — GPT analysis not persisted`);
+        } else if (!filing.gptAnalysis) {
           filing.gptAnalysis = analysis as any;
           filing.priceImpactDirection = analysis.price_impact.direction;
           await this.filingRepo.save(filing);
@@ -263,6 +265,9 @@ export class Form4Pipeline {
       });
 
       const delivered = await this.telegram.sendMarkdown(message);
+      if (!delivered) {
+        this.logger.error(`TELEGRAM FAILED: Form4 alert for ${payload.symbol} not delivered — saved to DB`);
+      }
 
       // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
       let priceAtAlert: number | undefined;
@@ -272,21 +277,25 @@ export class Form4Pipeline {
         }
       } catch { /* noop — cena niedostępna po sesji */ }
 
-      await this.alertRepo.save(
-        this.alertRepo.create({
-          symbol: payload.symbol,
-          ruleName: rule.name,
-          priority,
-          channel: 'TELEGRAM',
-          message,
-          delivered,
-          catalystType: analysis.catalyst_type,
-          alertDirection: analysis.price_impact.direction === 'neutral'
-            ? (analysis.conviction >= 0 ? 'positive' : 'negative')
-            : analysis.price_impact.direction,
-          priceAtAlert,
-        }),
-      );
+      try {
+        await this.alertRepo.save(
+          this.alertRepo.create({
+            symbol: payload.symbol,
+            ruleName: rule.name,
+            priority,
+            channel: 'TELEGRAM',
+            message,
+            delivered,
+            catalystType: analysis.catalyst_type,
+            alertDirection: analysis.price_impact.direction === 'neutral'
+              ? (analysis.conviction >= 0 ? 'positive' : 'negative')
+              : analysis.price_impact.direction,
+            priceAtAlert,
+          }),
+        );
+      } catch (err) {
+        this.logger.error(`Failed to save Form4 alert for ${payload.symbol}: ${err.message}`);
+      }
 
       this.logger.log(
         `Form4 GPT alert: ${payload.symbol} ${parsed.insiderName} — ` +
