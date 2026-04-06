@@ -2,6 +2,7 @@
 Pobieranie historycznych cen z yfinance.
 Cache na dysk per ticker (CSV), nie pobiera ponownie.
 """
+from __future__ import annotations
 
 import os
 from datetime import timedelta
@@ -16,11 +17,19 @@ def _price_file(symbol: str) -> str:
     return os.path.join(PRICES_DIR, f"{symbol}.csv")
 
 
+def _read_prices_csv(path: str) -> pd.DataFrame:
+    """Wczytuje CSV z cenami, normalizuje index do naive datetime (bez timezone)."""
+    df = pd.read_csv(path, index_col=0)
+    # Konwersja indeksu: strip timezone, wymuś DatetimeIndex
+    df.index = pd.to_datetime(df.index, utc=True).tz_localize(None)
+    return df
+
+
 def fetch_prices_for_ticker(symbol: str, force: bool = False) -> pd.DataFrame:
     """Pobiera dzienne OHLC dla jednego tickera. Cache lokalny."""
     path = _price_file(symbol)
     if os.path.exists(path) and not force:
-        return pd.read_csv(path, index_col=0, parse_dates=True)
+        return _read_prices_csv(path)
 
     # Margines +60 dni na horyzonty (30d od ostatniej transakcji)
     start = START_DATE - timedelta(days=10)
@@ -56,7 +65,7 @@ def fetch_all_prices(force: bool = False) -> dict[str, pd.DataFrame]:
     for i, symbol in enumerate(ALL_TICKERS):
         path = _price_file(symbol)
         if os.path.exists(path) and not force:
-            prices[symbol] = pd.read_csv(path, index_col=0, parse_dates=True)
+            prices[symbol] = _read_prices_csv(path)
             cached += 1
         else:
             print(f"[PRICES] [{i+1}/{len(ALL_TICKERS)}] {symbol}...", end=" ", flush=True)

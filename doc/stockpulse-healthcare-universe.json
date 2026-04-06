@@ -943,7 +943,13 @@
       },
       {
         "name": "Form 4 Insider Signal",
-        "condition": "Form 4 analyzed by GPT — significant insider trading pattern",
+        "condition": "Form 4 analyzed by GPT — significant insider SELL pattern (Director SELL excluded)",
+        "priority": "HIGH",
+        "throttle_minutes": 60
+      },
+      {
+        "name": "Form 4 Insider BUY",
+        "condition": "Form 4 discretionary BUY ≥$100K — backtest: d=0.43 (7d), C-suite×1.3, healthcare×1.2",
         "priority": "HIGH",
         "throttle_minutes": 60
       },

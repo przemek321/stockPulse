@@ -4,6 +4,7 @@ H1: Insider Clusters, H2: Single C-suite, H3: 10b5-1 vs discretionary,
 H4: Role seniority, H5: BUY vs SELL signals.
 Baseline: losowe daty na tych samych tickerach.
 """
+from __future__ import annotations
 
 import os
 import json
@@ -136,6 +137,51 @@ def _compute_baseline(prices: dict[str, pd.DataFrame],
     return baseline
 
 
+def _compute_dip_baseline(prices: dict[str, pd.DataFrame],
+                          symbols: list[str], dip_threshold: float = -2.0,
+                          seed: int = 45) -> dict[str, list[float]]:
+    """
+    Baseline: losowe dni PO DIPIE (spadek > dip_threshold %).
+    Kontroluje mean reversion — jeśli insider BUY po dipie daje te same zwroty
+    co losowy dip, to nie ma edge insiderskiego.
+    """
+    rng = np.random.RandomState(seed)
+    baseline = {h: [] for h in HORIZONS}
+
+    for sym in symbols:
+        df = prices.get(sym)
+        if df is None or len(df) < 30:
+            continue
+
+        closes = df["Close"].values
+        # Znajdź dni z dziennym spadkiem > threshold
+        daily_returns = np.diff(closes) / closes[:-1] * 100
+        dip_indices = np.where(daily_returns <= dip_threshold)[0] + 1  # +1 = dzień po spadku
+
+        max_offset = max(HORIZONS.values())
+        valid_dips = [i for i in dip_indices if i + max_offset < len(closes)]
+
+        if not valid_dips:
+            continue
+
+        # Losuj max 50 dipów per ticker (żeby nie zdominować dużymi tickerami)
+        if len(valid_dips) > 50:
+            valid_dips = rng.choice(valid_dips, size=50, replace=False).tolist()
+
+        for idx in valid_dips:
+            base_price = closes[idx]
+            if base_price <= 0:
+                continue
+            for label, offset in HORIZONS.items():
+                future_idx = idx + offset
+                if future_idx < len(closes):
+                    future_price = closes[future_idx]
+                    ret = (future_price - base_price) / base_price * 100
+                    baseline[label].append(ret)
+
+    return baseline
+
+
 # =============================================================================
 # Hipotezy
 # =============================================================================
@@ -163,12 +209,13 @@ def _horizon_stats(returns_list: list[EventReturn],
         bl = np.array(baseline.get(horizon, []))
 
         # Hit rate: kierunek zgodny z oczekiwanym
+        # direction="any" → liczy abs(return) > 1% jako "ruch" (nie 100%)
         if direction == "sell":
             hits = np.sum(arr < 0)  # SELL → cena spadła = trafiony
         elif direction == "buy":
             hits = np.sum(arr > 0)  # BUY → cena wzrosła = trafiony
         else:
-            hits = len(arr)  # brak kierunku
+            hits = np.sum(np.abs(arr) > 1.0)  # >1% abs ruch = istotny event
 
         hit_rate = float(hits / len(arr) * 100) if len(arr) > 0 else 0
 
@@ -179,7 +226,7 @@ def _horizon_stats(returns_list: list[EventReturn],
             elif direction == "buy":
                 bl_hits = np.sum(bl > 0)
             else:
-                bl_hits = len(bl)
+                bl_hits = np.sum(np.abs(bl) > 1.0)
             bl_hit_rate = float(bl_hits / len(bl) * 100)
         else:
             bl_hit_rate = 50.0
@@ -235,14 +282,12 @@ def analyze_h1_clusters(tx_df: pd.DataFrame,
         (tx_df["is_10b51_plan"] == False) &
         (tx_df["transaction_type"].isin(["BUY", "SELL"]))
     ].copy()
-    disc["transaction_date"] = pd.to_datetime(disc["transaction_date"])
-    disc = disc.sort_values(["symbol", "transaction_date"])
+    disc["filing_date"] = pd.to_datetime(disc["filing_date"], format="%Y-%m-%d")
+    disc = disc.sort_values(["symbol", "filing_date"])
 
     events = []
     for symbol, group in disc.groupby("symbol"):
-        dates = group["transaction_date"].values
-        names = group["insider_name"].values
-        tx_types = group["transaction_type"].values
+        dates = group["filing_date"].values
 
         i = 0
         while i < len(dates):
@@ -252,8 +297,8 @@ def analyze_h1_clusters(tx_df: pd.DataFrame,
 
             unique_insiders = cluster["insider_name"].nunique()
             if unique_insiders >= CLUSTER_MIN_INSIDERS:
-                # Użyj pierwszej daty klastra
-                cluster_date = str(pd.Timestamp(dates[i]).date())
+                # Użyj OSTATNIEJ filing_date klastra (rynek widzi pełny klaster)
+                cluster_date = str(pd.Timestamp(dates[cluster_mask][-1]).date())
                 dominant_type = cluster["transaction_type"].mode().iloc[0]
 
                 ret_data = _compute_returns(prices, symbol, cluster_date)
@@ -271,7 +316,7 @@ def analyze_h1_clusters(tx_df: pd.DataFrame,
                     events.append(ev)
 
                 # Przeskocz klaster
-                i = int(cluster_mask.sum())
+                i += int(cluster_mask.sum())
                 continue
             i += 1
 
@@ -328,11 +373,11 @@ def analyze_h2_single_csuite(tx_df: pd.DataFrame,
 
     events = []
     for _, row in csuite.iterrows():
-        ret_data = _compute_returns(prices, row["symbol"], row["transaction_date"])
+        ret_data = _compute_returns(prices, row["symbol"], row["filing_date"])
         if ret_data:
             events.append(EventReturn(
                 symbol=row["symbol"],
-                event_date=row["transaction_date"],
+                event_date=row["filing_date"],
                 price_at_event=ret_data["price_at_event"],
                 returns=ret_data["returns"],
                 tx_type=row["transaction_type"],
@@ -397,12 +442,12 @@ def analyze_h3_plan_vs_discretionary(tx_df: pd.DataFrame,
     disc_events = []
 
     for _, row in sells.iterrows():
-        ret_data = _compute_returns(prices, row["symbol"], row["transaction_date"])
+        ret_data = _compute_returns(prices, row["symbol"], row["filing_date"])
         if not ret_data:
             continue
         ev = EventReturn(
             symbol=row["symbol"],
-            event_date=row["transaction_date"],
+            event_date=row["filing_date"],
             price_at_event=ret_data["price_at_event"],
             returns=ret_data["returns"],
             tx_type="SELL",
@@ -449,12 +494,12 @@ def analyze_h4_role_seniority(tx_df: pd.DataFrame,
     role_groups = {"csuite": [], "director": [], "other": []}
 
     for _, row in disc.iterrows():
-        ret_data = _compute_returns(prices, row["symbol"], row["transaction_date"])
+        ret_data = _compute_returns(prices, row["symbol"], row["filing_date"])
         if not ret_data:
             continue
         ev = EventReturn(
             symbol=row["symbol"],
-            event_date=row["transaction_date"],
+            event_date=row["filing_date"],
             price_at_event=ret_data["price_at_event"],
             returns=ret_data["returns"],
             tx_type="SELL",
@@ -483,9 +528,11 @@ def analyze_h4_role_seniority(tx_df: pd.DataFrame,
 
 def analyze_h5_buy_signals(tx_df: pd.DataFrame,
                             prices: dict[str, pd.DataFrame],
-                            baseline: dict[str, list[float]]) -> HypothesisResult:
+                            baseline: dict[str, list[float]],
+                            dip_baseline: dict[str, list[float]] = None) -> HypothesisResult:
     """
     H5: Discretionary BUY — czy warto alertować?
+    Porównanie z dwoma baseline: losowy dzień (standard) i losowy dip >2% (mean reversion control).
     """
     h = HypothesisResult(
         name="H5_BUY_SIGNALS",
@@ -499,12 +546,12 @@ def analyze_h5_buy_signals(tx_df: pd.DataFrame,
 
     events = []
     for _, row in buys.iterrows():
-        ret_data = _compute_returns(prices, row["symbol"], row["transaction_date"])
+        ret_data = _compute_returns(prices, row["symbol"], row["filing_date"])
         if not ret_data:
             continue
         events.append(EventReturn(
             symbol=row["symbol"],
-            event_date=row["transaction_date"],
+            event_date=row["filing_date"],
             price_at_event=ret_data["price_at_event"],
             returns=ret_data["returns"],
             tx_type="BUY",
@@ -549,6 +596,20 @@ def analyze_h5_buy_signals(tx_df: pd.DataFrame,
             },
         }
 
+        # Porównanie z dip baseline (kontrola mean reversion)
+        if dip_baseline:
+            h.sub_groups["vs_random_dip_ALL"] = {
+                "n": len(events),
+                "horizons": _horizon_stats(events, dip_baseline, "buy"),
+                "_note": "Baseline = losowe dni po spadku >2%. Jeśli brak istotności → mean reversion, nie edge.",
+            }
+            csuite_b = [e for e in events if e.is_csuite]
+            if csuite_b:
+                h.sub_groups["vs_random_dip_CSUITE"] = {
+                    "n": len(csuite_b),
+                    "horizons": _horizon_stats(csuite_b, dip_baseline, "buy"),
+                }
+
     return h
 
 
@@ -574,12 +635,12 @@ def analyze_healthcare_vs_control(tx_df: pd.DataFrame,
     ctrl_events = []
 
     for _, row in disc_sells.iterrows():
-        ret_data = _compute_returns(prices, row["symbol"], row["transaction_date"])
+        ret_data = _compute_returns(prices, row["symbol"], row["filing_date"])
         if not ret_data:
             continue
         ev = EventReturn(
             symbol=row["symbol"],
-            event_date=row["transaction_date"],
+            event_date=row["filing_date"],
             price_at_event=ret_data["price_at_event"],
             returns=ret_data["returns"],
             tx_type="SELL",
@@ -619,7 +680,24 @@ def run_analysis(transactions_csv: str,
 
     # Wczytaj transakcje
     tx_df = pd.read_csv(transactions_csv)
-    print(f"\nTransakcje: {len(tx_df)}")
+    # Filtruj błędne daty (np. rok 0025 zamiast 2025 z SEC XML)
+    tx_df = tx_df[tx_df["transaction_date"].str.match(r"^20\d{2}-", na=False)].copy()
+    tx_df = tx_df[tx_df["filing_date"].str.match(r"^20\d{2}-", na=False)].copy()
+    print(f"\nTransakcje (raw): {len(tx_df)}")
+
+    # Deduplikacja: kolapsuj wiele transakcji per (symbol, insider, tydzień, typ)
+    # do jednego eventu — zapobiega pompowaniu N przez wewnątrz-tickerowe korelacje
+    tx_df["_week"] = pd.to_datetime(tx_df["filing_date"]).dt.isocalendar().week.astype(str) + \
+                     "-" + pd.to_datetime(tx_df["filing_date"]).dt.isocalendar().year.astype(str)
+    tx_df["_dedup_key"] = tx_df["symbol"] + "|" + tx_df["insider_name"] + "|" + \
+                          tx_df["_week"] + "|" + tx_df["transaction_type"]
+    n_before = len(tx_df)
+    # Zachowaj największą transakcję per klucz deduplikacji
+    tx_df = tx_df.sort_values("total_value", ascending=False).drop_duplicates(
+        subset=["_dedup_key"], keep="first"
+    ).sort_values(["symbol", "filing_date"])
+    print(f"Transakcje (po deduplikacji per insider×tydzień): {len(tx_df)} "
+          f"(usunięto {n_before - len(tx_df)} duplikatów)")
 
     # Statystyki danych
     print(f"  SELL: {len(tx_df[tx_df['transaction_type'] == 'SELL'])}")
@@ -640,6 +718,12 @@ def run_analysis(transactions_csv: str,
     baseline_all = _compute_baseline(prices, all_symbols, n_samples=10000)
     baseline_hc = _compute_baseline(prices, hc_symbols, n_samples=5000, seed=43)
     baseline_ctrl = _compute_baseline(prices, ctrl_symbols, n_samples=5000, seed=44)
+
+    # Dip baseline — kontrola mean reversion (losowe dni po spadku >2%)
+    print("[BASELINE DIP] Obliczam zwroty po losowych dipach >2%...")
+    dip_baseline_all = _compute_dip_baseline(prices, all_symbols)
+    n_dip = len(dip_baseline_all.get("1d", []))
+    print(f"  dip baseline: {n_dip} samples")
 
     for h, bl in [("all", baseline_all), ("healthcare", baseline_hc),
                   ("control", baseline_ctrl)]:
@@ -669,8 +753,8 @@ def run_analysis(transactions_csv: str,
     results.append(h4)
     print(f"     {h4.n_events} transakcji")
 
-    print("[H5] BUY Signals...")
-    h5 = analyze_h5_buy_signals(tx_df, prices, baseline_all)
+    print("[H5] BUY Signals (+ dip baseline kontrola)...")
+    h5 = analyze_h5_buy_signals(tx_df, prices, baseline_all, dip_baseline_all)
     results.append(h5)
     print(f"     {h5.n_events} transakcji")
 

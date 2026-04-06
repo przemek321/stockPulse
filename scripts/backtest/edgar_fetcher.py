@@ -3,6 +3,7 @@ Pobieranie i parsowanie Form 4 z SEC EDGAR.
 Obsługuje: CIK lookup, submissions.json (recent + starsze batche), XML parsing.
 Cache na dysk — nie pobiera ponownie już ściągniętych danych.
 """
+from __future__ import annotations
 
 import csv
 import json
@@ -295,12 +296,23 @@ def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
 
 
 def _fetch_form4_xml(accession: str, primary_doc: str, cik: str) -> Optional[str]:
-    """Pobiera XML Form 4 z SEC EDGAR."""
+    """Pobiera XML Form 4 z SEC EDGAR.
+
+    primary_doc często ma prefix XSLT (np. xslF345X06/plik.xml) — wycinamy go
+    i pobieramy surowy XML z www.sec.gov (data.sec.gov zwraca 404 dla wielu filingów).
+    """
     accession_clean = accession.replace("-", "")
-    
-    # Próba 1: primary_doc
+    base_url = "https://www.sec.gov"  # data.sec.gov daje 404 na nowszych filingach
+
+    # Wyciągnij nazwę pliku XML (bez xsl prefixu)
+    xml_filename = ""
     if primary_doc:
-        url = f"{SEC_BASE_URL}/Archives/edgar/data/{cik}/{accession_clean}/{primary_doc}"
+        # np. "xslF345X06/wk-form4_123.xml" → "wk-form4_123.xml"
+        xml_filename = primary_doc.split("/")[-1] if "/" in primary_doc else primary_doc
+
+    # Próba 1: surowy XML (bez XSLT prefixu)
+    if xml_filename:
+        url = f"{base_url}/Archives/edgar/data/{cik}/{accession_clean}/{xml_filename}"
         try:
             resp = SESSION.get(url)
             _rate_limit()
@@ -309,24 +321,22 @@ def _fetch_form4_xml(accession: str, primary_doc: str, cik: str) -> Optional[str
         except Exception:
             pass
 
-    # Próba 2: standardowa ścieżka z .xml
-    for ext in [".xml", "-index.htm"]:
-        url = f"{SEC_BASE_URL}/Archives/edgar/data/{cik}/{accession_clean}"
-        try:
-            resp = SESSION.get(url)
-            _rate_limit()
-            if resp.status_code == 200:
-                # Szukaj linku do XML w index
-                xml_match = re.search(r'href="([^"]*\.xml)"', resp.text, re.IGNORECASE)
-                if xml_match:
-                    xml_url = f"{SEC_BASE_URL}/Archives/edgar/data/{cik}/{accession_clean}/{xml_match.group(1)}"
-                    resp2 = SESSION.get(xml_url)
-                    _rate_limit()
-                    if resp2.status_code == 200 and "<ownershipDocument" in resp2.text:
-                        return resp2.text
-            break  # Nie próbuj obu rozszerzeń jeśli index zadziałał
-        except Exception:
-            pass
+    # Próba 2: filing index → szukaj linku do .xml
+    index_url = f"{base_url}/Archives/edgar/data/{cik}/{accession_clean}/"
+    try:
+        resp = SESSION.get(index_url)
+        _rate_limit()
+        if resp.status_code == 200:
+            xml_match = re.search(r'href="([^"]*\.xml)"', resp.text, re.IGNORECASE)
+            if xml_match:
+                found_xml = xml_match.group(1).lstrip("/")
+                xml_url = f"{base_url}/Archives/edgar/data/{cik}/{accession_clean}/{found_xml}"
+                resp2 = SESSION.get(xml_url)
+                _rate_limit()
+                if resp2.status_code == 200 and "<ownershipDocument" in resp2.text:
+                    return resp2.text
+    except Exception:
+        pass
 
     return None
 

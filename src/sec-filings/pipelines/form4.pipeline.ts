@@ -77,6 +77,14 @@ export class Form4Pipeline {
       return { action: 'SKIP_10B51_PLAN', symbol: payload.symbol };
     }
 
+    // Sprint 15 (backtest): Director SELL = anty-sygnał (68% cena rośnie po SELL).
+    // Hard skip — nie wysyłaj do GPT, nie generuj alertu.
+    const isDirector = /\bDirector\b/i.test(payload.insiderRole ?? '');
+    if (isDirector && payload.transactionType === 'SELL') {
+      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP Director SELL (anty-sygnał)`);
+      return { action: 'SKIP_DIRECTOR_SELL', symbol: payload.symbol };
+    }
+
     // Sprawdź daily cap
     if (!(await this.dailyCap.canCallGpt(payload.symbol))) {
       return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol };
@@ -198,6 +206,22 @@ export class Form4Pipeline {
       const isCsuite = C_SUITE_PATTERNS.some(
         p => p.test(parsed.insiderRole ?? '') || p.test(parsed.insiderName),
       );
+      const isBuy = parsed.transactionType === 'BUY';
+
+      // Sprint 15 (backtest): BUY conviction boosty — potwierdzone na 3 latach danych
+      // C-suite BUY: d=0.83 vs baseline, d=0.60 vs dip baseline (N=39)
+      // Healthcare BUY: d=0.58 vs baseline (N=102)
+      if (isBuy) {
+        if (isCsuite) {
+          analysis.conviction *= 1.3;
+          this.logger.debug(`Form4 BUY boost: ${payload.symbol} C-suite ×1.3 → conviction=${analysis.conviction.toFixed(2)}`);
+        }
+        // Healthcare boost: sprawdź subsector z tabeli tickerów
+        if (ticker?.subsector) {
+          analysis.conviction *= 1.2;
+          this.logger.debug(`Form4 BUY boost: ${payload.symbol} healthcare ×1.2 → conviction=${analysis.conviction.toFixed(2)}`);
+        }
+      }
 
       // Oblicz priorytet alertu
       let priority = scoreToAlertPriority(analysis, 'Form4');
@@ -211,8 +235,8 @@ export class Form4Pipeline {
         return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol };
       }
 
-      // Sprawdź regułę i throttling
-      const ruleName = mapToRuleName(analysis, 'Form4');
+      // Sprawdź regułę — BUY ma osobną regułę (Sprint 15, backtest-backed)
+      const ruleName = isBuy ? 'Form 4 Insider BUY' : mapToRuleName(analysis, 'Form4');
       const rule = await this.ruleRepo.findOne({
         where: { name: ruleName, isActive: true },
       });

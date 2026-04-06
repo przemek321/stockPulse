@@ -411,6 +411,12 @@ export class CorrelationService implements OnModuleDestroy {
   ): Promise<void> {
     if (Math.abs(pattern.correlated_conviction) < MIN_CORRELATED_CONVICTION) return;
 
+    // Sprint 15 (backtest): INSIDER_CLUSTER SELL → observation mode
+    // Backtest: sell clusters hit rate 42.8%, p=0.204, brak edge.
+    // BUY clusters (d=0.47, p=0.009) nadal alertują normalnie.
+    const isClusterSellObservation =
+      pattern.type === 'INSIDER_CLUSTER' && pattern.direction === 'negative';
+
     // Deduplikacja: sprawdź czy ten wzorzec nie był już alertowany
     const dedupKey = `fired:${ticker}:${pattern.type}`;
     const alreadyFired = await this.redis.get(dedupKey);
@@ -435,7 +441,17 @@ export class CorrelationService implements OnModuleDestroy {
       priority,
     });
 
-    const delivered = await this.telegram.sendMarkdown(message);
+    // Observation mode: zapisz do DB bez wysyłki na Telegram
+    const delivered = isClusterSellObservation
+      ? false
+      : await this.telegram.sendMarkdown(message);
+
+    if (isClusterSellObservation) {
+      this.logger.log(
+        `OBSERVATION: ${ticker} INSIDER_CLUSTER SELL — DB only, no Telegram ` +
+          `(conviction=${pattern.correlated_conviction.toFixed(2)})`,
+      );
+    }
 
     // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
     let priceAtAlert: number | undefined;
