@@ -8,7 +8,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { fetchTimeline, fetchTimelineSymbols, TimelineAlert, TimelineSummary, TimelineSymbol } from '../api';
+import { fetchTimeline, fetchRecentTimeline, fetchTimelineSymbols, TimelineAlert, TimelineSummary, TimelineSymbol } from '../api';
 
 /* ── Pomocnicze formatery ─────────────────────────────── */
 
@@ -200,7 +200,10 @@ const SignalCard = ({ a, expanded, onToggle, onShowMessage }: {
       {/* Wiersz 1: typ sygnalu + conviction + data + hit */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.8 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#e0e0e0' }}>
+          <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#4fc3f7' }}>
+            {a.symbol}
+          </Typography>
+          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#e0e0e0' }}>
             {a.ruleName}
           </Typography>
           {a.conviction != null && <ConvictionBadge v={a.conviction} />}
@@ -270,7 +273,7 @@ const SignalCard = ({ a, expanded, onToggle, onShowMessage }: {
 export default function SignalTimeline() {
   const [symbols, setSymbols] = useState<TimelineSymbol[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [days, setDays] = useState<number>(30);
+  const [days, setDays] = useState<number>(7);
   const [alerts, setAlerts] = useState<TimelineAlert[]>([]);
   const [summary, setSummary] = useState<TimelineSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -282,27 +285,27 @@ export default function SignalTimeline() {
     fetchTimelineSymbols(days).then(d => setSymbols(d.symbols || [])).catch(() => {});
   }, [days]);
 
-  // Zaladuj timeline gdy wybrany ticker
-  const loadTimeline = useCallback(async (sym: string) => {
+  // Zaladuj dane — per ticker lub ostatnie ze wszystkich
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchTimeline(sym, days);
+      const data = selected
+        ? await fetchTimeline(selected, days)
+        : await fetchRecentTimeline(days, 30);
       setAlerts(data.alerts || []);
       setSummary(data.summary);
     } catch { setAlerts([]); setSummary(null); }
     setLoading(false);
-  }, [days]);
+  }, [selected, days]);
 
-  useEffect(() => {
-    if (selected) loadTimeline(selected);
-  }, [selected, loadTimeline]);
+  // Laduj przy starcie (ostatnie alerty) i przy zmianie tickera/dni
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Auto-refresh co 60s
   useEffect(() => {
-    if (!selected) return;
-    const interval = setInterval(() => loadTimeline(selected), 60_000);
+    const interval = setInterval(loadData, 60_000);
     return () => clearInterval(interval);
-  }, [selected, loadTimeline]);
+  }, [loadData]);
 
   return (
     <Paper sx={{ p: 2, mb: 2 }}>
@@ -316,8 +319,8 @@ export default function SignalTimeline() {
           options={symbols}
           getOptionLabel={(o) => `${o.symbol} (${o.alertCount})`}
           onChange={(_, v) => setSelected(v?.symbol ?? null)}
-          renderInput={(params) => <TextField {...params} label="Ticker" size="small" sx={{ minWidth: 200 }} />}
-          sx={{ minWidth: 200 }}
+          renderInput={(params) => <TextField {...params} label="Ticker (wszystkie)" size="small" sx={{ minWidth: 220 }} />}
+          sx={{ minWidth: 220 }}
         />
         <ToggleButtonGroup
           value={days}
@@ -375,15 +378,11 @@ export default function SignalTimeline() {
 
       {loading && <LinearProgress sx={{ mb: 1, borderRadius: 1 }} />}
 
-      {!selected && !loading && (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-          Wybierz ticker z listy powyzej
-        </Typography>
-      )}
+      {/* Widok domyślny ładuje ostatnie alerty — nie potrzeba "wybierz ticker" */}
 
-      {/* Timeline alertow */}
+      {/* Timeline alertow — sortowanie od najnowszych */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-        {alerts.map((a) => (
+        {[...alerts].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()).map((a) => (
           <Box key={a.id}>
             <GapSeparator a={a} />
             <SignalCard

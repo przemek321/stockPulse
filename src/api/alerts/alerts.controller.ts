@@ -127,7 +127,7 @@ export class AlertsController {
   /**
    * Timeline sygnałów per ticker — chronologiczna sekwencja alertów
    * z deltami cenowymi między sygnałami, odstępami czasowymi i trafnością.
-   * ?symbol=GILD (required) &days=30 &limit=50
+   * ?symbol=GILD (opcjonalne — bez symbolu zwraca wszystkie tickery) &days=30 &limit=50
    */
   @Get('timeline')
   async getTimeline(
@@ -135,7 +135,10 @@ export class AlertsController {
     @Query('days') daysParam?: string,
     @Query('limit') limitParam?: string,
   ) {
-    if (!symbol) return { error: 'symbol is required' };
+    // Bez symbolu — zwróć ostatnie alerty ze wszystkich tickerów (widok domyślny)
+    if (!symbol) {
+      return this.getRecentTimeline(daysParam, limitParam);
+    }
 
     const sym = symbol.toUpperCase();
     const days = Math.max(1, Math.min(parseInt(daysParam || '30', 10) || 30, 365));
@@ -245,6 +248,53 @@ export class AlertsController {
     `, [days]);
 
     return { symbols: rows };
+  }
+
+  /**
+   * Ostatnie alerty ze wszystkich tickerów — widok domyślny Signal Timeline.
+   * Sortowane po dacie (najnowsze na górze), bez window functions per ticker.
+   */
+  private async getRecentTimeline(daysParam?: string, limitParam?: string) {
+    const days = Math.max(1, Math.min(parseInt(daysParam || '7', 10) || 7, 90));
+    const limit = Math.max(1, Math.min(parseInt(limitParam || '30', 10) || 30, 100));
+
+    const rows = await this.dataSource.query(`
+      SELECT
+        id, symbol, "ruleName", priority, "alertDirection", "catalystType",
+        message, "priceAtAlert", price1h, price4h, price1d, price3d, "sentAt",
+        (regexp_match(
+          replace(replace(message, E'\\\\.', '.'), E'\\\\-', '-'),
+          'Conviction:\\s*([+-]?\\d+\\.?\\d*)', 'i'
+        ))[1]::numeric AS conviction,
+        CASE
+          WHEN price1d IS NOT NULL AND "priceAtAlert" IS NOT NULL AND "alertDirection" IS NOT NULL
+          THEN CASE
+            WHEN "alertDirection" = 'positive' AND price1d > "priceAtAlert" THEN true
+            WHEN "alertDirection" = 'negative' AND price1d < "priceAtAlert" THEN true
+            ELSE false
+          END
+          ELSE NULL
+        END AS "directionCorrect1d"
+      FROM alerts
+      WHERE "sentAt" > NOW() - INTERVAL '1 day' * $1
+      ORDER BY "sentAt" DESC
+      LIMIT $2
+    `, [days, limit]);
+
+    const alerts = rows.map((r: any) => ({
+      ...r,
+      priceAtAlert: r.priceAtAlert != null ? Number(r.priceAtAlert) : null,
+      price1h: r.price1h != null ? Number(r.price1h) : null,
+      price4h: r.price4h != null ? Number(r.price4h) : null,
+      price1d: r.price1d != null ? Number(r.price1d) : null,
+      price3d: r.price3d != null ? Number(r.price3d) : null,
+      conviction: r.conviction != null ? Number(r.conviction) : null,
+      hoursSincePrev: null,
+      priceDeltaFromPrevPct: null,
+      sameDirectionAsPrev: null,
+    }));
+
+    return { symbol: null, alerts, summary: null };
   }
 
   /**

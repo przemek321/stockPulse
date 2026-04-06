@@ -104,7 +104,11 @@ export class SecEdgarService extends BaseCollectorService {
       if (exists) continue;
 
       const accessionDir = accessionNumber.replace(/-/g, '');
-      const documentUrl = `https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${accessionDir}`;
+      const baseDir = `https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${accessionDir}`;
+      // Pełny URL do głównego dokumentu (primaryDocument z submissions.json)
+      // Zapobiega pobieraniu listingu katalogu zamiast treści filingu
+      const primaryDoc = recent.primaryDocument?.[i];
+      const documentUrl = primaryDoc ? `${baseDir}/${primaryDoc}` : baseDir;
 
       const filing = this.filingRepo.create({
         symbol,

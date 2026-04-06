@@ -352,6 +352,9 @@ export interface TimelineSymbol {
 export const fetchTimeline = (symbol: string, days = 30, limit = 50) =>
   get<TimelineResponse>(`/alerts/timeline?symbol=${symbol}&days=${days}&limit=${limit}`);
 
+export const fetchRecentTimeline = (days = 7, limit = 30) =>
+  get<TimelineResponse>(`/alerts/timeline?days=${days}&limit=${limit}`);
+
 export const fetchTimelineSymbols = (days = 30) =>
   get<{ symbols: TimelineSymbol[] }>(`/alerts/timeline/symbols?days=${days}`);
 

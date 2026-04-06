@@ -348,7 +348,13 @@ export class Form8kPipeline {
    */
   private async fetchFilingText(documentUrl: string): Promise<string | null> {
     try {
-      // Pobierz indeks plików filingu
+      // Jeśli URL wskazuje bezpośrednio na dokument (.htm/.html) — pobierz go
+      const lower = documentUrl.toLowerCase();
+      if (lower.endsWith('.htm') || lower.endsWith('.html')) {
+        return this.fetchDirectDocument(documentUrl);
+      }
+
+      // Inaczej: documentUrl to katalog — szukaj głównego pliku przez index.json
       const indexRes = await fetch(`${documentUrl}/index.json`, {
         headers: {
           'User-Agent': this.userAgent,
