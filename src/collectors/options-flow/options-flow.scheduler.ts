@@ -7,7 +7,7 @@ import { QUEUE_NAMES } from '../../queues/queue-names.const';
 /**
  * Scheduler dla kolektora options flow (Polygon.io EOD).
  *
- * CRON: 22:15 UTC (17:15 EST) — po zamknięciu NYSE + 15 min bufor.
+ * CRON: 20:30 UTC (22:30 CEST) — po zamknięciu NYSE (20:00 UTC) + 30 min bufor.
  * Tylko pon-pt (dni handlowe).
  * Bez POLYGON_API_KEY scheduler nie startuje.
  */
@@ -36,19 +36,20 @@ export class OptionsFlowScheduler implements OnModuleInit {
       await this.queue.removeRepeatableByKey(job.key);
     }
 
-    // CRON: 22:15 UTC, pon-pt
+    // CRON: 20:30 UTC (22:30 CEST / 22:30 polskiego), pon-pt
+    // NYSE zamyka 22:00 polskiego (20:00 UTC), +30 min bufor na EOD dane Polygon
     await this.queue.add(
       'collect-options-flow',
       {},
       {
-        repeat: { pattern: '15 22 * * 1-5' },
+        repeat: { pattern: '30 20 * * 1-5', tz: 'UTC' },
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       },
     );
 
     this.logger.log(
-      'Zaplanowano zbieranie options flow: CRON 22:15 UTC (pon-pt, po sesji NYSE)',
+      'Zaplanowano zbieranie options flow: CRON 20:30 UTC / 22:30 CEST (pon-pt, 30 min po zamknięciu NYSE)',
     );
   }
 }

@@ -29,7 +29,10 @@ export class OptionsFlowController {
   ) {
     const take = Math.min(Number(limit) || 50, 200);
 
+    const today = new Date().toISOString().split('T')[0];
+
     const qb = this.flowRepo.createQueryBuilder('f')
+      .where('f.expiry >= :today', { today })
       .orderBy('f.collectedAt', 'DESC')
       .take(take);
 

@@ -526,64 +526,149 @@ export default function App() {
         title="Options Flow — Nietypowa Aktywność Opcyjna"
         icon={<TrendingUpIcon sx={{ color: '#29b6f6' }} />}
         badgeColor="info"
-        defaultSortKey="sessionDate"
+        defaultSortKey="conviction"
         defaultSortDir="desc"
         columns={[
-          { key: 'symbol', label: 'Ticker' },
           {
-            key: 'optionType',
-            label: 'Typ',
+            key: 'symbol',
+            label: 'Ticker',
+            render: (_v: string, row: any) => {
+              const dir = row.direction;
+              const type = row.optionType;
+              const arrow = dir === 'positive' ? '▲' : dir === 'negative' ? '▼' : '◆';
+              const color = dir === 'positive' ? '#66bb6a' : dir === 'negative' ? '#ef5350' : '#90a4ae';
+              return (
+                <span style={{ fontWeight: 700 }}>
+                  {row.symbol}{' '}
+                  <span style={{ color, fontSize: '0.7rem' }}>{arrow} {type?.toUpperCase()}</span>
+                  {row.pdufaBoosted && <Chip label="PDUFA" size="small" sx={{ ml: 0.5, bgcolor: '#42a5f5', color: '#fff', fontSize: '0.55rem', height: 16 }} />}
+                </span>
+              );
+            },
+          },
+          {
+            key: 'strike',
+            label: 'Strike / Cena',
+            render: (_v: number, row: any) => {
+              const otm = (Number(row.otmDistance) * 100).toFixed(0);
+              return (
+                <span>
+                  <span style={{ fontWeight: 600 }}>${Number(row.strike).toFixed(0)}</span>
+                  <span style={{ color: '#90a4ae', fontSize: '0.75rem' }}> / ${Number(row.underlyingPrice).toFixed(2)}</span>
+                  <span style={{ color: '#78909c', fontSize: '0.7rem' }}> ({otm}% OTM)</span>
+                </span>
+              );
+            },
+          },
+          {
+            key: 'expiry',
+            label: 'Wygasa',
             render: (v: string) => {
-              const color = v === 'call' ? '#66bb6a' : '#ef5350';
-              return <Chip label={v?.toUpperCase()} size="small" sx={{ bgcolor: color, color: '#fff', fontWeight: 700, fontSize: '0.65rem' }} />;
+              const exp = new Date(v);
+              const now = new Date();
+              now.setUTCHours(0, 0, 0, 0);
+              const dte = Math.ceil((exp.getTime() - now.getTime()) / 86400000);
+              const color = dte <= 3 ? '#ef5350' : dte <= 7 ? '#ffa726' : '#90a4ae';
+              const dateStr = exp.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' });
+              return (
+                <span>
+                  <span style={{ color, fontWeight: 700 }}>{dte}d</span>
+                  <span style={{ color: '#607d8b', fontSize: '0.7rem' }}> ({dateStr})</span>
+                </span>
+              );
             },
           },
-          { key: 'strike', label: 'Strike', render: (v: number) => `$${Number(v).toFixed(2)}` },
-          { key: 'underlyingPrice', label: 'Underlying', render: (v: number) => `$${Number(v).toFixed(2)}` },
-          { key: 'dte', label: 'DTE' },
-          { key: 'dailyVolume', label: 'Volume', render: (v: number) => Number(v).toLocaleString() },
           {
-            key: 'volumeSpikeRatio',
-            label: 'Spike',
-            render: (v: number) => {
-              const ratio = Number(v);
+            key: 'dailyVolume',
+            label: 'Volume / Spike',
+            render: (_v: number, row: any) => {
+              const vol = Number(row.dailyVolume);
+              const ratio = Number(row.volumeSpikeRatio);
               const color = ratio >= 10 ? '#ef5350' : ratio >= 5 ? '#ffa726' : '#66bb6a';
-              return <span style={{ color, fontWeight: 700 }}>{ratio.toFixed(1)}×</span>;
+              return (
+                <span>
+                  {vol.toLocaleString()}{' '}
+                  <span style={{ color, fontWeight: 700 }}>({ratio.toFixed(1)}×)</span>
+                </span>
+              );
             },
           },
           {
-            key: 'otmDistance',
-            label: 'OTM',
-            render: (v: number) => `${(Number(v) * 100).toFixed(1)}%`,
+            key: '_contracts',
+            label: 'Kontrakty',
+            render: (v: number, row: any) => {
+              const n = Number(v);
+              const color = n >= 5 ? '#66bb6a' : n >= 3 ? '#ffa726' : '#90a4ae';
+              return (
+                <span style={{ color, fontWeight: 700 }}>
+                  {n}{n > 1 ? ' spike' : ''}
+                </span>
+              );
+            },
+          },
+          {
+            key: '_notional',
+            label: 'Ekspozycja',
+            render: (_v: number, row: any) => {
+              const shares = Number(row.dailyVolume) * 100;
+              const fmtShares = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(0)}K` : String(n);
+              const notional = Number(row._notional);
+              const fmtDollar = (n: number) => n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : `$${(n / 1e3).toFixed(0)}K`;
+              return (
+                <span>
+                  <span style={{ fontWeight: 600 }}>{fmtShares(shares)} szt</span>
+                  <span style={{ color: '#78909c', fontSize: '0.7rem' }}> ≈ {fmtDollar(notional)}</span>
+                </span>
+              );
+            },
           },
           {
             key: 'conviction',
             label: 'Conviction',
             render: (v: number) => {
               const n = Number(v);
+              const abs = Math.abs(n);
               const color = n > 0 ? '#66bb6a' : n < 0 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 700 }}>{n.toFixed(3)}</span>;
+              const bars = abs >= 0.6 ? '███' : abs >= 0.4 ? '██░' : abs >= 0.2 ? '█░░' : '░░░';
+              return (
+                <span style={{ fontWeight: 700 }}>
+                  <span style={{ color, fontFamily: 'monospace', fontSize: '0.65rem', letterSpacing: -1 }}>{bars}</span>
+                  {' '}<span style={{ color }}>{n > 0 ? '+' : ''}{n.toFixed(2)}</span>
+                </span>
+              );
             },
           },
           {
-            key: 'direction',
-            label: 'Kierunek',
+            key: 'sessionDate',
+            label: 'Sesja',
             render: (v: string) => {
-              const color = v === 'positive' ? '#66bb6a' : v === 'negative' ? '#ef5350' : '#90a4ae';
-              const label = v === 'positive' ? 'BULL' : v === 'negative' ? 'BEAR' : 'MIX';
-              return <Chip label={label} size="small" sx={{ bgcolor: color, color: '#fff', fontSize: '0.65rem' }} />;
+              const d = new Date(v);
+              return d.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' });
             },
           },
-          {
-            key: 'pdufaBoosted',
-            label: 'PDUFA',
-            render: (v: boolean) => v ? <Chip label="BOOST" size="small" sx={{ bgcolor: '#42a5f5', color: '#fff', fontSize: '0.6rem' }} /> : <span style={{ color: '#555' }}>—</span>,
-          },
-          { key: 'sessionDate', label: 'Sesja', render: (v: string) => fmtDate(v) },
         ]}
         fetchData={async () => {
           const res = await fetchOptionsFlow(200);
-          return res.data || [];
+          const todayMs = new Date().setUTCHours(0, 0, 0, 0);
+          const rows = (res.data || []).filter((r: any) => new Date(r.expiry).getTime() >= todayMs);
+          // Grupowanie: ile kontraktów spike'uje per ticker+sesja + sumaryczne $
+          const grouped = new Map<string, { count: number; totalNotional: number }>();
+          for (const r of rows) {
+            const key = `${r.symbol}|${r.sessionDate}`;
+            const prev = grouped.get(key) || { count: 0, totalNotional: 0 };
+            prev.count++;
+            prev.totalNotional += Number(r.dailyVolume) * 100 * Number(r.underlyingPrice);
+            grouped.set(key, prev);
+          }
+          return rows.map((r: any) => {
+            const g = grouped.get(`${r.symbol}|${r.sessionDate}`)!;
+            return {
+              ...r,
+              _contracts: g.count,
+              _notional: Number(r.dailyVolume) * 100 * Number(r.underlyingPrice),
+              _sessionNotional: g.totalNotional,
+            };
+          });
         }}
       />
 

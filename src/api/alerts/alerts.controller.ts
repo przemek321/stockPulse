@@ -239,10 +239,8 @@ export class AlertsController {
       SELECT symbol, COUNT(*)::int AS "alertCount",
         MAX("sentAt") AS "lastAlert"
       FROM alerts
-      WHERE "priceAtAlert" IS NOT NULL
-        AND "sentAt" > NOW() - INTERVAL '1 day' * $1
+      WHERE "sentAt" > NOW() - INTERVAL '1 day' * $1
       GROUP BY symbol
-      HAVING COUNT(*) >= 2
       ORDER BY COUNT(*) DESC
     `, [days]);
 

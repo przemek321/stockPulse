@@ -267,10 +267,10 @@ export class OptionsFlowService extends BaseCollectorService {
    */
   private getLastTradingDay(date: Date): string {
     const d = new Date(date);
-    const day = d.getDay();
-    // Jeśli niedziela lub sobota, cofnij do piątku
-    if (day === 0) d.setDate(d.getDate() - 2);
-    else if (day === 6) d.setDate(d.getDate() - 1);
+    const day = d.getUTCDay();
+    // Jeśli niedziela lub sobota, cofnij do piątku (UTC)
+    if (day === 0) d.setUTCDate(d.getUTCDate() - 2);
+    else if (day === 6) d.setUTCDate(d.getUTCDate() - 1);
     return d.toISOString().split('T')[0];
   }
 
