@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-05
+> Ostatnia aktualizacja: 2026-04-06
 
 ## Gdzie jesteśmy
 
-**Sprint 11 — Przebudowa: focus na edge** (ukończony 2026-04-03) + **Sprint 12 — Migracja AI + dashboard** (ukończony 2026-04-04) + **Sprint 13 — Signal Timeline** (2026-04-05) + **Sprint 14 — TickerProfileService + Słownik** (2026-04-05). System przebudowany: wyłączenie szumu, focus na insider pipeline + PDUFA + korelacje. Sprint 12: Claude Sonnet, Status Systemu, fix 8-K XBRL. Sprint 13: Signal Timeline (sekwencja sygnałów per ticker). Sprint 14: kontekst historyczny w promptach Claude (profil tickera 90d), słownik terminów na dashboardzie.
+**Sprint 15 — Backtest + BUY rule + bugfixy** (ukończony 2026-04-06). Backtest 3 lat danych SEC EDGAR (43 946 transakcji, 61 tickerów, 6 hipotez). Wynik: insider BUY = jedyny silny edge (d=0.43, p<0.001), Director SELL = anty-sygnał. Nowa reguła "Form 4 Insider BUY", 7 bugfixów (race condition, memory leak, error handling), raport 8h bez sentymentu, ulepszona Signal Timeline.
 
-**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER, INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary C-suite only (is10b51Plan=true → skip). 7 aktywnych reguł alertów, 12 wyłączonych. Cel: 3-5 alertów/tydzień z realnym edge zamiast 50/dzień z szumem. Raporty tygodniowe w [doc/reports/](doc/reports/).
+**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER [SELL=observation], INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary only (is10b51Plan→skip), **Director SELL→hard skip** (backtest: anty-sygnał), **BUY boosty** (C-suite ×1.3, healthcare ×1.2). **8 aktywnych reguł** alertów (w tym nowa Form 4 Insider BUY), 12 wyłączonych. **Kod zamrożony na tydzień** (walidacja live). Raporty tygodniowe w [doc/reports/](doc/reports/).
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -646,6 +646,45 @@ Profil historyczny per ticker (200-400 tokenów) wstrzykiwany do promptów Claud
 - [x] **Zakładka "Słownik"** na dashboardzie (`GlossaryTab.tsx`) — 9 rozwijalnych sekcji z pełnymi wyjaśnieniami, przykładami, instrukcją "Jak czytać Signal Timeline"
 - [x] **4 zakładki** na dashboardzie: Dashboard + Signal Timeline + System Logs + Słownik
 
+### Sprint 15: Backtest 3Y insider trading + BUY rule + bugfixy (ukończony 2026-04-06)
+
+Backtest 3 lat danych SEC EDGAR Form 4 (kwiecień 2023 – kwiecień 2026), walidacja hipotez z Welch's t-test + Cohen's d, implementacja wyników w pipeline, naprawa 7 bugów, przebudowa raportu 8h.
+
+#### 15.1 Backtest (`scripts/backtest/`)
+- [x] **Skrypty backtesta** — `run_backtest.py` (orchestrator), `edgar_fetcher.py` (SEC EDGAR Form 4 XML), `price_fetcher.py` (yfinance), `analyzer.py` (6 hipotez), `report_generator.py`, `config.py`
+- [x] **Dane**: 43 946 transakcji, 61 tickerów (42 healthcare + 25 control), 64 z cenami (3 ADR bez Form 4)
+- [x] **Fixy backtesta**: `from __future__ import annotations` (Python 3.8), `multitasking==0.0.11` (yfinance), fix XML URL (`www.sec.gov` + strip XSLT prefix), fix cluster index (`i += ...`)
+- [x] **Fixy analizy**: `filing_date` zamiast `transaction_date`, dip baseline (mean reversion control), deduplikacja per insider×tydzień, fix `direction="any"` bug (hit rate 100%)
+- [x] **6 hipotez**: H1 Insider Clusters, H2 Single C-suite, H3 10b5-1 vs discretionary, H4 Role seniority, H5 BUY signals, H6 Healthcare vs Control
+- [x] **Wyniki**: `scripts/backtest/data/results/backtest_summary.md` — insider BUY d=0.43 (7d, p<0.001), C-suite BUY d=0.83, Healthcare SELL d=-0.11 (jedyny SELL z edge), Director SELL = anty-sygnał (68% cena rośnie)
+
+#### 15.2 Pipeline changes
+- [x] **Nowa reguła "Form 4 Insider BUY"** — min $100K, C-suite ×1.3, healthcare ×1.2, osobna reguła w DB (backtest-backed)
+- [x] **Director SELL → hard skip** w Form4Pipeline — anty-sygnał, nie wysyłaj do GPT
+- [x] **INSIDER_CLUSTER SELL → observation mode** — zapis do DB bez Telegramu (backtest: brak edge, p=0.204)
+- [x] **Seed**: 20 reguł (dodana Form 4 Insider BUY)
+
+#### 15.3 Bugfixy (7 bugów)
+- [x] **CRITICAL**: Race condition INCR/DECR w `daily-cap.service.ts` → Lua atomic script
+- [x] **CRITICAL**: Telegram send failure bez logowania → `logger.error` w 5 miejscach (form4, form8k×2, options-flow, correlation)
+- [x] **CRITICAL**: Debounce nadpisujący timery w CorrelationService → skip-if-scheduled
+- [x] **HIGH**: Memory leak `pendingChecks` Map → cleanup stale entries >60s
+- [x] **HIGH**: `alertRepo.save()` bez try/catch w 4 plikach → wrapped
+- [x] **HIGH**: Filing not found → `logger.warn` (GPT analysis nie tracona cicho)
+- [x] **MEDIUM**: Redis storeSignal bez try/catch → graceful degradation
+
+#### 15.4 Raport 8h
+- [x] **Usunięcie sentymentu** z raportu 8h (SentimentScore nie generuje danych od Sprint 11)
+- [x] **Nowy raport**: alerty per reguła + insider trades BUY/SELL + nadchodzące PDUFA
+
+#### 15.5 Frontend — Signal Timeline redesign
+- [x] **Kolorowa lewa krawędź** karty (zielona=bullish, czerwona=bearish)
+- [x] **TRAFIONY/PUDŁO** badge zamiast małego ✓/✗
+- [x] **Wyniki cenowe** w kolumnach (1h/4h/1d/3d) z hit/miss paskiem
+- [x] **Summary bar** w kolumnach (Sygnały/Kierunek/Hit rate/Avg gap)
+- [x] **Gap separator** wycentrowany, proporcjonalny do czasu, biały tekst
+- [x] **Conviction badge** z kolorowym tłem proporcjonalnym do siły
+
 ### Faza 1.7 — GDELT jako nowe źródło danych (priorytet NISKI)
 GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza API.
 - [ ] **DOC API** (`api.gdeltproject.org/api/v2/doc`) — szukaj artykułów po keywords healthcare
@@ -751,7 +790,7 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 - **Słowa kluczowe**: 201
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
-- **Reguły alertów**: 19 total — **7 aktywnych** (Form 4 Insider Signal, 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, 8-K Bankruptcy, Correlated Signal, Unusual Options Activity), **12 wyłączonych** (isActive=false — sentyment, niezaimplementowane)
+- **Reguły alertów**: 20 total — **8 aktywnych** (Form 4 Insider Signal, **Form 4 Insider BUY** [Sprint 15], 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, 8-K Bankruptcy, Correlated Signal, Unusual Options Activity), **12 wyłączonych** (isActive=false — sentyment, niezaimplementowane)
 - **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome + priceAtAlert, sentiment_scores, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
 - **Kolejki BullMQ**: 8 (6 kolektorów + sentiment-analysis + alerts) — StockTwits/Finnhub schedulery wyłączone
 - **Endpointy REST**: 26 (health x5, tickers x2, sentiment x9, alerts x6 incl. timeline, sec-filings x1, system-logs x1, options-flow x3)
@@ -765,5 +804,7 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 - **Sprint 11**: Przebudowa — focus na edge. Wyłączenie szumu (StockTwits, Finnhub news, sentiment pipeline, 12 reguł, 3 wzorców korelacji). Early return w AlertEvaluator, usunięty martwy kod insider aggregation.
 - **Sprint 12**: Migracja AI (gpt-4o-mini → Claude Sonnet), panel Status Systemu (`/api/health/system-overview`), fix parsowania 8-K (inline XBRL + filtr index.html), hard delete 1585 alertów z wyłączonych reguł
 - **Sprint 13**: Signal Timeline (`/api/alerts/timeline`) — sekwencja sygnałów per ticker z conviction, deltami cenowymi, gap czasowym. Fix Price Outcome: sloty od otwarcia NYSE (`getEffectiveStartTime`)
-- **Dashboard**: 3 zakładki (Dashboard + Signal Timeline + System Logs), panel Status Systemu, ~25 endpointów REST
+- **Sprint 14**: TickerProfileService — kontekst historyczny w promptach Claude (profil tickera 90d), słownik terminów na dashboardzie
+- **Sprint 15**: Backtest 3Y (43 946 tx, 6 hipotez), BUY rule (d=0.43), Director SELL skip, INSIDER_CLUSTER SELL observation, 7 bugfixów, raport 8h bez sentymentu, Signal Timeline redesign. **Kod zamrożony na tydzień (walidacja live)**
+- **Dashboard**: 4 zakładki (Dashboard + Signal Timeline + System Logs + Słownik), panel Status Systemu, ~26 endpointów REST
 - **Testy jednostkowe**: 14 plików spec.ts, ~420 testów (unit: correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator; agents: alert-evaluator-agent, correlation-agent, collectors-agent, price-outcome-agent, sec-filings-agent, sentiment-agent, options-flow-scoring, options-flow-agent, unusual-activity-detector)
