@@ -51,9 +51,12 @@ export class CorrelationService implements OnModuleDestroy {
    *  Nie nadpisuje istniejącego timera — jeśli check jest zaplanowany, nowe sygnały
    *  zostaną uwzględnione bo pattern detection czyta z Redis (aktualny stan).
    */
-  private readonly pendingChecks = new Map<string, number>(); // ticker → scheduled timestamp
+  private readonly pendingChecks = new Map<string, { ts: number; timer: ReturnType<typeof setTimeout> }>();
 
   onModuleDestroy(): void {
+    for (const { timer } of this.pendingChecks.values()) {
+      clearTimeout(timer);
+    }
     this.pendingChecks.clear();
   }
 
@@ -110,20 +113,23 @@ export class CorrelationService implements OnModuleDestroy {
 
     // Cleanup stale entries (>60s) — zapobiega memory leak
     if (this.pendingChecks.size > 50) {
-      for (const [t, ts] of this.pendingChecks) {
-        if (now - ts > 60_000) this.pendingChecks.delete(t);
+      for (const [t, { ts, timer }] of this.pendingChecks) {
+        if (now - ts > 60_000) {
+          clearTimeout(timer);
+          this.pendingChecks.delete(t);
+        }
       }
     }
 
     // Jeśli check jest już zaplanowany i nie minął — skip (nie nadpisuj timera)
     const existing = this.pendingChecks.get(ticker);
-    if (existing && now - existing < 10_000) return;
+    if (existing && now - existing.ts < 10_000) return;
 
-    this.pendingChecks.set(ticker, now);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       this.pendingChecks.delete(ticker);
       this.runPatternDetection(ticker);
     }, 10_000);
+    this.pendingChecks.set(ticker, { ts: now, timer });
   }
 
   /**
@@ -461,6 +467,8 @@ export class CorrelationService implements OnModuleDestroy {
         `OBSERVATION: ${ticker} INSIDER_CLUSTER SELL — DB only, no Telegram ` +
           `(conviction=${pattern.correlated_conviction.toFixed(2)})`,
       );
+    } else if (!delivered) {
+      this.logger.error(`TELEGRAM FAILED: Correlated alert for ${ticker} ${pattern.type} not delivered — saved to DB`);
     }
 
     // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)

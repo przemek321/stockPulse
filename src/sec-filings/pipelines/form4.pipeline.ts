@@ -213,12 +213,14 @@ export class Form4Pipeline {
       // Sprint 15 (backtest): BUY conviction boosty — potwierdzone na 3 latach danych
       // C-suite BUY: d=0.83 vs baseline, d=0.60 vs dip baseline (N=39)
       // Healthcare BUY: d=0.58 vs baseline (N=102)
+      // Boosty kumulatywne: C-suite healthcare BUY = ×1.3 × ×1.2 = ×1.56
       if (isBuy) {
         if (isCsuite) {
           analysis.conviction *= 1.3;
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} C-suite ×1.3 → conviction=${analysis.conviction.toFixed(2)}`);
         }
-        // Healthcare boost: sprawdź subsector z tabeli tickerów
+        // Healthcare boost: ticker?.subsector istnieje tylko dla healthcare tickerów z seeda
+        // (non-healthcare tickery nie są w tabeli tickers → ticker=null → skip)
         if (ticker?.subsector) {
           analysis.conviction *= 1.2;
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} healthcare ×1.2 → conviction=${analysis.conviction.toFixed(2)}`);
