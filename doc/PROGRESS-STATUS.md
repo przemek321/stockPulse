@@ -258,7 +258,7 @@ Nowy pipeline analizy GPT dla filingów SEC (Form 4 + 8-K) z per-typ promptami +
   - `CorrelationService` (~400 linii) — 6 detektorów wzorców (**3 aktywne**, 3 wyłączone Sprint 11):
     - `detectInsiderPlus8K` — Form 4 + 8-K w ciągu 24h (**AKTYWNY**)
     - `detectInsiderCluster` — 2+ Form 4 jednego tickera w 7 dni (**AKTYWNY**)
-    - `detectInsiderPlusOptions` — Form 4 + unusual options w 72h (**AKTYWNY**, Sprint 10)
+    - `detectInsiderPlusOptions` — Form 4 + unusual options w 120h/5d (**AKTYWNY**, Sprint 10, okno rozszerzone Sprint 15)
     - ~~`detectFilingConfirmsNews`~~ — news → 8-K w 48h (WYŁĄCZONY Sprint 11 — wymaga sentymentu)
     - ~~`detectMultiSourceConvergence`~~ — 3+ kategorie źródeł, 24h (WYŁĄCZONY Sprint 11)
     - ~~`detectEscalatingSignal`~~ — rosnąca conviction w 72h (WYŁĄCZONY Sprint 11)
