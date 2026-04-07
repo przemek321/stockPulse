@@ -561,6 +561,23 @@ export default function App() {
             },
           },
           {
+            key: '_currentPrice',
+            label: 'Kurs',
+            render: (_v: number, row: any) => {
+              const cur = row._currentPrice;
+              if (cur == null) return <span style={{ color: '#555' }}>—</span>;
+              const old = Number(row.underlyingPrice);
+              const delta = old > 0 ? ((cur - old) / old) * 100 : 0;
+              const color = delta > 0 ? '#66bb6a' : delta < 0 ? '#ef5350' : '#999';
+              return (
+                <span>
+                  <span style={{ fontWeight: 700 }}>${cur.toFixed(2)}</span>
+                  <span style={{ color, fontSize: '0.7rem', fontWeight: 600 }}> {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>
+                </span>
+              );
+            },
+          },
+          {
             key: 'expiry',
             label: 'Wygasa',
             render: (v: string) => {
@@ -651,6 +668,7 @@ export default function App() {
           const res = await fetchOptionsFlow(200);
           const todayMs = new Date().setUTCHours(0, 0, 0, 0);
           const rows = (res.data || []).filter((r: any) => new Date(r.expiry).getTime() >= todayMs);
+          const quotes = res.quotes || {};
           // Grupowanie: ile kontraktów spike'uje per ticker+sesja + sumaryczne $
           const grouped = new Map<string, { count: number; totalNotional: number }>();
           for (const r of rows) {
@@ -667,6 +685,7 @@ export default function App() {
               _contracts: g.count,
               _notional: Number(r.dailyVolume) * 100 * Number(r.underlyingPrice),
               _sessionNotional: g.totalNotional,
+              _currentPrice: quotes[r.symbol] ?? null,
             };
           });
         }}

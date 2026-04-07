@@ -296,7 +296,7 @@ export interface OptionsFlowData {
 export const fetchOptionsFlow = (limit = 100, symbol?: string) => {
   const params = new URLSearchParams({ limit: String(limit) });
   if (symbol) params.set('symbol', symbol);
-  return get<{ data: OptionsFlowData[]; total: number; limit: number }>(
+  return get<{ data: OptionsFlowData[]; total: number; limit: number; quotes?: Record<string, number | null> }>(
     `/options-flow?${params}`,
   );
 };

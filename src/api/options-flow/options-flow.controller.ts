@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Optional } from '@nestjs/common';
 import { OptionsFlow, OptionsVolumeBaseline } from '../../entities';
 import { OptionsFlowService } from '../../collectors/options-flow/options-flow.service';
+import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 
 /**
  * REST API dla options flow.
@@ -19,6 +21,7 @@ export class OptionsFlowController {
     @InjectRepository(OptionsVolumeBaseline)
     private readonly baselineRepo: Repository<OptionsVolumeBaseline>,
     private readonly optionsFlowService: OptionsFlowService,
+    @Optional() private readonly finnhub?: FinnhubService,
   ) {}
 
   @Get()
@@ -44,7 +47,21 @@ export class OptionsFlowController {
     }
 
     const [data, total] = await qb.getManyAndCount();
-    return { data, total, limit: take };
+
+    // Pobierz aktualne ceny dla unikatowych tickerów (Finnhub /quote)
+    const quotes: Record<string, number | null> = {};
+    if (this.finnhub) {
+      const symbols = [...new Set(data.map(f => f.symbol))];
+      await Promise.all(
+        symbols.map(async (sym) => {
+          try {
+            quotes[sym] = await this.finnhub!.getQuote(sym);
+          } catch { quotes[sym] = null; }
+        }),
+      );
+    }
+
+    return { data, total, limit: take, quotes };
   }
 
   @Get('stats')
