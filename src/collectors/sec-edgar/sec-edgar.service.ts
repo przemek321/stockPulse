@@ -88,11 +88,17 @@ export class SecEdgarService extends BaseCollectorService {
     if (!recent || recent.form.length === 0) return 0;
 
     let newCount = 0;
-    // Przetwarzaj tylko ważne typy filingów
+    // Przetwarzaj ważne typy filingów z ostatnich 7 dni
+    // Skanuj więcej pozycji (100) bo SEC zwraca wszystkie typy (DEF 14A, SC TO-C, 6-K...)
+    // i Form 4 / 8-K mogą być daleko na liście
     const importantForms = ['10-K', '10-Q', '8-K', '4', '3', '5', '13F-HR', 'S-1', '14A'];
-    const limit = Math.min(20, recent.form.length);
+    const limit = Math.min(100, recent.form.length);
+    const cutoffDate = new Date(Date.now() - 7 * 24 * 3600_000).toISOString().split('T')[0];
 
     for (let i = 0; i < limit; i++) {
+      // Stop gdy filingi starsze niż 7 dni (posortowane od najnowszych)
+      if (recent.filingDate[i] < cutoffDate) break;
+
       const formType = recent.form[i];
       if (!importantForms.includes(formType)) continue;
 
