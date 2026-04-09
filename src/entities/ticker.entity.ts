@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 
 /**
- * Ticker healthcare — 32 spółki z healthcare-universe.json.
+ * Ticker — spółki monitorowane przez system (healthcare + semi supply chain).
  * Źródło prawdy dla całego systemu monitoringu.
  */
 @Entity('tickers')
@@ -54,6 +54,20 @@ export class Ticker {
   /** Dodatkowe notatki */
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  /** Sektor: healthcare (domyślny) lub semi_supply_chain */
+  @Column({ length: 50, default: 'healthcare' })
+  sector: string;
+
+  /**
+   * Observation mode: alert zapisywany do DB, ale NIE wysyłany na Telegram.
+   * Używane dla nowych sektorów (semi supply chain) — zbieranie danych bez alertowania
+   * dopóki backtest nie potwierdzi edge'u.
+   * TODO: jeśli go/no-go decision wymaga split na poziomie koszyka,
+   * refactor do ticker_categories table (sector + subsector + observation_only).
+   */
+  @Column({ default: false })
+  observationOnly: boolean;
 
   /** Czy ticker jest aktywnie monitorowany */
   @Column({ default: true })

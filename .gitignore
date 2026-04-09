@@ -34,6 +34,10 @@ __pycache__/
 
 # Logi autostartu (lokalne per maszyna)
 logs/
+log/
+
+# Archiwa
+*.zip
 
 # Claude Code (lokalne per maszyna)
 .claude/settings.local.json

@@ -6,7 +6,7 @@ import { CORRELATION_REDIS } from './redis.provider';
 import { TelegramService } from '../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
-import { Alert, AlertRule } from '../entities';
+import { Alert, AlertRule, Ticker } from '../entities';
 import {
   StoredSignal,
   DetectedPattern,
@@ -70,6 +70,8 @@ export class CorrelationService implements OnModuleDestroy {
     private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule)
     private readonly ruleRepo: Repository<AlertRule>,
+    @InjectRepository(Ticker)
+    private readonly tickerRepo: Repository<Ticker>,
     @Optional() private readonly finnhub?: FinnhubService,
   ) {}
 
@@ -431,6 +433,10 @@ export class CorrelationService implements OnModuleDestroy {
   ): Promise<void> {
     if (Math.abs(pattern.correlated_conviction) < MIN_CORRELATED_CONVICTION) return;
 
+    // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+    const tickerEntity = await this.tickerRepo.findOne({ where: { symbol: ticker } });
+    const isTickerObservation = tickerEntity?.observationOnly === true;
+
     // Sprint 15 (backtest): INSIDER_CLUSTER SELL → observation mode
     // Backtest: sell clusters hit rate 42.8%, p=0.204, brak edge.
     // BUY clusters (d=0.47, p=0.009) nadal alertują normalnie.
@@ -462,11 +468,18 @@ export class CorrelationService implements OnModuleDestroy {
     });
 
     // Observation mode: zapisz do DB bez wysyłki na Telegram
-    const delivered = isClusterSellObservation
+    const isObservation = isTickerObservation || isClusterSellObservation;
+    let nonDeliveryReason: string | null = null;
+
+    const delivered = isObservation
       ? false
       : await this.telegram.sendMarkdown(message);
 
-    if (isClusterSellObservation) {
+    if (isTickerObservation) {
+      nonDeliveryReason = 'observation';
+      this.logger.debug(`OBSERVATION MODE: ${ticker} — correlated alert zapisany, Telegram pominięty`);
+    } else if (isClusterSellObservation) {
+      nonDeliveryReason = 'observation';
       this.logger.log(
         `OBSERVATION: ${ticker} INSIDER_CLUSTER SELL — DB only, no Telegram ` +
           `(conviction=${pattern.correlated_conviction.toFixed(2)})`,
@@ -496,6 +509,7 @@ export class CorrelationService implements OnModuleDestroy {
         channel: 'TELEGRAM',
         message,
         delivered,
+        nonDeliveryReason,
         catalystType: pattern.type,
         alertDirection: pattern.direction,
         priceAtAlert,

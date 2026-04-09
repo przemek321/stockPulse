@@ -523,12 +523,16 @@ export class AlertEvaluatorService {
       direction: 'positive' | 'negative' | 'neutral';
     },
   ): Promise<void> {
+    // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+    const ticker = await this.tickerRepo.findOne({ where: { symbol } });
+    const isObservation = ticker?.observationOnly === true;
+
     // Silent rules: zapisz do DB, ale nie wysyłaj na Telegram (szum bez edge)
     const isSilent = SILENT_RULES.has(rule.name);
 
     // Per-symbol daily limit: max N alertów Telegram per ticker per dzień (UTC)
     let dailyLimitHit = false;
-    if (!isSilent) {
+    if (!isSilent && !isObservation) {
       const todayStart = new Date();
       todayStart.setUTCHours(0, 0, 0, 0);
       const todayAlerts = await this.alertRepo.count({
@@ -546,7 +550,13 @@ export class AlertEvaluatorService {
       }
     }
 
-    const delivered = (isSilent || dailyLimitHit)
+    // Ustal powód niedostarczenia (jeśli jest)
+    let nonDeliveryReason: string | null = null;
+    if (isObservation) nonDeliveryReason = 'observation';
+    else if (isSilent) nonDeliveryReason = 'silent_hour';
+    else if (dailyLimitHit) nonDeliveryReason = 'daily_limit';
+
+    const delivered = (isSilent || dailyLimitHit || isObservation)
       ? false
       : await this.telegram.sendMarkdown(message);
 
@@ -568,6 +578,7 @@ export class AlertEvaluatorService {
       channel: 'TELEGRAM',
       message,
       delivered,
+      nonDeliveryReason,
       catalystType: catalystType ?? null,
       alertDirection: correlationData?.direction === 'neutral' ? null : (correlationData?.direction ?? null),
       priceAtAlert,

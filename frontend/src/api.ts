@@ -30,6 +30,7 @@ export interface Ticker {
   name: string;
   cik: string;
   subsector: string;
+  sector: string;
   priority: string;
   aliases: string[];
   keyMetrics: string[];
@@ -37,6 +38,7 @@ export interface Ticker {
   cfo: string;
   notes: string;
   isActive: boolean;
+  observationOnly: boolean;
 }
 
 export interface NewsArticle {
@@ -107,7 +109,8 @@ export interface SentimentScore {
 /* ── Endpointy ──────────────────────────────── */
 
 export const fetchHealth = () => get<HealthData>('/health');
-export const fetchTickers = () => get<{ count: number; tickers: Ticker[] }>('/tickers');
+export const fetchTickers = (sector?: string) =>
+  get<{ count: number; tickers: Ticker[] }>(`/tickers${sector ? `?sector=${sector}` : ''}`);
 export const fetchAlertRules = () => get<{ count: number; rules: AlertRule[] }>('/alerts/rules');
 export const fetchAlerts = () => get<{ count: number; alerts: Alert[] }>('/alerts');
 export const fetchSentimentScores = (limit = 500) =>

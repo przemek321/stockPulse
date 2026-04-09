@@ -219,9 +219,8 @@ export class Form4Pipeline {
           analysis.conviction *= 1.3;
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} C-suite ×1.3 → conviction=${analysis.conviction.toFixed(2)}`);
         }
-        // Healthcare boost: ticker?.subsector istnieje tylko dla healthcare tickerów z seeda
-        // (non-healthcare tickery nie są w tabeli tickers → ticker=null → skip)
-        if (ticker?.subsector) {
+        // Healthcare boost: tylko dla sektora healthcare (nie semi supply chain)
+        if (ticker?.sector === 'healthcare') {
           analysis.conviction *= 1.2;
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} healthcare ×1.2 → conviction=${analysis.conviction.toFixed(2)}`);
         }
@@ -266,9 +265,20 @@ export class Form4Pipeline {
         priority,
       });
 
-      const delivered = await this.telegram.sendMarkdown(message);
-      if (!delivered) {
-        this.logger.error(`TELEGRAM FAILED: Form4 alert for ${payload.symbol} not delivered — saved to DB`);
+      // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+      const isObservation = ticker?.observationOnly === true;
+      let delivered: boolean;
+      let nonDeliveryReason: string | null = null;
+
+      if (isObservation) {
+        delivered = false;
+        nonDeliveryReason = 'observation';
+        this.logger.debug(`OBSERVATION MODE: ${payload.symbol} — alert zapisany, Telegram pominięty`);
+      } else {
+        delivered = await this.telegram.sendMarkdown(message);
+        if (!delivered) {
+          this.logger.error(`TELEGRAM FAILED: Form4 alert for ${payload.symbol} not delivered — saved to DB`);
+        }
       }
 
       // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
@@ -288,6 +298,7 @@ export class Form4Pipeline {
             channel: 'TELEGRAM',
             message,
             delivered,
+            nonDeliveryReason,
             catalystType: analysis.catalyst_type,
             alertDirection: analysis.price_impact.direction === 'neutral'
               ? (analysis.conviction >= 0 ? 'positive' : 'negative')

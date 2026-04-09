@@ -1,0 +1,203 @@
+{
+  "meta": {
+    "name": "StockPulse Semi Supply Chain",
+    "version": "1.0.0",
+    "created": "2026-04-09",
+    "author": "Przemek",
+    "description": "Warstwa obserwacyjna — łańcuch dostaw półprzewodników. Observation mode: dane zbierane, alerty w DB, Telegram wyłączony do czasu walidacji backtestem.",
+    "sector": "semi_supply_chain",
+    "observation_mode": true,
+    "total_tickers": 14
+  },
+
+  "tickers": {
+    "memory_producers": {
+      "description": "Upstream — producenci pamięci DRAM/NAND. Bezpośrednia ekspozycja na cykle cenowe pamięci.",
+      "priority": "MEDIUM",
+      "companies": [
+        {
+          "ticker": "MU",
+          "name": "Micron Technology",
+          "cik": "0000723125",
+          "subsector": "Memory — DRAM + NAND",
+          "market_cap_tier": "large",
+          "aliases": ["Micron", "MU"],
+          "key_metrics": ["DRAM_ASP", "NAND_bit_growth", "capex", "inventory_days"],
+          "ceo": "Sanjay Mehrotra",
+          "cfo": "Mark Murphy",
+          "notes": "Largest US memory maker. DRAM ~70% rev. HBM growth driver for AI."
+        },
+        {
+          "ticker": "WDC",
+          "name": "Western Digital",
+          "cik": "0000106040",
+          "subsector": "Memory — NAND + HDD",
+          "market_cap_tier": "mid",
+          "aliases": ["Western Digital", "WDC", "WD", "SanDisk"],
+          "key_metrics": ["NAND_ASP", "HDD_shipments", "flash_revenue"],
+          "ceo": "David Goeckeler",
+          "cfo": "Wissam Jabre",
+          "notes": "Flash + HDD dual business. Spun off Sandisk flash in 2024. Pure HDD after split."
+        },
+        {
+          "ticker": "STX",
+          "name": "Seagate Technology",
+          "cik": "0001137789",
+          "subsector": "Memory — HDD",
+          "market_cap_tier": "mid",
+          "aliases": ["Seagate", "STX"],
+          "key_metrics": ["HDD_shipments", "exabytes_shipped", "nearline_demand"],
+          "ceo": "Dave Mosley",
+          "cfo": "Gianluca Romano",
+          "notes": "Pure HDD play. Nearline drives for cloud/AI data centers. High dividend yield."
+        }
+      ]
+    },
+
+    "equipment_packaging": {
+      "description": "Picks & shovels — sprzęt i opakowania półprzewodników. Wczesny wskaźnik capex cycle.",
+      "priority": "MEDIUM",
+      "companies": [
+        {
+          "ticker": "KLIC",
+          "name": "Kulicke and Soffa Industries",
+          "cik": "0000056978",
+          "subsector": "Equipment — Bonding",
+          "market_cap_tier": "small",
+          "aliases": ["Kulicke", "K&S", "KLIC"],
+          "key_metrics": ["bookings", "backlog", "advanced_packaging_rev"],
+          "ceo": "Fusen Chen",
+          "cfo": "Lester Wong",
+          "notes": "World leader in semiconductor bonding equipment. Advanced packaging for AI chips."
+        },
+        {
+          "ticker": "AMKR",
+          "name": "Amkor Technology",
+          "cik": "0001047127",
+          "subsector": "Packaging — OSAT",
+          "market_cap_tier": "mid",
+          "aliases": ["Amkor", "AMKR"],
+          "key_metrics": ["revenue_by_end_market", "advanced_packaging_pct", "capex"],
+          "ceo": "Giel Rutten",
+          "cfo": "Megan Faust",
+          "notes": "Top 2 global OSAT. Advanced packaging (SiP, fan-out) growing for AI/5G."
+        },
+        {
+          "ticker": "ONTO",
+          "name": "Onto Innovation",
+          "cik": "0000704532",
+          "subsector": "Equipment — Inspection",
+          "market_cap_tier": "mid",
+          "aliases": ["Onto", "ONTO", "Nanometrics"],
+          "key_metrics": ["bookings", "backlog", "advanced_nodes_pct"],
+          "ceo": "Michael Plisinski",
+          "cfo": "Mark Daskin",
+          "notes": "Process control for advanced packaging. Merger of Nanometrics + Rudolph Tech."
+        },
+        {
+          "ticker": "CAMT",
+          "name": "Camtek Ltd",
+          "cik": "0001109138",
+          "subsector": "Equipment — Inspection",
+          "market_cap_tier": "small",
+          "aliases": ["Camtek", "CAMT"],
+          "key_metrics": ["bookings", "HBM_inspection_rev", "backlog"],
+          "ceo": "Rafi Amit",
+          "cfo": "Moshe Eisenberg",
+          "notes": "Israeli inspection equipment. Strong HBM inspection demand from memory makers."
+        },
+        {
+          "ticker": "NVMI",
+          "name": "Nova Ltd",
+          "cik": "0001109345",
+          "subsector": "Equipment — Metrology",
+          "market_cap_tier": "small",
+          "aliases": ["Nova", "NVMI", "Nova Measuring"],
+          "key_metrics": ["bookings", "chemical_metrology_rev", "advanced_packaging_pct"],
+          "ceo": "Gabi Seligsohn",
+          "cfo": "Dror David",
+          "notes": "Israeli metrology. Chemical + optical metrology for advanced nodes. Growing in packaging."
+        },
+        {
+          "ticker": "ASX",
+          "name": "ASE Technology Holding",
+          "cik": "0001122411",
+          "subsector": "Packaging — OSAT",
+          "market_cap_tier": "large",
+          "aliases": ["ASE", "ASX", "ASE Technology", "SPIL"],
+          "key_metrics": ["ATM_revenue", "EMS_revenue", "utilization_rate"],
+          "ceo": "Jason Chang",
+          "cfo": "Joseph Tung",
+          "notes": "World's largest OSAT. ATM (assembly/test) + EMS. Advanced packaging leader."
+        }
+      ]
+    },
+
+    "oem_anti_signal": {
+      "description": "OEM — odbiorcy półprzewodników. Margin squeeze gdy ceny komponentów rosną. C-suite SELL może być anty-sygnał (bearish dla sektora, ale firma reaguje defensywnie).",
+      "priority": "LOW",
+      "companies": [
+        {
+          "ticker": "DELL",
+          "name": "Dell Technologies",
+          "cik": "0001571996",
+          "subsector": "OEM — Servers + PCs",
+          "market_cap_tier": "large",
+          "aliases": ["Dell", "DELL", "Dell Technologies"],
+          "key_metrics": ["ISG_revenue", "CSG_revenue", "server_ASP"],
+          "ceo": "Michael Dell",
+          "cfo": "Yvonne McGill",
+          "notes": "AI server growth driver. ISG (infrastructure) benefiting from AI capex cycle."
+        },
+        {
+          "ticker": "HPQ",
+          "name": "HP Inc",
+          "cik": "0000047217",
+          "subsector": "OEM — PCs + Printing",
+          "market_cap_tier": "mid",
+          "aliases": ["HP", "HPQ", "HP Inc", "Hewlett-Packard"],
+          "key_metrics": ["PC_shipments", "printing_revenue", "commercial_pct"],
+          "ceo": "Enrique Lores",
+          "cfo": "Karen Parkhill",
+          "notes": "PC + printing. AI PC refresh cycle potential. High shareholder returns."
+        },
+        {
+          "ticker": "HPE",
+          "name": "Hewlett Packard Enterprise",
+          "cik": "0001645590",
+          "subsector": "OEM — Servers + Networking",
+          "market_cap_tier": "mid",
+          "aliases": ["HPE", "Hewlett Packard Enterprise"],
+          "key_metrics": ["server_revenue", "AIOps_revenue", "edge_revenue"],
+          "ceo": "Antonio Neri",
+          "cfo": "Marie Myers",
+          "notes": "Enterprise servers + networking. Juniper Networks acquisition pending."
+        },
+        {
+          "ticker": "SMCI",
+          "name": "Super Micro Computer",
+          "cik": "0001375365",
+          "subsector": "OEM — AI Servers",
+          "market_cap_tier": "mid",
+          "aliases": ["Supermicro", "SMCI", "Super Micro"],
+          "key_metrics": ["AI_server_rev", "GPU_server_shipments", "gross_margin"],
+          "ceo": "Charles Liang",
+          "cfo": "David Weigand",
+          "notes": "AI server leader. High revenue growth, low margins. Audit/governance concerns 2024."
+        },
+        {
+          "ticker": "NTAP",
+          "name": "NetApp",
+          "cik": "0001002047",
+          "subsector": "OEM — Storage",
+          "market_cap_tier": "mid",
+          "aliases": ["NetApp", "NTAP"],
+          "key_metrics": ["all_flash_rev", "cloud_storage_rev", "product_revenue"],
+          "ceo": "George Kurian",
+          "cfo": "Mike Berry",
+          "notes": "Enterprise storage. All-flash array growth. Cloud storage partnerships."
+        }
+      ]
+    }
+  }
+}

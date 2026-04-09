@@ -5,7 +5,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 /**
- * Seed tickerów healthcare i reguł alertów z healthcare-universe.json.
+ * Seed tickerów i reguł alertów z plików JSON.
+ * Obsługuje wiele sektorów: healthcare + semi supply chain.
  *
  * Uruchomienie:
  *   npm run seed
@@ -16,12 +17,17 @@ import * as fs from 'fs';
 
 /** Mapowanie grup z JSON na priorytet w encji Ticker */
 const GROUP_PRIORITY: Record<string, string> = {
+  // Healthcare
   managed_care_insurers: 'CRITICAL',
   hospitals_health_systems: 'HIGH',
   pbm_pharmacy: 'HIGH',
   health_it_digital: 'MEDIUM',
   medical_devices_diagnostics: 'MEDIUM',
   pharma_biotech: 'HIGH',
+  // Semi supply chain
+  memory_producers: 'MEDIUM',
+  equipment_packaging: 'MEDIUM',
+  oem_anti_signal: 'LOW',
 };
 
 interface CompanyJson {
@@ -63,68 +69,86 @@ async function seed() {
   await dataSource.initialize();
   console.log('✓ Połączono z PostgreSQL');
 
-  // ── Wczytanie healthcare-universe.json ───────────────────
-  const jsonPath = path.resolve(
-    __dirname,
-    '../../../doc/stockpulse-healthcare-universe.json',
-  );
-  const universe = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+  // ── Wczytanie plików JSON ─────────────────────────────────
+  const docDir = path.resolve(__dirname, '../../../doc');
+
+  const healthcarePath = path.resolve(docDir, 'stockpulse-healthcare-universe.json');
+  const healthcare = JSON.parse(fs.readFileSync(healthcarePath, 'utf-8'));
+
+  const semiPath = path.resolve(docDir, 'stockpulse-semi-supply-chain.json');
+  const semi = JSON.parse(fs.readFileSync(semiPath, 'utf-8'));
 
   // ── SEED: Tickery ────────────────────────────────────────
   const tickerRepo = dataSource.getRepository(Ticker);
   let tickerCount = 0;
 
-  const tickerGroups = universe.tickers as Record<
-    string,
-    { companies: CompanyJson[] }
-  >;
+  /** Wspólna logika seedowania tickerów z dowolnego pliku JSON */
+  async function seedTickers(
+    groups: Record<string, { companies: CompanyJson[] }>,
+    sector: string,
+    observationOnly: boolean,
+  ): Promise<number> {
+    let count = 0;
+    for (const [groupKey, group] of Object.entries(groups)) {
+      const priority = GROUP_PRIORITY[groupKey] || 'MEDIUM';
 
-  for (const [groupKey, group] of Object.entries(tickerGroups)) {
-    const priority = GROUP_PRIORITY[groupKey] || 'MEDIUM';
+      for (const company of group.companies) {
+        await tickerRepo
+          .createQueryBuilder()
+          .insert()
+          .into(Ticker)
+          .values({
+            symbol: company.ticker,
+            name: company.name,
+            cik: company.cik,
+            subsector: company.subsector,
+            priority,
+            aliases: company.aliases,
+            keyMetrics: company.key_metrics,
+            ceo: company.ceo,
+            cfo: company.cfo,
+            notes: company.notes,
+            isActive: true,
+            sector,
+            observationOnly,
+          })
+          .orUpdate(
+            [
+              'name',
+              'cik',
+              'subsector',
+              'priority',
+              'aliases',
+              'keyMetrics',
+              'ceo',
+              'cfo',
+              'notes',
+              'sector',
+              'observationOnly',
+            ],
+            ['symbol'],
+          )
+          .execute();
 
-    for (const company of group.companies) {
-      await tickerRepo
-        .createQueryBuilder()
-        .insert()
-        .into(Ticker)
-        .values({
-          symbol: company.ticker,
-          name: company.name,
-          cik: company.cik,
-          subsector: company.subsector,
-          priority,
-          aliases: company.aliases,
-          keyMetrics: company.key_metrics,
-          ceo: company.ceo,
-          cfo: company.cfo,
-          notes: company.notes,
-          isActive: true,
-        })
-        .orUpdate(
-          [
-            'name',
-            'cik',
-            'subsector',
-            'priority',
-            'aliases',
-            'keyMetrics',
-            'ceo',
-            'cfo',
-            'notes',
-          ],
-          ['symbol'],
-        )
-        .execute();
-
-      tickerCount++;
+        count++;
+      }
     }
+    return count;
   }
 
-  console.log(`✓ Zaimportowano ${tickerCount} tickerów healthcare`);
+  // Healthcare: sector='healthcare', observationOnly=false
+  const healthcareCount = await seedTickers(healthcare.tickers, 'healthcare', false);
+  console.log(`✓ Zaimportowano ${healthcareCount} tickerów healthcare`);
 
-  // ── SEED: Reguły alertów ─────────────────────────────────
+  // Semi supply chain: sector='semi_supply_chain', observationOnly=true
+  const semiCount = await seedTickers(semi.tickers, 'semi_supply_chain', true);
+  console.log(`✓ Zaimportowano ${semiCount} tickerów semi supply chain (observation mode)`);
+
+  tickerCount = healthcareCount + semiCount;
+
+  // ── SEED: Reguły alertów (tylko z healthcare — semi używa tych samych reguł) ──
   const ruleRepo = dataSource.getRepository(AlertRule);
-  const rules = universe.alert_rules.rules as AlertRuleJson[];
+  const rules = healthcare.alert_rules.rules as AlertRuleJson[];
   let ruleCount = 0;
 
   for (const rule of rules) {
@@ -152,9 +176,10 @@ async function seed() {
 
   // ── Podsumowanie ─────────────────────────────────────────
   const totalTickers = await tickerRepo.count();
+  const observationTickers = await tickerRepo.count({ where: { observationOnly: true } });
   const totalRules = await ruleRepo.count();
   console.log(`\n─── Seed zakończony ───`);
-  console.log(`  Tickery w bazie:  ${totalTickers}`);
+  console.log(`  Tickery w bazie:  ${totalTickers} (w tym ${observationTickers} observation mode)`);
   console.log(`  Reguły alertów:   ${totalRules}`);
 
   await dataSource.destroy();

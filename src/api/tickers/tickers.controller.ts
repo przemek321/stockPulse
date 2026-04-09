@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Ticker } from '../../entities';
 
 /**
- * GET /api/tickers — lista monitorowanych tickerów healthcare.
+ * GET /api/tickers — lista monitorowanych tickerów.
  */
 @Controller('tickers')
 export class TickersController {
@@ -14,14 +14,21 @@ export class TickersController {
   ) {}
 
   /**
-   * Lista wszystkich aktywnych tickerów.
+   * Lista aktywnych tickerów.
    * ?subsector=Managed+Care — filtruj po podsektorze.
+   * ?sector=healthcare|semi_supply_chain — filtruj po sektorze.
    */
   @Get()
-  async findAll(@Query('subsector') subsector?: string) {
+  async findAll(
+    @Query('subsector') subsector?: string,
+    @Query('sector') sector?: string,
+  ) {
     const where: Record<string, any> = { isActive: true };
     if (subsector) {
       where.subsector = subsector;
+    }
+    if (sector) {
+      where.sector = sector;
     }
 
     const tickers = await this.tickerRepo.find({

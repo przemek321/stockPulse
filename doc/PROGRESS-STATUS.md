@@ -2,13 +2,13 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-06
+> Ostatnia aktualizacja: 2026-04-09
 
 ## Gdzie jesteśmy
 
-**Sprint 15 — Backtest + BUY rule + bugfixy** (ukończony 2026-04-06). Backtest 3 lat danych SEC EDGAR (43 946 transakcji, 61 tickerów, 6 hipotez). Wynik: insider BUY = jedyny silny edge (d=0.43, p<0.001), Director SELL = anty-sygnał. Nowa reguła "Form 4 Insider BUY", 7 bugfixów (race condition, memory leak, error handling), raport 8h bez sentymentu, ulepszona Signal Timeline.
+**Sprint 17 — Semi Supply Chain observation layer** (ukończony 2026-04-09). 14 nowych tickerów z sektora półprzewodników (3 koszyki: Memory Producers, Equipment & Packaging, OEM Anti-Signal) w **observation mode** — alerty zapisywane do DB, brak Telegramu dopóki backtest nie potwierdzi edge'u. Nowe kolumny: `tickers.sector`, `tickers.observationOnly`, `alerts.nonDeliveryReason`. Healthcare boost guard fix (`sector === 'healthcare'`). Observation gate w Form4Pipeline, Form8kPipeline, AlertEvaluator.
 
-**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER [SELL=observation], INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary only (is10b51Plan→skip), **Director SELL→hard skip** (backtest: anty-sygnał), **BUY boosty** (C-suite ×1.3, healthcare ×1.2). **8 aktywnych reguł** alertów (w tym nowa Form 4 Insider BUY), 12 wyłączonych. **Kod zamrożony na tydzień** (walidacja live). Raporty tygodniowe w [doc/reports/](doc/reports/).
+**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER [SELL=observation], INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary only (is10b51Plan→skip), **Director SELL→hard skip** (backtest: anty-sygnał), **BUY boosty** (C-suite ×1.3, healthcare ×1.2). **Observation mode** dla semi supply chain tickerów (delivered=false, nonDeliveryReason='observation'). **8 aktywnych reguł** alertów (w tym nowa Form 4 Insider BUY), 12 wyłączonych. **51 monitorowanych tickerów** (37 healthcare + 14 semi observation). Raporty tygodniowe w [doc/reports/](doc/reports/).
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
@@ -793,16 +793,56 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 - [x] `PROGRESS-STATUS.md` — Sprint 11 + Kluczowe liczby
 - [x] `doc/reports/2026-04-02-analiza-2-tygodnie.md` — pełna analiza danych
 
+### Sprint 16: UTC fix + Options Flow UX + SEC EDGAR tuning (ukończony 2026-04-08)
+
+- [x] UTC fix: Options Flow CRON przesunięty na 20:30 UTC, `getLastTradingDay()` z `getUTCDay()`/`setUTCDate()` (fix: serwer Europe/Warsaw → błędny dzień handlowy)
+- [x] INSIDER_PLUS_OPTIONS okno 72h → 120h/5d — pokrycie weekendu + Form 4 filing delay
+- [x] Options Flow UX: kolumna Kurs z aktualną ceną + zmiana % od momentu sygnału
+- [x] Signal Timeline: dropdown z wszystkimi tickerami (usunięto filtr `priceAtAlert IS NOT NULL` + `HAVING COUNT >= 2`), domyślny widok, gap czytelność (1d 0h→1d, biały tekst)
+- [x] 8-K parser fix: primaryDocument URL
+- [x] SEC EDGAR kolektor: skan 100 pozycji z oknem 7d zamiast limitu 20
+- [x] Endpoint `reprocess-filing` + hard delete 344 starych alertów
+
+### Sprint 17: Semi Supply Chain — observation layer (ukończony 2026-04-09)
+
+Artykuł o wzroście cen pamięci/helu ujawnił katalizator w łańcuchu dostaw półprzewodników. Healthcare zostaje jako core (zwalidowany backtest). Semi dochodzi jako osobna warstwa obserwacyjna — zbieramy dane Form4/8-K, liczymy price outcomes, ale NIE wysyłamy na Telegram dopóki backtest nie potwierdzi edge'u.
+
+**14 nowych tickerów w 3 koszykach**:
+- Memory Producers (upstream): MU, WDC, STX
+- Equipment & Packaging (picks & shovels): KLIC, AMKR, ONTO, CAMT, NVMI, ASX
+- OEM Anti-Signal (margin squeeze): DELL, HPQ, HPE, SMCI, NTAP
+
+**Faza 1 — Setup obserwacyjny**:
+- [x] Ticker entity: kolumny `sector` (default `'healthcare'`) + `observationOnly` (default `false`)
+- [x] Alert entity: kolumna `nonDeliveryReason` (`'observation'` / `'silent_hour'` / `'daily_limit'` / `null`)
+- [x] JSON config: `doc/stockpulse-semi-supply-chain.json` — 14 tickerów z CIK z SEC EDGAR
+- [x] Seed script: refactor na `seedTickers()` — obsługa wielu plików JSON + `sector` + `observationOnly`
+- [x] Healthcare boost guard: `ticker?.subsector` → `ticker?.sector === 'healthcare'` (fix: semi nie dostaje fałszywego ×1.2)
+- [x] Observation gate — Form4Pipeline: `ticker?.observationOnly === true` → `delivered=false`, `nonDeliveryReason='observation'`
+- [x] Observation gate — Form8kPipeline: 2 miejsca (główny alert + bankruptcy handler)
+- [x] Observation gate — AlertEvaluator: `sendAlert()` sprawdza `observationOnly` przed Telegram
+- [x] Observation gate — CorrelationService: `triggerCorrelatedAlert()` sprawdza `observationOnly` (fix: Telegram leak)
+- [x] Observation gate — OptionsFlowAlertService: `sendAlert()` sprawdza `observationOnly` (fix: Telegram leak)
+- [x] TypeORM synchronize: kolumny dodane automatycznie (ALTER TABLE)
+- [x] Build test: `tsc --noEmit` clean, `npm run test` 362/370 (8 pre-existing failures)
+- [x] Seed test: 51 tickerów (37 healthcare + 14 semi observation mode)
+- [x] DB weryfikacja: sector, observationOnly, CIK — poprawne dla wszystkich 14 tickerów
+
+**Następne kroki** (plan w `doc/plan-semi-supply-chain.md`):
+- [ ] Faza 2: Backtest historyczny (5 hipotez, 2018-2025, yfinance/Polygon)
+- [ ] Faza 3: 8-K SUPPLY_DISRUPTION classifier (sektor-agnostyczny)
+- [ ] Faza 4: Go/no-go decision (d ≥ 0.30, p < 0.05, ≥5 forward sygnałów)
+
 ## Kluczowe liczby
 
-- **Tickery do monitorowania**: 42 healthcare (zdefiniowane w healthcare-universe.json, metadata mówi 42)
+- **Tickery do monitorowania**: 51 total — 37 healthcare + 14 semi supply chain (observation mode). Config: `stockpulse-healthcare-universe.json` + `stockpulse-semi-supply-chain.json`
 - **Słowa kluczowe**: 201
 - **Subreddity**: 18
 - **Pliki źródłowe**: ~90 plików TypeScript w `src/` + 2 Python w `finbert-sidecar/` + 2 JS na Azure VM
 - **Reguły alertów**: 20 total — **8 aktywnych** (Form 4 Insider Signal, **Form 4 Insider BUY** [Sprint 15], 8-K Material Event GPT, 8-K Earnings Miss, 8-K Leadership Change, 8-K Bankruptcy, Correlated Signal, Unusual Options Activity), **12 wyłączonych** (isActive=false — sentyment, niezaimplementowane)
-- **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome + priceAtAlert, sentiment_scores, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
+- **Encje bazy danych**: 14 tabel (alerts z 7 polami price outcome + priceAtAlert + nonDeliveryReason, tickers z sector + observationOnly, sentiment_scores, pdufa_catalysts, ai_pipeline_logs, system_logs, sec_filings z gptAnalysis jsonb, insider_trades z is10b51Plan, options_flow, options_volume_baseline)
 - **Kolejki BullMQ**: 8 (6 kolektorów + sentiment-analysis + alerts) — StockTwits/Finnhub schedulery wyłączone
-- **Endpointy REST**: 26 (health x5, tickers x2, sentiment x9, alerts x6 incl. timeline, sec-filings x1, system-logs x1, options-flow x3)
+- **Endpointy REST**: 28 (health x5, tickers x2, sentiment x9, alerts x7 incl. timeline + reprocess-filing, sec-filings x1, system-logs x1, options-flow x3)
 - **Źródła danych**: **3 aktywne kolektory** (SEC EDGAR, PDUFA.bio, Polygon.io Options Flow), **3 wyłączone** (StockTwits, Finnhub news/MSPR, Reddit placeholder). Finnhub `/quote` zachowany.
 - **Modele AI**: **Anthropic Claude Sonnet** (`claude-sonnet-4-6`, SDK `@anthropic-ai/sdk`) — bezpośrednio z NestJS (Sprint 12). FinBERT sidecar (kontener działa, nie otrzymuje jobów). Azure VM (`74.248.113.3:3100`) na standby jako fallback.
 - **Infrastruktura**: 6 kontenerów Docker (app, finbert, frontend, postgres, redis, pgadmin). Azure VM na standby (PM2: processor.js + api.js)
@@ -814,6 +854,8 @@ Analiza 2 tygodni (19.03–02.04.2026): 962 alertów, 55.5% global hit rate = mo
 - **Sprint 12**: Migracja AI (gpt-4o-mini → Claude Sonnet), panel Status Systemu (`/api/health/system-overview`), fix parsowania 8-K (inline XBRL + filtr index.html), hard delete 1585 alertów z wyłączonych reguł
 - **Sprint 13**: Signal Timeline (`/api/alerts/timeline`) — sekwencja sygnałów per ticker z conviction, deltami cenowymi, gap czasowym. Fix Price Outcome: sloty od otwarcia NYSE (`getEffectiveStartTime`)
 - **Sprint 14**: TickerProfileService — kontekst historyczny w promptach Claude (profil tickera 90d), słownik terminów na dashboardzie
-- **Sprint 15**: Backtest 3Y (43 946 tx, 6 hipotez), BUY rule (d=0.43), Director SELL skip, INSIDER_CLUSTER SELL observation, 7 bugfixów, raport 8h bez sentymentu, Signal Timeline redesign. **Kod zamrożony na tydzień (walidacja live)**
-- **Dashboard**: 4 zakładki (Dashboard + Signal Timeline + System Logs + Słownik), panel Status Systemu, ~27 endpointów REST (w tym reprocess-filing)
+- **Sprint 15**: Backtest 3Y (43 946 tx, 6 hipotez), BUY rule (d=0.43), Director SELL skip, INSIDER_CLUSTER SELL observation, 7 bugfixów, raport 8h bez sentymentu, Signal Timeline redesign
+- **Sprint 16**: UTC fix (Options Flow CRON, getLastTradingDay), INSIDER_PLUS_OPTIONS 72h→120h/5d, Options Flow kolumna Kurs, Signal Timeline dropdown, SEC EDGAR skan 100 pozycji/7d, reprocess-filing endpoint
+- **Sprint 17**: Semi Supply Chain observation layer — 14 nowych tickerów (3 koszyki: Memory, Equipment, OEM) w observation mode. Nowe kolumny: `tickers.sector` + `observationOnly`, `alerts.nonDeliveryReason`. Observation gate w Form4/Form8k/AlertEvaluator. Healthcare boost guard fix
+- **Dashboard**: 4 zakładki (Dashboard + Signal Timeline + System Logs + Słownik), panel Status Systemu, 28 endpointów REST (w tym reprocess-filing)
 - **Testy jednostkowe**: 14 plików spec.ts, ~420 testów (unit: correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator; agents: alert-evaluator-agent, correlation-agent, collectors-agent, price-outcome-agent, sec-filings-agent, sentiment-agent, options-flow-scoring, options-flow-agent, unusual-activity-detector)

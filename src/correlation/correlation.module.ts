@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Alert, AlertRule } from '../entities';
+import { Alert, AlertRule, Ticker } from '../entities';
 import { TelegramModule } from '../alerts/telegram/telegram.module';
 import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
 import { correlationRedisProvider } from './redis.provider';
@@ -12,7 +12,7 @@ import { CorrelationService } from './correlation.service';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Alert, AlertRule]),
+    TypeOrmModule.forFeature([Alert, AlertRule, Ticker]),
     TelegramModule,
     FinnhubModule,       // Sprint 11: priceAtAlert dla Correlated Signal alertów
   ],

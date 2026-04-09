@@ -7,6 +7,7 @@ import {
   Alert,
   AlertRule,
   PdufaCatalyst,
+  Ticker,
 } from '../entities';
 import { TelegramModule } from '../alerts/telegram/telegram.module';
 import { CorrelationModule } from '../correlation/correlation.module';
@@ -18,7 +19,7 @@ import { CollectorsModule } from '../collectors/collectors.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OptionsFlow, Alert, AlertRule, PdufaCatalyst]),
+    TypeOrmModule.forFeature([OptionsFlow, Alert, AlertRule, PdufaCatalyst, Ticker]),
     TelegramModule,
     CorrelationModule,
     CollectorsModule,

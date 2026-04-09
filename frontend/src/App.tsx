@@ -831,7 +831,7 @@ export default function App() {
       />
 
 
-      {/* ── Tickery ──────────────────────────── */}
+      {/* ── Tickery Healthcare ──────────────────────────── */}
       <DataPanel
         title="Tickery Healthcare"
         icon={<ShowChartIcon color="primary" />}
@@ -851,20 +851,43 @@ export default function App() {
             label: 'Aliasy',
             render: (v: string[]) => v?.slice(0, 3).join(', ') || '—',
           },
+        ]}
+        fetchData={async () => {
+          const data = await fetchTickers('healthcare');
+          return data.tickers;
+        }}
+      />
+
+      {/* ── Tickery Semi Supply Chain (observation) ──────── */}
+      <DataPanel
+        title="Semi Supply Chain (obserwacja)"
+        icon={<ShowChartIcon sx={{ color: '#ff9800' }} />}
+        badgeColor="warning"
+        columns={[
+          { key: 'symbol', label: 'Symbol' },
+          { key: 'name', label: 'Nazwa' },
+          { key: 'subsector', label: 'Koszyk' },
           {
-            key: 'isActive',
-            label: 'Aktywny',
+            key: 'priority',
+            label: 'Priorytet',
+            render: (v: string) => <PriorityChip value={v} />,
+          },
+          {
+            key: 'observationOnly',
+            label: 'Tryb',
             render: (v: boolean) => (
               <Chip
-                label={v ? 'TAK' : 'NIE'}
-                color={v ? 'success' : 'default'}
+                label={v ? 'OBS' : 'LIVE'}
+                color={v ? 'warning' : 'success'}
                 size="small"
+                variant={v ? 'outlined' : 'filled'}
               />
             ),
           },
+          { key: 'ceo', label: 'CEO' },
         ]}
         fetchData={async () => {
-          const data = await fetchTickers();
+          const data = await fetchTickers('semi_supply_chain');
           return data.tickers;
         }}
       />

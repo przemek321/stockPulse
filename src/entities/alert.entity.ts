@@ -42,6 +42,15 @@ export class Alert {
   @Column({ default: true })
   delivered: boolean;
 
+  /**
+   * Powód niedostarczenia alertu (gdy delivered=false).
+   * Rozróżnia: observation mode, silent hour, daily limit.
+   * Krytyczne dla forward analysis — bez tego nie da się odfiltrować
+   * "semi observation" od "3 w nocy" w backtestach.
+   */
+  @Column({ type: 'varchar', length: 32, nullable: true, default: null })
+  nonDeliveryReason: string | null;
+
   @CreateDateColumn()
   sentAt: Date;
 

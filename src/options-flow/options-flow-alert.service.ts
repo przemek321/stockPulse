@@ -3,7 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
 import { EventType } from '../events/event-types';
-import { OptionsFlow, Alert, AlertRule } from '../entities';
+import { OptionsFlow, Alert, AlertRule, Ticker } from '../entities';
 import { OptionsFlowScoringService } from './options-flow-scoring.service';
 import { CorrelationService } from '../correlation/correlation.service';
 import { TelegramService } from '../alerts/telegram/telegram.service';
@@ -42,6 +42,8 @@ export class OptionsFlowAlertService {
     private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule)
     private readonly ruleRepo: Repository<AlertRule>,
+    @InjectRepository(Ticker)
+    private readonly tickerRepo: Repository<Ticker>,
     private readonly scoring: OptionsFlowScoringService,
     @Optional() private readonly correlation: CorrelationService,
     private readonly telegram: TelegramService,
@@ -172,9 +174,21 @@ export class OptionsFlowAlertService {
       sessionDate: flow.sessionDate.toString(),
     });
 
-    const delivered = await this.telegram.sendMarkdown(message);
-    if (!delivered) {
-      this.logger.error(`TELEGRAM FAILED: Options Flow alert for ${flow.symbol} not delivered — saved to DB`);
+    // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+    const ticker = await this.tickerRepo.findOne({ where: { symbol: flow.symbol } });
+    const isObservation = ticker?.observationOnly === true;
+    let nonDeliveryReason: string | null = null;
+    let delivered: boolean;
+
+    if (isObservation) {
+      delivered = false;
+      nonDeliveryReason = 'observation';
+      this.logger.debug(`OBSERVATION MODE: ${flow.symbol} — options alert zapisany, Telegram pominięty`);
+    } else {
+      delivered = await this.telegram.sendMarkdown(message);
+      if (!delivered) {
+        this.logger.error(`TELEGRAM FAILED: Options Flow alert for ${flow.symbol} not delivered — saved to DB`);
+      }
     }
 
     // Price at alert
@@ -195,6 +209,7 @@ export class OptionsFlowAlertService {
           channel: 'TELEGRAM',
           message,
           delivered,
+          nonDeliveryReason,
           catalystType: 'unusual_options',
           alertDirection: scoring.conviction > 0 ? 'positive' : 'negative',
           priceAtAlert,

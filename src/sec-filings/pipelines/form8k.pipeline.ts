@@ -98,6 +98,10 @@ export class Form8kPipeline {
         return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol };
       }
 
+      // Pobierz ticker info (wcześniej, przed bankruptcy check — potrzebne do observation gate)
+      const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
+      const companyName = ticker?.name ?? payload.symbol;
+
       // Wykryj Items w 8-K
       const items = detectItems(filingText);
       if (items.length === 0) {
@@ -108,7 +112,7 @@ export class Form8kPipeline {
       // Sprawdź Item 1.03 (Bankruptcy) — natychmiastowy alert bez GPT
       const hasBankruptcy = items.some(isBankruptcyItem);
       if (hasBankruptcy) {
-        await this.handleBankruptcy(payload.symbol, filing);
+        await this.handleBankruptcy(payload.symbol, filing, ticker);
         // Kontynuuj analizę pozostałych Items (8-K może mieć wiele Items)
       }
 
@@ -118,10 +122,6 @@ export class Form8kPipeline {
 
       const promptBuilder = selectPromptBuilder(mainItem);
       if (!promptBuilder) return { action: 'SKIP_NO_PROMPT', symbol: payload.symbol };
-
-      // Pobierz ticker info
-      const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
-      const companyName = ticker?.name ?? payload.symbol;
 
       // Pobierz profil historyczny tickera (kontekst kalibrujący conviction)
       const signalProfile = await this.tickerProfile?.getSignalProfile(payload.symbol) ?? null;
@@ -204,9 +204,20 @@ export class Form8kPipeline {
         priority,
       });
 
-      const delivered = await this.telegram.sendMarkdown(message);
-      if (!delivered) {
-        this.logger.error(`TELEGRAM FAILED: 8-K alert for ${payload.symbol} not delivered — saved to DB`);
+      // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+      const isObservation = ticker?.observationOnly === true;
+      let delivered: boolean;
+      let nonDeliveryReason: string | null = null;
+
+      if (isObservation) {
+        delivered = false;
+        nonDeliveryReason = 'observation';
+        this.logger.debug(`OBSERVATION MODE: ${payload.symbol} — 8-K alert zapisany, Telegram pominięty`);
+      } else {
+        delivered = await this.telegram.sendMarkdown(message);
+        if (!delivered) {
+          this.logger.error(`TELEGRAM FAILED: 8-K alert for ${payload.symbol} not delivered — saved to DB`);
+        }
       }
 
       // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
@@ -226,6 +237,7 @@ export class Form8kPipeline {
             channel: 'TELEGRAM',
             message,
             delivered,
+            nonDeliveryReason,
             catalystType: analysis.catalyst_type,
             alertDirection: analysis.price_impact.direction === 'neutral'
               ? (analysis.conviction >= 0 ? 'positive' : 'negative')
@@ -274,7 +286,7 @@ export class Form8kPipeline {
   /**
    * Obsługa Item 1.03 — Bankruptcy. Natychmiastowy alert CRITICAL bez GPT.
    */
-  private async handleBankruptcy(symbol: string, filing: SecFiling): Promise<void> {
+  private async handleBankruptcy(symbol: string, filing: SecFiling, ticker?: any): Promise<void> {
     const ruleName = '8-K Bankruptcy';
     const rule = await this.ruleRepo.findOne({
       where: { name: ruleName, isActive: true },
@@ -284,14 +296,25 @@ export class Form8kPipeline {
     // Bankruptcy: throttleMinutes = 0, każda instancja alertuje
     const message = this.formatter.formatBankruptcyAlert({
       symbol,
-      companyName: symbol,
+      companyName: ticker?.name ?? symbol,
       filingDate: filing.filingDate?.toISOString?.() ?? '',
       documentUrl: filing.documentUrl,
     });
 
-    const delivered = await this.telegram.sendMarkdown(message);
-    if (!delivered) {
-      this.logger.error(`TELEGRAM FAILED: 8-K Bankruptcy alert for ${symbol} not delivered — saved to DB`);
+    // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+    const isObservation = ticker?.observationOnly === true;
+    let delivered: boolean;
+    let nonDeliveryReason: string | null = null;
+
+    if (isObservation) {
+      delivered = false;
+      nonDeliveryReason = 'observation';
+      this.logger.debug(`OBSERVATION MODE: ${symbol} — bankruptcy alert zapisany, Telegram pominięty`);
+    } else {
+      delivered = await this.telegram.sendMarkdown(message);
+      if (!delivered) {
+        this.logger.error(`TELEGRAM FAILED: 8-K Bankruptcy alert for ${symbol} not delivered — saved to DB`);
+      }
     }
 
     // Sprint 11: pobierz cenę dla bankruptcy alertu
@@ -311,6 +334,7 @@ export class Form8kPipeline {
           channel: 'TELEGRAM',
           message,
           delivered,
+          nonDeliveryReason,
           catalystType: 'bankruptcy',
           alertDirection: 'negative',
           priceAtAlert,
