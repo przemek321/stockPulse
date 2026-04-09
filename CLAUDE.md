@@ -104,7 +104,7 @@ Działający system end-to-end w 6 kontenerach Docker. Po Sprint 11 system skupi
 
 ### Monitorowane sektory
 
-- **Healthcare** (core): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — 37 tickerów (wg podsektora), 201 słów kluczowych, 18 subredditów, 20 reguł alertów (8 aktywnych, 12 wyłączonych). Backtest-backed edge (insider BUY d=0.43). Uwaga: `meta.total_tickers` w JSON mówi 42 — to stała wartość, rzeczywista liczba firm = 37.
+- **Healthcare** (core): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — 37 tickerów (wg podsektora), 201 słów kluczowych, 18 subredditów, 20 reguł alertów (8 aktywnych, 12 wyłączonych). Backtest-backed edge (insider BUY d=0.43).
 - **Semi Supply Chain** (observation mode): [doc/stockpulse-semi-supply-chain.json](doc/stockpulse-semi-supply-chain.json) — 14 tickerów w 3 koszykach: Memory Producers (MU, WDC, STX), Equipment & Packaging (KLIC, AMKR, ONTO, CAMT, NVMI, ASX), OEM Anti-Signal (DELL, HPQ, HPE, SMCI, NTAP). Alerty zapisywane do DB z `delivered=false`, `nonDeliveryReason='observation'` — brak Telegramu dopóki backtest nie potwierdzi edge'u. Plan: [doc/plan-semi-supply-chain.md](doc/plan-semi-supply-chain.md).
 
 ### Dokumentacja szczegółowa
