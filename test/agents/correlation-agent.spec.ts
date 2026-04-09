@@ -55,12 +55,19 @@ interface ServiceDeps {
   ruleRepo?: ReturnType<typeof createMockRepo>;
 }
 
+function createMockTickerRepo() {
+  return {
+    findOne: jest.fn(async () => ({ symbol: 'UNH', observationOnly: false, sector: 'healthcare' })),
+  };
+}
+
 function createService(overrides: ServiceDeps = {}) {
   const redis = overrides.redis ?? createMockRedis();
   const telegram = overrides.telegram ?? createMockTelegram();
   const formatter = overrides.formatter ?? createMockFormatter();
   const alertRepo = overrides.alertRepo ?? createMockRepo();
   const ruleRepo = overrides.ruleRepo ?? createMockRepo();
+  const tickerRepo = createMockTickerRepo();
 
   const service = new CorrelationService(
     redis as any,
@@ -68,9 +75,10 @@ function createService(overrides: ServiceDeps = {}) {
     formatter as any,
     alertRepo as any,
     ruleRepo as any,
+    tickerRepo as any,
   );
 
-  return { service, redis, telegram, formatter, alertRepo, ruleRepo };
+  return { service, redis, telegram, formatter, alertRepo, ruleRepo, tickerRepo };
 }
 
 // ── Helpery ──
@@ -117,9 +125,10 @@ describe('Agent: Correlation — Założenia (stałe)', () => {
     expect(PATTERN_THROTTLE.ESCALATING_SIGNAL).toBe(21600);    // 6h
   });
 
-  it('PATTERN_LABELS dla wszystkich 5 wzorców', () => {
-    expect(Object.keys(PATTERN_LABELS)).toHaveLength(5);
+  it('PATTERN_LABELS dla wszystkich 6 wzorców', () => {
+    expect(Object.keys(PATTERN_LABELS)).toHaveLength(6);
     expect(PATTERN_LABELS.INSIDER_PLUS_8K).toBeDefined();
+    expect(PATTERN_LABELS.INSIDER_PLUS_OPTIONS).toBeDefined();
     expect(PATTERN_LABELS.ESCALATING_SIGNAL).toBeDefined();
   });
 });
@@ -209,9 +218,9 @@ describe('Agent: Correlation — storeSignal', () => {
     await service.storeSignal(makeSignal({ source_category: '8k', conviction: 0.5 }));
     const shortTtl = redis.expire.mock.calls[0][1];
 
-    // insider 14d ≈ 1_209_600 s, short 48h ≈ 172_800 s
+    // insider 14d ≈ 1_209_600 s, short 120h (5d) ≈ 432_000 s
     expect(insiderTtl).toBe(Math.ceil(14 * 24 * 3600));
-    expect(shortTtl).toBe(Math.ceil(48 * 3600));
+    expect(shortTtl).toBe(Math.ceil(120 * 3600));
   });
 });
 
@@ -305,7 +314,8 @@ describe('Agent: Correlation — Detektor 1: Insider + 8-K (24h)', () => {
 
 // ── Testy: Detektor 2 — Filing Confirms News (48h) ──
 
-describe('Agent: Correlation — Detektor 2: Filing Confirms News (48h)', () => {
+// Sprint 11: wyłączone detektory — metody istnieją ale nie są wywoływane w runPatternDetection
+describe.skip('Agent: Correlation — Detektor 2: Filing Confirms News (48h) [DISABLED Sprint 11]', () => {
   it('wykrywa gdy news PRZED 8k z matching catalyst_type', async () => {
     const { service, redis, formatter } = createService();
     const now = Date.now();
@@ -391,7 +401,7 @@ describe('Agent: Correlation — Detektor 2: Filing Confirms News (48h)', () => 
 
 // ── Testy: Detektor 3 — Multi-Source Convergence (24h) ──
 
-describe('Agent: Correlation — Detektor 3: Multi-Source Convergence (24h)', () => {
+describe.skip('Agent: Correlation — Detektor 3: Multi-Source Convergence (24h) [DISABLED Sprint 11]', () => {
   it('wykrywa gdy 3+ kategorie w 24h potwierdzają ten sam kierunek', async () => {
     const { service, redis, formatter } = createService();
     const now = Date.now();
@@ -501,7 +511,7 @@ describe('Agent: Correlation — Detektor 4: Insider Cluster (7d)', () => {
 
 // ── Testy: Detektor 5 — Escalating Signal (72h) ──
 
-describe('Agent: Correlation — Detektor 5: Escalating Signal (72h)', () => {
+describe.skip('Agent: Correlation — Detektor 5: Escalating Signal (72h) [DISABLED Sprint 11]', () => {
   it('wykrywa eskalację 3 sygnałów z rosnącym conviction', async () => {
     const { service, redis, formatter } = createService();
     const now = Date.now();
@@ -652,24 +662,8 @@ describe('Agent: Correlation — aggregateConviction (pośrednio)', () => {
     expect(ip8k![0].correlatedConviction).toBeCloseTo(-0.72);
   });
 
-  it('cap na ±1.0 przy wielu silnych źródłach', async () => {
-    const { service, redis, formatter } = createService();
-    const now = Date.now();
-
-    // 3 źródła: 0.9, 0.8, 0.7 — boost=1.4 → 0.9*1.4=1.26 → capped do 1.0
-    setupRedisSignals(redis, 'UNH', [
-      makeSignal({ source_category: 'social', direction: 'positive', conviction: 0.9, timestamp: now - h }),
-      makeSignal({ source_category: 'news', direction: 'positive', conviction: 0.8, timestamp: now - 2 * h }),
-      makeSignal({ source_category: '8k', direction: 'positive', conviction: 0.7, timestamp: now - 3 * h }),
-    ]);
-
-    await service.runPatternDetection('UNH');
-
-    const calls = formatter.formatCorrelatedAlert.mock.calls;
-    const msc = calls.find((c: any) => c[0]?.patternType === 'MULTI_SOURCE_CONVERGENCE');
-    expect(msc).toBeDefined();
-    expect(msc![0].correlatedConviction).toBeCloseTo(1.0);
-  });
+  // Skip: wymaga MULTI_SOURCE_CONVERGENCE (wyłączony Sprint 11)
+  it.skip('cap na ±1.0 przy wielu silnych źródłach [DISABLED Sprint 11 — wymaga MSC]', () => {});
 });
 
 // ── Testy: MIN_CORRELATED_CONVICTION → alert lub skip ──
@@ -811,7 +805,7 @@ describe('Agent: Correlation — Debounce (schedulePatternCheck)', () => {
   it('schedulePatternCheck odpala runPatternDetection po 10s', () => {
     const { service, redis } = createService();
     // Mock runPatternDetection żeby nie wykonywać pełnej detekcji
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue(undefined);
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
 
     service.schedulePatternCheck('UNH');
     expect(spy).not.toHaveBeenCalled();
@@ -822,13 +816,13 @@ describe('Agent: Correlation — Debounce (schedulePatternCheck)', () => {
     spy.mockRestore();
   });
 
-  it('2 sygnały w 5s → debounce resetuje, runPatternDetection raz', () => {
+  it('2 sygnały w 5s → drugi skipowany (already scheduled), runPatternDetection raz', () => {
     const { service } = createService();
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue(undefined);
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
 
     service.schedulePatternCheck('UNH');
     jest.advanceTimersByTime(5_000);
-    service.schedulePatternCheck('UNH'); // reset timera
+    service.schedulePatternCheck('UNH'); // skip — timer już zaplanowany
     jest.advanceTimersByTime(10_000);
 
     expect(spy).toHaveBeenCalledTimes(1);
@@ -837,7 +831,7 @@ describe('Agent: Correlation — Debounce (schedulePatternCheck)', () => {
 
   it('2 różne tickery → 2 niezależne detekcje', () => {
     const { service } = createService();
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue(undefined);
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
 
     service.schedulePatternCheck('UNH');
     service.schedulePatternCheck('ISRG');
@@ -858,7 +852,7 @@ describe('Agent: Correlation — onModuleDestroy', () => {
 
   it('czyści pending timery', () => {
     const { service } = createService();
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue(undefined);
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
 
     service.schedulePatternCheck('UNH');
     service.schedulePatternCheck('ISRG');

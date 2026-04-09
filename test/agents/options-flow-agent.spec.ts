@@ -87,10 +87,17 @@ function createMockFinnhub() {
   return { getQuote: jest.fn(async () => 155.5) };
 }
 
+function createMockTickerRepo(overrides: any = {}) {
+  return {
+    findOne: jest.fn(async () => overrides.ticker ?? { symbol: 'UNH', observationOnly: false, sector: 'healthcare' }),
+  };
+}
+
 function createAlertService(overrides: any = {}) {
   const flowRepo = overrides.flowRepo ?? createMockFlowRepo();
   const alertRepo = overrides.alertRepo ?? createMockAlertRepo();
   const ruleRepo = overrides.ruleRepo ?? createMockRuleRepo();
+  const tickerRepo = overrides.tickerRepo ?? createMockTickerRepo(overrides);
   const scoring = overrides.scoring ?? createMockScoring();
   const correlation = overrides.correlation ?? createMockCorrelation();
   const telegram = overrides.telegram ?? createMockTelegram();
@@ -101,6 +108,7 @@ function createAlertService(overrides: any = {}) {
     flowRepo as any,
     alertRepo as any,
     ruleRepo as any,
+    tickerRepo as any,
     scoring as any,
     correlation as any,
     telegram as any,
@@ -121,14 +129,24 @@ describe('Options Flow Alert — routing', () => {
     expect(result.action).toBe('SKIP_NOT_FOUND');
   });
 
-  it('ALERT_SENT gdy conviction ≥ 0.50', async () => {
+  it('ALERT_SENT gdy conviction ≥ 0.50 i pdufaBoosted', async () => {
     const { service, correlation, telegram } = createAlertService({
-      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: false, callPutRatio: 0.80 }),
+      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.80 }),
     });
     const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
     expect(result.action).toBe('ALERT_SENT');
     expect(correlation.storeSignal).toHaveBeenCalled();
     expect(telegram.sendMarkdown).toHaveBeenCalled();
+  });
+
+  it('CORRELATION_STORED gdy conviction ≥ 0.50 ale BEZ pdufaBoosted (Sprint 11)', async () => {
+    const { service, correlation, telegram } = createAlertService({
+      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: false, callPutRatio: 0.80 }),
+    });
+    const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
+    expect(result.action).toBe('CORRELATION_STORED');
+    expect(correlation.storeSignal).toHaveBeenCalled();
+    expect(telegram.sendMarkdown).not.toHaveBeenCalled();
   });
 
   it('CORRELATION_STORED gdy 0.25 ≤ conviction < 0.50', async () => {
@@ -196,7 +214,7 @@ describe('Options Flow Alert — throttling', () => {
 
     const { service, telegram } = createAlertService({
       alertRepo,
-      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: false, callPutRatio: 0.80 }),
+      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.80 }),
     });
     const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
     expect(result.action).toBe('THROTTLED');
@@ -212,7 +230,7 @@ describe('Options Flow Alert — throttling', () => {
 
     const { service, telegram } = createAlertService({
       alertRepo,
-      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: false, callPutRatio: 0.80 }),
+      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.80 }),
     });
     const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
     expect(result.action).toBe('ALERT_SENT');
@@ -223,9 +241,9 @@ describe('Options Flow Alert — throttling', () => {
 // ── Testy priority ──
 
 describe('Options Flow Alert — priority', () => {
-  it('conviction ≥ 0.70 → CRITICAL', async () => {
+  it('conviction ≥ 0.70 → CRITICAL (pdufaBoosted)', async () => {
     const { service, alertRepo } = createAlertService({
-      scoring: createMockScoring({ conviction: 0.75, direction: 'positive', pdufaBoosted: false, callPutRatio: 0.90 }),
+      scoring: createMockScoring({ conviction: 0.75, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.90 }),
     });
     await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
 
@@ -234,9 +252,9 @@ describe('Options Flow Alert — priority', () => {
     );
   });
 
-  it('conviction < 0.70 → HIGH', async () => {
+  it('conviction < 0.70 → HIGH (pdufaBoosted)', async () => {
     const { service, alertRepo } = createAlertService({
-      scoring: createMockScoring({ conviction: 0.55, direction: 'positive', pdufaBoosted: false, callPutRatio: 0.75 }),
+      scoring: createMockScoring({ conviction: 0.55, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.75 }),
     });
     await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
 
@@ -249,10 +267,10 @@ describe('Options Flow Alert — priority', () => {
 // ── Test reguła nieaktywna ──
 
 describe('Options Flow Alert — reguła', () => {
-  it('THROTTLED gdy reguła nie istnieje (conviction ≥ 0.50 ale brak reguły)', async () => {
+  it('THROTTLED gdy reguła nie istnieje (conviction ≥ 0.50 + pdufaBoosted ale brak reguły)', async () => {
     const { service, telegram } = createAlertService({
       ruleRepo: { findOne: jest.fn(async () => null) },
-      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: false, callPutRatio: 0.80 }),
+      scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.80 }),
     });
     const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
     // Brak reguły → sendAlert zwraca false → THROTTLED

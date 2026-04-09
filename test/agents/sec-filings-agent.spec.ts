@@ -423,20 +423,16 @@ describe('Agent: SEC Filings — buildForm4Prompt()', () => {
     expect(prompt).toContain('Unknown role');
   });
 
-  it('prompt zawiera skalę conviction z opisem 10b5-1 (±0.1-0.3)', () => {
+  it('prompt zawiera skalę conviction z opisem routine/10b5-1', () => {
     const prompt = buildForm4Prompt('ISRG', 'Intuitive Surgical', makeForm4Data(), []);
-    expect(prompt).toContain('±0.1-0.3');
+    expect(prompt).toContain('-0.1 to -0.4');
     expect(prompt).toContain('10b5-1');
   });
 
-  it('prompt zawiera hierarchię ról: CEO/Founder > CFO > Director > VP', () => {
+  it('prompt zawiera skalę conviction significant (cluster/CEO)', () => {
     const prompt = buildForm4Prompt('ISRG', 'Intuitive Surgical', makeForm4Data(), []);
-    expect(prompt).toContain('CEO/Founder > CFO > Director > VP');
-  });
-
-  it('prompt zawiera skalę conviction klaster insiderski (±0.9 to ±1.2)', () => {
-    const prompt = buildForm4Prompt('ISRG', 'Intuitive Surgical', makeForm4Data(), []);
-    expect(prompt).toContain('±0.9 to ±1.2');
+    expect(prompt).toContain('-0.9 to -1.2');
+    expect(prompt).toContain('CEO/CFO');
   });
 
   it('recentFilings puste → "No other insider transactions"', () => {
