@@ -2,13 +2,19 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-09
+> Ostatnia aktualizacja: 2026-04-10
+
+## Stan walidacji (10.04.2026)
+
+**Sprint 15 V2** (re-run po P0/P0.5 fixach): edge **C-suite BUY d=0.725** na 28-tickerowym overlap universe (V1 d=0.83 cherry-picked był zawyżony), **All BUY d=0.542** (V1 d=0.27 — wzrost 2x), **BUY >$1M d=0.706** z monotoniczną gradacją ($100K→$500K→$1M), **bez top-3 hit rate 80%** (edge dystrybuowany, NIE single narrative), point-in-time clean. **Pending**: H6 balanced re-run, BUY threshold replication ($750K/$1.5M/$2M), XBI-adjusted alpha, per-(insider, year) deduplikacja, pure survivorship test (delisted CIKs).
 
 ## Gdzie jesteśmy
 
+**Sprint 16 — Walidacja Sprint 15** (10.04.2026, w toku). Survivorship check (selection bias 3.2% pokrycia, ale nie pure survivorship), P0 koncentracja (top-3 V1=35.9%, V2=46.4%, ale bez top-3 hit rate 80% → edge dystrybuowany), P0.5 backtest-production mismatch (zawężenie do 28 healthcare overlap, soft delete 9 production-only tickerów: ALHC, CERT, CVS, CYH, DVA, GSK, HCAT, VEEV, WBA), backtest V2 (re-run na 28 czystych HC — edge wzmocniony nie osłabiony), point-in-time audit (TickerProfileService używa NOW(), brak look-ahead w production runtime, backtest nie używa serwisu), soft delete dla alertów (`alerts.archived` column + endpoint, od dziś nie kasujemy hard-delete).
+
 **Sprint 17 — Semi Supply Chain observation layer** (ukończony 2026-04-09). 14 nowych tickerów z sektora półprzewodników (3 koszyki: Memory Producers, Equipment & Packaging, OEM Anti-Signal) w **observation mode** — alerty zapisywane do DB, brak Telegramu dopóki backtest nie potwierdzi edge'u. Nowe kolumny: `tickers.sector`, `tickers.observationOnly`, `alerts.nonDeliveryReason`. Healthcare boost guard fix (`sector === 'healthcare'`). Observation gate w Form4Pipeline, Form8kPipeline, AlertEvaluator.
 
-**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER [SELL=observation], INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary only (is10b51Plan→skip), **Director SELL→hard skip** (backtest: anty-sygnał), **BUY boosty** (C-suite ×1.3, healthcare ×1.2). **Observation mode** dla semi supply chain tickerów (delivered=false, nonDeliveryReason='observation'). **8 aktywnych reguł** alertów (w tym nowa Form 4 Insider BUY), 12 wyłączonych. **51 monitorowanych tickerów** (37 healthcare + 14 semi observation). Raporty tygodniowe w [doc/reports/](doc/reports/).
+**Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER [SELL=observation], INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary only (is10b51Plan→skip), **Director SELL→hard skip** (backtest: anty-sygnał), **BUY boosty** (C-suite ×1.3, healthcare ×1.2). **Observation mode** dla semi supply chain tickerów (delivered=false, nonDeliveryReason='observation'). **8 aktywnych reguł** alertów (w tym nowa Form 4 Insider BUY), 12 wyłączonych. **42 aktywnych tickerów** (28 zwalidowanych healthcare + 14 semi observation) + 9 soft-deleted (`isActive=false`). Raporty tygodniowe w [doc/reports/](doc/reports/).
 
 ## Faza 0 — Setup i walidacja API (ukończona)
 
