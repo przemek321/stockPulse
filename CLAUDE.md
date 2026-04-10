@@ -5,6 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Dokumentacja i komentarze w tym projekcie piszemy po polsku.**
 
 > 🎯 **Sprint 15 V2 (10.04.2026)** — edge **C-suite BUY d=0.725**, **All BUY d=0.542** (V1: 0.27 → +101%), **BUY >$1M d=0.706** (monotonic gradacja $100K→$500K→$1M), **bez top-3 hit rate 80%** (edge dystrybuowany). Universe: 28 zwalidowanych healthcare. Pending: H6 balanced re-run, threshold replication, XBI-adjusted alpha, per-insider dedup, pure survivorship. Pełne wyniki: [sprint15_v2_results.md](scripts/backtest/data/results/sprint15_v2_results.md).
+>
+> ⛔ **Sprint 16 = validation only.** NIE ClinicalTrials/Polymarket/nowe reguły/zmiany boost ×1.3/×1.2. Sprint 17 = rekalibracja parametrów na podstawie pełnej walidacji. Sprint 18 = nowe features. Rozdzielaj research od development.
 
 ## Opis projektu
 
