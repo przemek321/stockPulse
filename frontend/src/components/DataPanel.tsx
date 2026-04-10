@@ -1,23 +1,10 @@
 import { useState, useMemo } from 'react';
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Typography,
-  Chip,
-  Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  TablePagination,
-  CircularProgress,
-  Paper,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Box, LinearProgress, Typography } from '@mui/material';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
+import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import { COLORS, TYPOGRAPHY } from '../theme/financial';
 
 interface Column {
   key: string;
@@ -42,14 +29,13 @@ interface DataPanelProps {
 }
 
 /**
- * Rozwijany panel z tabelą danych.
- * Ładuje dane dopiero po kliknięciu (lazy loading).
+ * Bloomberg Terminal-style panel z tabelą danych.
+ * Lazy loading — dane pobierane po pierwszym rozwinięciu.
  */
 export default function DataPanel({
   title,
   icon,
   badge,
-  badgeColor = 'primary',
   columns,
   fetchData,
   defaultSortKey,
@@ -124,111 +110,291 @@ export default function DataPanel({
     }
   };
 
+  const totalRows = sortedRows?.length ?? 0;
+  const fromRow = totalRows === 0 ? 0 : page * rowsPerPage + 1;
+  const toRow = Math.min((page + 1) * rowsPerPage, totalRows);
+  const maxPage = Math.max(0, Math.ceil(totalRows / rowsPerPage) - 1);
+
   return (
-    <Accordion
-      expanded={expanded}
-      onChange={handleToggle}
+    <Box
       sx={{
-        '&:before': { display: 'none' },
-        borderRadius: '8px !important',
-        mb: 1.5,
-        overflow: 'hidden',
+        bgcolor: COLORS.bg.card,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: '2px',
+        mb: 1,
+        fontFamily: TYPOGRAPHY.sansFamily,
       }}
     >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {icon}
-          <Typography fontWeight={600}>{title}</Typography>
-          {badge !== undefined && (
-            <Chip label={badge.toLocaleString()} color={badgeColor} size="small" />
-          )}
-        </Box>
-      </AccordionSummary>
-
-      <AccordionDetails sx={{ p: 0 }}>
-        {loading && (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <CircularProgress size={28} />
+      {/* ── HEADER BAR ─────────────────────────────────────── */}
+      <Box
+        onClick={handleToggle}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 0.75,
+          cursor: 'pointer',
+          borderBottom: expanded ? `1px solid ${COLORS.border}` : 'none',
+          bgcolor: COLORS.bg.card,
+          userSelect: 'none',
+          '&:hover': { bgcolor: COLORS.bg.cellHover },
+          transition: 'background-color 0.1s',
+        }}
+      >
+        {expanded ? (
+          <KeyboardArrowDownIcon sx={{ fontSize: 16, color: COLORS.text.accent }} />
+        ) : (
+          <KeyboardArrowRightIcon sx={{ fontSize: 16, color: COLORS.text.accent }} />
+        )}
+        {icon && (
+          <Box sx={{ display: 'flex', alignItems: 'center', '& svg': { fontSize: 16, color: COLORS.text.accent } }}>
+            {icon}
           </Box>
         )}
-        {error && (
-          <Typography color="error" sx={{ p: 2 }}>
-            {error}
-          </Typography>
+        <Typography
+          sx={{
+            ...TYPOGRAPHY.uppercase,
+            fontSize: TYPOGRAPHY.size.sm,
+            color: COLORS.text.accent,
+            fontWeight: 700,
+          }}
+        >
+          {title}
+        </Typography>
+        {badge !== undefined && (
+          <Box
+            sx={{
+              ml: 'auto',
+              px: 0.75,
+              py: 0.125,
+              bgcolor: COLORS.bg.panel,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '2px',
+              fontFamily: TYPOGRAPHY.monoFamily,
+              fontSize: TYPOGRAPHY.size.xs,
+              fontWeight: 600,
+              color: COLORS.text.primary,
+              lineHeight: 1.4,
+            }}
+          >
+            {badge.toLocaleString()}
+          </Box>
         )}
-        {paginatedRows && sortedRows && (
-          <>
-            <TableContainer component={Paper} sx={{ maxHeight: 420 }}>
-              <Table stickyHeader size="small">
-                <TableHead>
-                  <TableRow>
-                    {columns.map((col) => {
-                      const isSortable = col.sortable !== false;
-                      return (
-                        <TableCell
-                          key={col.key}
-                          sx={{ fontWeight: 700, bgcolor: 'background.paper' }}
-                          sortDirection={sortKey === col.key ? sortDir : false}
-                        >
-                          {isSortable ? (
-                            <TableSortLabel
-                              active={sortKey === col.key}
-                              direction={sortKey === col.key ? sortDir : 'desc'}
-                              onClick={() => handleSort(col.key)}
-                            >
+      </Box>
+
+      {/* ── CONTENT ────────────────────────────────────────── */}
+      {expanded && (
+        <Box sx={{ position: 'relative' }}>
+          {loading && (
+            <LinearProgress
+              sx={{
+                height: 2,
+                bgcolor: COLORS.bg.panel,
+                '& .MuiLinearProgress-bar': { bgcolor: COLORS.accent },
+              }}
+            />
+          )}
+          {error && (
+            <Typography
+              sx={{
+                p: 1.5,
+                fontSize: TYPOGRAPHY.size.base,
+                color: COLORS.down,
+                fontFamily: TYPOGRAPHY.monoFamily,
+              }}
+            >
+              ERR: {error}
+            </Typography>
+          )}
+          {paginatedRows && sortedRows && (
+            <>
+              <Box sx={{ maxHeight: 440, overflow: 'auto' }}>
+                <Box
+                  component="table"
+                  sx={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontFamily: TYPOGRAPHY.sansFamily,
+                  }}
+                >
+                  <Box component="thead">
+                    <Box
+                      component="tr"
+                      sx={{
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 1,
+                      }}
+                    >
+                      {columns.map((col) => {
+                        const isSortable = col.sortable !== false;
+                        const isActive = sortKey === col.key;
+                        return (
+                          <Box
+                            component="th"
+                            key={col.key}
+                            onClick={isSortable ? () => handleSort(col.key) : undefined}
+                            sx={{
+                              textAlign: 'left',
+                              px: 1,
+                              py: 0.5,
+                              bgcolor: COLORS.bg.panel,
+                              borderBottom: `2px solid ${COLORS.borderAccent}`,
+                              ...TYPOGRAPHY.uppercase,
+                              fontSize: TYPOGRAPHY.size.xs,
+                              color: COLORS.text.accent,
+                              fontWeight: 700,
+                              cursor: isSortable ? 'pointer' : 'default',
+                              userSelect: 'none',
+                              whiteSpace: 'nowrap',
+                              '&:hover': isSortable ? { bgcolor: COLORS.bg.cellHover } : undefined,
+                            }}
+                          >
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
                               {col.label}
-                            </TableSortLabel>
-                          ) : (
-                            col.label
-                          )}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={columns.length} align="center">
-                        Brak danych
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedRows.map((row, idx) => (
-                      <TableRow key={idx} hover>
-                        {columns.map((col) => (
-                          <TableCell key={col.key} sx={{ fontSize: '0.8rem' }}>
-                            {col.render
-                              ? col.render(row[col.key], row)
-                              : row[col.key] ?? '—'}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            {sortedRows.length > 25 && (
-              <TablePagination
-                component="div"
-                count={sortedRows.length}
-                page={page}
-                onPageChange={(_, p) => setPage(p)}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={(e) => {
-                  setRowsPerPage(parseInt(e.target.value, 10));
-                  setPage(0);
-                }}
-                rowsPerPageOptions={[25, 50, 100]}
-                labelRowsPerPage="Wierszy na stronę:"
-                labelDisplayedRows={({ from, to, count }) => `${from}–${to} z ${count}`}
-                sx={{ borderTop: '1px solid #e1e5eb' }}
-              />
-            )}
-          </>
-        )}
-      </AccordionDetails>
-    </Accordion>
+                              {isActive &&
+                                (sortDir === 'asc' ? (
+                                  <ArrowDropUpIcon sx={{ fontSize: 14, color: COLORS.text.accent }} />
+                                ) : (
+                                  <ArrowDropDownIcon sx={{ fontSize: 14, color: COLORS.text.accent }} />
+                                ))}
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </Box>
+                  <Box component="tbody">
+                    {paginatedRows.length === 0 ? (
+                      <Box component="tr">
+                        <Box
+                          component="td"
+                          colSpan={columns.length}
+                          sx={{
+                            textAlign: 'center',
+                            px: 1,
+                            py: 3,
+                            ...TYPOGRAPHY.uppercase,
+                            fontSize: TYPOGRAPHY.size.xs,
+                            color: COLORS.text.muted,
+                          }}
+                        >
+                          Brak danych
+                        </Box>
+                      </Box>
+                    ) : (
+                      paginatedRows.map((row, idx) => (
+                        <Box
+                          component="tr"
+                          key={idx}
+                          sx={{
+                            bgcolor: idx % 2 === 0 ? COLORS.bg.card : COLORS.bg.cardAlt,
+                            '&:hover': { bgcolor: COLORS.bg.cellHover },
+                            transition: 'background-color 0.08s',
+                          }}
+                        >
+                          {columns.map((col) => (
+                            <Box
+                              component="td"
+                              key={col.key}
+                              sx={{
+                                px: 1,
+                                py: 0.625,
+                                borderBottom: `1px solid ${COLORS.border}`,
+                                fontSize: TYPOGRAPHY.size.base,
+                                color: COLORS.text.primary,
+                                lineHeight: 1.4,
+                                verticalAlign: 'middle',
+                              }}
+                            >
+                              {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
+                            </Box>
+                          ))}
+                        </Box>
+                      ))
+                    )}
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* ── PAGINATION ─────────────────────────────── */}
+              {totalRows > 25 && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 1.5,
+                    px: 1.5,
+                    py: 0.5,
+                    borderTop: `1px solid ${COLORS.border}`,
+                    bgcolor: COLORS.bg.panel,
+                    fontFamily: TYPOGRAPHY.monoFamily,
+                    fontSize: TYPOGRAPHY.size.xs,
+                    color: COLORS.text.secondary,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ ...TYPOGRAPHY.uppercase, fontSize: TYPOGRAPHY.size.xs, color: COLORS.text.secondary }}>
+                      Wierszy:
+                    </Box>
+                    {[25, 50, 100].map((n) => (
+                      <Box
+                        key={n}
+                        onClick={() => {
+                          setRowsPerPage(n);
+                          setPage(0);
+                        }}
+                        sx={{
+                          px: 0.5,
+                          cursor: 'pointer',
+                          fontWeight: rowsPerPage === n ? 700 : 400,
+                          color: rowsPerPage === n ? COLORS.text.accent : COLORS.text.secondary,
+                          textDecoration: rowsPerPage === n ? 'underline' : 'none',
+                          '&:hover': { color: COLORS.text.accent },
+                        }}
+                      >
+                        {n}
+                      </Box>
+                    ))}
+                  </Box>
+                  <Box sx={{ color: COLORS.borderStrong }}>|</Box>
+                  <Box>
+                    {fromRow}-{toRow} z {totalRows.toLocaleString()}
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 0.25 }}>
+                    <Box
+                      onClick={() => page > 0 && setPage(page - 1)}
+                      sx={{
+                        px: 0.75,
+                        cursor: page > 0 ? 'pointer' : 'default',
+                        color: page > 0 ? COLORS.text.accent : COLORS.text.muted,
+                        userSelect: 'none',
+                        '&:hover': page > 0 ? { bgcolor: COLORS.bg.cellHover } : undefined,
+                      }}
+                    >
+                      &lsaquo;
+                    </Box>
+                    <Box
+                      onClick={() => page < maxPage && setPage(page + 1)}
+                      sx={{
+                        px: 0.75,
+                        cursor: page < maxPage ? 'pointer' : 'default',
+                        color: page < maxPage ? COLORS.text.accent : COLORS.text.muted,
+                        userSelect: 'none',
+                        '&:hover': page < maxPage ? { bgcolor: COLORS.bg.cellHover } : undefined,
+                      }}
+                    >
+                      &rsaquo;
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </>
+          )}
+        </Box>
+      )}
+    </Box>
   );
 }

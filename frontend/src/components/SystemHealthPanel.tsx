@@ -1,60 +1,162 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Chip, Paper, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Tooltip, Collapse } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import WarningIcon from '@mui/icons-material/Warning';
-import ErrorIcon from '@mui/icons-material/Error';
+import {
+  Box,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Tooltip,
+  Collapse,
+} from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { fetchSystemOverview, SystemOverview, CollectorHealth, SystemError } from '../api';
+import {
+  COLORS,
+  TYPOGRAPHY,
+  labelSx,
+  panelSx,
+  fmtTimestamp,
+  fmtRelative,
+  statusColor,
+  type Status,
+} from '../theme/financial';
 
-/** Formatowanie daty */
-const fmtDate = (v: string | null) =>
-  v ? new Date(v).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-
-/** Formatowanie czasu trwania (ms → czytelna forma) */
-const fmtDuration = (ms: number | null) => {
-  if (!ms) return '—';
-  const sec = Math.floor(ms / 1000);
-  if (sec < 60) return `${sec}s`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ${sec % 60}s`;
-  const h = Math.floor(min / 60);
-  return `${h}h ${min % 60}m`;
+/** Mapowanie API status → terminal status */
+const toTermStatus = (s: string): Status => {
+  if (s === 'OK' || s === 'HEALTHY') return 'OK';
+  if (s === 'WARNING') return 'STALE';
+  if (s === 'CRITICAL' || s === 'ERROR') return 'ERR';
+  return 'OFF';
 };
 
-/** Formatowanie czasu "X min temu" */
-const timeAgo = (v: string | null) => {
-  if (!v) return '—';
-  const diff = Date.now() - new Date(v).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return 'przed chwilą';
-  if (min < 60) return `${min} min temu`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h ${min % 60}m temu`;
-  return `${Math.floor(h / 24)}d temu`;
+/** Krótkie nazwy źródeł dla gęstego layoutu */
+const SHORT_NAMES: Record<string, string> = {
+  SEC_EDGAR: 'SEC EDGAR',
+  PDUFA_BIO: 'PDUFA',
+  POLYGON: 'POLYGON',
 };
 
-/** Ikona statusu kolektora */
-const StatusIcon = ({ status }: { status: string }) => {
-  if (status === 'OK') return <CheckCircleIcon sx={{ color: '#66bb6a', fontSize: 20 }} />;
-  if (status === 'WARNING') return <WarningIcon sx={{ color: '#ffa726', fontSize: 20 }} />;
-  return <ErrorIcon sx={{ color: '#ef5350', fontSize: 20 }} />;
-};
+/** Pojedyncza mini-karta kolektora (Bloomberg style) */
+function CollectorTile({ c }: { c: CollectorHealth }) {
+  const status = toTermStatus(c.status);
+  const color = statusColor(status);
+  const name = SHORT_NAMES[c.source] || c.source;
 
-/** Chip ogólnego statusu systemu */
-const OverallChip = ({ status }: { status: string }) => {
-  const color = status === 'HEALTHY' ? 'success' : status === 'WARNING' ? 'warning' : 'error';
-  const label = status === 'HEALTHY' ? 'System OK' : status === 'WARNING' ? 'Uwaga' : 'Problemy';
-  return <Chip label={label} color={color} size="small" variant="outlined" />;
-};
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        bgcolor: COLORS.bg.card,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: '2px',
+        minHeight: 56,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Lewy kolorowy pasek */}
+      <Box sx={{ width: 4, bgcolor: color, flexShrink: 0 }} />
 
-/** Nazwy kolektorów po polsku */
-const COLLECTOR_NAMES: Record<string, string> = {
-  SEC_EDGAR: 'SEC EDGAR (Form 4 + 8-K)',
-  PDUFA_BIO: 'PDUFA.bio (kalendarz FDA)',
-  POLYGON: 'Options Flow (Polygon.io)',
-};
+      {/* Zawartość */}
+      <Box sx={{ flex: 1, px: 1, py: 0.5, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Typography
+            sx={{
+              ...TYPOGRAPHY.uppercase,
+              color: COLORS.text.accent,
+              fontSize: TYPOGRAPHY.size.sm,
+              fontWeight: TYPOGRAPHY.weight.bold,
+            }}
+          >
+            {name}
+          </Typography>
+          <Typography
+            sx={{
+              fontFamily: TYPOGRAPHY.monoFamily,
+              fontSize: TYPOGRAPHY.size.xs,
+              fontWeight: TYPOGRAPHY.weight.bold,
+              color,
+              letterSpacing: '0.5px',
+            }}
+          >
+            {status}
+          </Typography>
+        </Box>
+
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1.5,
+            mt: 0.25,
+            fontFamily: TYPOGRAPHY.monoFamily,
+            fontSize: TYPOGRAPHY.size.xs,
+            color: COLORS.text.secondary,
+          }}
+        >
+          <Box component="span">
+            items:&nbsp;
+            <Box component="span" sx={{ color: COLORS.text.primary, fontWeight: 600 }}>
+              {c.lastItemsCollected}
+            </Box>
+          </Box>
+          <Box component="span">
+            last:&nbsp;
+            <Box component="span" sx={{ color: COLORS.text.primary, fontWeight: 600 }}>
+              {fmtRelative(c.lastRunAt)}
+            </Box>
+          </Box>
+          {c.errorsLast24h > 0 && (
+            <Box component="span" sx={{ color: COLORS.down, fontWeight: 600 }}>
+              err24h:&nbsp;{c.errorsLast24h}
+            </Box>
+          )}
+        </Box>
+
+        {c.lastError && (
+          <Tooltip title={c.lastError} arrow>
+            <Typography
+              sx={{
+                fontSize: TYPOGRAPHY.size.xs,
+                color: COLORS.down,
+                mt: 0.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {c.lastError}
+            </Typography>
+          </Tooltip>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+/** Horizontalny stat: LABEL VALUE */
+function StatPair({ label, value, color }: { label: string; value: React.ReactNode; color?: string }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+      <Typography sx={labelSx}>{label}</Typography>
+      <Typography
+        sx={{
+          fontFamily: TYPOGRAPHY.monoFamily,
+          fontSize: TYPOGRAPHY.size.md,
+          fontWeight: TYPOGRAPHY.weight.bold,
+          color: color || COLORS.text.primary,
+          lineHeight: 1.2,
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
+}
 
 export default function SystemHealthPanel() {
   const [data, setData] = useState<SystemOverview | null>(null);
@@ -77,133 +179,251 @@ export default function SystemHealthPanel() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 60_000); // odswiezaj co 60s
+    const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
   }, [load]);
 
-  if (loading && !data) return <Typography sx={{ p: 2, color: 'grey.500' }}>Ladowanie statusu...</Typography>;
-  if (error && !data) return <Typography sx={{ p: 2, color: 'error.main' }}>Blad: {error}</Typography>;
+  if (loading && !data)
+    return (
+      <Box sx={{ ...panelSx, mb: 1.5 }}>
+        <Typography sx={{ ...labelSx, color: COLORS.text.muted }}>LOADING STATUS...</Typography>
+      </Box>
+    );
+  if (error && !data)
+    return (
+      <Box sx={{ ...panelSx, mb: 1.5 }}>
+        <Typography sx={{ ...labelSx, color: COLORS.down }}>ERR: {error}</Typography>
+      </Box>
+    );
   if (!data) return null;
 
+  const overallStatus = toTermStatus(data.overall);
+  const overallColor = statusColor(overallStatus);
+
   return (
-    <Paper sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
-      {/* Naglowek */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="subtitle1" fontWeight={700}>
-            Status Systemu
+    <Box sx={{ ...panelSx, mb: 1.5, p: 1 }}>
+      {/* Nagłówek */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 1,
+          pb: 0.75,
+          borderBottom: `1px solid ${COLORS.border}`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography sx={{ ...labelSx, color: COLORS.text.accent, fontSize: TYPOGRAPHY.size.sm }}>
+            SYSTEM STATUS
           </Typography>
-          <OverallChip status={data.overall} />
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              px: 0.75,
+              py: 0.15,
+              border: `1px solid ${overallColor}`,
+              borderRadius: '2px',
+            }}
+          >
+            <Box sx={{ width: 6, height: 6, bgcolor: overallColor, borderRadius: '50%' }} />
+            <Typography
+              sx={{
+                fontFamily: TYPOGRAPHY.monoFamily,
+                fontSize: TYPOGRAPHY.size.xs,
+                fontWeight: TYPOGRAPHY.weight.bold,
+                color: overallColor,
+                letterSpacing: '0.5px',
+              }}
+            >
+              {overallStatus}
+            </Typography>
+          </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            {fmtDate(data.timestamp)}
+          <Typography
+            sx={{
+              fontFamily: TYPOGRAPHY.monoFamily,
+              fontSize: TYPOGRAPHY.size.xs,
+              color: COLORS.text.muted,
+            }}
+          >
+            {fmtTimestamp(data.timestamp)}
           </Typography>
-          <IconButton size="small" onClick={load} title="Odswiez">
-            <RefreshIcon fontSize="small" />
+          <IconButton size="small" onClick={load} title="Refresh" sx={{ p: 0.25 }}>
+            <RefreshIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Box>
       </Box>
 
-      {/* Kolektory — karty */}
-      <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-        {data.collectors.active.map((c: CollectorHealth) => (
-          <Grid item xs={12} sm={4} key={c.source}>
-            <Box sx={{
-              p: 1.5,
-              borderRadius: 1,
-              border: '1px solid',
-              borderColor: c.status === 'OK' ? 'rgba(102,187,106,0.3)' : c.status === 'WARNING' ? 'rgba(255,167,38,0.3)' : 'rgba(239,83,80,0.3)',
-              bgcolor: c.status === 'OK' ? 'rgba(102,187,106,0.04)' : c.status === 'WARNING' ? 'rgba(255,167,38,0.04)' : 'rgba(239,83,80,0.04)',
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                <StatusIcon status={c.status} />
-                <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8rem' }}>
-                  {COLLECTOR_NAMES[c.source] || c.source}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, fontSize: '0.7rem', color: 'text.secondary' }}>
-                <Typography variant="caption">
-                  Ostatni run: {timeAgo(c.lastRunAt)} ({c.lastItemsCollected} elem., {fmtDuration(c.lastDurationMs)})
-                </Typography>
-              </Box>
-              {c.errorsLast24h > 0 && (
-                <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
-                  {c.errorsLast24h} blad(ow) w 24h
-                </Typography>
-              )}
-              {c.lastError && (
-                <Tooltip title={c.lastError} arrow>
-                  <Typography variant="caption" color="error.main" sx={{
-                    display: 'block', mt: 0.3,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
-                  }}>
-                    {c.lastError.substring(0, 80)}{c.lastError.length > 80 ? '...' : ''}
-                  </Typography>
-                </Tooltip>
-              )}
-            </Box>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Statystyki — kompaktowy wiersz */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 1, px: 0.5 }}>
+      {/* Stats row (alerts / pipeline / failed jobs) */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 1,
+          pb: 1,
+          borderBottom: `1px solid ${COLORS.border}`,
+        }}
+      >
         {data.alerts && (
-          <Box>
-            <Typography variant="caption" color="text.secondary">Alerty 7d:</Typography>
-            <Typography variant="caption" fontWeight={600}> {data.alerts.delivered7d} dostarczonych</Typography>
-            {data.alerts.silent7d > 0 && <Typography variant="caption" color="text.secondary"> + {data.alerts.silent7d} silent</Typography>}
-            <Typography variant="caption" color="text.secondary"> ({data.alerts.tickers7d} tickerow, {data.alerts.last24h} w 24h)</Typography>
-          </Box>
+          <>
+            <StatPair label="ALERTS 7D" value={data.alerts.delivered7d} />
+            {data.alerts.silent7d > 0 && (
+              <StatPair label="SILENT" value={data.alerts.silent7d} color={COLORS.text.muted} />
+            )}
+            <StatPair label="TICKERS" value={data.alerts.tickers7d} />
+            <StatPair label="24H" value={data.alerts.last24h} />
+          </>
         )}
         {data.pipeline && (
-          <Box>
-            <Typography variant="caption" color="text.secondary">Pipeline 24h:</Typography>
-            <Typography variant="caption" fontWeight={600}> {data.pipeline.total24h} total</Typography>
-            {data.pipeline.escalated24h > 0 && <Typography variant="caption" color="info.main"> ({data.pipeline.escalated24h} AI)</Typography>}
-            {data.pipeline.failed24h > 0 && <Typography variant="caption" color="error.main"> ({data.pipeline.failed24h} failed)</Typography>}
-          </Box>
+          <>
+            <StatPair label="PIPELINE 24H" value={data.pipeline.total24h} />
+            {data.pipeline.escalated24h > 0 && (
+              <StatPair label="AI" value={data.pipeline.escalated24h} color={COLORS.accent} />
+            )}
+            {data.pipeline.failed24h > 0 && (
+              <StatPair label="FAILED" value={data.pipeline.failed24h} color={COLORS.down} />
+            )}
+          </>
         )}
         {data.failedJobs7d > 0 && (
-          <Box>
-            <Typography variant="caption" color="error.main">Failed jobs 7d: {data.failedJobs7d}</Typography>
-          </Box>
+          <StatPair label="FAILED JOBS 7D" value={data.failedJobs7d} color={COLORS.down} />
         )}
-{/* Wyłączone kolektory (StockTwits, Finnhub, Reddit) — ukryte z widoku, nie wnoszą wartości */}
       </Box>
 
-      {/* Bledy systemowe (rozwjalne) */}
+      {/* Grid mini-kart kolektorów */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(3, 1fr)',
+            lg: 'repeat(4, 1fr)',
+          },
+          gap: 0.75,
+          mb: data.systemErrors.length > 0 ? 1 : 0,
+        }}
+      >
+        {data.collectors.active.map((c) => (
+          <CollectorTile key={c.source} c={c} />
+        ))}
+      </Box>
+
+      {/* Błędy 24h */}
       {data.systemErrors.length > 0 && (
-        <Box sx={{ mt: 1 }}>
+        <Box sx={{ mt: 1, pt: 0.75, borderTop: `1px solid ${COLORS.border}` }}>
           <Box
             onClick={() => setErrorsExpanded(!errorsExpanded)}
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 0.5 }}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+              gap: 0.5,
+              userSelect: 'none',
+            }}
           >
-            <ErrorIcon sx={{ color: '#ef5350', fontSize: 16 }} />
-            <Typography variant="caption" color="error.main" fontWeight={600}>
-              {data.systemErrors.length} bledow systemowych (24h)
+            <Box sx={{ width: 6, height: 6, bgcolor: COLORS.down, borderRadius: '50%' }} />
+            <Typography
+              sx={{
+                ...labelSx,
+                color: COLORS.down,
+                fontSize: TYPOGRAPHY.size.sm,
+              }}
+            >
+              ERRORS 24H
             </Typography>
-            {errorsExpanded ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+            <Typography
+              sx={{
+                fontFamily: TYPOGRAPHY.monoFamily,
+                fontSize: TYPOGRAPHY.size.sm,
+                fontWeight: TYPOGRAPHY.weight.bold,
+                color: COLORS.down,
+              }}
+            >
+              {data.systemErrors.length}
+            </Typography>
+            {errorsExpanded ? (
+              <ExpandLessIcon sx={{ fontSize: 14, color: COLORS.text.secondary }} />
+            ) : (
+              <ExpandMoreIcon sx={{ fontSize: 14, color: COLORS.text.secondary }} />
+            )}
           </Box>
           <Collapse in={errorsExpanded}>
-            <TableContainer sx={{ mt: 1, maxHeight: 250 }}>
+            <TableContainer sx={{ mt: 0.5, maxHeight: 240, border: `1px solid ${COLORS.border}` }}>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ py: 0.5, fontSize: '0.7rem' }}>Czas</TableCell>
-                    <TableCell sx={{ py: 0.5, fontSize: '0.7rem' }}>Modul</TableCell>
-                    <TableCell sx={{ py: 0.5, fontSize: '0.7rem' }}>Funkcja</TableCell>
-                    <TableCell sx={{ py: 0.5, fontSize: '0.7rem' }}>Blad</TableCell>
+                    {['TIME', 'MODULE', 'FUNCTION', 'ERROR'].map((h) => (
+                      <TableCell
+                        key={h}
+                        sx={{
+                          ...labelSx,
+                          bgcolor: COLORS.bg.cardAlt,
+                          py: 0.4,
+                          px: 0.75,
+                          borderBottom: `1px solid ${COLORS.borderStrong}`,
+                        }}
+                      >
+                        {h}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {data.systemErrors.map((e: SystemError, i: number) => (
-                    <TableRow key={i}>
-                      <TableCell sx={{ py: 0.3, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>{fmtDate(e.at)}</TableCell>
-                      <TableCell sx={{ py: 0.3, fontSize: '0.65rem' }}>{e.module}</TableCell>
-                      <TableCell sx={{ py: 0.3, fontSize: '0.65rem' }}>{e.className}.{e.function}()</TableCell>
-                      <TableCell sx={{ py: 0.3, fontSize: '0.65rem', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <TableRow key={i} sx={{ '&:hover': { bgcolor: COLORS.bg.cellHover } }}>
+                      <TableCell
+                        sx={{
+                          py: 0.3,
+                          px: 0.75,
+                          fontFamily: TYPOGRAPHY.monoFamily,
+                          fontSize: TYPOGRAPHY.size.xs,
+                          whiteSpace: 'nowrap',
+                          color: COLORS.text.secondary,
+                        }}
+                      >
+                        {fmtTimestamp(e.at)}
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          py: 0.3,
+                          px: 0.75,
+                          fontFamily: TYPOGRAPHY.monoFamily,
+                          fontSize: TYPOGRAPHY.size.xs,
+                          color: COLORS.text.accent,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {e.module}
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          py: 0.3,
+                          px: 0.75,
+                          fontFamily: TYPOGRAPHY.monoFamily,
+                          fontSize: TYPOGRAPHY.size.xs,
+                          color: COLORS.text.primary,
+                        }}
+                      >
+                        {e.className}.{e.function}()
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          py: 0.3,
+                          px: 0.75,
+                          fontSize: TYPOGRAPHY.size.xs,
+                          color: COLORS.down,
+                          maxWidth: 320,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         <Tooltip title={e.error || ''} arrow>
                           <span>{e.error || '—'}</span>
                         </Tooltip>
@@ -216,6 +436,6 @@ export default function SystemHealthPanel() {
           </Collapse>
         </Box>
       )}
-    </Paper>
+    </Box>
   );
 }

@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Box, Container, Typography, Chip, Divider, Dialog, DialogTitle, DialogContent, IconButton, Tabs, Tab } from '@mui/material';
-import TerminalIcon from '@mui/icons-material/Terminal';
-import DashboardIcon from '@mui/icons-material/Dashboard';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CloseIcon from '@mui/icons-material/Close';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
@@ -14,7 +12,7 @@ import HubIcon from '@mui/icons-material/Hub';
 
 import CollectorStatus from './components/CollectorStatus';
 import DataPanel from './components/DataPanel';
-import DbSummary from './components/DbSummary';
+import TopStatusBar from './components/TopStatusBar';
 import { fetchTickers, fetchAlertRules, fetchAlerts, fetchPipelineLogs, fetchFilingsGpt, fetchAlertOutcomes, fetchOptionsFlow, AlertOutcome } from './api';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SystemLogsTab from './components/SystemLogsTab';
@@ -23,8 +21,6 @@ import JetsonStatsBar from './components/JetsonStatsBar';
 import SystemHealthPanel from './components/SystemHealthPanel';
 import SignalTimeline from './components/SignalTimeline';
 import GlossaryTab from './components/GlossaryTab';
-import TimelineIcon from '@mui/icons-material/Timeline';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 /** Klikalny podgląd tekstu — otwiera Dialog z możliwością zaznaczenia i kopiowania */
 const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: string; color?: string }) => {
@@ -117,7 +113,7 @@ export default function App() {
   const [dashSubTab, setDashSubTab] = useState(0);
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <>
       {/* Data kompilacji — prawy dolny róg */}
       <Typography
         sx={{
@@ -128,28 +124,10 @@ export default function App() {
         Build: {new Date(__BUILD_DATE__).toLocaleString('pl-PL')}
       </Typography>
 
-      {/* Nagłówek */}
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          StockPulse
-          <Typography component="span" variant="h4" color="primary" fontWeight={700}>
-            {' '}Dashboard
-          </Typography>
-        </Typography>
-        <DbSummary />
-      </Box>
+      {/* Bloomberg-style top bar (logo + metryki + tabs) */}
+      <TopStatusBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Zakładki główne */}
-      <Tabs
-        value={activeTab}
-        onChange={(_, v) => setActiveTab(v)}
-        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
-      >
-        <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" />
-        <Tab icon={<TimelineIcon />} iconPosition="start" label="Signal Timeline" />
-        <Tab icon={<TerminalIcon />} iconPosition="start" label="System Logs" />
-        <Tab icon={<MenuBookIcon />} iconPosition="start" label="Slownik" />
-      </Tabs>
+      <Container maxWidth="lg" sx={{ py: 2 }}>
 
       {/* Tab 0: Dashboard */}
       {activeTab === 0 && (
@@ -937,6 +915,7 @@ export default function App() {
 
       {/* Tab 3: Slownik terminow */}
       {activeTab === 3 && <GlossaryTab />}
-    </Container>
+      </Container>
+    </>
   );
 }

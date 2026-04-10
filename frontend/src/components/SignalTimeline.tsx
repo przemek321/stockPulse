@@ -1,277 +1,557 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Paper, Chip, Autocomplete, TextField,
-  ToggleButtonGroup, ToggleButton, Collapse, IconButton, Tooltip,
-  Dialog, DialogTitle, DialogContent, LinearProgress,
+  Box, Typography, Autocomplete, TextField,
+  ToggleButtonGroup, ToggleButton, Collapse, IconButton,
+  Dialog, DialogTitle, DialogContent, LinearProgress, Chip, Link,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { fetchTimeline, fetchRecentTimeline, fetchTimelineSymbols, TimelineAlert, TimelineSummary, TimelineSymbol } from '../api';
+import {
+  fetchTimeline, fetchRecentTimeline, fetchTimelineSymbols,
+  TimelineAlert, TimelineSummary, TimelineSymbol,
+} from '../api';
+import {
+  COLORS, TYPOGRAPHY,
+  labelSx, metricSx, panelSx,
+  fmtPrice, fmtDelta, fmtTimestamp, deltaColor,
+} from '../theme/financial';
 
-/* ── Pomocnicze formatery ─────────────────────────────── */
+/* ── Pomocnicze ───────────────────────────────────────── */
 
-const fmtDate = (v: string) =>
-  new Date(v).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
-const fmtDelta = (v: number | null) => {
-  if (v == null) return '—';
-  const sign = v > 0 ? '+' : '';
-  return `${sign}${v.toFixed(2)}%`;
+const fmtShortTime = (v: string) => {
+  const d = new Date(v);
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const dy = String(d.getDate()).padStart(2, '0');
+  const hr = String(d.getHours()).padStart(2, '0');
+  const mn = String(d.getMinutes()).padStart(2, '0');
+  return `${mo}-${dy} ${hr}:${mn}`;
 };
 
-const fmtGap = (hours: number | null) => {
+const fmtGap = (hours: number | null): string => {
   if (hours == null) return '';
   if (hours < 1) return `${Math.round(hours * 60)}m`;
   if (hours < 24) return `${Math.round(hours)}h`;
   const d = Math.floor(hours / 24);
   const h = Math.round(hours % 24);
-  return h === 0 ? `${d}d` : `${d}d ${h}h`;
+  return h === 0 ? `${d}d` : `${d}d${h}h`;
 };
 
-// Light theme financial colors
-const COLOR_UP = '#0a8754';      // success.main
-const COLOR_DOWN = '#c41e3a';    // error.main
-const COLOR_NEUTRAL = '#9aa3b2'; // text.disabled
-const COLOR_MUTED = '#5a6478';   // text.secondary
-const COLOR_TEXT = '#1a1a1a';    // text.primary
-const COLOR_BORDER = '#e1e5eb';  // divider
-
-const deltaColor = (v: number | null) =>
-  v == null ? COLOR_NEUTRAL : v > 0 ? COLOR_UP : v < 0 ? COLOR_DOWN : COLOR_NEUTRAL;
-
-/* ── Pasek wynikow cenowych (mini barki) ──────────────── */
-
-const PriceOutcomeBar = ({ label, val, base, dir }: {
-  label: string; val: number | null; base: number; dir: string | null;
-}) => {
-  if (val == null) return (
-    <Box sx={{ textAlign: 'center', minWidth: 52 }}>
-      <Typography variant="caption" sx={{ fontSize: '0.6rem', color: COLOR_MUTED }}>{label}</Typography>
-      <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLOR_MUTED, display: 'block' }}>—</Typography>
-    </Box>
-  );
-  const delta = ((val - base) / base) * 100;
-  const isHit = dir === 'positive' ? delta > 0 : dir === 'negative' ? delta < 0 : null;
-  return (
-    <Box sx={{ textAlign: 'center', minWidth: 52 }}>
-      <Typography variant="caption" sx={{ fontSize: '0.6rem', color: COLOR_MUTED }}>{label}</Typography>
-      <Typography variant="caption" sx={{
-        fontSize: '0.75rem', fontWeight: 700, display: 'block',
-        color: deltaColor(delta),
-      }}>
-        {fmtDelta(delta)}
-      </Typography>
-      {isHit != null && (
-        <Box sx={{
-          width: '100%', height: 2, borderRadius: 1, mt: 0.3,
-          bgcolor: isHit ? COLOR_UP : COLOR_DOWN,
-          opacity: 0.7,
-        }} />
-      )}
-    </Box>
-  );
+/**
+ * Skracanie nazw regul do kompaktowych etykiet kolumnowych
+ */
+const shortRule = (rule: string): string => {
+  if (!rule) return '—';
+  const r = rule.toLowerCase();
+  if (r.includes('form 4') && r.includes('buy')) return 'Form4 BUY';
+  if (r.includes('form 4')) return 'Form4';
+  if (r.includes('8-k') && r.includes('material')) return '8-K Material';
+  if (r.includes('8-k') && r.includes('earnings')) return '8-K Earnings';
+  if (r.includes('8-k') && r.includes('leadership')) return '8-K Leadership';
+  if (r.includes('8-k') && r.includes('bankruptcy')) return '8-K Bankruptcy';
+  if (r.includes('8-k')) return '8-K';
+  if (r.includes('correlated')) return 'Correlated';
+  if (r.includes('unusual option')) return 'Options';
+  if (r.includes('insider cluster')) return 'Cluster';
+  if (rule.length > 18) return rule.slice(0, 17) + '…';
+  return rule;
 };
 
-/* ── Conviction badge ─────────────────────────────────── */
-
-const ConvictionBadge = ({ v }: { v: number }) => {
-  const abs = Math.abs(v);
-  let bg = '#f5f7fa';
-  let border = COLOR_BORDER;
-  if (abs >= 0.7) { bg = '#fce8ec'; border = '#e0a5af'; }       // strong: red tint
-  else if (abs >= 0.4) { bg = '#fff4e0'; border = '#f0c890'; }  // medium: amber tint
-  return (
-    <Box sx={{
-      display: 'inline-flex', alignItems: 'center', px: 0.8, py: 0.2,
-      borderRadius: 1, bgcolor: bg, border: `1px solid ${border}`,
-    }}>
-      <Typography variant="caption" sx={{
-        fontSize: '0.75rem', fontWeight: 700,
-        color: v > 0 ? COLOR_UP : v < 0 ? COLOR_DOWN : COLOR_NEUTRAL,
-      }}>
-        {v > 0 ? '+' : ''}{v.toFixed(2)}
-      </Typography>
-    </Box>
-  );
-};
-
-/* ── Hit / Miss duzy badge ────────────────────────────── */
-
-const HitBadge = ({ v }: { v: boolean | null }) => {
-  if (v === true) return (
-    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.6, py: 0.2, borderRadius: 1, bgcolor: '#e6f4ed', border: `1px solid ${COLOR_UP}` }}>
-      <Typography variant="caption" sx={{ color: COLOR_UP, fontWeight: 700, fontSize: '0.7rem' }}>TRAFIONY</Typography>
-    </Box>
-  );
-  if (v === false) return (
-    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.6, py: 0.2, borderRadius: 1, bgcolor: '#fce8ec', border: `1px solid ${COLOR_DOWN}` }}>
-      <Typography variant="caption" sx={{ color: COLOR_DOWN, fontWeight: 700, fontSize: '0.7rem' }}>PUDLO</Typography>
-    </Box>
-  );
-  return null;
+/**
+ * Delta pct miedzy cena alertu a wynikiem (1h/4h/1d/3d)
+ */
+const calcDelta = (base: number | null, v: number | null): number | null => {
+  if (base == null || v == null) return null;
+  return ((v - base) / base) * 100;
 };
 
 /* ── Dialog z pelna trescia alertu ────────────────────── */
 
-const MessageDialog = ({ message, open, onClose }: { message: string; open: boolean; onClose: () => void }) => {
+const MessageDialog = ({ message, open, onClose }: {
+  message: string; open: boolean; onClose: () => void;
+}) => {
   const [copied, setCopied] = useState(false);
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', pb: 1 }}>
-        Szczegoly alertu
+      <DialogTitle sx={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        pb: 1, fontSize: TYPOGRAPHY.size.md, fontWeight: 700,
+        bgcolor: COLORS.bg.header, color: COLORS.text.inverse,
+      }}>
+        SZCZEGOLY ALERTU
         <Box>
-          <IconButton size="small" onClick={() => { navigator.clipboard.writeText(message); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+          <IconButton size="small" sx={{ color: COLORS.text.inverse }}
+            onClick={() => {
+              navigator.clipboard.writeText(message);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}>
             <ContentCopyIcon fontSize="small" />
           </IconButton>
-          {copied && <Chip label="Skopiowano" size="small" color="success" sx={{ ml: 1 }} />}
-          <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+          {copied && (
+            <Chip label="Skopiowano" size="small"
+              sx={{ ml: 1, bgcolor: COLORS.up, color: '#fff', height: 18, fontSize: TYPOGRAPHY.size.xs }} />
+          )}
+          <IconButton size="small" sx={{ color: COLORS.text.inverse }} onClick={onClose}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </Box>
       </DialogTitle>
-      <DialogContent>
-        <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem', fontFamily: 'monospace' }}>{message}</pre>
+      <DialogContent sx={{ pt: 2, bgcolor: COLORS.bg.card }}>
+        <pre style={{
+          whiteSpace: 'pre-wrap',
+          fontSize: TYPOGRAPHY.size.base,
+          fontFamily: TYPOGRAPHY.monoFamily,
+          color: COLORS.text.primary,
+          margin: 0,
+        }}>
+          {message}
+        </pre>
       </DialogContent>
     </Dialog>
   );
 };
 
-/* ── Separator miedzy sygnalami ───────────────────────── */
+/* ── Konfiguracja kolumn tabeli ───────────────────────── */
 
-const GapSeparator = ({ a }: { a: TimelineAlert }) => {
-  if (a.hoursSincePrev == null) return null;
-  const h = a.hoursSincePrev ?? 0;
-  const isLongGap = h > 48;
-  // Wizualny odstep proporcjonalny do czasu (min 1, max 4)
-  const spacing = Math.min(4, Math.max(1, Math.round(h / 24) + 1));
-  return (
-    <Box sx={{
-      display: 'flex', alignItems: 'center', gap: 1.5, my: spacing * 0.5, mx: 2,
-    }}>
-      <Box sx={{ flex: 1, height: '1px', bgcolor: COLOR_BORDER }} />
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="caption" sx={{
-          fontSize: '0.75rem', color: isLongGap ? '#e8a317' : COLOR_TEXT,
-          fontWeight: 600,
-        }}>
-          {fmtGap(a.hoursSincePrev)}
-        </Typography>
-        {a.priceDeltaFromPrevPct != null && (
-          <Typography variant="caption" sx={{
-            fontSize: '0.7rem', fontWeight: 600,
-            color: deltaColor(a.priceDeltaFromPrevPct),
-          }}>
-            {fmtDelta(a.priceDeltaFromPrevPct)}
-          </Typography>
-        )}
-        {a.sameDirectionAsPrev != null && (
-          <Chip
-            label={a.sameDirectionAsPrev ? 'zgodny' : 'sprzeczny'}
-            size="small"
-            sx={{
-              height: 16, fontSize: '0.6rem',
-              bgcolor: a.sameDirectionAsPrev ? '#e6f4ed' : '#fce8ec',
-              color: a.sameDirectionAsPrev ? COLOR_UP : COLOR_DOWN,
-              border: '1px solid',
-              borderColor: a.sameDirectionAsPrev ? COLOR_UP : COLOR_DOWN,
-            }}
-          />
-        )}
+type ColDef = { key: string; label: string; width: number; align?: 'left' | 'right' | 'center' };
+
+const COLUMNS: ColDef[] = [
+  { key: 'status', label: '', width: 4, align: 'left' },
+  { key: 'time', label: 'TIME', width: 88, align: 'left' },
+  { key: 'ticker', label: 'TCKR', width: 52, align: 'left' },
+  { key: 'rule', label: 'RULE', width: 130, align: 'left' },
+  { key: 'dir', label: 'DIR', width: 56, align: 'left' },
+  { key: 'conv', label: 'CONV', width: 64, align: 'right' },
+  { key: 'price', label: 'PRICE', width: 74, align: 'right' },
+  { key: 'd1h', label: '1H', width: 58, align: 'right' },
+  { key: 'd4h', label: '4H', width: 58, align: 'right' },
+  { key: 'd1d', label: '1D', width: 58, align: 'right' },
+  { key: 'd3d', label: '3D', width: 58, align: 'right' },
+  { key: 'hit', label: 'HIT', width: 62, align: 'center' },
+];
+
+const TOTAL_WIDTH = COLUMNS.reduce((sum, c) => sum + c.width, 0);
+
+/* ── Naglowek tabeli ──────────────────────────────────── */
+
+const TableHeader = () => (
+  <Box sx={{
+    display: 'flex',
+    bgcolor: COLORS.bg.panel,
+    borderBottom: `1px solid ${COLORS.borderStrong}`,
+    borderTop: `1px solid ${COLORS.border}`,
+    minWidth: TOTAL_WIDTH,
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
+  }}>
+    {COLUMNS.map((col) => (
+      <Box key={col.key} sx={{
+        width: col.width,
+        minWidth: col.width,
+        px: col.key === 'status' ? 0 : 1,
+        py: 0.6,
+        textAlign: col.align ?? 'left',
+        ...TYPOGRAPHY.uppercase,
+        color: COLORS.text.accent,
+        fontSize: TYPOGRAPHY.size.xs,
+        borderRight: col.key === 'status' ? 'none' : `1px solid ${COLORS.border}`,
+      }}>
+        {col.label}
       </Box>
-      <Box sx={{ flex: 1, height: '1px', bgcolor: COLOR_BORDER }} />
+    ))}
+  </Box>
+);
+
+/* ── Wiersz tabeli ────────────────────────────────────── */
+
+const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
+  a: TimelineAlert;
+  index: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onShowMessage: () => void;
+}) => {
+  const isPositive = a.alertDirection === 'positive';
+  const isNegative = a.alertDirection === 'negative';
+  const accentColor = isPositive ? COLORS.up : isNegative ? COLORS.down : COLORS.neutral;
+  const dirLabel = isPositive ? 'BULL' : isNegative ? 'BEAR' : 'NEUT';
+  const dirArrow = isPositive ? '▲' : isNegative ? '▼' : '●';
+
+  const d1h = calcDelta(a.priceAtAlert, a.price1h);
+  const d4h = calcDelta(a.priceAtAlert, a.price4h);
+  const d1d = calcDelta(a.priceAtAlert, a.price1d);
+  const d3d = calcDelta(a.priceAtAlert, a.price3d);
+
+  const altBg = index % 2 === 0 ? COLORS.bg.card : COLORS.bg.cardAlt;
+  const gapH = a.hoursSincePrev;
+  const showGap = gapH != null && gapH > 5;
+
+  const convAbs = a.conviction != null ? Math.abs(a.conviction) : 0;
+  const convBadge = convAbs >= 0.5;
+  const convBg = a.conviction == null
+    ? 'transparent'
+    : a.conviction > 0 ? COLORS.upBg : COLORS.downBg;
+
+  // Komorka delty cenowej
+  const DeltaCell = ({ v }: { v: number | null }) => (
+    <Box sx={{
+      width: 58, minWidth: 58, px: 1, py: 0.6,
+      textAlign: 'right',
+      fontFamily: TYPOGRAPHY.monoFamily,
+      fontSize: TYPOGRAPHY.size.base,
+      fontWeight: 600,
+      color: deltaColor(v),
+      borderRight: `1px solid ${COLORS.border}`,
+    }}>
+      {v == null ? '—' : fmtDelta(v)}
     </Box>
+  );
+
+  return (
+    <>
+      <Box
+        onClick={onToggle}
+        sx={{
+          display: 'flex',
+          minWidth: TOTAL_WIDTH,
+          bgcolor: altBg,
+          borderBottom: `1px solid ${COLORS.border}`,
+          cursor: 'pointer',
+          transition: 'background-color 0.1s',
+          '&:hover': { bgcolor: COLORS.bg.cellHover },
+        }}
+      >
+        {/* STATUS — pasek koloru */}
+        <Box sx={{
+          width: 4, minWidth: 4,
+          bgcolor: accentColor,
+        }} />
+
+        {/* TIME */}
+        <Box sx={{
+          width: 88, minWidth: 88, px: 1, py: 0.6,
+          fontFamily: TYPOGRAPHY.monoFamily,
+          fontSize: TYPOGRAPHY.size.base,
+          color: COLORS.text.secondary,
+          borderRight: `1px solid ${COLORS.border}`,
+          display: 'flex', flexDirection: 'column', lineHeight: 1.2,
+        }}>
+          <Box>{fmtShortTime(a.sentAt)}</Box>
+          {showGap && (
+            <Box sx={{
+              fontSize: TYPOGRAPHY.size.xs,
+              color: gapH! > 48 ? COLORS.warning : COLORS.text.muted,
+            }}>
+              (+{fmtGap(gapH)})
+            </Box>
+          )}
+        </Box>
+
+        {/* TICKER */}
+        <Box sx={{
+          width: 52, minWidth: 52, px: 1, py: 0.6,
+          fontFamily: TYPOGRAPHY.sansFamily,
+          fontSize: TYPOGRAPHY.size.md,
+          fontWeight: 700,
+          color: COLORS.text.accent,
+          borderRight: `1px solid ${COLORS.border}`,
+          textTransform: 'uppercase',
+        }}>
+          {a.symbol}
+        </Box>
+
+        {/* RULE */}
+        <Box sx={{
+          width: 130, minWidth: 130, px: 1, py: 0.6,
+          fontSize: TYPOGRAPHY.size.base,
+          color: COLORS.text.primary,
+          borderRight: `1px solid ${COLORS.border}`,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }} title={a.ruleName}>
+          {shortRule(a.ruleName)}
+        </Box>
+
+        {/* DIR */}
+        <Box sx={{
+          width: 56, minWidth: 56, px: 1, py: 0.6,
+          fontSize: TYPOGRAPHY.size.base,
+          fontWeight: 700,
+          color: accentColor,
+          borderRight: `1px solid ${COLORS.border}`,
+          display: 'flex', alignItems: 'center', gap: 0.5,
+        }}>
+          <Box component="span" sx={{ fontSize: '0.7rem' }}>{dirArrow}</Box>
+          {dirLabel}
+        </Box>
+
+        {/* CONV */}
+        <Box sx={{
+          width: 64, minWidth: 64, px: 1, py: 0.6,
+          textAlign: 'right',
+          borderRight: `1px solid ${COLORS.border}`,
+        }}>
+          {a.conviction != null ? (
+            <Box
+              component="span"
+              sx={{
+                display: 'inline-block',
+                fontFamily: TYPOGRAPHY.monoFamily,
+                fontSize: TYPOGRAPHY.size.base,
+                fontWeight: 700,
+                color: a.conviction > 0 ? COLORS.up : a.conviction < 0 ? COLORS.down : COLORS.neutral,
+                px: convBadge ? 0.6 : 0,
+                py: convBadge ? 0.1 : 0,
+                bgcolor: convBadge ? convBg : 'transparent',
+                border: convBadge ? `1px solid ${a.conviction > 0 ? COLORS.upBorder : COLORS.downBorder}` : 'none',
+                borderRadius: '2px',
+                minWidth: convBadge ? 42 : 'auto',
+              }}
+            >
+              {a.conviction > 0 ? '+' : ''}{a.conviction.toFixed(2)}
+            </Box>
+          ) : (
+            <Box component="span" sx={{
+              fontFamily: TYPOGRAPHY.monoFamily,
+              fontSize: TYPOGRAPHY.size.base,
+              color: COLORS.text.muted,
+            }}>—</Box>
+          )}
+        </Box>
+
+        {/* PRICE */}
+        <Box sx={{
+          width: 74, minWidth: 74, px: 1, py: 0.6,
+          textAlign: 'right',
+          fontFamily: TYPOGRAPHY.monoFamily,
+          fontSize: TYPOGRAPHY.size.base,
+          fontWeight: 600,
+          color: COLORS.text.primary,
+          borderRight: `1px solid ${COLORS.border}`,
+        }}>
+          {fmtPrice(a.priceAtAlert)}
+        </Box>
+
+        {/* DELTY */}
+        <DeltaCell v={d1h} />
+        <DeltaCell v={d4h} />
+        <DeltaCell v={d1d} />
+        <DeltaCell v={d3d} />
+
+        {/* HIT */}
+        <Box sx={{
+          width: 62, minWidth: 62, px: 0.5, py: 0.6,
+          textAlign: 'center',
+        }}>
+          {a.directionCorrect1d === true && (
+            <Box component="span" sx={{
+              display: 'inline-block', px: 0.6, py: 0.1,
+              bgcolor: COLORS.upBg,
+              border: `1px solid ${COLORS.upBorder}`,
+              borderRadius: '2px',
+              color: COLORS.up,
+              fontSize: TYPOGRAPHY.size.xs,
+              fontWeight: 700,
+              letterSpacing: '0.3px',
+            }}>
+              HIT
+            </Box>
+          )}
+          {a.directionCorrect1d === false && (
+            <Box component="span" sx={{
+              display: 'inline-block', px: 0.6, py: 0.1,
+              bgcolor: COLORS.downBg,
+              border: `1px solid ${COLORS.downBorder}`,
+              borderRadius: '2px',
+              color: COLORS.down,
+              fontSize: TYPOGRAPHY.size.xs,
+              fontWeight: 700,
+              letterSpacing: '0.3px',
+            }}>
+              MISS
+            </Box>
+          )}
+          {a.directionCorrect1d == null && (
+            <Box component="span" sx={{
+              fontSize: TYPOGRAPHY.size.base,
+              color: COLORS.text.muted,
+              fontFamily: TYPOGRAPHY.monoFamily,
+            }}>—</Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* Collapse — rozwijane szczegoly */}
+      <Collapse in={expanded} unmountOnExit>
+        <Box sx={{
+          minWidth: TOTAL_WIDTH,
+          bgcolor: COLORS.bg.panel,
+          borderBottom: `1px solid ${COLORS.borderStrong}`,
+          borderTop: `2px solid ${COLORS.borderAccent}`,
+          px: 2, py: 1.5,
+          display: 'flex',
+          gap: 3,
+        }}>
+          {/* Lewa kolumna — metadane */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8, minWidth: 200 }}>
+            <Box>
+              <Typography sx={labelSx}>CATALYST</Typography>
+              <Typography sx={{
+                fontSize: TYPOGRAPHY.size.md,
+                fontWeight: 600,
+                color: COLORS.text.primary,
+              }}>
+                {a.catalystType || '—'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography sx={labelSx}>PRIORITY</Typography>
+              <Typography sx={{
+                fontSize: TYPOGRAPHY.size.md,
+                fontWeight: 700,
+                color: a.priority === 'CRITICAL' ? COLORS.down
+                     : a.priority === 'HIGH' ? COLORS.warning
+                     : COLORS.text.primary,
+              }}>
+                {a.priority || '—'}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography sx={labelSx}>FULL TIMESTAMP</Typography>
+              <Typography sx={{
+                fontSize: TYPOGRAPHY.size.base,
+                fontFamily: TYPOGRAPHY.monoFamily,
+                color: COLORS.text.primary,
+              }}>
+                {fmtTimestamp(a.sentAt)}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography sx={labelSx}>RULE (FULL)</Typography>
+              <Typography sx={{
+                fontSize: TYPOGRAPHY.size.base,
+                color: COLORS.text.primary,
+              }}>
+                {a.ruleName}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Prawa kolumna — message preview */}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box sx={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5,
+            }}>
+              <Typography sx={labelSx}>MESSAGE</Typography>
+              <Link
+                component="button"
+                onClick={(e) => { e.stopPropagation(); onShowMessage(); }}
+                sx={{
+                  ...TYPOGRAPHY.uppercase,
+                  color: COLORS.accent,
+                  textDecoration: 'underline dotted',
+                  cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
+                  p: 0,
+                }}
+              >
+                POKAZ PELNA TRESC
+              </Link>
+            </Box>
+            <Box sx={{
+              fontSize: TYPOGRAPHY.size.base,
+              fontFamily: TYPOGRAPHY.monoFamily,
+              color: COLORS.text.primary,
+              bgcolor: COLORS.bg.card,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '2px',
+              p: 1,
+              maxHeight: 120,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'pre-wrap',
+              display: '-webkit-box',
+              WebkitLineClamp: 5,
+              WebkitBoxOrient: 'vertical',
+            }}>
+              {a.message}
+            </Box>
+          </Box>
+        </Box>
+      </Collapse>
+    </>
   );
 };
 
-/* ── Karta sygnalu ────────────────────────────────────── */
+/* ── Summary bar (Bloomberg status line) ──────────────── */
 
-const SignalCard = ({ a, expanded, onToggle, onShowMessage }: {
-  a: TimelineAlert; expanded: boolean; onToggle: () => void; onShowMessage: () => void;
+const SummaryBar = ({ selected, summary }: {
+  selected: string; summary: TimelineSummary;
 }) => {
-  const isPositive = a.alertDirection === 'positive';
-  const accentColor = isPositive ? COLOR_UP : a.alertDirection === 'negative' ? COLOR_DOWN : COLOR_NEUTRAL;
+  const dominantColor =
+    summary.dominantDirection === 'positive' ? COLORS.up
+    : summary.dominantDirection === 'negative' ? COLORS.down
+    : COLORS.neutral;
+  const dominantLabel =
+    summary.dominantDirection === 'positive' ? 'BULL'
+    : summary.dominantDirection === 'negative' ? 'BEAR'
+    : 'MIX';
+
+  const hitRateColor =
+    summary.hitRate1d == null ? COLORS.neutral
+    : summary.hitRate1d >= 60 ? COLORS.up
+    : summary.hitRate1d <= 40 ? COLORS.down
+    : COLORS.warning;
+
+  const Cell = ({ label, value, color }: { label: string; value: string; color?: string }) => (
+    <Box sx={{
+      px: 1.5, py: 0.8,
+      borderRight: `1px solid ${COLORS.border}`,
+      minWidth: 90,
+    }}>
+      <Typography sx={labelSx}>{label}</Typography>
+      <Typography sx={{
+        ...metricSx,
+        color: color ?? COLORS.text.primary,
+        fontSize: TYPOGRAPHY.size.md,
+      }}>
+        {value}
+      </Typography>
+    </Box>
+  );
 
   return (
-    <Box
-      sx={{
-        p: 1.5, mx: 0, borderRadius: 1, cursor: 'pointer',
-        bgcolor: '#ffffff',
-        borderLeft: `3px solid ${accentColor}`,
-        border: `1px solid ${COLOR_BORDER}`,
-        borderLeftColor: accentColor,
-        borderLeftWidth: 3,
-        transition: 'background-color 0.15s',
-        '&:hover': { bgcolor: '#f5f7fa' },
-      }}
-      onClick={onToggle}
-    >
-      {/* Wiersz 1: typ sygnalu + conviction + data + hit */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.8 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#1a3a6c' }}>
-            {a.symbol}
-          </Typography>
-          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLOR_TEXT }}>
-            {a.ruleName}
-          </Typography>
-          {a.conviction != null && <ConvictionBadge v={a.conviction} />}
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <HitBadge v={a.directionCorrect1d} />
-          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: COLOR_MUTED }}>
-            {fmtDate(a.sentAt)}
-          </Typography>
-          {expanded ? <ExpandLessIcon sx={{ fontSize: 16, color: COLOR_MUTED }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: COLOR_MUTED }} />}
-        </Box>
-      </Box>
-
-      {/* Wiersz 2: cena + wyniki cenowe */}
-      {a.priceAtAlert && (
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
-          <Box sx={{ mr: 1.5 }}>
-            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLOR_MUTED }}>Cena</Typography>
-            <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, color: COLOR_TEXT }}>
-              ${a.priceAtAlert.toFixed(2)}
-            </Typography>
-          </Box>
-          <Box sx={{
-            display: 'flex', gap: 0.5, flex: 1,
-            p: 0.5, borderRadius: 1, bgcolor: '#f5f7fa',
-          }}>
-            <PriceOutcomeBar label="1h" val={a.price1h} base={a.priceAtAlert} dir={a.alertDirection} />
-            <PriceOutcomeBar label="4h" val={a.price4h} base={a.priceAtAlert} dir={a.alertDirection} />
-            <PriceOutcomeBar label="1d" val={a.price1d} base={a.priceAtAlert} dir={a.alertDirection} />
-            <PriceOutcomeBar label="3d" val={a.price3d} base={a.priceAtAlert} dir={a.alertDirection} />
-          </Box>
-        </Box>
-      )}
-
-      {/* Rozwiniety — catalyst + pelna tresc */}
-      <Collapse in={expanded}>
-        <Box sx={{ mt: 1, pt: 1, borderTop: `1px solid ${COLOR_BORDER}`, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          {a.catalystType && (
-            <Chip label={a.catalystType} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-          )}
-          {a.priority && (
-            <Chip
-              label={a.priority}
-              size="small"
-              sx={{
-                height: 20, fontSize: '0.65rem', fontWeight: 600,
-                bgcolor: a.priority === 'CRITICAL' ? '#fce8ec' : '#fff4e0',
-                color: a.priority === 'CRITICAL' ? COLOR_DOWN : '#b07d0e',
-              }}
-            />
-          )}
-          <Typography
-            variant="caption"
-            sx={{ fontSize: '0.7rem', color: '#0288d1', cursor: 'pointer', textDecoration: 'underline dotted', ml: 'auto' }}
-            onClick={(e) => { e.stopPropagation(); onShowMessage(); }}
-          >
-            Pokaz pelna tresc
-          </Typography>
-        </Box>
-      </Collapse>
+    <Box sx={{
+      display: 'flex',
+      alignItems: 'stretch',
+      bgcolor: COLORS.bg.panel,
+      border: `1px solid ${COLORS.borderStrong}`,
+      borderLeft: `3px solid ${COLORS.borderAccent}`,
+      borderRadius: '2px',
+      mb: 1,
+      overflowX: 'auto',
+    }}>
+      <Cell label="TICKER" value={selected} color={COLORS.text.accent} />
+      <Cell label="SIGNALS" value={String(summary.totalAlerts)} />
+      <Cell
+        label="DOMINANT"
+        value={summary.directionConsistency != null
+          ? `${dominantLabel} ${summary.directionConsistency}%`
+          : dominantLabel}
+        color={dominantColor}
+      />
+      <Cell
+        label="HIT RATE 1D"
+        value={summary.hitRate1d != null ? `${summary.hitRate1d}%` : '—'}
+        color={hitRateColor}
+      />
+      <Cell
+        label="AVG GAP"
+        value={summary.avgHoursBetween != null ? fmtGap(summary.avgHoursBetween) : '—'}
+      />
     </Box>
   );
 };
@@ -302,11 +582,13 @@ export default function SignalTimeline() {
         : await fetchRecentTimeline(days, 30);
       setAlerts(data.alerts || []);
       setSummary(data.summary);
-    } catch { setAlerts([]); setSummary(null); }
+    } catch {
+      setAlerts([]);
+      setSummary(null);
+    }
     setLoading(false);
   }, [selected, days]);
 
-  // Laduj przy starcie (ostatnie alerty) i przy zmianie tickera/dni
   useEffect(() => { loadData(); }, [loadData]);
 
   // Auto-refresh co 60s
@@ -315,26 +597,121 @@ export default function SignalTimeline() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  return (
-    <Paper sx={{ p: 2, mb: 2 }}>
-      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
-        Signal Timeline
-      </Typography>
+  const sortedAlerts = [...alerts].sort(
+    (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime(),
+  );
 
-      {/* Kontrolki */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+  return (
+    <Box sx={{ ...panelSx, p: 0, mb: 2, overflow: 'hidden' }}>
+      {/* Header bar */}
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        px: 1.5, py: 0.8,
+        bgcolor: COLORS.bg.header,
+        color: COLORS.text.inverse,
+        borderBottom: `2px solid ${COLORS.accent}`,
+      }}>
+        <Typography sx={{
+          ...TYPOGRAPHY.uppercase,
+          fontSize: TYPOGRAPHY.size.md,
+          color: COLORS.text.inverse,
+          letterSpacing: '1px',
+        }}>
+          SIGNAL TIMELINE
+        </Typography>
+        <Typography sx={{
+          ...TYPOGRAPHY.uppercase,
+          fontSize: TYPOGRAPHY.size.xs,
+          color: COLORS.text.inverse,
+          opacity: 0.7,
+        }}>
+          {sortedAlerts.length} ROWS · {days}D
+        </Typography>
+      </Box>
+
+      {/* Filters bar */}
+      <Box sx={{
+        display: 'flex',
+        gap: 1.5,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        px: 1.5, py: 1,
+        bgcolor: COLORS.bg.panel,
+        borderBottom: `1px solid ${COLORS.border}`,
+      }}>
+        <Typography sx={{ ...labelSx, mr: 0.5 }}>TICKER</Typography>
         <Autocomplete
           options={symbols}
+          value={symbols.find(s => s.symbol === selected) ?? null}
           getOptionLabel={(o) => `${o.symbol} (${o.alertCount})`}
+          isOptionEqualToValue={(a, b) => a.symbol === b.symbol}
           onChange={(_, v) => setSelected(v?.symbol ?? null)}
-          renderInput={(params) => <TextField {...params} label="Ticker (wszystkie)" size="small" sx={{ minWidth: 220 }} />}
-          sx={{ minWidth: 220 }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder="WSZYSTKIE"
+              size="small"
+              sx={{
+                '& .MuiInputBase-root': {
+                  fontSize: TYPOGRAPHY.size.base,
+                  fontFamily: TYPOGRAPHY.sansFamily,
+                  bgcolor: COLORS.bg.card,
+                  borderRadius: '2px',
+                  minHeight: 30,
+                },
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: COLORS.border,
+                },
+              }}
+            />
+          )}
+          sx={{ minWidth: 200 }}
         />
+        {selected && (
+          <Link
+            component="button"
+            onClick={() => setSelected(null)}
+            sx={{
+              ...TYPOGRAPHY.uppercase,
+              color: COLORS.accent,
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none',
+              textDecoration: 'underline dotted',
+              p: 0,
+            }}
+          >
+            RESET
+          </Link>
+        )}
+        <Box sx={{ flex: 1 }} />
+        <Typography sx={{ ...labelSx, mr: 0.5 }}>PERIOD</Typography>
         <ToggleButtonGroup
           value={days}
           exclusive
           onChange={(_, v) => v && setDays(v)}
           size="small"
+          sx={{
+            '& .MuiToggleButton-root': {
+              fontSize: TYPOGRAPHY.size.xs,
+              fontFamily: TYPOGRAPHY.sansFamily,
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              px: 1.2,
+              py: 0.3,
+              minWidth: 38,
+              color: COLORS.text.secondary,
+              borderColor: COLORS.border,
+              borderRadius: '2px',
+              '&.Mui-selected': {
+                bgcolor: COLORS.bg.header,
+                color: COLORS.text.inverse,
+                '&:hover': { bgcolor: COLORS.bg.headerAlt },
+              },
+            },
+          }}
         >
           <ToggleButton value={7}>7D</ToggleButton>
           <ToggleButton value={14}>14D</ToggleButton>
@@ -344,69 +721,49 @@ export default function SignalTimeline() {
         </ToggleButtonGroup>
       </Box>
 
-      {/* Summary bar */}
+      {/* Summary bar gdy wybrany ticker */}
       {summary && selected && (
-        <Box sx={{
-          display: 'flex', gap: 3, mb: 2, p: 1.5, borderRadius: 1, alignItems: 'center', flexWrap: 'wrap',
-          bgcolor: '#f5f7fa', border: `1px solid ${COLOR_BORDER}`,
-        }}>
-          <Typography variant="body1" fontWeight={700} sx={{ fontSize: '1rem', color: '#1a3a6c' }}>{selected}</Typography>
-          <Box>
-            <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Sygnaly</Typography>
-            <Typography variant="body2" fontWeight={600}>{summary.totalAlerts}</Typography>
-          </Box>
-          {summary.directionConsistency != null && (
-            <Box>
-              <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Kierunek</Typography>
-              <Typography variant="body2" fontWeight={600} sx={{
-                color: summary.dominantDirection === 'positive' ? COLOR_UP : summary.dominantDirection === 'negative' ? COLOR_DOWN : COLOR_NEUTRAL,
-              }}>
-                {summary.directionConsistency}% {summary.dominantDirection === 'positive' ? 'BULL' : summary.dominantDirection === 'negative' ? 'BEAR' : 'MIX'}
-              </Typography>
-            </Box>
-          )}
-          {summary.hitRate1d != null && (
-            <Box>
-              <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Hit rate 1d</Typography>
-              <Typography variant="body2" fontWeight={600} sx={{
-                color: summary.hitRate1d >= 60 ? COLOR_UP : summary.hitRate1d <= 40 ? COLOR_DOWN : '#e8a317',
-              }}>
-                {summary.hitRate1d}%
-              </Typography>
-            </Box>
-          )}
-          {summary.avgHoursBetween != null && (
-            <Box>
-              <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Avg gap</Typography>
-              <Typography variant="body2" fontWeight={600}>{fmtGap(summary.avgHoursBetween)}</Typography>
-            </Box>
-          )}
+        <Box sx={{ px: 1.5, pt: 1 }}>
+          <SummaryBar selected={selected} summary={summary} />
         </Box>
       )}
 
-      {loading && <LinearProgress sx={{ mb: 1, borderRadius: 1 }} />}
+      {loading && <LinearProgress sx={{ height: 2 }} />}
 
-      {/* Widok domyślny ładuje ostatnie alerty — nie potrzeba "wybierz ticker" */}
-
-      {/* Timeline alertow — sortowanie od najnowszych */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-        {[...alerts].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()).map((a) => (
-          <Box key={a.id}>
-            <GapSeparator a={a} />
-            <SignalCard
+      {/* Tabela sygnalow */}
+      <Box sx={{ overflowX: 'auto' }}>
+        <TableHeader />
+        <Box>
+          {sortedAlerts.map((a, i) => (
+            <SignalRow
+              key={a.id}
               a={a}
+              index={i}
               expanded={expandedId === a.id}
               onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
               onShowMessage={() => setDialogMsg(a.message)}
             />
-          </Box>
-        ))}
+          ))}
+        </Box>
       </Box>
 
-      {selected && !loading && alerts.length === 0 && (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-          Brak alertow dla {selected} w ostatnich {days} dniach
-        </Typography>
+      {/* Empty state */}
+      {!loading && sortedAlerts.length === 0 && (
+        <Box sx={{
+          py: 4, textAlign: 'center',
+          bgcolor: COLORS.bg.card,
+          borderTop: `1px solid ${COLORS.border}`,
+        }}>
+          <Typography sx={{
+            ...TYPOGRAPHY.uppercase,
+            color: COLORS.text.muted,
+            fontSize: TYPOGRAPHY.size.sm,
+          }}>
+            {selected
+              ? `BRAK ALERTOW DLA ${selected} · ${days}D`
+              : `BRAK ALERTOW · ${days}D`}
+          </Typography>
+        </Box>
       )}
 
       {/* Dialog z pelna trescia */}
@@ -415,6 +772,6 @@ export default function SignalTimeline() {
         open={dialogMsg != null}
         onClose={() => setDialogMsg(null)}
       />
-    </Paper>
+    </Box>
   );
 }

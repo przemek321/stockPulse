@@ -1,50 +1,56 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Typography,
-  Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  CircularProgress,
-  Paper,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { useState, useMemo, useCallback } from 'react';
+import { Box, LinearProgress, Typography } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { fetchAlertOutcomes, AlertOutcome } from '../api';
+import { COLORS, TYPOGRAPHY, fmtPrice, fmtTimestamp, deltaColor } from '../theme/financial';
 
-/** Formatowanie daty */
-const fmtDate = (v: string | null) =>
-  v ? new Date(v).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-
-/** Renderowanie delty */
+/** Renderowanie delty — monospace, kolor */
 const renderDelta = (v: number | null) => {
-  if (v == null) return <span style={{ color: '#757575' }}>—</span>;
-  const color = v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#90a4ae';
-  return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v}%</span>;
+  if (v == null) return <span style={{ color: COLORS.neutral, fontFamily: TYPOGRAPHY.monoFamily }}>—</span>;
+  return (
+    <span
+      style={{
+        color: deltaColor(v),
+        fontWeight: 600,
+        fontFamily: TYPOGRAPHY.monoFamily,
+      }}
+    >
+      {v > 0 ? '+' : ''}
+      {v.toFixed(2)}%
+    </span>
+  );
 };
 
 /** Kierunek BULL/BEAR */
 const renderDirection = (v: string | null) => {
-  if (!v) return '—';
-  const color = v === 'positive' ? '#66bb6a' : '#ef5350';
-  return <span style={{ color, fontWeight: 700 }}>{v === 'positive' ? '▲ BULL' : '▼ BEAR'}</span>;
+  if (!v) return <span style={{ color: COLORS.neutral }}>—</span>;
+  const isUp = v === 'positive';
+  return (
+    <span
+      style={{
+        color: isUp ? COLORS.up : COLORS.down,
+        fontWeight: 700,
+        fontSize: TYPOGRAPHY.size.xs,
+        letterSpacing: '0.5px',
+      }}
+    >
+      {isUp ? '▲ BULL' : '▼ BEAR'}
+    </span>
+  );
 };
 
-/** Trafność ✓/✗ */
+/** Trafność OK/ERR */
 const renderCorrect = (v: boolean | null) => {
-  if (v == null) return <span style={{ color: '#757575' }}>—</span>;
-  return v
-    ? <span style={{ color: '#66bb6a', fontWeight: 700 }}>✓</span>
-    : <span style={{ color: '#ef5350', fontWeight: 700 }}>✗</span>;
+  if (v == null) return <span style={{ color: COLORS.neutral }}>—</span>;
+  return v ? (
+    <span style={{ color: COLORS.up, fontWeight: 700 }}>OK</span>
+  ) : (
+    <span style={{ color: COLORS.down, fontWeight: 700 }}>ERR</span>
+  );
 };
 
 /** Grupa alertów per ticker */
@@ -61,8 +67,8 @@ type SortKey = 'symbol' | 'count' | 'sentAt' | 'priceAtAlert';
 type SortDir = 'asc' | 'desc';
 
 /**
- * Panel Trafność Alertów z grupowaniem po tickerze.
- * Klik na wiersz rozwija listę wszystkich alertów dla danego tickera.
+ * Bloomberg-style Panel Trafność Alertów z grupowaniem po tickerze.
+ * Klik na wiersz grupowy rozwija listę wszystkich alertów dla danego tickera.
  */
 export default function PriceOutcomePanel() {
   const [rows, setRows] = useState<AlertOutcome[] | null>(null);
@@ -118,10 +124,18 @@ export default function PriceOutcomePanel() {
     return [...groups].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
-        case 'symbol': cmp = a.symbol.localeCompare(b.symbol, 'pl'); break;
-        case 'count': cmp = a.count - b.count; break;
-        case 'sentAt': cmp = new Date(a.latest.sentAt).getTime() - new Date(b.latest.sentAt).getTime(); break;
-        case 'priceAtAlert': cmp = Number(a.latest.priceAtAlert || 0) - Number(b.latest.priceAtAlert || 0); break;
+        case 'symbol':
+          cmp = a.symbol.localeCompare(b.symbol, 'pl');
+          break;
+        case 'count':
+          cmp = a.count - b.count;
+          break;
+        case 'sentAt':
+          cmp = new Date(a.latest.sentAt).getTime() - new Date(b.latest.sentAt).getTime();
+          break;
+        case 'priceAtAlert':
+          cmp = Number(a.latest.priceAtAlert || 0) - Number(b.latest.priceAtAlert || 0);
+          break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -129,20 +143,26 @@ export default function PriceOutcomePanel() {
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((p) => (p === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('desc'); }
+    else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
   };
 
   const toggleTicker = (symbol: string) => {
     setExpandedTickers((prev) => {
       const next = new Set(prev);
-      if (next.has(symbol)) next.delete(symbol); else next.add(symbol);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
       return next;
     });
   };
 
   /** Zbierz płaską listę wierszy: wiersz grupowy + opcjonalnie rozwinięte alerty */
   const flatRows = useMemo(() => {
-    const result: Array<{ type: 'group'; group: TickerGroup } | { type: 'sub'; alert: AlertOutcome }> = [];
+    const result: Array<
+      { type: 'group'; group: TickerGroup } | { type: 'sub'; alert: AlertOutcome }
+    > = [];
     for (const g of sortedGroups) {
       result.push({ type: 'group', group: g });
       if (expandedTickers.has(g.symbol)) {
@@ -154,115 +174,339 @@ export default function PriceOutcomePanel() {
     return result;
   }, [sortedGroups, expandedTickers]);
 
-  const hsx = { fontWeight: 700, bgcolor: 'background.paper' };
+  /** Wspólny styl komórki tabeli */
+  const tdSx = {
+    px: 1,
+    py: 0.625,
+    borderBottom: `1px solid ${COLORS.border}`,
+    fontSize: TYPOGRAPHY.size.base,
+    color: COLORS.text.primary,
+    verticalAlign: 'middle' as const,
+  };
+
+  /** Styl kolumn numerycznych */
+  const tdNumSx = {
+    ...tdSx,
+    fontFamily: TYPOGRAPHY.monoFamily,
+  };
+
+  /** Header cell */
+  const thSx = (key: SortKey | null, sortable: boolean) => ({
+    textAlign: 'left' as const,
+    px: 1,
+    py: 0.5,
+    bgcolor: COLORS.bg.panel,
+    borderBottom: `2px solid ${COLORS.borderAccent}`,
+    ...TYPOGRAPHY.uppercase,
+    fontSize: TYPOGRAPHY.size.xs,
+    color: COLORS.text.accent,
+    fontWeight: 700,
+    cursor: sortable ? 'pointer' : 'default',
+    userSelect: 'none' as const,
+    whiteSpace: 'nowrap' as const,
+    '&:hover': sortable ? { bgcolor: COLORS.bg.cellHover } : undefined,
+    position: 'sticky' as const,
+    top: 0,
+    zIndex: 1,
+    ...(key && sortKey === key ? {} : {}),
+  });
+
+  const sortArrow = (key: SortKey) => {
+    if (sortKey !== key) return null;
+    return sortDir === 'asc' ? (
+      <ArrowDropUpIcon sx={{ fontSize: 14, color: COLORS.text.accent, verticalAlign: 'middle' }} />
+    ) : (
+      <ArrowDropDownIcon sx={{ fontSize: 14, color: COLORS.text.accent, verticalAlign: 'middle' }} />
+    );
+  };
 
   return (
-    <Accordion
-      expanded={expanded}
-      onChange={handleToggle}
-      sx={{ '&:before': { display: 'none' }, borderRadius: '8px !important', mb: 1.5, overflow: 'hidden' }}
+    <Box
+      sx={{
+        bgcolor: COLORS.bg.card,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: '2px',
+        mb: 1,
+        fontFamily: TYPOGRAPHY.sansFamily,
+      }}
     >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <TrendingUpIcon sx={{ color: '#66bb6a' }} />
-          <Typography fontWeight={600}>Trafność Alertów (Price Outcome)</Typography>
-        </Box>
-      </AccordionSummary>
+      {/* ── HEADER BAR ────────────────────────────────── */}
+      <Box
+        onClick={handleToggle}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 0.75,
+          cursor: 'pointer',
+          borderBottom: expanded ? `1px solid ${COLORS.border}` : 'none',
+          userSelect: 'none',
+          '&:hover': { bgcolor: COLORS.bg.cellHover },
+        }}
+      >
+        {expanded ? (
+          <KeyboardArrowDownIcon sx={{ fontSize: 16, color: COLORS.text.accent }} />
+        ) : (
+          <KeyboardArrowRightIcon sx={{ fontSize: 16, color: COLORS.text.accent }} />
+        )}
+        <TrendingUpIcon sx={{ fontSize: 16, color: COLORS.up }} />
+        <Typography
+          sx={{
+            ...TYPOGRAPHY.uppercase,
+            fontSize: TYPOGRAPHY.size.sm,
+            color: COLORS.text.accent,
+            fontWeight: 700,
+          }}
+        >
+          Trafność Alertów / Price Outcome
+        </Typography>
+        {rows && (
+          <Box
+            sx={{
+              ml: 'auto',
+              px: 0.75,
+              py: 0.125,
+              bgcolor: COLORS.bg.panel,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '2px',
+              fontFamily: TYPOGRAPHY.monoFamily,
+              fontSize: TYPOGRAPHY.size.xs,
+              fontWeight: 600,
+              color: COLORS.text.primary,
+              lineHeight: 1.4,
+            }}
+          >
+            {rows.length.toLocaleString()}
+          </Box>
+        )}
+      </Box>
 
-      <AccordionDetails sx={{ p: 0 }}>
-        {loading && <Box sx={{ p: 3, textAlign: 'center' }}><CircularProgress size={28} /></Box>}
-        {error && <Typography color="error" sx={{ p: 2 }}>{error}</Typography>}
-        {flatRows.length > 0 && (
-          <TableContainer component={Paper} sx={{ maxHeight: 420 }}>
-            <Table stickyHeader size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={hsx}>
-                    <TableSortLabel active={sortKey === 'symbol'} direction={sortKey === 'symbol' ? sortDir : 'desc'} onClick={() => handleSort('symbol')}>
-                      Ticker
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell sx={hsx}>Reguła</TableCell>
-                  <TableCell sx={hsx}>Kierunek</TableCell>
-                  <TableCell sx={hsx}>
-                    <TableSortLabel active={sortKey === 'priceAtAlert'} direction={sortKey === 'priceAtAlert' ? sortDir : 'desc'} onClick={() => handleSort('priceAtAlert')}>
-                      Cena alertu
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell sx={hsx}>+1h%</TableCell>
-                  <TableCell sx={hsx}>+4h%</TableCell>
-                  <TableCell sx={hsx}>+1d%</TableCell>
-                  <TableCell sx={hsx}>+3d%</TableCell>
-                  <TableCell sx={hsx}>Trafny?</TableCell>
-                  <TableCell sx={hsx}>
-                    <TableSortLabel active={sortKey === 'sentAt'} direction={sortKey === 'sentAt' ? sortDir : 'desc'} onClick={() => handleSort('sentAt')}>
-                      Data
-                    </TableSortLabel>
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {flatRows.map((row, idx) => {
-                  if (row.type === 'group') {
-                    const { group: g } = row;
-                    const lt = g.latest;
-                    const isOpen = expandedTickers.has(g.symbol);
-                    const accuracyLabel = g.evaluatedCount > 0 ? `${g.correctCount}/${g.evaluatedCount}` : null;
+      {/* ── CONTENT ──────────────────────────────────── */}
+      {expanded && (
+        <Box sx={{ position: 'relative' }}>
+          {loading && (
+            <LinearProgress
+              sx={{
+                height: 2,
+                bgcolor: COLORS.bg.panel,
+                '& .MuiLinearProgress-bar': { bgcolor: COLORS.accent },
+              }}
+            />
+          )}
+          {error && (
+            <Typography
+              sx={{
+                p: 1.5,
+                fontSize: TYPOGRAPHY.size.base,
+                color: COLORS.down,
+                fontFamily: TYPOGRAPHY.monoFamily,
+              }}
+            >
+              ERR: {error}
+            </Typography>
+          )}
+          {rows && rows.length === 0 && !loading && (
+            <Typography
+              sx={{
+                p: 3,
+                textAlign: 'center',
+                ...TYPOGRAPHY.uppercase,
+                fontSize: TYPOGRAPHY.size.xs,
+                color: COLORS.text.muted,
+              }}
+            >
+              Brak danych
+            </Typography>
+          )}
+          {flatRows.length > 0 && (
+            <Box sx={{ maxHeight: 440, overflow: 'auto' }}>
+              <Box
+                component="table"
+                sx={{ width: '100%', borderCollapse: 'collapse' }}
+              >
+                <Box component="thead">
+                  <Box component="tr">
+                    <Box component="th" onClick={() => handleSort('symbol')} sx={thSx('symbol', true)}>
+                      Ticker {sortArrow('symbol')}
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
+                      Reguła
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
+                      Kierunek
+                    </Box>
+                    <Box
+                      component="th"
+                      onClick={() => handleSort('priceAtAlert')}
+                      sx={thSx('priceAtAlert', true)}
+                    >
+                      Cena {sortArrow('priceAtAlert')}
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
+                      +1h
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
+                      +4h
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
+                      +1d
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
+                      +3d
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
+                      Trafny
+                    </Box>
+                    <Box component="th" onClick={() => handleSort('sentAt')} sx={thSx('sentAt', true)}>
+                      Data {sortArrow('sentAt')}
+                    </Box>
+                  </Box>
+                </Box>
+                <Box component="tbody">
+                  {flatRows.map((row, idx) => {
+                    if (row.type === 'group') {
+                      const { group: g } = row;
+                      const lt = g.latest;
+                      const isOpen = expandedTickers.has(g.symbol);
+                      const accuracyLabel =
+                        g.evaluatedCount > 0 ? `${g.correctCount}/${g.evaluatedCount}` : null;
+                      return (
+                        <Box
+                          component="tr"
+                          key={`g-${g.symbol}`}
+                          onClick={() => toggleTicker(g.symbol)}
+                          sx={{
+                            cursor: 'pointer',
+                            bgcolor: idx % 2 === 0 ? COLORS.bg.card : COLORS.bg.cardAlt,
+                            '&:hover': { bgcolor: COLORS.bg.cellHover },
+                          }}
+                        >
+                          <Box
+                            component="td"
+                            sx={{
+                              ...tdSx,
+                              fontWeight: 700,
+                              color: COLORS.text.accent,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {isOpen ? (
+                              <KeyboardArrowDownIcon
+                                sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.25, color: COLORS.text.accent }}
+                              />
+                            ) : (
+                              <KeyboardArrowRightIcon
+                                sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.25, color: COLORS.text.accent }}
+                              />
+                            )}
+                            {g.symbol}
+                            <span
+                              style={{
+                                color: COLORS.text.muted,
+                                fontWeight: 400,
+                                fontFamily: TYPOGRAPHY.monoFamily,
+                                marginLeft: 4,
+                              }}
+                            >
+                              ({g.count})
+                            </span>
+                          </Box>
+                          <Box component="td" sx={{ ...tdSx, color: COLORS.text.muted }}>
+                            —
+                          </Box>
+                          <Box component="td" sx={tdSx}>
+                            {renderDirection(lt.alertDirection)}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
+                            {fmtPrice(lt.priceAtAlert ? Number(lt.priceAtAlert) : null)}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
+                            {renderDelta(lt.delta1h)}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
+                            {renderDelta(lt.delta4h)}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
+                            {renderDelta(lt.delta1d)}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
+                            {renderDelta(lt.delta3d)}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
+                            {accuracyLabel ? (
+                              <span
+                                style={{
+                                  color: g.correctCount > 0 ? COLORS.up : COLORS.down,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {accuracyLabel}
+                              </span>
+                            ) : (
+                              <span style={{ color: COLORS.neutral }}>—</span>
+                            )}
+                          </Box>
+                          <Box component="td" sx={{ ...tdNumSx, color: COLORS.text.secondary }}>
+                            {fmtTimestamp(lt.sentAt)}
+                          </Box>
+                        </Box>
+                      );
+                    }
+                    /* Wiersz podrzędny — alert */
+                    const { alert: a } = row;
                     return (
-                      <TableRow
-                        key={`g-${g.symbol}`}
-                        hover
-                        sx={{ cursor: 'pointer', '& td': { borderBottom: isOpen ? 'none' : undefined } }}
-                        onClick={() => toggleTicker(g.symbol)}
+                      <Box
+                        component="tr"
+                        key={`s-${a.id}`}
+                        sx={{
+                          bgcolor: COLORS.bg.panel,
+                          '&:hover': { bgcolor: COLORS.bg.cellHover },
+                        }}
                       >
-                        <TableCell sx={{ fontSize: '0.8rem', fontWeight: 700 }}>
-                          {isOpen
-                            ? <KeyboardArrowDownIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 0.5 }} />
-                            : <KeyboardArrowRightIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 0.5 }} />}
-                          {g.symbol}
-                          <span style={{ color: '#90a4ae', fontWeight: 400 }}> ({g.count})</span>
-                        </TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem', color: '#90a4ae' }}>—</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{renderDirection(lt.alertDirection)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{lt.priceAtAlert ? `$${Number(lt.priceAtAlert).toFixed(2)}` : '—'}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{renderDelta(lt.delta1h)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{renderDelta(lt.delta4h)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{renderDelta(lt.delta1d)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{renderDelta(lt.delta3d)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>
-                          {accuracyLabel
-                            ? <span style={{ color: g.correctCount > 0 ? '#66bb6a' : '#ef5350', fontWeight: 600 }}>{accuracyLabel}</span>
-                            : <span style={{ color: '#757575' }}>—</span>}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{fmtDate(lt.sentAt)}</TableCell>
-                      </TableRow>
+                        <Box component="td" sx={{ ...tdSx, pl: 3.5, color: COLORS.text.secondary }} />
+                        <Box
+                          component="td"
+                          sx={{ ...tdSx, color: COLORS.text.secondary, fontSize: TYPOGRAPHY.size.xs }}
+                        >
+                          {a.ruleName?.replace(' Signal', '') || '—'}
+                        </Box>
+                        <Box component="td" sx={tdSx}>
+                          {renderDirection(a.alertDirection)}
+                        </Box>
+                        <Box component="td" sx={{ ...tdNumSx, color: COLORS.text.secondary }}>
+                          {fmtPrice(a.priceAtAlert ? Number(a.priceAtAlert) : null)}
+                        </Box>
+                        <Box component="td" sx={tdNumSx}>
+                          {renderDelta(a.delta1h)}
+                        </Box>
+                        <Box component="td" sx={tdNumSx}>
+                          {renderDelta(a.delta4h)}
+                        </Box>
+                        <Box component="td" sx={tdNumSx}>
+                          {renderDelta(a.delta1d)}
+                        </Box>
+                        <Box component="td" sx={tdNumSx}>
+                          {renderDelta(a.delta3d)}
+                        </Box>
+                        <Box component="td" sx={tdSx}>
+                          {renderCorrect(a.directionCorrect)}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{ ...tdNumSx, color: COLORS.text.muted, fontSize: TYPOGRAPHY.size.xs }}
+                        >
+                          {fmtTimestamp(a.sentAt)}
+                        </Box>
+                      </Box>
                     );
-                  }
-                  /* Wiersz podrzędny — alert */
-                  const { alert: a } = row;
-                  return (
-                    <TableRow key={`s-${a.id}`} sx={{ bgcolor: '#fafbfc' }}>
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478', pl: 5 }} />
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478' }}>{a.ruleName?.replace(' Signal', '') || '—'}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478' }}>{renderDirection(a.alertDirection)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478' }}>{a.priceAtAlert ? `$${Number(a.priceAtAlert).toFixed(2)}` : '—'}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem' }}>{renderDelta(a.delta1h)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem' }}>{renderDelta(a.delta4h)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem' }}>{renderDelta(a.delta1d)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem' }}>{renderDelta(a.delta3d)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem' }}>{renderCorrect(a.directionCorrect)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#b0bec5' }}>{fmtDate(a.sentAt)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-        {rows && rows.length === 0 && (
-          <Typography sx={{ p: 2, textAlign: 'center', color: '#757575' }}>Brak danych</Typography>
-        )}
-      </AccordionDetails>
-    </Accordion>
+                  })}
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
+    </Box>
   );
 }
