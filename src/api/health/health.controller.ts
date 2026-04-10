@@ -68,7 +68,11 @@ export class HealthController {
     ]);
 
     const collectors = [stHealth, fhHealth, secHealth, rdHealth, pdufaHealth];
-    const allHealthy = collectors.every((c) => c.isHealthy);
+    // Sprint 11: STOCKTWITS, FINNHUB, REDDIT są wyłączone (placeholder/no edge).
+    // Health check liczy tylko aktywne kolektory.
+    const disabledSources = new Set(['STOCKTWITS', 'FINNHUB', 'REDDIT']);
+    const activeCollectors = collectors.filter((c) => !disabledSources.has(c.source));
+    const allHealthy = activeCollectors.every((c) => c.isHealthy);
 
     return {
       status: allHealthy ? 'healthy' : 'degraded',
