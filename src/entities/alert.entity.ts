@@ -83,4 +83,12 @@ export class Alert {
   /** Czy CRON zakończył zbieranie cen (po 3d) */
   @Column({ type: 'boolean', default: false })
   priceOutcomeDone: boolean;
+
+  /**
+   * Soft delete flag — alert ukryty z dashboardu/API ale zachowany w DB.
+   * Używaj zamiast DELETE — historia outcomes jest kluczowa do walidacji forward.
+   * Nigdy nie kasuj alertów hard-delete; zaznacz archived=true.
+   */
+  @Column({ type: 'boolean', default: false })
+  archived: boolean;
 }

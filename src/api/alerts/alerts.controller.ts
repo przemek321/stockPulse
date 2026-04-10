@@ -32,11 +32,16 @@ export class AlertsController {
   async getAlerts(
     @Query('limit') limit?: string,
     @Query('symbol') symbol?: string,
+    @Query('include_archived') includeArchived?: string,
   ) {
     const take = Math.min(parseInt(limit || '50', 10), 200);
     const where: Record<string, any> = {};
     if (symbol) {
       where.symbol = symbol.toUpperCase();
+    }
+    // Domyślnie ukrywaj archived (soft-deleted)
+    if (includeArchived !== 'true') {
+      where.archived = false;
     }
 
     const alerts = await this.alertRepo.find({
@@ -49,6 +54,39 @@ export class AlertsController {
       count: alerts.length,
       alerts,
     };
+  }
+
+  /**
+   * Soft delete: oznacz alerty jako archived bez kasowania.
+   * POST /api/alerts/archive?ids=1,2,3 lub ?before=2026-04-06
+   */
+  @Post('archive')
+  async archiveAlerts(
+    @Query('ids') ids?: string,
+    @Query('before') before?: string,
+  ) {
+    if (ids) {
+      const idList = ids.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      const result = await this.alertRepo
+        .createQueryBuilder()
+        .update()
+        .set({ archived: true })
+        .whereInIds(idList)
+        .execute();
+      return { archived: result.affected ?? 0, ids: idList };
+    }
+    if (before) {
+      const beforeDate = new Date(before);
+      if (isNaN(beforeDate.getTime())) return { error: 'invalid date' };
+      const result = await this.alertRepo
+        .createQueryBuilder()
+        .update()
+        .set({ archived: true })
+        .where('"sentAt" < :before AND archived = false', { before: beforeDate })
+        .execute();
+      return { archived: result.affected ?? 0, before: beforeDate.toISOString() };
+    }
+    return { error: 'specify ids or before' };
   }
 
   /**

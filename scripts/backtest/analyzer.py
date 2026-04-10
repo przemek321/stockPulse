@@ -683,7 +683,10 @@ def run_analysis(transactions_csv: str,
     # Filtruj błędne daty (np. rok 0025 zamiast 2025 z SEC XML)
     tx_df = tx_df[tx_df["transaction_date"].str.match(r"^20\d{2}-", na=False)].copy()
     tx_df = tx_df[tx_df["filing_date"].str.match(r"^20\d{2}-", na=False)].copy()
-    print(f"\nTransakcje (raw): {len(tx_df)}")
+    # V2 (P0.5 fix): zawężamy tx_df tylko do healthcare tickers
+    # H5 i H1 nie filtrowały po tickerach — używały wszystkich 61. Fix:
+    tx_df = tx_df[tx_df["is_healthcare"] == True].copy()
+    print(f"\nTransakcje (raw, po filtrze healthcare {len(HEALTHCARE_TICKERS)} tickerów): {len(tx_df)}")
 
     # Deduplikacja: kolapsuj wiele transakcji per (symbol, insider, tydzień, typ)
     # do jednego eventu — zapobiega pompowaniu N przez wewnątrz-tickerowe korelacje

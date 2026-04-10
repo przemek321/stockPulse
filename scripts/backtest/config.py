@@ -39,21 +39,21 @@ CSUITE_TITLES = [
 ]
 
 # --- Tickery healthcare (42 — z healthcare-universe.json) ---
+# V2 (10.04.2026): zawężone do 28-tickerowego overlap między backtest a production
+# Usunięto: ABC, ACCD, AZN, CAH, INSP, IRTC, JNJ, MCK, MRK, NVO, PFE, RPRX, SNY, SWAV
+# Powód: production nie monitoruje tych tickerów (P0.5 fix)
 HEALTHCARE_TICKERS = [
-    # Managed Care
+    # Managed Care (insurance SIC 6324 — wciąż monitorowane w production)
     "UNH", "ELV", "HUM", "CNC", "MOH", "CI",
     # Hospitals & Facilities
     "HCA", "THC", "UHS", "ENSG", "SEM",
     # Health Tech / Services
-    "HIMS", "TDOC", "DOCS", "OSCR", "GDRX", "ACCD",
+    "HIMS", "TDOC", "DOCS", "OSCR", "GDRX",
     # Med Devices / Robotics
-    "ISRG", "DXCM", "PODD", "IRTC", "SWAV", "INSP",
+    "ISRG", "DXCM", "PODD",
     # Pharma / Biotech
     "ABBV", "BMY", "GILD", "MRNA", "REGN", "VRTX",
-    "BIIB", "AMGN", "LLY", "JNJ", "PFE", "MRK",
-    "AZN", "NVO", "SNY", "RPRX",
-    # PBM / Distribution
-    "MCK", "ABC", "CAH",
+    "BIIB", "AMGN", "LLY",
 ]
 
 # --- Control group: large-cap non-healthcare (25) ---
