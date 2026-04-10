@@ -332,7 +332,7 @@ export default function GlossaryTab() {
         ]} />
       </S>
 
-      <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 1, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <Box sx={{ mt: 3, p: 2, bgcolor: '#f5f7fa', borderRadius: 1, border: '1px solid #e1e5eb' }}>
         <Typography variant="subtitle2" fontWeight={700} gutterBottom>Jak czytac Signal Timeline — krok po kroku</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8 }}>
           1. Wybierz ticker z dropdown (posortowane po ilosci alertow — wiecej = wiecej danych do analizy).<br/>

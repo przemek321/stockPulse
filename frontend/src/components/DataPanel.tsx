@@ -223,7 +223,7 @@ export default function DataPanel({
                 rowsPerPageOptions={[25, 50, 100]}
                 labelRowsPerPage="Wierszy na stronę:"
                 labelDisplayedRows={({ from, to, count }) => `${from}–${to} z ${count}`}
-                sx={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}
+                sx={{ borderTop: '1px solid #e1e5eb' }}
               />
             )}
           </>

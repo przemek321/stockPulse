@@ -30,8 +30,16 @@ const fmtGap = (hours: number | null) => {
   return h === 0 ? `${d}d` : `${d}d ${h}h`;
 };
 
+// Light theme financial colors
+const COLOR_UP = '#0a8754';      // success.main
+const COLOR_DOWN = '#c41e3a';    // error.main
+const COLOR_NEUTRAL = '#9aa3b2'; // text.disabled
+const COLOR_MUTED = '#5a6478';   // text.secondary
+const COLOR_TEXT = '#1a1a1a';    // text.primary
+const COLOR_BORDER = '#e1e5eb';  // divider
+
 const deltaColor = (v: number | null) =>
-  v == null ? '#666' : v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#999';
+  v == null ? COLOR_NEUTRAL : v > 0 ? COLOR_UP : v < 0 ? COLOR_DOWN : COLOR_NEUTRAL;
 
 /* ── Pasek wynikow cenowych (mini barki) ──────────────── */
 
@@ -40,16 +48,15 @@ const PriceOutcomeBar = ({ label, val, base, dir }: {
 }) => {
   if (val == null) return (
     <Box sx={{ textAlign: 'center', minWidth: 52 }}>
-      <Typography variant="caption" sx={{ fontSize: '0.6rem', color: '#555' }}>{label}</Typography>
-      <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#555', display: 'block' }}>—</Typography>
+      <Typography variant="caption" sx={{ fontSize: '0.6rem', color: COLOR_MUTED }}>{label}</Typography>
+      <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLOR_MUTED, display: 'block' }}>—</Typography>
     </Box>
   );
   const delta = ((val - base) / base) * 100;
-  // Hit = delta idzie w kierunku alertu
   const isHit = dir === 'positive' ? delta > 0 : dir === 'negative' ? delta < 0 : null;
   return (
     <Box sx={{ textAlign: 'center', minWidth: 52 }}>
-      <Typography variant="caption" sx={{ fontSize: '0.6rem', color: '#888' }}>{label}</Typography>
+      <Typography variant="caption" sx={{ fontSize: '0.6rem', color: COLOR_MUTED }}>{label}</Typography>
       <Typography variant="caption" sx={{
         fontSize: '0.75rem', fontWeight: 700, display: 'block',
         color: deltaColor(delta),
@@ -59,7 +66,8 @@ const PriceOutcomeBar = ({ label, val, base, dir }: {
       {isHit != null && (
         <Box sx={{
           width: '100%', height: 2, borderRadius: 1, mt: 0.3,
-          bgcolor: isHit ? 'rgba(102,187,106,0.5)' : 'rgba(239,83,80,0.3)',
+          bgcolor: isHit ? COLOR_UP : COLOR_DOWN,
+          opacity: 0.7,
         }} />
       )}
     </Box>
@@ -70,10 +78,10 @@ const PriceOutcomeBar = ({ label, val, base, dir }: {
 
 const ConvictionBadge = ({ v }: { v: number }) => {
   const abs = Math.abs(v);
-  let bg = 'rgba(255,255,255,0.06)';
-  let border = 'rgba(255,255,255,0.12)';
-  if (abs >= 0.7) { bg = 'rgba(239,83,80,0.15)'; border = 'rgba(239,83,80,0.4)'; }
-  else if (abs >= 0.4) { bg = 'rgba(255,167,38,0.12)'; border = 'rgba(255,167,38,0.3)'; }
+  let bg = '#f5f7fa';
+  let border = COLOR_BORDER;
+  if (abs >= 0.7) { bg = '#fce8ec'; border = '#e0a5af'; }       // strong: red tint
+  else if (abs >= 0.4) { bg = '#fff4e0'; border = '#f0c890'; }  // medium: amber tint
   return (
     <Box sx={{
       display: 'inline-flex', alignItems: 'center', px: 0.8, py: 0.2,
@@ -81,7 +89,7 @@ const ConvictionBadge = ({ v }: { v: number }) => {
     }}>
       <Typography variant="caption" sx={{
         fontSize: '0.75rem', fontWeight: 700,
-        color: v > 0 ? '#66bb6a' : v < 0 ? '#ef5350' : '#999',
+        color: v > 0 ? COLOR_UP : v < 0 ? COLOR_DOWN : COLOR_NEUTRAL,
       }}>
         {v > 0 ? '+' : ''}{v.toFixed(2)}
       </Typography>
@@ -93,13 +101,13 @@ const ConvictionBadge = ({ v }: { v: number }) => {
 
 const HitBadge = ({ v }: { v: boolean | null }) => {
   if (v === true) return (
-    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.6, py: 0.2, borderRadius: 1, bgcolor: 'rgba(102,187,106,0.12)', border: '1px solid rgba(102,187,106,0.3)' }}>
-      <Typography variant="caption" sx={{ color: '#66bb6a', fontWeight: 700, fontSize: '0.7rem' }}>TRAFIONY</Typography>
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.6, py: 0.2, borderRadius: 1, bgcolor: '#e6f4ed', border: `1px solid ${COLOR_UP}` }}>
+      <Typography variant="caption" sx={{ color: COLOR_UP, fontWeight: 700, fontSize: '0.7rem' }}>TRAFIONY</Typography>
     </Box>
   );
   if (v === false) return (
-    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.6, py: 0.2, borderRadius: 1, bgcolor: 'rgba(239,83,80,0.12)', border: '1px solid rgba(239,83,80,0.3)' }}>
-      <Typography variant="caption" sx={{ color: '#ef5350', fontWeight: 700, fontSize: '0.7rem' }}>PUDLO</Typography>
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3, px: 0.6, py: 0.2, borderRadius: 1, bgcolor: '#fce8ec', border: `1px solid ${COLOR_DOWN}` }}>
+      <Typography variant="caption" sx={{ color: COLOR_DOWN, fontWeight: 700, fontSize: '0.7rem' }}>PUDLO</Typography>
     </Box>
   );
   return null;
@@ -140,10 +148,10 @@ const GapSeparator = ({ a }: { a: TimelineAlert }) => {
     <Box sx={{
       display: 'flex', alignItems: 'center', gap: 1.5, my: spacing * 0.5, mx: 2,
     }}>
-      <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(255,255,255,0.08)' }} />
+      <Box sx={{ flex: 1, height: '1px', bgcolor: COLOR_BORDER }} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="caption" sx={{
-          fontSize: '0.75rem', color: isLongGap ? '#ff9800' : '#e0e0e0',
+          fontSize: '0.75rem', color: isLongGap ? '#e8a317' : COLOR_TEXT,
           fontWeight: 600,
         }}>
           {fmtGap(a.hoursSincePrev)}
@@ -162,15 +170,15 @@ const GapSeparator = ({ a }: { a: TimelineAlert }) => {
             size="small"
             sx={{
               height: 16, fontSize: '0.6rem',
-              bgcolor: a.sameDirectionAsPrev ? 'rgba(102,187,106,0.1)' : 'rgba(239,83,80,0.1)',
-              color: a.sameDirectionAsPrev ? '#66bb6a' : '#ef5350',
+              bgcolor: a.sameDirectionAsPrev ? '#e6f4ed' : '#fce8ec',
+              color: a.sameDirectionAsPrev ? COLOR_UP : COLOR_DOWN,
               border: '1px solid',
-              borderColor: a.sameDirectionAsPrev ? 'rgba(102,187,106,0.3)' : 'rgba(239,83,80,0.3)',
+              borderColor: a.sameDirectionAsPrev ? COLOR_UP : COLOR_DOWN,
             }}
           />
         )}
       </Box>
-      <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(255,255,255,0.06)' }} />
+      <Box sx={{ flex: 1, height: '1px', bgcolor: COLOR_BORDER }} />
     </Box>
   );
 };
@@ -181,39 +189,39 @@ const SignalCard = ({ a, expanded, onToggle, onShowMessage }: {
   a: TimelineAlert; expanded: boolean; onToggle: () => void; onShowMessage: () => void;
 }) => {
   const isPositive = a.alertDirection === 'positive';
-  const accentColor = isPositive ? '#66bb6a' : a.alertDirection === 'negative' ? '#ef5350' : '#999';
+  const accentColor = isPositive ? COLOR_UP : a.alertDirection === 'negative' ? COLOR_DOWN : COLOR_NEUTRAL;
 
   return (
     <Box
       sx={{
-        p: 1.5, mx: 0, borderRadius: 1.5, cursor: 'pointer',
-        bgcolor: 'rgba(255,255,255,0.02)',
+        p: 1.5, mx: 0, borderRadius: 1, cursor: 'pointer',
+        bgcolor: '#ffffff',
         borderLeft: `3px solid ${accentColor}`,
-        border: '1px solid rgba(255,255,255,0.06)',
+        border: `1px solid ${COLOR_BORDER}`,
         borderLeftColor: accentColor,
         borderLeftWidth: 3,
         transition: 'background-color 0.15s',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
+        '&:hover': { bgcolor: '#f5f7fa' },
       }}
       onClick={onToggle}
     >
       {/* Wiersz 1: typ sygnalu + conviction + data + hit */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.8 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#4fc3f7' }}>
+          <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#1a3a6c' }}>
             {a.symbol}
           </Typography>
-          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#e0e0e0' }}>
+          <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLOR_TEXT }}>
             {a.ruleName}
           </Typography>
           {a.conviction != null && <ConvictionBadge v={a.conviction} />}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <HitBadge v={a.directionCorrect1d} />
-          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: '#888' }}>
+          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: COLOR_MUTED }}>
             {fmtDate(a.sentAt)}
           </Typography>
-          {expanded ? <ExpandLessIcon sx={{ fontSize: 16, color: '#666' }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: '#666' }} />}
+          {expanded ? <ExpandLessIcon sx={{ fontSize: 16, color: COLOR_MUTED }} /> : <ExpandMoreIcon sx={{ fontSize: 16, color: COLOR_MUTED }} />}
         </Box>
       </Box>
 
@@ -221,14 +229,14 @@ const SignalCard = ({ a, expanded, onToggle, onShowMessage }: {
       {a.priceAtAlert && (
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
           <Box sx={{ mr: 1.5 }}>
-            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#888' }}>Cena</Typography>
-            <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, color: '#e0e0e0' }}>
+            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLOR_MUTED }}>Cena</Typography>
+            <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, color: COLOR_TEXT }}>
               ${a.priceAtAlert.toFixed(2)}
             </Typography>
           </Box>
           <Box sx={{
             display: 'flex', gap: 0.5, flex: 1,
-            p: 0.5, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.02)',
+            p: 0.5, borderRadius: 1, bgcolor: '#f5f7fa',
           }}>
             <PriceOutcomeBar label="1h" val={a.price1h} base={a.priceAtAlert} dir={a.alertDirection} />
             <PriceOutcomeBar label="4h" val={a.price4h} base={a.priceAtAlert} dir={a.alertDirection} />
@@ -240,7 +248,7 @@ const SignalCard = ({ a, expanded, onToggle, onShowMessage }: {
 
       {/* Rozwiniety — catalyst + pelna tresc */}
       <Collapse in={expanded}>
-        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Box sx={{ mt: 1, pt: 1, borderTop: `1px solid ${COLOR_BORDER}`, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           {a.catalystType && (
             <Chip label={a.catalystType} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
           )}
@@ -250,14 +258,14 @@ const SignalCard = ({ a, expanded, onToggle, onShowMessage }: {
               size="small"
               sx={{
                 height: 20, fontSize: '0.65rem', fontWeight: 600,
-                bgcolor: a.priority === 'CRITICAL' ? 'rgba(239,83,80,0.15)' : 'rgba(255,167,38,0.1)',
-                color: a.priority === 'CRITICAL' ? '#ef5350' : '#ff9800',
+                bgcolor: a.priority === 'CRITICAL' ? '#fce8ec' : '#fff4e0',
+                color: a.priority === 'CRITICAL' ? COLOR_DOWN : '#b07d0e',
               }}
             />
           )}
           <Typography
             variant="caption"
-            sx={{ fontSize: '0.7rem', color: '#80cbc4', cursor: 'pointer', textDecoration: 'underline dotted', ml: 'auto' }}
+            sx={{ fontSize: '0.7rem', color: '#0288d1', cursor: 'pointer', textDecoration: 'underline dotted', ml: 'auto' }}
             onClick={(e) => { e.stopPropagation(); onShowMessage(); }}
           >
             Pokaz pelna tresc
@@ -339,19 +347,19 @@ export default function SignalTimeline() {
       {/* Summary bar */}
       {summary && selected && (
         <Box sx={{
-          display: 'flex', gap: 3, mb: 2, p: 1.5, borderRadius: 1.5, alignItems: 'center', flexWrap: 'wrap',
-          bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', gap: 3, mb: 2, p: 1.5, borderRadius: 1, alignItems: 'center', flexWrap: 'wrap',
+          bgcolor: '#f5f7fa', border: `1px solid ${COLOR_BORDER}`,
         }}>
-          <Typography variant="body1" fontWeight={700} sx={{ fontSize: '1rem' }}>{selected}</Typography>
+          <Typography variant="body1" fontWeight={700} sx={{ fontSize: '1rem', color: '#1a3a6c' }}>{selected}</Typography>
           <Box>
-            <Typography variant="caption" sx={{ color: '#888', fontSize: '0.65rem' }}>Sygnaly</Typography>
+            <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Sygnaly</Typography>
             <Typography variant="body2" fontWeight={600}>{summary.totalAlerts}</Typography>
           </Box>
           {summary.directionConsistency != null && (
             <Box>
-              <Typography variant="caption" sx={{ color: '#888', fontSize: '0.65rem' }}>Kierunek</Typography>
+              <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Kierunek</Typography>
               <Typography variant="body2" fontWeight={600} sx={{
-                color: summary.dominantDirection === 'positive' ? '#66bb6a' : summary.dominantDirection === 'negative' ? '#ef5350' : '#999',
+                color: summary.dominantDirection === 'positive' ? COLOR_UP : summary.dominantDirection === 'negative' ? COLOR_DOWN : COLOR_NEUTRAL,
               }}>
                 {summary.directionConsistency}% {summary.dominantDirection === 'positive' ? 'BULL' : summary.dominantDirection === 'negative' ? 'BEAR' : 'MIX'}
               </Typography>
@@ -359,9 +367,9 @@ export default function SignalTimeline() {
           )}
           {summary.hitRate1d != null && (
             <Box>
-              <Typography variant="caption" sx={{ color: '#888', fontSize: '0.65rem' }}>Hit rate 1d</Typography>
+              <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Hit rate 1d</Typography>
               <Typography variant="body2" fontWeight={600} sx={{
-                color: summary.hitRate1d >= 60 ? '#66bb6a' : summary.hitRate1d <= 40 ? '#ef5350' : '#ff9800',
+                color: summary.hitRate1d >= 60 ? COLOR_UP : summary.hitRate1d <= 40 ? COLOR_DOWN : '#e8a317',
               }}>
                 {summary.hitRate1d}%
               </Typography>
@@ -369,7 +377,7 @@ export default function SignalTimeline() {
           )}
           {summary.avgHoursBetween != null && (
             <Box>
-              <Typography variant="caption" sx={{ color: '#888', fontSize: '0.65rem' }}>Avg gap</Typography>
+              <Typography variant="caption" sx={{ color: COLOR_MUTED, fontSize: '0.65rem' }}>Avg gap</Typography>
               <Typography variant="body2" fontWeight={600}>{fmtGap(summary.avgHoursBetween)}</Typography>
             </Box>
           )}

@@ -69,7 +69,7 @@ const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: s
               whiteSpace: 'pre-wrap',
               fontFamily: 'monospace',
               fontSize: '0.8rem',
-              bgcolor: '#1a1a2e',
+              bgcolor: '#f5f7fa',
               p: 2,
               borderRadius: 1,
               maxHeight: '60vh',

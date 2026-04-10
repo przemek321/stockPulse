@@ -232,7 +232,7 @@ export default function CollectorStatus() {
                       sx={{
                         height: 4,
                         borderRadius: 2,
-                        bgcolor: 'rgba(255,255,255,0.08)',
+                        bgcolor: '#e1e5eb',
                       }}
                     />
                   </Box>

@@ -74,7 +74,8 @@ export default function JetsonStatsBar() {
         alignItems: 'center',
         gap: 2.5,
         flexWrap: 'wrap',
-        bgcolor: '#0a1929',
+        bgcolor: '#1a3a6c',
+        color: '#ffffff',
       }}
     >
       {/* Tytuł */}
@@ -136,7 +137,7 @@ export default function JetsonStatsBar() {
               sx={{
                 height: 6,
                 borderRadius: 3,
-                bgcolor: 'rgba(255,255,255,0.1)',
+                bgcolor: 'rgba(255,255,255,0.2)',
                 '& .MuiLinearProgress-bar': {
                   bgcolor: usageColor(ram.percent),
                 },

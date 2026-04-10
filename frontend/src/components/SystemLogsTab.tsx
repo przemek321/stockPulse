@@ -141,7 +141,7 @@ function LogRow({ log }: { log: SystemLog }) {
                         p: 1,
                         maxHeight: 200,
                         overflow: 'auto',
-                        bgcolor: '#0a1929',
+                        bgcolor: '#f5f7fa',
                       }}
                     >
                       <pre
@@ -172,7 +172,7 @@ function LogRow({ log }: { log: SystemLog }) {
                         p: 1,
                         maxHeight: 200,
                         overflow: 'auto',
-                        bgcolor: '#0a1929',
+                        bgcolor: '#f5f7fa',
                       }}
                     >
                       <pre

@@ -241,11 +241,11 @@ export default function PriceOutcomePanel() {
                   /* Wiersz podrzędny — alert */
                   const { alert: a } = row;
                   return (
-                    <TableRow key={`s-${a.id}`} sx={{ bgcolor: 'rgba(255,255,255,0.02)' }}>
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#78909c', pl: 5 }} />
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#b0bec5' }}>{a.ruleName?.replace(' Signal', '') || '—'}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#b0bec5' }}>{renderDirection(a.alertDirection)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', color: '#b0bec5' }}>{a.priceAtAlert ? `$${Number(a.priceAtAlert).toFixed(2)}` : '—'}</TableCell>
+                    <TableRow key={`s-${a.id}`} sx={{ bgcolor: '#fafbfc' }}>
+                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478', pl: 5 }} />
+                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478' }}>{a.ruleName?.replace(' Signal', '') || '—'}</TableCell>
+                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478' }}>{renderDirection(a.alertDirection)}</TableCell>
+                      <TableCell sx={{ fontSize: '0.75rem', color: '#5a6478' }}>{a.priceAtAlert ? `$${Number(a.priceAtAlert).toFixed(2)}` : '—'}</TableCell>
                       <TableCell sx={{ fontSize: '0.75rem' }}>{renderDelta(a.delta1h)}</TableCell>
                       <TableCell sx={{ fontSize: '0.75rem' }}>{renderDelta(a.delta4h)}</TableCell>
                       <TableCell sx={{ fontSize: '0.75rem' }}>{renderDelta(a.delta1d)}</TableCell>
