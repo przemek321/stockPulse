@@ -55,9 +55,8 @@ const fmtCountdown = (sec: number): string => {
   return `${m}m ${s}s`;
 };
 
-/** Header cell helper */
-const headerCellSx = {
-  ...labelSx,
+/** Header row container — bez labelSx (labelSx jest na komórkach) */
+const headerRowSx = {
   py: 0.5,
   px: 0.75,
   borderBottom: `1px solid ${COLORS.borderStrong}`,
@@ -210,7 +209,7 @@ export default function CollectorStatus() {
           display: 'grid',
           gridTemplateColumns: '4px 1.6fr 0.8fr 0.9fr 0.8fr 0.8fr 1.4fr',
           alignItems: 'center',
-          ...headerCellSx,
+          ...headerRowSx,
           gap: 0.75,
           px: 1,
         }}
