@@ -80,7 +80,7 @@ export abstract class BaseCollectorService implements ICollector {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Błąd cyklu zbierania: ${msg}`);
       await this.logCollection('FAILED', 0, Date.now() - start, msg);
-      return { collector, count: 0 };
+      throw error; // @Logged zobaczy error + BullMQ zrobi retry
     }
   }
 }
