@@ -61,20 +61,22 @@ export class Form4Pipeline {
     is10b51Plan?: boolean;
     sharesOwnedAfter?: number | null;
     source?: string;
-  }): Promise<{ action: string; symbol: string }> {
+    traceId?: string;
+    parentTraceId?: string;
+  }): Promise<{ action: string; symbol: string; traceId?: string }> {
     // Filtruj: tylko BUY/SELL > $100K
     if (!payload.totalValue || payload.totalValue < 100_000) {
-      return { action: 'SKIP_LOW_VALUE', symbol: payload.symbol };
+      return { action: 'SKIP_LOW_VALUE', symbol: payload.symbol, traceId: payload.traceId };
     }
     const ALERTABLE = ['BUY', 'SELL'];
     if (payload.transactionType && !ALERTABLE.includes(payload.transactionType)) {
-      return { action: 'SKIP_NOT_ALERTABLE', symbol: payload.symbol };
+      return { action: 'SKIP_NOT_ALERTABLE', symbol: payload.symbol, traceId: payload.traceId };
     }
 
     // Sprint 11: wyfiltruj planowe transakcje 10b5-1 (szum, nie realny sygnał insiderski)
     if (payload.is10b51Plan === true) {
       this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP 10b5-1 plan`);
-      return { action: 'SKIP_10B51_PLAN', symbol: payload.symbol };
+      return { action: 'SKIP_10B51_PLAN', symbol: payload.symbol, traceId: payload.traceId };
     }
 
     // Sprint 15 (backtest): Director SELL = anty-sygnał (68% cena rośnie po SELL).
@@ -82,18 +84,18 @@ export class Form4Pipeline {
     const isDirector = /\bDirector\b/i.test(payload.insiderRole ?? '');
     if (isDirector && payload.transactionType === 'SELL') {
       this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP Director SELL (anty-sygnał)`);
-      return { action: 'SKIP_DIRECTOR_SELL', symbol: payload.symbol };
+      return { action: 'SKIP_DIRECTOR_SELL', symbol: payload.symbol, traceId: payload.traceId };
     }
 
     // Sprawdź daily cap
     if (!(await this.dailyCap.canCallGpt(payload.symbol))) {
-      return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol };
+      return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol, traceId: payload.traceId };
     }
 
     try {
       // Pobierz trade z bazy (potrzebujemy pełne dane)
       const trade = await this.tradeRepo.findOne({ where: { id: payload.tradeId } });
-      if (!trade) return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol };
+      if (!trade) return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol, traceId: payload.traceId };
 
       // Pobierz ticker info
       const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
@@ -143,7 +145,7 @@ export class Form4Pipeline {
       // Buduj prompt i wyślij do Claude
       const prompt = buildForm4Prompt(payload.symbol, companyName, parsed, recentFilings, signalProfile);
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
-      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol };
+      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
 
       // Waliduj JSON z GPT (Zod) — retry 1x przy błędzie
       let analysis: SecFilingAnalysis;
@@ -162,7 +164,7 @@ export class Form4Pipeline {
           this.logger.error(
             `Form4 GPT invalid JSON (2nd attempt) for ${payload.symbol} — pomijam`,
           );
-          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol };
+          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
         }
       }
 
@@ -235,7 +237,7 @@ export class Form4Pipeline {
 
       if (!priority) {
         this.logger.debug(`Form4 GPT: ${payload.symbol} — brak alertu (low priority, non-C-suite)`);
-        return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol };
+        return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Sprawdź regułę — BUY ma osobną regułę (Sprint 15, backtest-backed)
@@ -243,12 +245,12 @@ export class Form4Pipeline {
       const rule = await this.ruleRepo.findOne({
         where: { name: ruleName, isActive: true },
       });
-      if (!rule) return { action: 'SKIP_NO_RULE', symbol: payload.symbol };
+      if (!rule) return { action: 'SKIP_NO_RULE', symbol: payload.symbol, traceId: payload.traceId };
 
       const isThrottled = await this.checkThrottled(
         rule.name, payload.symbol, rule.throttleMinutes, analysis.catalyst_type,
       );
-      if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol };
+      if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol, traceId: payload.traceId };
 
       // Wyślij alert Telegram
       const message = this.formatter.formatForm4GptAlert({
@@ -337,10 +339,16 @@ export class Form4Pipeline {
         }
       }
 
-      return { action: 'ALERT_SENT', symbol: payload.symbol };
+      const finalAction = isObservation
+        ? 'ALERT_DB_ONLY_OBSERVATION'
+        : delivered
+          ? 'ALERT_SENT_TELEGRAM'
+          : 'ALERT_TELEGRAM_FAILED';
+
+      return { action: finalAction, symbol: payload.symbol, traceId: payload.traceId };
     } catch (err) {
       this.logger.error(`Form4 Pipeline error ${payload.symbol}: ${err.message}`);
-      return { action: 'ERROR', symbol: payload.symbol };
+      return { action: 'ERROR', symbol: payload.symbol, traceId: payload.traceId };
     }
   }
 

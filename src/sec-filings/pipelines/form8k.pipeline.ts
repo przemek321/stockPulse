@@ -68,34 +68,35 @@ export class Form8kPipeline {
     filingId: number;
     symbol: string;
     formType: string;
-  }): Promise<{ action: string; symbol: string }> {
+    traceId?: string;
+  }): Promise<{ action: string; symbol: string; traceId?: string }> {
     // Tylko 8-K
     if (payload.formType !== '8-K') {
-      return { action: 'SKIP_NOT_8K', symbol: payload.symbol };
+      return { action: 'SKIP_NOT_8K', symbol: payload.symbol, traceId: payload.traceId };
     }
 
     try {
       // Sprawdź daily cap
       if (!(await this.dailyCap.canCallGpt(payload.symbol))) {
-        return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol };
+        return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Pobierz filing z bazy
       const filing = await this.filingRepo.findOne({ where: { id: payload.filingId } });
       if (!filing || !filing.documentUrl) {
-        return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol };
+        return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Jeśli już przeanalizowany GPT — pomiń
       if (filing.gptAnalysis) {
-        return { action: 'SKIP_ALREADY_ANALYZED', symbol: payload.symbol };
+        return { action: 'SKIP_ALREADY_ANALYZED', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Pobierz tekst filingu z SEC EDGAR
       const filingText = await this.fetchFilingText(filing.documentUrl);
       if (!filingText || filingText.length < 100) {
         this.logger.debug(`8-K ${payload.symbol}: tekst za krótki (${filingText?.length ?? 0} znaków)`);
-        return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol };
+        return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Pobierz ticker info (wcześniej, przed bankruptcy check — potrzebne do observation gate)
@@ -106,7 +107,7 @@ export class Form8kPipeline {
       const items = detectItems(filingText);
       if (items.length === 0) {
         this.logger.debug(`8-K ${payload.symbol}: brak rozpoznanych Items`);
-        return { action: 'SKIP_NO_ITEMS', symbol: payload.symbol };
+        return { action: 'SKIP_NO_ITEMS', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Sprawdź Item 1.03 (Bankruptcy) — natychmiastowy alert bez GPT
@@ -118,10 +119,10 @@ export class Form8kPipeline {
 
       // Weź najważniejszy Item (nie-bankruptcy) do analizy GPT
       const mainItem = items.find(i => !isBankruptcyItem(i));
-      if (!mainItem) return { action: 'BANKRUPTCY_ONLY', symbol: payload.symbol };
+      if (!mainItem) return { action: 'BANKRUPTCY_ONLY', symbol: payload.symbol, traceId: payload.traceId };
 
       const promptBuilder = selectPromptBuilder(mainItem);
-      if (!promptBuilder) return { action: 'SKIP_NO_PROMPT', symbol: payload.symbol };
+      if (!promptBuilder) return { action: 'SKIP_NO_PROMPT', symbol: payload.symbol, traceId: payload.traceId };
 
       // Pobierz profil historyczny tickera (kontekst kalibrujący conviction)
       const signalProfile = await this.tickerProfile?.getSignalProfile(payload.symbol) ?? null;
@@ -132,7 +133,7 @@ export class Form8kPipeline {
 
       // Wyślij do GPT
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
-      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol };
+      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
 
       // Waliduj JSON z GPT (Zod) — retry 1x
       let analysis: SecFilingAnalysis;
@@ -150,7 +151,7 @@ export class Form8kPipeline {
           this.logger.error(
             `8-K GPT invalid JSON (2nd attempt) for ${payload.symbol} — pomijam`,
           );
-          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol };
+          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
         }
       }
 
@@ -180,7 +181,7 @@ export class Form8kPipeline {
       const priority = scoreToAlertPriority(analysis, '8-K');
       if (!priority) {
         this.logger.debug(`8-K GPT: ${payload.symbol} Item ${mainItem} — brak alertu (low priority)`);
-        return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol };
+        return { action: 'SKIP_LOW_PRIORITY', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Sprawdź regułę i throttling
@@ -188,12 +189,12 @@ export class Form8kPipeline {
       const rule = await this.ruleRepo.findOne({
         where: { name: ruleName, isActive: true },
       });
-      if (!rule) return { action: 'SKIP_NO_RULE', symbol: payload.symbol };
+      if (!rule) return { action: 'SKIP_NO_RULE', symbol: payload.symbol, traceId: payload.traceId };
 
       const isThrottled = await this.checkThrottled(
         rule.name, payload.symbol, rule.throttleMinutes, analysis.catalyst_type,
       );
-      if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol };
+      if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol, traceId: payload.traceId };
 
       // Wyślij alert Telegram
       const message = this.formatter.formatForm8kGptAlert({
@@ -276,10 +277,16 @@ export class Form8kPipeline {
         }
       }
 
-      return { action: 'ALERT_SENT', symbol: payload.symbol };
+      const finalAction = isObservation
+        ? 'ALERT_DB_ONLY_OBSERVATION'
+        : delivered
+          ? 'ALERT_SENT_TELEGRAM'
+          : 'ALERT_TELEGRAM_FAILED';
+
+      return { action: finalAction, symbol: payload.symbol, traceId: payload.traceId };
     } catch (err) {
       this.logger.error(`8-K Pipeline error ${payload.symbol}: ${err.message}`);
-      return { action: 'ERROR', symbol: payload.symbol };
+      return { action: 'ERROR', symbol: payload.symbol, traceId: payload.traceId };
     }
   }
 

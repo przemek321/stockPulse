@@ -141,7 +141,7 @@ export class CorrelationService implements OnModuleDestroy {
    * Uruchamia detekcję wzorców dla danego tickera.
    */
   @Logged('correlation')
-  async runPatternDetection(ticker: string): Promise<{ ticker: string; signals: number; patterns: number }> {
+  async runPatternDetection(ticker: string): Promise<{ ticker: string; signals: number; patterns: number; action: string }> {
     this.pendingChecks.delete(ticker);
     const now = Date.now();
 
@@ -156,7 +156,7 @@ export class CorrelationService implements OnModuleDestroy {
       // Nie sprawdzaj wzorców gdy za mało sygnałów
       const allSignals = [...shortSignals, ...insiderSignals];
       if (allSignals.length < 2) {
-        return { ticker, signals: allSignals.length, patterns: 0 };
+        return { ticker, signals: allSignals.length, patterns: 0, action: 'TOO_FEW_SIGNALS' };
       }
 
       const patterns: DetectedPattern[] = [];
@@ -176,10 +176,15 @@ export class CorrelationService implements OnModuleDestroy {
         await this.triggerCorrelatedAlert(ticker, pattern);
       }
 
-      return { ticker, signals: allSignals.length, patterns: patterns.length };
+      return {
+        ticker,
+        signals: allSignals.length,
+        patterns: patterns.length,
+        action: patterns.length > 0 ? 'PATTERNS_DETECTED' : 'NO_PATTERNS',
+      };
     } catch (err) {
       this.logger.error(`Pattern detection error for ${ticker}: ${err.message}`);
-      return { ticker, signals: 0, patterns: 0 };
+      return { ticker, signals: 0, patterns: 0, action: 'ERROR' };
     }
   }
 
@@ -430,8 +435,8 @@ export class CorrelationService implements OnModuleDestroy {
   private async triggerCorrelatedAlert(
     ticker: string,
     pattern: DetectedPattern,
-  ): Promise<void> {
-    if (Math.abs(pattern.correlated_conviction) < MIN_CORRELATED_CONVICTION) return;
+  ): Promise<string> {
+    if (Math.abs(pattern.correlated_conviction) < MIN_CORRELATED_CONVICTION) return 'SKIP_LOW_CONVICTION';
 
     // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
     const tickerEntity = await this.tickerRepo.findOne({ where: { symbol: ticker } });
@@ -446,7 +451,7 @@ export class CorrelationService implements OnModuleDestroy {
     // Deduplikacja: sprawdź czy ten wzorzec nie był już alertowany
     const dedupKey = `fired:${ticker}:${pattern.type}`;
     const alreadyFired = await this.redis.get(dedupKey);
-    if (alreadyFired) return;
+    if (alreadyFired) return 'DEDUP_SKIP';
 
     const priority = Math.abs(pattern.correlated_conviction) >= 0.6
       ? 'CRITICAL'
@@ -520,5 +525,9 @@ export class CorrelationService implements OnModuleDestroy {
       `Correlated alert: ${ticker} ${pattern.type} — ` +
         `conviction=${pattern.correlated_conviction.toFixed(2)} ${pattern.direction}`,
     );
+
+    if (isClusterSellObservation) return 'ALERT_DB_ONLY_CLUSTER_SELL';
+    if (isTickerObservation) return 'ALERT_DB_ONLY_OBSERVATION';
+    return delivered ? 'ALERT_SENT_TELEGRAM' : 'ALERT_TELEGRAM_FAILED';
   }
 }

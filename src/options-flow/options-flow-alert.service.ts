@@ -56,9 +56,10 @@ export class OptionsFlowAlertService {
   async onOptionsFlow(payload: {
     flowId: number;
     symbol: string;
-  }): Promise<{ action: string; symbol: string; conviction?: number }> {
+    traceId?: string;
+  }): Promise<{ action: string; symbol: string; conviction?: number; traceId?: string }> {
     const flow = await this.flowRepo.findOne({ where: { id: payload.flowId } });
-    if (!flow) return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol };
+    if (!flow) return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol, traceId: payload.traceId };
 
     // Score
     const result = await this.scoring.scoreFlow(flow);
@@ -91,18 +92,12 @@ export class OptionsFlowAlertService {
     // Sprint 11: Standalone alert TYLKO gdy pdufaBoosted=true
     // Bez PDUFA kontekstu options spike = szum (52.5% hit rate)
     if (absConv >= MIN_CONVICTION_ALERT && result.pdufaBoosted) {
-      const sent = await this.sendAlert(flow, result);
-      if (sent) {
-        return {
-          action: 'ALERT_SENT',
-          symbol: flow.symbol,
-          conviction: result.conviction,
-        };
-      }
+      const alertAction = await this.sendAlert(flow, result);
       return {
-        action: 'THROTTLED',
+        action: alertAction,
         symbol: flow.symbol,
         conviction: result.conviction,
+        traceId: payload.traceId,
       };
     }
 
@@ -110,18 +105,20 @@ export class OptionsFlowAlertService {
       action: absConv >= MIN_CONVICTION_CORRELATION ? 'CORRELATION_STORED' : 'SKIP_LOW_CONVICTION',
       symbol: flow.symbol,
       conviction: result.conviction,
+      traceId: payload.traceId,
     };
   }
 
   /**
    * Wysyła alert Telegram i zapisuje do tabeli alerts.
+   * Zwraca granularny action string zamiast boolean.
    */
   private async sendAlert(
     flow: OptionsFlow,
     scoring: { conviction: number; direction: string; pdufaBoosted: boolean; callPutRatio: number },
-  ): Promise<boolean> {
+  ): Promise<string> {
     const rule = await this.getRule();
-    if (!rule) return false;
+    if (!rule) return 'SKIP_NO_RULE';
 
     // Sprawdź throttle
     const throttleMs = (rule.throttleMinutes || 120) * 60_000;
@@ -129,13 +126,14 @@ export class OptionsFlowAlertService {
       where: {
         symbol: flow.symbol,
         ruleName: rule.name,
+        delivered: true,
       },
       order: { sentAt: 'DESC' },
     });
 
     if (recentAlert) {
       const elapsed = Date.now() - new Date(recentAlert.sentAt).getTime();
-      if (elapsed < throttleMs) return false;
+      if (elapsed < throttleMs) return 'THROTTLED';
     }
 
     // Sprawdź daily limit per ticker
@@ -148,7 +146,7 @@ export class OptionsFlowAlertService {
         sentAt: MoreThanOrEqual(todayStart),
       },
     });
-    if (todayCount >= MAX_DAILY_ALERTS) return false;
+    if (todayCount >= MAX_DAILY_ALERTS) return 'ALERT_DB_ONLY_DAILY_LIMIT';
 
     // Priority
     const priority = Math.abs(scoring.conviction) >= 0.7 ? 'CRITICAL' : 'HIGH';
@@ -223,7 +221,11 @@ export class OptionsFlowAlertService {
       `Alert: ${flow.symbol} unusual options conviction=${scoring.conviction.toFixed(3)} ${scoring.direction}`,
     );
 
-    return true;
+    return isObservation
+      ? 'ALERT_DB_ONLY_OBSERVATION'
+      : delivered
+        ? 'ALERT_SENT_TELEGRAM'
+        : 'ALERT_TELEGRAM_FAILED';
   }
 
   /**

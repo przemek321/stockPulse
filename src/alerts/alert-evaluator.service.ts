@@ -138,12 +138,12 @@ export class AlertEvaluatorService {
       priority: rule.priority,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, undefined, {
+    const alertAction = await this.sendAlert(payload.symbol, rule, message, undefined, {
       sourceCategory: '8k',
       conviction: 0.5, // bazowy conviction dla 8-K bez analizy GPT
       direction: 'negative', // 8-K material events domyślnie negatywne
     });
-    return { action: 'ALERT_SENT', symbol: payload.symbol, formType: payload.formType };
+    return { action: alertAction, symbol: payload.symbol, formType: payload.formType };
   }
 
   /**
@@ -253,12 +253,12 @@ export class AlertEvaluatorService {
       enrichedAnalysis: payload.enrichedAnalysis,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
       sourceCategory: this.mapSourceCategory(payload.source),
       conviction: Math.abs(scoreForEval),
       direction: 'negative',
     });
-    return `ALERT_SENT: ${ruleName}`;
+    return `${sentAction}: ${ruleName}`;
   }
 
   /**
@@ -330,12 +330,12 @@ export class AlertEvaluatorService {
       priority: rule.priority,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
       sourceCategory: this.mapSourceCategory(payload.source),
       conviction: Math.abs(effectiveScore),
       direction: direction === 'BULLISH' ? 'positive' : 'negative',
     });
-    return `ALERT_SENT: ${ruleName}`;
+    return `${sentAction}: ${ruleName}`;
   }
 
   /**
@@ -386,12 +386,12 @@ export class AlertEvaluatorService {
       enrichedAnalysis: payload.enrichedAnalysis ?? {},
     });
 
-    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
       sourceCategory: this.mapSourceCategory(payload.source),
       conviction: Math.min(Math.abs(payload.conviction) / 2.0, 1.0), // normalizacja [-2,+2] → [0,1]
       direction: payload.conviction > 0 ? 'positive' : 'negative',
     });
-    return `ALERT_SENT: ${ruleName}`;
+    return `${sentAction}: ${ruleName}`;
   }
 
   /**
@@ -437,12 +437,12 @@ export class AlertEvaluatorService {
       source: payload.source,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, undefined, {
+    const sentAction = await this.sendAlert(payload.symbol, rule, message, undefined, {
       sourceCategory: this.mapSourceCategory(payload.source),
       conviction: Math.abs(payload.score),
       direction: payload.score > 0 ? 'positive' : 'negative',
     });
-    return `ALERT_SENT: ${ruleName}`;
+    return `${sentAction}: ${ruleName}`;
   }
 
   /**
@@ -500,12 +500,12 @@ export class AlertEvaluatorService {
       enrichedAnalysis: ea,
     });
 
-    await this.sendAlert(payload.symbol, rule, message, catalyst, {
+    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
       sourceCategory: this.mapSourceCategory(payload.source),
       conviction: Math.min(Math.abs(payload.conviction) / 2.0, 1.0),
       direction: payload.conviction > 0 ? 'positive' : 'negative',
     });
-    return `ALERT_SENT: ${ruleName}`;
+    return `${sentAction}: ${ruleName}`;
   }
 
   /**
@@ -522,7 +522,7 @@ export class AlertEvaluatorService {
       conviction: number;
       direction: 'positive' | 'negative' | 'neutral';
     },
-  ): Promise<void> {
+  ): Promise<string> {
     // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
     const ticker = await this.tickerRepo.findOne({ where: { symbol } });
     const isObservation = ticker?.observationOnly === true;
@@ -586,8 +586,16 @@ export class AlertEvaluatorService {
 
     await this.alertRepo.save(alert);
 
+    // Granularny action dla observability
+    let alertAction: string;
+    if (isObservation) alertAction = 'ALERT_DB_ONLY_OBSERVATION';
+    else if (isSilent) alertAction = 'ALERT_DB_ONLY_SILENT_RULE';
+    else if (dailyLimitHit) alertAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
+    else if (delivered) alertAction = 'ALERT_SENT_TELEGRAM';
+    else alertAction = 'ALERT_TELEGRAM_FAILED';
+
     this.logger.log(
-      `Alert wysłany: ${rule.name} dla ${symbol} (delivered: ${delivered})`,
+      `Alert ${alertAction}: ${rule.name} dla ${symbol}`,
     );
 
     // Rejestruj sygnał w CorrelationService
@@ -610,6 +618,8 @@ export class AlertEvaluatorService {
         this.logger.warn(`Correlation storeSignal error: ${err.message}`);
       }
     }
+
+    return alertAction;
   }
 
   /** Mapuje nazwę źródła na kategorię dla CorrelationService */
