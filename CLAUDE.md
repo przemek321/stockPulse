@@ -211,3 +211,22 @@ Główne grupy:
 dev tak sie uruchamia 
 
 wsl -d Ubuntu bash -c "cd /home/n1copl/stockPulse && docker compose up -d 2>&1 | tail -20"
+
+## Sprint 16 P0 fixes completed (17.04.2026)
+
+Commits c2d8ae9..7fe870b, szczegóły: [HANDOFF-CODE-REVIEW-2026-04-16.md](doc/HANDOFF-CODE-REVIEW-2026-04-16.md)
+- FLAG #30: Form 4 multi-reportingOwner parser (mergeOwnerRoles + pure Director SELL)
+- FLAG #25: disable broken PriceOutcome backfill (getQuote current price ≠ historical)
+- FLAG #21: winsorize options baseline (spike contamination, camouflage effect)
+- FLAG #8: bankruptcy detection before daily cap (Item 1.03 nie wymaga GPT)
+- FLAG #26: NYSE holidays 2024-2027 (isNyseHoliday w isNyseOpen)
+- FLAG #10: AlertDeliveryGate shared daily limit (4 pipelines, bankruptcy exempt)
+
+## Known issues NOT yet fixed (priorytet Sprint 17)
+
+- FLAG #28: SEC EDGAR collector fetch bez timeout
+- FLAG #32-43: Python backtest (multi-owner bug identyczny do #30, Cohen's d biased, naive 10b5-1 detection, brak Bonferroni, H6 niewymienne baselines) — BLOKUJE zaufanie do V3 backtest results
+
+## System totals (17.04.2026)
+
+42 tickery aktywne (28 healthcare + 14 semi observation) + 9 soft-deleted, 33 REST endpoints (po Tier 1), 14 TypeORM entities, 8 BullMQ queues, 8 active alert rules, 12 disabled rules, 22 @Logged methods w ~12 services.
