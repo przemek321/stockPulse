@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Alert, AlertRule, InsiderTrade, SentimentScore, Ticker } from '../entities';
 import { AlertEvaluatorService } from './alert-evaluator.service';
+import { AlertDeliveryGate } from './alert-delivery-gate.service';
 import { SummarySchedulerService } from './summary-scheduler.service';
 import { TelegramModule } from './telegram/telegram.module';
 import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
@@ -18,13 +19,14 @@ import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
     TypeOrmModule.forFeature([Alert, AlertRule, InsiderTrade, SentimentScore, Ticker]),
     PdufaBioModule,
     TelegramModule,
-    CorrelationModule,
+    forwardRef(() => CorrelationModule),
     FinnhubModule,
   ],
   providers: [
     AlertEvaluatorService,
+    AlertDeliveryGate,
     SummarySchedulerService,
   ],
-  exports: [TelegramModule, AlertEvaluatorService],
+  exports: [TelegramModule, AlertEvaluatorService, AlertDeliveryGate],
 })
 export class AlertsModule {}

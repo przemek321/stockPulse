@@ -22,6 +22,7 @@ import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
+import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -55,6 +56,7 @@ export class Form8kPipeline {
     @Optional() private readonly correlation?: CorrelationService,
     @Optional() private readonly finnhub?: FinnhubService,
     @Optional() private readonly tickerProfile?: TickerProfileService,
+    @Optional() private readonly deliveryGate?: AlertDeliveryGate,
   ) {
     this.userAgent = this.config.get<string>(
       'SEC_USER_AGENT',
@@ -208,6 +210,16 @@ export class Form8kPipeline {
 
       // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
       const isObservation = ticker?.observationOnly === true;
+
+      // Sprint 16 FLAG #10 fix: shared daily limit check
+      let dailyLimitHit = false;
+      if (!isObservation && this.deliveryGate) {
+        const gateCheck = await this.deliveryGate.canDeliverToTelegram(payload.symbol);
+        if (!gateCheck.allowed) {
+          dailyLimitHit = true;
+        }
+      }
+
       let delivered: boolean;
       let nonDeliveryReason: string | null = null;
 
@@ -215,6 +227,9 @@ export class Form8kPipeline {
         delivered = false;
         nonDeliveryReason = 'observation';
         this.logger.debug(`OBSERVATION MODE: ${payload.symbol} — 8-K alert zapisany, Telegram pominięty`);
+      } else if (dailyLimitHit) {
+        delivered = false;
+        nonDeliveryReason = 'daily_limit';
       } else {
         delivered = await this.telegram.sendMarkdown(message);
         if (!delivered) {
@@ -278,11 +293,11 @@ export class Form8kPipeline {
         }
       }
 
-      const finalAction = isObservation
-        ? 'ALERT_DB_ONLY_OBSERVATION'
-        : delivered
-          ? 'ALERT_SENT_TELEGRAM'
-          : 'ALERT_TELEGRAM_FAILED';
+      let finalAction: string;
+      if (isObservation) finalAction = 'ALERT_DB_ONLY_OBSERVATION';
+      else if (dailyLimitHit) finalAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
+      else if (delivered) finalAction = 'ALERT_SENT_TELEGRAM';
+      else finalAction = 'ALERT_TELEGRAM_FAILED';
 
       return { action: finalAction, symbol: payload.symbol, traceId: payload.traceId };
     } catch (err) {
@@ -310,6 +325,8 @@ export class Form8kPipeline {
     });
 
     // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+    // UWAGA: bankruptcy NIE jest gated przez AlertDeliveryGate (FLAG #10).
+    // Item 1.03 to event krytyczny — daily limit nie może go blokować.
     const isObservation = ticker?.observationOnly === true;
     let delivered: boolean;
     let nonDeliveryReason: string | null = null;

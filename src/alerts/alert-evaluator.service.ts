@@ -11,6 +11,7 @@ import { CorrelationService } from '../correlation/correlation.service';
 import { SourceCategory, StoredSignal } from '../correlation/types/correlation.types';
 import { Logged } from '../common/decorators/logged.decorator';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
+import { AlertDeliveryGate } from './alert-delivery-gate.service';
 
 /**
  * Ewaluator reguł alertów.
@@ -19,14 +20,6 @@ import { FinnhubService } from '../collectors/finnhub/finnhub.service';
  * Implementuje throttling — minimalna przerwa między alertami tego samego typu per ticker.
  */
 // Sprint 11: INSIDER_AGGREGATION_WINDOW_MS usunięty — insider trades obsługiwane przez Form4Pipeline
-
-/**
- * Max alertów Telegram per ticker per dzień (UTC).
- * Raport 2026-03-17: HIMS 46 alertów/tydzień (~6.5/dzień) — nie do użycia.
- * Limit obcina najgorszy spam, zachowując realne sygnały.
- * Silent rules (Sentiment Crash, Strong FinBERT) nie liczą się do limitu.
- */
-const MAX_TELEGRAM_ALERTS_PER_SYMBOL_PER_DAY = 5;
 
 /**
  * Reguły "silent" — zapisywane do bazy, ale NIE wysyłane na Telegram.
@@ -59,6 +52,7 @@ export class AlertEvaluatorService {
     private readonly telegram: TelegramService,
     private readonly formatter: TelegramFormatterService,
     private readonly finnhub: FinnhubService,
+    private readonly deliveryGate: AlertDeliveryGate,
     @Optional() private readonly correlation?: CorrelationService,
   ) {}
 
@@ -530,23 +524,12 @@ export class AlertEvaluatorService {
     // Silent rules: zapisz do DB, ale nie wysyłaj na Telegram (szum bez edge)
     const isSilent = SILENT_RULES.has(rule.name);
 
-    // Per-symbol daily limit: max N alertów Telegram per ticker per dzień (UTC)
+    // Sprint 16 FLAG #10: shared AlertDeliveryGate zamiast lokalnego checku
     let dailyLimitHit = false;
     if (!isSilent && !isObservation) {
-      const todayStart = new Date();
-      todayStart.setUTCHours(0, 0, 0, 0);
-      const todayAlerts = await this.alertRepo.count({
-        where: {
-          symbol,
-          delivered: true,
-          sentAt: MoreThanOrEqual(todayStart),
-        },
-      });
-      if (todayAlerts >= MAX_TELEGRAM_ALERTS_PER_SYMBOL_PER_DAY) {
+      const gateCheck = await this.deliveryGate.canDeliverToTelegram(symbol);
+      if (!gateCheck.allowed) {
         dailyLimitHit = true;
-        this.logger.debug(
-          `Daily limit hit: ${symbol} ma ${todayAlerts} alertów dziś, pomijam Telegram`,
-        );
       }
     }
 

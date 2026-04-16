@@ -16,6 +16,7 @@ import {
   PATTERN_THROTTLE,
 } from './types/correlation.types';
 import { Logged } from '../common/decorators/logged.decorator';
+import { AlertDeliveryGate } from '../alerts/alert-delivery-gate.service';
 
 /**
  * CorrelationService — wykrywa wzorce między sygnałami z różnych źródeł.
@@ -73,6 +74,7 @@ export class CorrelationService implements OnModuleDestroy {
     @InjectRepository(Ticker)
     private readonly tickerRepo: Repository<Ticker>,
     @Optional() private readonly finnhub?: FinnhubService,
+    @Optional() private readonly deliveryGate?: AlertDeliveryGate,
   ) {}
 
   /**
@@ -474,9 +476,19 @@ export class CorrelationService implements OnModuleDestroy {
 
     // Observation mode: zapisz do DB bez wysyłki na Telegram
     const isObservation = isTickerObservation || isClusterSellObservation;
+
+    // Sprint 16 FLAG #10 fix: shared daily limit
+    let dailyLimitHit = false;
+    if (!isObservation && this.deliveryGate) {
+      const gateCheck = await this.deliveryGate.canDeliverToTelegram(ticker);
+      if (!gateCheck.allowed) {
+        dailyLimitHit = true;
+      }
+    }
+
     let nonDeliveryReason: string | null = null;
 
-    const delivered = isObservation
+    const delivered = (isObservation || dailyLimitHit)
       ? false
       : await this.telegram.sendMarkdown(message);
 
@@ -489,6 +501,8 @@ export class CorrelationService implements OnModuleDestroy {
         `OBSERVATION: ${ticker} INSIDER_CLUSTER SELL — DB only, no Telegram ` +
           `(conviction=${pattern.correlated_conviction.toFixed(2)})`,
       );
+    } else if (dailyLimitHit) {
+      nonDeliveryReason = 'daily_limit';
     } else if (!delivered) {
       this.logger.error(`TELEGRAM FAILED: Correlated alert for ${ticker} ${pattern.type} not delivered — saved to DB`);
     }
@@ -528,6 +542,7 @@ export class CorrelationService implements OnModuleDestroy {
 
     if (isClusterSellObservation) return 'ALERT_DB_ONLY_CLUSTER_SELL';
     if (isTickerObservation) return 'ALERT_DB_ONLY_OBSERVATION';
+    if (dailyLimitHit) return 'ALERT_DB_ONLY_DAILY_LIMIT';
     return delivered ? 'ALERT_SENT_TELEGRAM' : 'ALERT_TELEGRAM_FAILED';
   }
 }
