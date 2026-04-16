@@ -117,6 +117,7 @@ export class AlertsController {
     const take = Math.min(parseInt(limit || '100', 10), 500);
     const where: Record<string, any> = {
       priceAtAlert: Not(IsNull()),
+      archived: false,
     };
     if (symbol) {
       where.symbol = symbol.toUpperCase();
@@ -227,6 +228,7 @@ export class AlertsController {
       FROM alerts
       WHERE symbol = $1
         AND "priceAtAlert" IS NOT NULL
+        AND archived = false
         AND "sentAt" > NOW() - INTERVAL '1 day' * $2
       WINDOW w AS (PARTITION BY symbol ORDER BY "sentAt")
       ORDER BY "sentAt" DESC
@@ -286,6 +288,7 @@ export class AlertsController {
         MAX("sentAt") AS "lastAlert"
       FROM alerts
       WHERE "sentAt" > NOW() - INTERVAL '1 day' * $1
+        AND archived = false
       GROUP BY symbol
       ORDER BY COUNT(*) DESC
     `, [days]);
@@ -320,6 +323,7 @@ export class AlertsController {
         END AS "directionCorrect1d"
       FROM alerts
       WHERE "sentAt" > NOW() - INTERVAL '1 day' * $1
+        AND archived = false
       ORDER BY "sentAt" DESC
       LIMIT $2
     `, [days, limit]);

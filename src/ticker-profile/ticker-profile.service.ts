@@ -70,6 +70,7 @@ export class TickerProfileService {
       .where('a.symbol = :symbol', { symbol })
       .andWhere('a."priceAtAlert" IS NOT NULL')
       .andWhere('a.price1d IS NOT NULL')
+      .andWhere('a.archived = false')
       .andWhere('a."sentAt" > NOW() - INTERVAL \'90 days\'')
       .orderBy('a."sentAt"', 'DESC')
       .limit(20)
