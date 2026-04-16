@@ -1,5 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { SystemLogService } from '../../system-log/system-log.service';
+import { ApiTokenGuard } from '../../common/guards/api-token.guard';
 
 /**
  * Kontroler REST API dla logów systemowych.
@@ -40,5 +41,45 @@ export class SystemLogsController {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  /**
+   * Pełna ścieżka pojedynczego eventu po traceId (wymaga tokenu).
+   * GET /api/system-logs/trace/:traceId
+   */
+  @Get('trace/:traceId')
+  @UseGuards(ApiTokenGuard)
+  async getTrace(@Param('traceId') traceId: string) {
+    const logs = await this.systemLogService.findByTrace(traceId);
+    return { count: logs.length, logs };
+  }
+
+  /**
+   * Logi per ticker w ostatnich N godzin (wymaga tokenu).
+   * GET /api/system-logs/ticker/:symbol?hours=24&limit=100
+   */
+  @Get('ticker/:symbol')
+  @UseGuards(ApiTokenGuard)
+  async getTickerLogs(
+    @Param('symbol') symbol: string,
+    @Query('hours') hoursParam?: string,
+    @Query('limit') limitParam?: string,
+  ) {
+    const hours = Math.min(parseInt(hoursParam || '24', 10) || 24, 168);
+    const limit = Math.min(parseInt(limitParam || '100', 10) || 100, 500);
+    const logs = await this.systemLogService.findByTicker(symbol, hours, limit);
+    return { ticker: symbol.toUpperCase(), count: logs.length, logs };
+  }
+
+  /**
+   * Agregacja decision reasons za ostatnie N godzin (wymaga tokenu).
+   * GET /api/system-logs/decisions?hours=24
+   */
+  @Get('decisions')
+  @UseGuards(ApiTokenGuard)
+  async getDecisions(@Query('hours') hoursParam?: string) {
+    const hours = Math.min(parseInt(hoursParam || '24', 10) || 24, 168);
+    const stats = await this.systemLogService.getDecisionStats(hours);
+    return { hours, stats };
   }
 }

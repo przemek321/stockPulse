@@ -51,6 +51,9 @@ export const envValidationSchema = Joi.object({
   // Polygon.io (opcjonalne — Options Flow collector)
   POLYGON_API_KEY: Joi.string().allow('').default(''),
 
+  // Admin API token (dla /system-logs/trace, /system-logs/ticker, /system-logs/decisions)
+  ADMIN_API_TOKEN: Joi.string().allow('').default(''),
+
   // Azure Analysis Service (opcjonalne — 2-etapowy pipeline sentymentu)
   // URL do VM z gpt-4o-mini, np. http://74.248.113.3:3100
   AZURE_ANALYSIS_URL: Joi.string().uri().allow('').default(''),
