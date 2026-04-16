@@ -151,12 +151,18 @@ export class PriceOutcomeService {
   }
 
   /**
-   * Backfill: ustawia priceAtAlert dla starych alertów, które go nie mają.
-   * Używa aktualnej ceny Finnhub (przybliżenie — lepsza niż null).
-   * Oznacza alerty starsze niż 3d jako priceOutcomeDone=true.
+   * Backfill: zamyka stare alerty bez priceAtAlert (>3d).
+   *
+   * Sprint 16 FLAG #25 fix: NIE ustawia priceAtAlert dla recent alertów.
+   * Stary kod używał getQuote() (current price) jako priceAtAlert dla alertów
+   * do 3 dni wstecz — to nadpisywało dane obecną ceną, niszcząc outcome
+   * measurement (priceAtAlert ≈ price1d → 0% move artifact).
+   *
+   * Proper backfill wymagałby historical price z Finnhub /candle endpoint,
+   * ale to osobny projekt. Lepiej null niż złe dane.
    */
   async backfillOldAlerts(): Promise<{ backfilled: number; closedExpired: number }> {
-    // 1. Zamknij stare alerty (>3d) bez priceAtAlert — nie da się ich uzupełnić
+    // Zamknij stare alerty (>3d) bez priceAtAlert — nie da się ich uzupełnić
     const THREE_DAYS_MS = 72 * 60 * 60 * 1000;
     const cutoffDate = new Date(Date.now() - THREE_DAYS_MS);
 
@@ -174,32 +180,11 @@ export class PriceOutcomeService {
       closedExpired++;
     }
 
-    // 2. Backfill alertów <3d bez priceAtAlert — ustaw aktualną cenę
-    const recentAlerts = await this.alertRepo
-      .createQueryBuilder('alert')
-      .where('alert.priceAtAlert IS NULL')
-      .andWhere('alert.priceOutcomeDone = false')
-      .andWhere('alert.sentAt >= :cutoff', { cutoff: cutoffDate })
-      .getMany();
-
-    let backfilled = 0;
-    const priceCache = new Map<string, number | null>();
-
-    for (const alert of recentAlerts) {
-      if (!priceCache.has(alert.symbol)) {
-        priceCache.set(alert.symbol, await this.finnhub.getQuote(alert.symbol));
-      }
-      const price = priceCache.get(alert.symbol);
-      if (price != null) {
-        alert.priceAtAlert = price as any;
-        await this.alertRepo.save(alert);
-        backfilled++;
-      }
-    }
-
     this.logger.log(
-      `PriceOutcome backfill: zamknięto ${closedExpired} expired, backfill ${backfilled} recent`,
+      `PriceOutcome backfill: zamknięto ${closedExpired} expired alertów ` +
+      `(>3d bez priceAtAlert). Recent alerty bez priceAtAlert pozostawione — ` +
+      `backfill obecną ceną był źródłem data contamination (FLAG #25).`,
     );
-    return { backfilled, closedExpired };
+    return { backfilled: 0, closedExpired };
   }
 }
