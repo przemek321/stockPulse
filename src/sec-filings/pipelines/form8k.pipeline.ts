@@ -76,11 +76,6 @@ export class Form8kPipeline {
     }
 
     try {
-      // Sprawdź daily cap
-      if (!(await this.dailyCap.canCallGpt(payload.symbol))) {
-        return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol, traceId: payload.traceId };
-      }
-
       // Pobierz filing z bazy
       const filing = await this.filingRepo.findOne({ where: { id: payload.filingId } });
       if (!filing || !filing.documentUrl) {
@@ -99,7 +94,7 @@ export class Form8kPipeline {
         return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol, traceId: payload.traceId };
       }
 
-      // Pobierz ticker info (wcześniej, przed bankruptcy check — potrzebne do observation gate)
+      // Pobierz ticker info
       const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
       const companyName = ticker?.name ?? payload.symbol;
 
@@ -110,11 +105,17 @@ export class Form8kPipeline {
         return { action: 'SKIP_NO_ITEMS', symbol: payload.symbol, traceId: payload.traceId };
       }
 
-      // Sprawdź Item 1.03 (Bankruptcy) — natychmiastowy alert bez GPT
+      // Sprint 16 FLAG #8 fix: Bankruptcy PRZED daily cap.
+      // Item 1.03 nie wymaga GPT → nie powinien być gated przez GPT cap.
       const hasBankruptcy = items.some(isBankruptcyItem);
       if (hasBankruptcy) {
         await this.handleBankruptcy(payload.symbol, filing, ticker);
         // Kontynuuj analizę pozostałych Items (8-K może mieć wiele Items)
+      }
+
+      // Sprawdź daily cap (GPT-consuming path — po bankruptcy detection)
+      if (!(await this.dailyCap.canCallGpt(payload.symbol))) {
+        return { action: 'SKIP_DAILY_CAP', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Weź najważniejszy Item (nie-bankruptcy) do analizy GPT
