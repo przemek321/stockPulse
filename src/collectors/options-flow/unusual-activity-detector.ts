@@ -162,17 +162,29 @@ export function aggregatePerTicker(
 }
 
 /**
- * Faza 4: Aktualizacja rolling average baseline.
- * Zwraca nowe wartości avg i dataPoints.
+ * Faza 4: Aktualizacja baseline z winsorization outlier'ów.
+ *
+ * Sprint 16 FLAG #21 fix: winsoryzuje volume do 5× obecnego avg przed update.
+ * Pojedynczy duży spike nie zawyża baseline → kolejne prawdziwe spike'i nadal
+ * detectowane. Bez winsorization jeden 100× spike podnosił baseline o ~5×,
+ * ukrywając spike'i 10-50× przez tygodnie (camouflage effect).
  */
 export function updateRollingAverage(
   currentAvg: number,
   currentDataPoints: number,
   newVolume: number,
 ): { avgVolume20d: number; dataPoints: number } {
+  // Winsorize: jeśli newVolume > 5× obecnego avg, clip do 5× avg.
+  // Dla pierwszych dni (dp<5) nie winsoryzujemy — avg jest jeszcze niestabilne.
+  const WINSORIZE_CAP = 5.0;
+  const effectiveVolume =
+    currentDataPoints >= 5 && currentAvg > 0 && newVolume > WINSORIZE_CAP * currentAvg
+      ? WINSORIZE_CAP * currentAvg
+      : newVolume;
+
   const effectivePoints = Math.min(currentDataPoints, 19);
   const newAvg =
-    (currentAvg * effectivePoints + newVolume) / (effectivePoints + 1);
+    (currentAvg * effectivePoints + effectiveVolume) / (effectivePoints + 1);
   const newDataPoints = Math.min(currentDataPoints + 1, 20);
 
   return { avgVolume20d: newAvg, dataPoints: newDataPoints };

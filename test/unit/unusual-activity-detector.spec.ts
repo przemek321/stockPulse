@@ -210,6 +210,45 @@ describe('updateRollingAverage', () => {
     const result = updateRollingAverage(500, 25, 1000);
     expect(result.dataPoints).toBe(20);
   });
+
+  // ── FLAG #21 fix: winsorization ──
+
+  it('winsoryzuje volume >5× obecnego avg', () => {
+    // avg=100, dp=10, volume=1000 (10× spike) → clip do 5×100=500
+    // newAvg = (100*10 + 500) / 11 = 136.36
+    const result = updateRollingAverage(100, 10, 1000);
+    expect(result.avgVolume20d).toBeCloseTo(136.36, 1);
+  });
+
+  it('NIE winsoryzuje volume ≤5× avg', () => {
+    // avg=100, dp=10, volume=400 (4× spike, poniżej progu)
+    // newAvg = (100*10 + 400) / 11 = 127.27
+    const result = updateRollingAverage(100, 10, 400);
+    expect(result.avgVolume20d).toBeCloseTo(127.27, 1);
+  });
+
+  it('NIE winsoryzuje dla dp<5 (warmup period)', () => {
+    // avg=100, dp=3, volume=1000 — dp<5, nie winsoryzujemy
+    // newAvg = (100*3 + 1000) / 4 = 325
+    const result = updateRollingAverage(100, 3, 1000);
+    expect(result.avgVolume20d).toBe(325);
+  });
+
+  it('scenariusz camouflage: spike 100× nie zabija kolejnego 10×', () => {
+    let avg = 100;
+    let dp = 20;
+
+    // Dzień 21: spike 100×
+    const afterSpike = updateRollingAverage(avg, dp, 10000);
+    avg = afterSpike.avgVolume20d;
+    dp = afterSpike.dataPoints;
+    // Z winsorization: avg powinno być < 200 (baseline nie zawyżony)
+    expect(avg).toBeLessThan(200);
+
+    // Dzień 22: prawdziwy spike 10× (volume=1000 vs normalne 100)
+    const spikeRatio = 1000 / avg;
+    expect(spikeRatio).toBeGreaterThan(3.0); // NADAL detectowany (próg 3×)
+  });
 });
 
 // ── calcOtmInfo ──
