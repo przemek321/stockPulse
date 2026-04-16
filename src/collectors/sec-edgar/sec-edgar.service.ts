@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'crypto';
 import { BaseCollectorService } from '../shared/base-collector.service';
 import { SecFiling, InsiderTrade, Ticker, CollectionLog } from '../../entities';
 import { DataSource } from '../../common/interfaces/data-source.enum';
@@ -131,10 +132,12 @@ export class SecEdgarService extends BaseCollectorService {
       await this.filingRepo.save(filing);
       newCount++;
 
+      const filingTraceId = randomUUID();
       this.eventEmitter.emit(EventType.NEW_FILING, {
         filingId: filing.id,
         symbol,
         formType,
+        traceId: filingTraceId,
       });
 
       // Form 4 → pobierz XML i utwórz InsiderTrade z prawdziwymi danymi
@@ -147,7 +150,7 @@ export class SecEdgarService extends BaseCollectorService {
             ? primaryDoc.split('/').pop()
             : primaryDoc;
           const xmlUrl = `${documentUrl}/${rawXmlFile}`;
-          await this.parseAndSaveForm4(symbol, accessionNumber, xmlUrl);
+          await this.parseAndSaveForm4(symbol, accessionNumber, xmlUrl, filingTraceId);
           await this.delay(150); // Rate limit SEC
         }
       }
@@ -168,6 +171,7 @@ export class SecEdgarService extends BaseCollectorService {
     symbol: string,
     accessionNumber: string,
     xmlUrl: string,
+    parentTraceId?: string,
   ): Promise<void> {
     try {
       const xml = await this.fetchText(xmlUrl);
@@ -204,6 +208,7 @@ export class SecEdgarService extends BaseCollectorService {
 
         await this.insiderTradeRepo.save(trade);
 
+        const tradeTraceId = randomUUID();
         this.eventEmitter.emit(EventType.NEW_INSIDER_TRADE, {
           tradeId: trade.id,
           symbol,
@@ -215,6 +220,8 @@ export class SecEdgarService extends BaseCollectorService {
           is10b51Plan: txn.is10b51Plan,
           sharesOwnedAfter: txn.sharesOwnedAfter,
           source: 'SEC_EDGAR',
+          traceId: tradeTraceId,
+          parentTraceId,
         });
 
         this.logger.log(

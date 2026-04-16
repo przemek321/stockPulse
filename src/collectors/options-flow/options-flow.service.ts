@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'crypto';
 import { BaseCollectorService } from '../shared/base-collector.service';
 import {
   OptionsFlow,
@@ -187,6 +188,7 @@ export class OptionsFlowService extends BaseCollectorService {
             this.eventEmitter.emit(EventType.NEW_OPTIONS_FLOW, {
               flowId: flow.id,
               symbol,
+              traceId: randomUUID(),
             });
           } catch (err) {
             // UNIQUE constraint violation = duplikat sesji → skip

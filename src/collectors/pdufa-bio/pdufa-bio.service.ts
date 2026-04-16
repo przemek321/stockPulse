@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'crypto';
 import { BaseCollectorService } from '../shared/base-collector.service';
 import { PdufaCatalyst, CollectionLog } from '../../entities';
 import { DataSource } from '../../common/interfaces/data-source.enum';
@@ -93,6 +94,7 @@ export class PdufaBioService extends BaseCollectorService {
         pdufaDate: event.date,
         indication: event.indication,
         therapeuticArea: event.therapeuticArea,
+        traceId: randomUUID(),
       });
 
       this.logger.log(
