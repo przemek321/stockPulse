@@ -13,6 +13,8 @@ import {
  */
 @Entity('system_logs')
 @Index(['module', 'createdAt'])
+@Index(['traceId'])
+@Index(['ticker', 'createdAt'])
 export class SystemLog {
   @PrimaryGeneratedColumn()
   id: number;
@@ -51,6 +53,31 @@ export class SystemLog {
   /** Wartość zwrócona (obcięta do 2000 znaków) */
   @Column({ type: 'jsonb', nullable: true })
   output: Record<string, any> | null;
+
+  // ── Tier 1 observability ──────────────────────────────────
+
+  /** UUID identyfikujący pełną ścieżkę pojedynczego eventu (filing/trade/flow). */
+  @Column({ length: 36, name: 'trace_id', nullable: true })
+  traceId: string | null;
+
+  /** trace_id rodzica — np. dla Form 4 trades parent = filing traceId. */
+  @Column({ length: 36, name: 'parent_trace_id', nullable: true })
+  parentTraceId: string | null;
+
+  /** Poziom logu: debug | info | warn | error. Wpływa na retencję (tiered cleanup). */
+  @Index()
+  @Column({ length: 5, nullable: true })
+  level: string | null;
+
+  /** Ticker ekstraktowany z payload/output — fast filter bez JSONB query. */
+  @Column({ length: 10, nullable: true })
+  ticker: string | null;
+
+  /** Powód decyzji — np. SKIP_LOW_VALUE, ALERT_SENT_TELEGRAM, PATTERNS_DETECTED. */
+  @Column({ length: 80, name: 'decision_reason', nullable: true })
+  decisionReason: string | null;
+
+  // ── Istniejące ──────────────────────────────────────────
 
   /** Komunikat błędu (stack trace) */
   @Column({ type: 'text', nullable: true, name: 'error_message' })
