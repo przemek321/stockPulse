@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Dokumentacja i komentarze w tym projekcie piszemy po polsku.**
 
-> 🎯 **Sprint 15 V2 (10.04.2026)** — edge **C-suite BUY d=0.725**, **All BUY d=0.542** (V1: 0.27 → +101%), **BUY >$1M d=0.706** (monotonic gradacja $100K→$500K→$1M), **bez top-3 hit rate 80%** (edge dystrybuowany). Universe: 28 zwalidowanych healthcare. Pending: H6 balanced re-run, threshold replication, XBI-adjusted alpha, per-insider dedup, pure survivorship. Pełne wyniki: [sprint15_v2_results.md](scripts/backtest/data/results/sprint15_v2_results.md).
+> 🎯 **Backtest V3 (16.04.2026, po FIX #1 multi-owner parser)** — C-suite BUY d=0.72 (7d), All BUY d=0.54 (7d). Delta vs V2 <1% (szum estymacji) — wnioski Sprint 15 trzymają się. FIX #1 status: not harmful, not accretive (wymaga większego N). Pozorne wzrosty BUY >$1M d=1.26 (N=12) to noise na małych N. C-suite BUY 3d HR=89.3% wymaga pre-registered testu. Universe: 28 HC. Wyniki: [backtest_report.md](scripts/backtest/data/results/backtest_report.md). Pending: H6 balanced re-run, XBI-adjusted alpha, per-insider dedup, pure survivorship.
 >
 > ⛔ **Sprint 16 = validation only.** NIE ClinicalTrials/Polymarket/nowe reguły/zmiany boost ×1.3/×1.2. Sprint 17 = rekalibracja parametrów na podstawie pełnej walidacji. Sprint 18 = nowe features. Rozdzielaj research od development.
+>
+> 🔧 **Audyt 16.04.2026**: Phase 1 (5 bugów P0-P2) + Tier 1 observability (traceId, level, ticker, decision_reason w system_logs) + 6 P0 fixów z code review (multi-owner parser, backfill contamination, baseline winsorize, bankruptcy cap, NYSE holidays, AlertDeliveryGate). Raport: [STOCKPULSE-AUDIT-2026-04-16.md](doc/STOCKPULSE-AUDIT-2026-04-16.md), handoff: [HANDOFF-CODE-REVIEW-2026-04-16.md](doc/HANDOFF-CODE-REVIEW-2026-04-16.md).
 
 ## Opis projektu
 

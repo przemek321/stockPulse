@@ -4,9 +4,9 @@
 
 > Ostatnia aktualizacja: 2026-04-16
 
-## Stan walidacji (10.04.2026)
+## Stan walidacji (16.04.2026)
 
-**Sprint 15 V2** (re-run po P0/P0.5 fixach): edge **C-suite BUY d=0.725** na 28-tickerowym overlap universe (V1 d=0.83 cherry-picked był zawyżony), **All BUY d=0.542** (V1 d=0.27 — wzrost 2x), **BUY >$1M d=0.706** z monotoniczną gradacją ($100K→$500K→$1M), **bez top-3 hit rate 80%** (edge dystrybuowany, NIE single narrative), point-in-time clean. **Pending**: H6 balanced re-run, BUY threshold replication ($750K/$1.5M/$2M), XBI-adjusted alpha, per-(insider, year) deduplikacja, pure survivorship test (delisted CIKs).
+**Backtest V3** (16.04.2026, po FIX #1 multi-owner parser): edge **stabilny** — C-suite BUY d=0.72 (7d), All BUY d=0.54 (7d), **BUY >$1M d=1.26** (1d, N=12), C-suite BUY hit rate 3d=89.3% (vs 51.8% baseline). Delta vs V2 <1% — multi-owner fix nie zmienił wyników (co-filingi rzadkie w 28-tickerowym HC universe). Pełne wyniki: [backtest_report.md](scripts/backtest/data/results/backtest_report.md). **Pending**: H6 balanced re-run, XBI-adjusted alpha, per-(insider, year) deduplikacja, pure survivorship test (delisted CIKs).
 
 > ⛔ **Sprint 16 = validation only.** NIE ClinicalTrials/Polymarket/nowe reguły/zmiany boost ×1.3/×1.2. Sprint 17 = rekalibracja parametrów na podstawie pełnej walidacji. Sprint 18 = nowe features. Rozdzielaj research od development.
 
@@ -748,6 +748,15 @@ Pełny audyt kodu `src/` (~12k LOC), 16 bugów znalezionych (raport: [doc/STOCKP
 - [x] **3 nowe endpointy** za auth: `GET /api/system-logs/trace/:traceId`, `GET /api/system-logs/ticker/:symbol`, `GET /api/system-logs/decisions`
 - [x] **Backend filtry**: `level` + `ticker` query params w `GET /api/system-logs`
 - [x] **Frontend SystemLogsTab**: 3 nowe kolumny (Level chip, Ticker mono, Decision Reason z kolorowymi chipami), 2 nowe filtry (level dropdown, ticker input), trace_id w rozwinięciu z copy button
+
+#### Code Review P0 fixy (HANDOFF-CODE-REVIEW-2026-04-16, 6 commitów)
+- [x] **FLAG #30 (P0)**: Form 4 multi-reportingOwner — `mergeOwnerRoles()` łączy role ze wszystkich owners, Form4Pipeline SKIP_DIRECTOR_SELL tylko dla pure Director (co-filing Director+CEO nie skipowany). 5 nowych testów.
+- [x] **FLAG #25 (P0)**: PriceOutcome backfill — wyłączony broken backfill (getQuote current price jako historyczny priceAtAlert). Audit prod: 0% contamination. Metoda zamyka expired (>3d), nie ustawia priceAtAlert.
+- [x] **FLAG #21 (P0)**: Options baseline winsorization — `updateRollingAverage()` clipuje volume >5× avg (camouflage effect fix). 4 nowe testy w tym scenariusz end-to-end.
+- [x] **FLAG #8 (P0)**: Bankruptcy przed daily cap — Item 1.03 detection przeniesiony PRZED `dailyCap.canCallGpt()` (nie wymaga GPT, nie powinien być gated).
+- [x] **FLAG #26 (P0)**: NYSE holidays 2024-2027 — `isNyseHoliday()` + lista 41 dat full closure. `isNyseOpen()` sprawdza holiday. Lista wymaga update po 2027.
+- [x] **FLAG #10 (P0)**: AlertDeliveryGate — centralna bramka daily limit (`canDeliverToTelegram()`). Wstrzyknięta w 4 pipeline'y (AlertEvaluator, Form4, Form8k, Correlation) z forwardRef. Bankruptcy nie gated.
+- [x] **Backtest V3**: re-run po FIX #1 (multi-owner parser) — nie zmienił głównych metryk edge (C-suite BUY d, All BUY d) — zmiana <1%, w zakresie szumu estymacji. Wnioski Sprint 15 trzymają się. Pozorne wzrosty w BUY >$1M (+0.55) i BUY >$500K (+0.18) są prawdopodobnie noise estymacji na małych N — delty mieszczą się w 95% CI poprzednich estymat. C-suite BUY 3d hit rate 89.3% to nowa metryka wymagająca: (a) pre-registered testu na kolejnej kohorcie, (b) porównania ze wszystkimi horyzontami żeby wykluczyć cherry-picking. FIX #1 status: not harmful (potwierdzone), not accretive (nie można potwierdzić — wymaga większego N).
 
 #### Pozostałe bugi (Phase 2-3 — planowane Sprint 18+)
 - [ ] BUG #5 (P1): Daily limit bypass w Form4/Form8k/Correlation pipeline
