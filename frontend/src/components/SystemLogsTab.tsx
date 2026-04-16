@@ -22,6 +22,7 @@ import {
   Switch,
   FormControlLabel,
   Pagination,
+  TextField,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -38,6 +39,8 @@ const MODULES = [
   { value: 'correlation', label: 'correlation' },
   { value: 'alerts', label: 'alerts' },
   { value: 'telegram', label: 'telegram' },
+  { value: 'options-flow', label: 'options-flow' },
+  { value: 'price-outcome', label: 'price-outcome' },
 ];
 
 const STATUSES = [
@@ -46,9 +49,41 @@ const STATUSES = [
   { value: 'error', label: 'Error' },
 ];
 
+const LEVELS = [
+  { value: '', label: 'Wszystkie' },
+  { value: 'debug', label: 'Debug' },
+  { value: 'info', label: 'Info' },
+  { value: 'warn', label: 'Warn' },
+  { value: 'error', label: 'Error' },
+];
+
 const PAGE_SIZE = 50;
 
 type SortDir = 'asc' | 'desc';
+
+/** Mapping level → MUI color chip */
+function levelColor(level: string | null): 'default' | 'info' | 'warning' | 'error' {
+  switch (level) {
+    case 'error': return 'error';
+    case 'warn': return 'warning';
+    case 'info': return 'info';
+    default: return 'default';
+  }
+}
+
+/** Mapping decision reason → kolory chipa */
+function decisionColor(reason: string | null): { bg: string; fg: string } {
+  if (!reason) return { bg: '#e0e0e0', fg: '#666' };
+  if (reason === 'ALERT_SENT_TELEGRAM') return { bg: '#1b5e20', fg: '#fff' };
+  if (reason === 'ALERT_TELEGRAM_FAILED') return { bg: '#b71c1c', fg: '#fff' };
+  if (reason.startsWith('ALERT_DB_ONLY_')) return { bg: '#f57c00', fg: '#fff' };
+  if (reason === 'PATTERNS_DETECTED') return { bg: '#6a1b9a', fg: '#fff' };
+  if (reason === 'STORED' || reason === 'CORRELATION_STORED') return { bg: '#1565c0', fg: '#fff' };
+  if (reason.startsWith('SKIP_')) return { bg: '#616161', fg: '#fff' };
+  if (reason === 'THROTTLED' || reason === 'DEDUP_SKIP') return { bg: '#424242', fg: '#bbb' };
+  if (reason === 'ERROR') return { bg: '#c62828', fg: '#fff' };
+  return { bg: '#9e9e9e', fg: '#fff' };
+}
 
 /** Formatowanie daty po polsku */
 function fmtDate(iso: string): string {
@@ -67,10 +102,12 @@ function fmtDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** Wiersz z rozwijalnym szczegółem input/output */
+const COL_SPAN = 10;
+
+/** Wiersz z rozwijalnym szczegółem input/output/trace */
 function LogRow({ log }: { log: SystemLog }) {
   const [open, setOpen] = useState(false);
-  const hasDetails = log.input || log.output || log.errorMessage;
+  const hasDetails = log.input || log.output || log.errorMessage || log.traceId;
 
   return (
     <>
@@ -89,6 +126,21 @@ function LogRow({ log }: { log: SystemLog }) {
         <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
           {fmtDate(log.createdAt)}
         </TableCell>
+        {/* Level */}
+        <TableCell sx={{ width: 70 }}>
+          {log.level && (
+            <Chip
+              label={log.level}
+              size="small"
+              color={levelColor(log.level)}
+              sx={{ fontSize: '0.65rem', height: 20, textTransform: 'uppercase' }}
+            />
+          )}
+        </TableCell>
+        {/* Ticker */}
+        <TableCell sx={{ width: 70, fontSize: '0.8rem', fontFamily: 'monospace', fontWeight: 600 }}>
+          {log.ticker || '—'}
+        </TableCell>
         <TableCell sx={{ fontSize: '0.8rem' }}>
           <Chip
             label={log.module}
@@ -97,9 +149,28 @@ function LogRow({ log }: { log: SystemLog }) {
             sx={{ fontSize: '0.7rem' }}
           />
         </TableCell>
-        <TableCell sx={{ fontSize: '0.8rem' }}>{log.className}</TableCell>
         <TableCell sx={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>
           {log.functionName}
+        </TableCell>
+        {/* Decision Reason */}
+        <TableCell sx={{ width: 170 }}>
+          {log.decisionReason && (() => {
+            const colors = decisionColor(log.decisionReason);
+            return (
+              <Chip
+                label={log.decisionReason}
+                size="small"
+                sx={{
+                  fontSize: '0.6rem',
+                  height: 20,
+                  bgcolor: colors.bg,
+                  color: colors.fg,
+                  fontFamily: 'monospace',
+                  '& .MuiChip-label': { px: 0.8 },
+                }}
+              />
+            );
+          })()}
         </TableCell>
         <TableCell>
           <Chip
@@ -123,9 +194,52 @@ function LogRow({ log }: { log: SystemLog }) {
 
       {hasDetails && (
         <TableRow>
-          <TableCell colSpan={7} sx={{ py: 0, border: 0 }}>
+          <TableCell colSpan={COL_SPAN} sx={{ py: 0, border: 0 }}>
             <Collapse in={open} timeout="auto" unmountOnExit>
               <Box sx={{ p: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {log.traceId && (
+                  <Box sx={{ flex: '1 1 100%', mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      TRACE
+                    </Typography>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1,
+                        bgcolor: '#1a1a2e',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontFamily: 'monospace',
+                          fontSize: '0.7rem',
+                          color: '#7fb8ff',
+                          flex: 1,
+                        }}
+                      >
+                        {log.traceId}
+                        {log.parentTraceId && (
+                          <span style={{ color: '#888', marginLeft: 8 }}>
+                            ← parent: {log.parentTraceId}
+                          </span>
+                        )}
+                      </Typography>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(log.traceId!);
+                        }}
+                        sx={{ fontSize: '0.65rem', minWidth: 'auto', py: 0.3, px: 1 }}
+                      >
+                        Kopiuj
+                      </Button>
+                    </Paper>
+                  </Box>
+                )}
                 {log.input && (
                   <Box sx={{ flex: 1, minWidth: 300 }}>
                     <Typography
@@ -242,6 +356,8 @@ export default function SystemLogsTab() {
   // Filtry
   const [module, setModule] = useState('');
   const [status, setStatus] = useState('');
+  const [level, setLevel] = useState('');
+  const [tickerFilter, setTickerFilter] = useState('');
   const [page, setPage] = useState(1);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
@@ -259,6 +375,8 @@ export default function SystemLogsTab() {
       };
       if (module) filters.module = module;
       if (status) filters.status = status;
+      if (level) filters.level = level;
+      if (tickerFilter) filters.ticker = tickerFilter;
 
       const data = await fetchSystemLogs(filters);
       setLogs(data.logs);
@@ -268,7 +386,7 @@ export default function SystemLogsTab() {
     } finally {
       setLoading(false);
     }
-  }, [module, status, page]);
+  }, [module, status, level, tickerFilter, page]);
 
   // Ładuj przy zmianie filtrów / strony
   useEffect(() => {
@@ -289,6 +407,10 @@ export default function SystemLogsTab() {
   };
   const handleStatusChange = (val: string) => {
     setStatus(val);
+    setPage(1);
+  };
+  const handleLevelChange = (val: string) => {
+    setLevel(val);
     setPage(1);
   };
 
@@ -336,6 +458,8 @@ export default function SystemLogsTab() {
       };
       if (module) filters.module = module;
       if (status) filters.status = status;
+      if (level) filters.level = level;
+      if (tickerFilter) filters.ticker = tickerFilter;
       const data = await fetchSystemLogs(filters);
 
       const blob = new Blob([JSON.stringify(data.logs, null, 2)], {
@@ -436,6 +560,36 @@ export default function SystemLogsTab() {
           </Select>
         </FormControl>
 
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>Level</InputLabel>
+          <Select
+            value={level}
+            label="Level"
+            onChange={(e) => handleLevelChange(e.target.value)}
+          >
+            {LEVELS.map((l) => (
+              <MenuItem key={l.value} value={l.value}>
+                {l.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <TextField
+          size="small"
+          label="Ticker"
+          value={tickerFilter}
+          onChange={(e) => setTickerFilter(e.target.value.toUpperCase())}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setPage(1);
+              loadLogs();
+            }
+          }}
+          sx={{ width: 100 }}
+          placeholder="np. MU"
+        />
+
         <FormControlLabel
           control={
             <Switch
@@ -446,7 +600,7 @@ export default function SystemLogsTab() {
           }
           label={
             <Typography variant="body2" color="text.secondary">
-              Auto-refresh 30s
+              Auto 30s
             </Typography>
           }
         />
@@ -503,9 +657,11 @@ export default function SystemLogsTab() {
               <TableCell sx={{ width: 30 }} />
               {[
                 { key: 'createdAt', label: 'Czas' },
+                { key: 'level', label: 'Level' },
+                { key: 'ticker', label: 'Ticker' },
                 { key: 'module', label: 'Moduł' },
-                { key: 'className', label: 'Klasa' },
                 { key: 'functionName', label: 'Funkcja' },
+                { key: 'decisionReason', label: 'Decision' },
                 { key: 'status', label: 'Status' },
                 { key: 'durationMs', label: 'Czas trwania' },
               ].map((col) => (
@@ -524,14 +680,14 @@ export default function SystemLogsTab() {
           <TableBody>
             {loading && logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={COL_SPAN} align="center" sx={{ py: 4 }}>
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
             ) : sortedLogs.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={COL_SPAN}
                   align="center"
                   sx={{ py: 4, color: 'text.secondary' }}
                 >

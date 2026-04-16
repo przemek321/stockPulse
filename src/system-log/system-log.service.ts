@@ -27,6 +27,8 @@ export interface SystemLogFilters {
   module?: string;
   functionName?: string;
   status?: string;
+  level?: string;
+  ticker?: string;
   dateFrom?: string;
   dateTo?: string;
   limit?: number;
@@ -111,6 +113,12 @@ export class SystemLogService implements OnModuleInit {
     }
     if (filters.status) {
       qb.andWhere('log.status = :status', { status: filters.status });
+    }
+    if (filters.level) {
+      qb.andWhere('log.level = :level', { level: filters.level });
+    }
+    if (filters.ticker) {
+      qb.andWhere('log.ticker = :ticker', { ticker: filters.ticker.toUpperCase() });
     }
     if (filters.dateFrom) {
       qb.andWhere('log.created_at >= :dateFrom', {

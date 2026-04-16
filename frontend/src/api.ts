@@ -184,11 +184,19 @@ export interface SystemLog {
   input: Record<string, any> | null;
   output: Record<string, any> | null;
   errorMessage: string | null;
+  // Tier 1 observability:
+  traceId: string | null;
+  parentTraceId: string | null;
+  level: 'debug' | 'info' | 'warn' | 'error' | null;
+  ticker: string | null;
+  decisionReason: string | null;
 }
 
 export interface SystemLogFilters {
   module?: string;
   status?: string;
+  level?: string;
+  ticker?: string;
   limit?: number;
   offset?: number;
   dateFrom?: string;
@@ -213,6 +221,8 @@ export const fetchSystemLogs = (filters: SystemLogFilters = {}) => {
   const params = new URLSearchParams();
   if (filters.module) params.set('module', filters.module);
   if (filters.status) params.set('status', filters.status);
+  if (filters.level) params.set('level', filters.level);
+  if (filters.ticker) params.set('ticker', filters.ticker);
   if (filters.limit) params.set('limit', String(filters.limit));
   if (filters.offset) params.set('offset', String(filters.offset));
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
