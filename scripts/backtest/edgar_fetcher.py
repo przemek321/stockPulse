@@ -170,11 +170,29 @@ def _safe_float(element, path: str) -> float:
         return 0.0
 
 
-def _detect_10b51(xml_text: str) -> bool:
-    """Heurystyka: czy filing wspomina o planie 10b5-1."""
-    patterns = ["10b5-1", "10b5(1)", "Rule 10b5", "10b-5-1", "trading plan"]
-    lower = xml_text.lower()
-    return any(p.lower() in lower for p in patterns)
+def _parse_10b51_per_transaction(tx_element) -> bool:
+    """
+    Sprint 16b FLAG #35 fix: Sprawdza flagę 10b5-1 na poziomie transakcji
+    (nie całego filingu). Form 4 XML: <transactionCoding><isRule10b5-1Transaction>1</...>
+    """
+    coding = tx_element.find(".//transactionCoding")
+    if coding is None:
+        return False
+
+    for tag_name in [
+        "isRule10b5-1Transaction",
+        "Rule10b5-1Transaction",
+        "rule10b5-1Transaction",
+        "rule10b51Transaction",
+    ]:
+        el = coding.find(tag_name)
+        if el is not None and el.text:
+            return el.text.strip() in ("1", "true", "True", "Y", "y")
+        val_el = coding.find(f"{tag_name}/value")
+        if val_el is not None and val_el.text:
+            return val_el.text.strip() in ("1", "true", "True", "Y", "y")
+
+    return False
 
 
 def _is_csuite(officer_title: str, is_officer: bool) -> bool:
@@ -188,6 +206,87 @@ def _is_csuite(officer_title: str, is_officer: bool) -> bool:
     return False
 
 
+def _merge_reporting_owners(root) -> dict:
+    """
+    Sprint 16b FLAG #34 fix: Łączy role z wielu reportingOwners.
+    Brać pierwszego ownera = skażone dane (Director/CEO kolejność zależy od XML).
+    """
+    owners = root.findall(".//reportingOwner")
+
+    if len(owners) == 0:
+        return {
+            "insider_name": "Unknown", "insider_role": "Other",
+            "officer_title": "", "is_officer": False,
+            "is_director": False, "is_ten_pct": False, "is_csuite": False,
+        }
+
+    parsed_owners = []
+    for owner in owners:
+        name = _safe_text(owner, ".//reportingOwnerId/rptOwnerName") or "Unknown"
+        rel = owner.find(".//reportingOwnerRelationship")
+        is_officer = False
+        is_director = False
+        is_ten_pct = False
+        officer_title = ""
+        if rel is not None:
+            is_officer = _safe_text(rel, "isOfficer") in ("1", "true", "True")
+            is_director = _safe_text(rel, "isDirector") in ("1", "true", "True")
+            is_ten_pct = _safe_text(rel, "isTenPercentOwner") in ("1", "true", "True")
+            officer_title = _safe_text(rel, "officerTitle")
+        parsed_owners.append({
+            "name": name, "officer_title": officer_title,
+            "is_officer": is_officer, "is_director": is_director, "is_ten_pct": is_ten_pct,
+        })
+
+    if len(parsed_owners) == 1:
+        p = parsed_owners[0]
+        role = "Other"
+        if p["is_officer"]:
+            role = f"Officer: {p['officer_title']}" if p["officer_title"] else "Officer"
+        elif p["is_director"]:
+            role = "Director"
+        elif p["is_ten_pct"]:
+            role = "10% Owner"
+        return {
+            "insider_name": p["name"], "insider_role": role,
+            "officer_title": p["officer_title"], "is_officer": p["is_officer"],
+            "is_director": p["is_director"], "is_ten_pct": p["is_ten_pct"],
+            "is_csuite": _is_csuite(p["officer_title"], p["is_officer"]),
+        }
+
+    # >1 owner — połącz
+    any_officer = any(p["is_officer"] for p in parsed_owners)
+    any_director = any(p["is_director"] for p in parsed_owners)
+    any_ten_pct = any(p["is_ten_pct"] for p in parsed_owners)
+
+    officer_title = ""
+    for p in parsed_owners:
+        if p["is_officer"] and p["officer_title"]:
+            officer_title = p["officer_title"]
+            if _is_csuite(officer_title, True):
+                break
+
+    primary = parsed_owners[0]["name"]
+    extras = [p["name"] for p in parsed_owners[1:]]
+    display_name = f"{primary} (co-filing z {', '.join(extras)})" if extras else primary
+
+    role_parts = []
+    if any_officer:
+        role_parts.append(f"Officer: {officer_title}" if officer_title else "Officer")
+    if any_director:
+        role_parts.append("Director")
+    if any_ten_pct:
+        role_parts.append("10% Owner")
+    combined_role = ", ".join(role_parts) if role_parts else "Other"
+
+    return {
+        "insider_name": display_name, "insider_role": combined_role,
+        "officer_title": officer_title, "is_officer": any_officer,
+        "is_director": any_director, "is_ten_pct": any_ten_pct,
+        "is_csuite": _is_csuite(officer_title, any_officer),
+    }
+
+
 def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
                      accession: str) -> list[dict]:
     """Parsuje Form 4 XML → lista transakcji."""
@@ -196,42 +295,17 @@ def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
     except ET.ParseError:
         return []
 
-    is_10b51 = _detect_10b51(xml_text)
     is_hc = symbol in HEALTHCARE_TICKERS
 
-    # Dane reportingOwner
-    owner = root.find(".//reportingOwner")
-    if owner is None:
-        # Próba alternatywnej ścieżki
-        owner = root
-    
-    insider_name = (
-        _safe_text(root, ".//reportingOwner/reportingOwnerId/rptOwnerName")
-        or _safe_text(root, ".//rptOwnerName")
-        or "Unknown"
-    )
-    
-    rel = root.find(".//reportingOwnerRelationship")
-    is_officer = False
-    is_director = False
-    is_ten_pct = False
-    officer_title = ""
-    
-    if rel is not None:
-        is_officer = _safe_text(rel, "isOfficer") in ("1", "true", "True")
-        is_director = _safe_text(rel, "isDirector") in ("1", "true", "True")
-        is_ten_pct = _safe_text(rel, "isTenPercentOwner") in ("1", "true", "True")
-        officer_title = _safe_text(rel, "officerTitle")
-
-    insider_role = "Other"
-    if is_officer:
-        insider_role = f"Officer: {officer_title}" if officer_title else "Officer"
-    elif is_director:
-        insider_role = "Director"
-    elif is_ten_pct:
-        insider_role = "10% Owner"
-
-    csuite = _is_csuite(officer_title, is_officer)
+    # Sprint 16b FLAG #34 fix: multi-reportingOwner support
+    owner_data = _merge_reporting_owners(root)
+    insider_name = owner_data["insider_name"]
+    insider_role = owner_data["insider_role"]
+    officer_title = owner_data["officer_title"]
+    is_officer = owner_data["is_officer"]
+    is_director = owner_data["is_director"]
+    is_ten_pct = owner_data["is_ten_pct"]
+    csuite = owner_data["is_csuite"]
 
     # Parsowanie transakcji (nonDerivative + derivative)
     transactions = []
@@ -246,6 +320,9 @@ def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
             tx_code = _safe_text(tx, ".//transactionCoding/transactionCode")
             if not tx_code:
                 continue
+
+            # Sprint 16b FLAG #35 fix: 10b5-1 per transakcja (nie file-level)
+            is_10b51 = _parse_10b51_per_transaction(tx)
 
             # Mapowanie kodów SEC → typ
             code_map = {"P": "BUY", "S": "SELL", "M": "EXERCISE",
