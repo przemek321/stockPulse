@@ -347,9 +347,9 @@ Każda encja = jedna tabela w PostgreSQL.
 **Zasilana przez:** `finnhub.service.ts` (MSPR), `sec-edgar.service.ts` (Form 4).
 
 #### `alert.entity.ts` → tabela `alerts`
-**Co robi:** Historia wysłanych alertów + Price Outcome Tracker. Pola podstawowe: ticker, ruleName, priorytet, kanał, treść, catalystType, delivered. Pola Price Outcome (Sprint 6): `alertDirection` (positive/negative), `priceAtAlert`, `price1h`, `price4h`, `price1d`, `price3d`, `priceOutcomeDone`.
+**Co robi:** Historia wysłanych alertów + Price Outcome Tracker. Pola podstawowe: ticker, ruleName, priorytet, kanał, treść, catalystType, delivered, `archived` (soft delete), `nonDeliveryReason` (observation/silent_hour/daily_limit/null). Pola Price Outcome (Sprint 6): `alertDirection` (positive/negative), `priceAtAlert`, `price1h`, `price4h`, `price1d`, `price3d`, `priceOutcomeDone`.
 **Zasilana przez:** `alert-evaluator.service.ts` (alerty + priceAtAlert), `correlation.service.ts` (Correlated Signal), `form4.pipeline.ts`, `form8k.pipeline.ts`, `price-outcome.service.ts` (CRON uzupełnia ceny).
-**Używany przez:** `alerts.controller.ts` (w tym endpoint /outcomes), frontend (panele Skorelowane Sygnały + Trafność Alertów).
+**Używany przez:** `alerts.controller.ts` (w tym endpoint /outcomes — filtruje `archived=false`), `ticker-profile.service.ts` (filtruje `archived=false`), frontend (panele Skorelowane Sygnały + Trafność Alertów).
 
 #### `alert-rule.entity.ts` → tabela `alert_rules`
 **Co robi:** Konfiguracja reguł alertów. Nazwa, warunek (tekst), priorytet, minuty throttlingu, czy aktywna. Reguły: "Insider Trade Large", "8-K Material Event", "Sentiment Crash".
@@ -371,10 +371,10 @@ Każda encja = jedna tabela w PostgreSQL.
 **Używany przez:** `sentiment.controller.ts` (endpoint `/pipeline-logs`).
 
 #### `system-log.entity.ts` → tabela `system_logs`
-**Co robi:** Uniwersalny log wywołań funkcji z decoratora `@Logged()`. Kolumny: module (np. 'collectors', 'sentiment', 'sec-filings', 'correlation', 'alerts'), className, functionName, status ('success'/'error'), durationMs, input (JSONB — argumenty funkcji, obcięte do 2000 znaków), output (JSONB — wartość zwrócona), errorMessage.
-**Indeksy:** (module, createdAt), status, functionName.
-**Zasilana przez:** `logged.decorator.ts` (fire-and-forget via `SystemLogService.getInstance()`).
-**Używany przez:** `system-logs.controller.ts` (endpoint `/system-logs`), frontend `SystemLogsTab`.
+**Co robi:** Uniwersalny log wywołań funkcji z decoratora `@Logged()`. Kolumny bazowe: module, className, functionName, status, durationMs, input (JSONB, obcięte do 4000 znaków), output (JSONB), errorMessage. **Kolumny Tier 1** (nullable, backward compatible): `trace_id` (UUID ścieżki eventu), `parent_trace_id` (UUID rodzica — np. filing dla trade'ów), `level` (debug/info/warn/error — wpływa na retencję), `ticker` (szybki filtr bez JSONB query), `decision_reason` (np. ALERT_SENT_TELEGRAM, SKIP_LOW_VALUE, PATTERNS_DETECTED).
+**Indeksy:** (module, createdAt), (traceId), (ticker, createdAt), level, status, functionName.
+**Zasilana przez:** `logged.decorator.ts` z `extractLogMeta()` (fire-and-forget via `SystemLogService.getInstance()`).
+**Używany przez:** `system-logs.controller.ts` (endpointy: `/system-logs`, `/system-logs/trace/:id`, `/system-logs/ticker/:symbol`, `/system-logs/decisions` — 3 ostatnie za `ApiTokenGuard`), frontend `SystemLogsTab`.
 
 ---
 
@@ -389,8 +389,13 @@ Każda encja = jedna tabela w PostgreSQL.
 **Implementowany przez:** `BaseCollectorService` → wszystkie kolektory.
 
 #### `decorators/logged.decorator.ts`
-**Co robi:** Decorator `@Logged(moduleName)` — TypeScript method decorator do automatycznego logowania wywołań metod. Wrappuje async metody, mierzy czas (Date.now), przechwytuje input (argumenty) i output (wartość zwrócona). `truncateForLog()` — obsługa circular refs (WeakSet), obcinanie stringów >500 znaków, JSON >2000 znaków. `serializeArgs()` — wyciąga `.data` z BullMQ Job. Fire-and-forget zapis do bazy przez `SystemLogService.getInstance()?.log(...)`.
-**Używany przez:** ~13 metod w 8 serwisach (collectors, sentiment, sec-filings, correlation, alerts).
+**Co robi:** Decorator `@Logged(moduleName)` — TypeScript method decorator do automatycznego logowania wywołań metod. Wrappuje async metody, mierzy czas (Date.now), przechwytuje input (argumenty) i output (wartość zwrócona). `truncateForLog()` — obsługa circular refs (WeakSet), obcinanie stringów >500 znaków, JSON >4000 znaków. `serializeArgs()` — wyciąga `.data` z BullMQ Job. `extractLogMeta()` — Tier 1: wyciąga traceId, ticker, action z args i result, mapuje action→level (ERROR→error, ALERT_TELEGRAM_FAILED→warn, NO_PATTERNS→debug, reszta→info). Fire-and-forget zapis do bazy przez `SystemLogService.getInstance()?.log(...)`.
+**CRITICAL:** Na metodach z `@OnEvent`, `@Logged` MUSI być PONIŻEJ (Sprint 7.6 bug).
+**Używany przez:** ~15 metod w 10 serwisach (collectors, sentiment, sec-filings, correlation, alerts, options-flow, price-outcome, telegram).
+
+#### `guards/api-token.guard.ts`
+**Co robi:** NestJS CanActivate guard. Wymaga nagłówka `X-Api-Token` równego `ADMIN_API_TOKEN` z .env. Zwraca 401 bez tokenu.
+**Używany przez:** `system-logs.controller.ts` (endpointy trace/ticker/decisions).
 
 #### `filters/http-exception.filter.ts`
 **Co robi:** Globalny filtr błędów HTTP. Przechwytuje wyjątki i zwraca ustandaryzowany JSON: `{ statusCode, message, timestamp, path }`.
@@ -406,9 +411,12 @@ Globalny moduł logowania wywołań funkcji — singleton pattern z fire-and-for
 
 #### `system-log.service.ts`
 **Co robi:** Serwis z globalnym singletonem (`static instance`, ustawiany w `onModuleInit()`). Metody:
-- `log(data)` — fire-and-forget `repo.save()` z catch (nigdy nie blokuje pipeline)
-- `findAll(filters)` — QueryBuilder z opcjonalnymi filtrami: module, functionName, status, dateFrom, dateTo, limit (max 500), offset. Zwraca `{ count, total, logs }`
-- `cleanup()` — `@Cron('0 3 * * *')` — codzienny cleanup logów starszych niż 7 dni
+- `log(data)` — fire-and-forget `repo.save()` z catch (nigdy nie blokuje pipeline). Tier 1: mapuje traceId, parentTraceId, level, ticker (toUpperCase), decisionReason.
+- `findAll(filters)` — QueryBuilder z filtrami: module, functionName, status, **level**, **ticker**, dateFrom, dateTo, limit (max 500), offset. Zwraca `{ count, total, logs }`
+- `findByTrace(traceId)` — pełna ścieżka eventu (ASC po createdAt)
+- `findByTicker(ticker, hoursAgo, limit)` — logi per ticker
+- `getDecisionStats(hours)` — agregacja decision_reason z countami
+- `cleanup()` — `@Cron('0 3 * * *')` — tiered cleanup: debug 2d, info/null 7d, warn/error 30d
 **Powiązania:** `logged.decorator.ts` (producent logów), `system-logs.controller.ts` (konsument).
 
 ---
@@ -1010,6 +1018,11 @@ AppModule
 │ durationMs       │
 │ input (JSONB)    │
 │ output (JSONB)   │
+│ trace_id (Tier1) │
+│ parent_trace_id  │
+│ level (Tier1)    │
+│ ticker (Tier1)   │
+│ decision_reason  │
 │ errorMessage     │
 └──────────────────┘
 

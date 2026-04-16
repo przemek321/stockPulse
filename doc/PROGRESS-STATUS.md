@@ -2,7 +2,7 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-10
+> Ostatnia aktualizacja: 2026-04-16
 
 ## Stan walidacji (10.04.2026)
 
@@ -724,6 +724,40 @@ GDELT (Global Database of Events, Language, and Tone) — darmowe, bez klucza AP
 - [ ] WebSocket do real-time updates (nowe score'y na żywo)
 - [ ] TanStack Query do zarządzania stanem
 - [ ] Widok per ticker z historią sentymentu, newsami, wzmiankami
+
+### Audyt systemu + Tier 1 Observability (ukończony 2026-04-16)
+
+Pełny audyt kodu `src/` (~12k LOC), 16 bugów znalezionych (raport: [doc/STOCKPULSE-AUDIT-2026-04-16.md](doc/STOCKPULSE-AUDIT-2026-04-16.md)). Phase 1 (5 bugów) + Tier 1 observability zaimplementowane.
+
+#### Phase 1 — bugfixy krytyczne (5 commitów)
+- [x] **BUG #1 (P0)**: `BaseCollectorService.runCollectionCycle` — re-throw w catch block (wcześniej swallow exception, @Logged widział success, BullMQ nie robił retry)
+- [x] **BUG #3 (P0)**: Redis password — dodany `password: config.get('REDIS_PASSWORD') || undefined` do 3 providerów (BullMQ, CorrelationService, SecFilings daily cap)
+- [x] **BUG #4 (P1)**: Archived alerty w analytics — dodany filtr `archived=false` w 5 zapytaniach (outcomes, timeline, timeline/symbols, getRecentTimeline, TickerProfileService)
+- [x] **BUG #7 (P1)**: `synchronize: true` jako stała (nie zależna od NODE_ENV — zero migracji w repo)
+- [x] **BUG #9 (P2)**: `POLYGON_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS` dodane do env.validation.ts
+
+#### Tier 1 Observability (4 commity backend + 1 frontend)
+- [x] **Entity extension**: 5 nowych nullable kolumn w `system_logs` — `trace_id`, `parent_trace_id`, `level`, `ticker`, `decision_reason`. Indexy: (traceId), (ticker, createdAt), (level).
+- [x] **SystemLogService**: rozszerzony DTO + log mapping, tiered cleanup (debug 2d / info 7d / warn+error 30d), 3 query helpers (findByTrace, findByTicker, getDecisionStats)
+- [x] **@Logged decorator**: `extractLogMeta()` — automatyczna ekstrakcja traceId/ticker/action z args i result, action→level mapping, MAX_LOG_LENGTH 2000→4000
+- [x] **BUG #2 (P0)**: Rozbicie `ALERT_SENT` na 6 granularnych action values (`ALERT_SENT_TELEGRAM`, `ALERT_TELEGRAM_FAILED`, `ALERT_DB_ONLY_OBSERVATION`, `ALERT_DB_ONLY_SILENT_RULE`, `ALERT_DB_ONLY_DAILY_LIMIT`, `ALERT_DB_ONLY_CLUSTER_SELL`) w 5 plikach
+- [x] **BUG #10 (P2)**: `runPatternDetection` zwraca action (`TOO_FEW_SIGNALS`/`NO_PATTERNS`/`PATTERNS_DETECTED`)
+- [x] **BUG #8 (P1)**: OptionsFlowAlertService throttle lookup filtruje `delivered: true`
+- [x] **traceId propagacja**: SEC EDGAR (randomUUID per filing + per trade z parentTraceId), Options Flow (per flow), PDUFA (per event). Pipeline handlers przekazują traceId w return.
+- [x] **ApiTokenGuard** (`src/common/guards/api-token.guard.ts`): wymaga `X-Api-Token` = `ADMIN_API_TOKEN` z .env
+- [x] **3 nowe endpointy** za auth: `GET /api/system-logs/trace/:traceId`, `GET /api/system-logs/ticker/:symbol`, `GET /api/system-logs/decisions`
+- [x] **Backend filtry**: `level` + `ticker` query params w `GET /api/system-logs`
+- [x] **Frontend SystemLogsTab**: 3 nowe kolumny (Level chip, Ticker mono, Decision Reason z kolorowymi chipami), 2 nowe filtry (level dropdown, ticker input), trace_id w rozwinięciu z copy button
+
+#### Pozostałe bugi (Phase 2-3 — planowane Sprint 18+)
+- [ ] BUG #5 (P1): Daily limit bypass w Form4/Form8k/Correlation pipeline
+- [ ] BUG #6 (P1): fetch() bez timeout w 7 miejscach
+- [ ] BUG #11 (P2): DST fallback w getEffectiveStartTime
+- [ ] BUG #12 (P2): Brak enableShutdownHooks() + ValidationPipe w main.ts
+- [ ] BUG #13 (P2): Silent rules komentarz (kosmetyka)
+- [ ] BUG #14 (P3): Regex conviction z message (docelowo: kolumna)
+- [ ] BUG #15 (P3): Dokumentacja outdated
+- [ ] BUG #16 (P3): Telegram 4xx vs 5xx rozróżnienie
 
 ### Oczekujące (niski priorytet)
 - [ ] Reddit API — czeka na zatwierdzenie formularza
