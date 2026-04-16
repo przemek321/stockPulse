@@ -18,9 +18,9 @@ import { ConfigService } from '@nestjs/config';
         username: config.get<string>('POSTGRES_USER'),
         password: config.get<string>('POSTGRES_PASSWORD'),
         entities: [__dirname + '/../entities/*.entity{.ts,.js}'],
-        // W development synchronizujemy schemat automatycznie.
-        // W produkcji używamy migracji.
-        synchronize: config.get<string>('NODE_ENV') === 'development',
+        // Solo dev, 1 maszyna prod — synchronize zawsze aktywne.
+        // Docelowo (Sprint 18+): migracje TypeORM.
+        synchronize: true,
         logging: config.get<string>('NODE_ENV') === 'development',
       }),
     }),
