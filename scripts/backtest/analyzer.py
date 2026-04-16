@@ -646,13 +646,15 @@ def analyze_h5_buy_signals(tx_df: pd.DataFrame,
 def analyze_healthcare_vs_control(tx_df: pd.DataFrame,
                                    prices: dict[str, pd.DataFrame],
                                    baseline_hc: dict[str, list[float]],
-                                   baseline_ctrl: dict[str, list[float]]) -> HypothesisResult:
+                                   baseline_ctrl: dict[str, list[float]],
+                                   baseline_all: dict[str, list[float]] = None) -> HypothesisResult:
     """
-    H6 (bonus): Healthcare vs Control Group — czy insider edge jest sector-specific?
+    H6: Healthcare vs Control Group — czy insider edge jest sector-specific?
+    Sprint 16b FLAG #40 fix: common baseline + direct comparison.
     """
     h = HypothesisResult(
         name="H6_HEALTHCARE_VS_CONTROL",
-        description="Insider SELL predyktywność: healthcare vs non-healthcare control group",
+        description="Insider SELL predyktywność: healthcare vs non-healthcare (common baseline + direct)",
     )
 
     disc_sells = tx_df[
@@ -682,21 +684,105 @@ def analyze_healthcare_vs_control(tx_df: pd.DataFrame,
             ctrl_events.append(ev)
 
     h.n_events = len(hc_events) + len(ctrl_events)
+
+    # Common baseline (FLAG #40 fix) — oba vs ta sama referencja
+    bl_common = baseline_all if baseline_all else baseline_hc
     h.sub_groups = {
+        "healthcare_vs_common": {
+            "n": len(hc_events),
+            "horizons": _horizon_stats(hc_events, bl_common, "sell"),
+        },
+        "control_vs_common": {
+            "n": len(ctrl_events),
+            "horizons": _horizon_stats(ctrl_events, bl_common, "sell"),
+        },
+        # Legacy — zachowane dla porównania (d niewymienne)
         "healthcare": {
             "n": len(hc_events),
             "horizons": _horizon_stats(hc_events, baseline_hc, "sell"),
+            "_note": "legacy: own baseline, d niewymienne z control",
         },
         "control_group": {
             "n": len(ctrl_events),
             "horizons": _horizon_stats(ctrl_events, baseline_ctrl, "sell"),
+            "_note": "legacy: own baseline",
         },
     }
+
+    # Direct comparison HC events vs CTRL events (Welch's t-test, bez baseline)
+    h.sub_groups["hc_vs_ctrl_direct"] = _direct_h6_comparison(hc_events, ctrl_events)
 
     return h
 
 
+def _direct_h6_comparison(hc_events: list, ctrl_events: list) -> dict:
+    """Sprint 16b FLAG #40: bezpośrednie porównanie HC vs CTRL eventów."""
+    from scipy import stats as scipy_stats
+    out = {"n_hc": len(hc_events), "n_ctrl": len(ctrl_events), "horizons": {}}
+    for horizon in HORIZONS:
+        vals_hc = [e.returns.get(horizon) for e in hc_events if e.returns.get(horizon) is not None]
+        vals_ctrl = [e.returns.get(horizon) for e in ctrl_events if e.returns.get(horizon) is not None]
+        if len(vals_hc) < 4 or len(vals_ctrl) < 4:
+            out["horizons"][horizon] = {"insufficient_data": True}
+            continue
+        arr_hc, arr_ctrl = np.array(vals_hc), np.array(vals_ctrl)
+        _, p_val = scipy_stats.ttest_ind(arr_hc, arr_ctrl, equal_var=False)
+        d = _cohens_d(arr_hc, arr_ctrl, winsorize=True)
+        out["horizons"][horizon] = {
+            "n_hc": len(arr_hc), "n_ctrl": len(arr_ctrl),
+            "avg_hc_pct": round(float(np.mean(arr_hc)), 3),
+            "avg_ctrl_pct": round(float(np.mean(arr_ctrl)), 3),
+            "p_value": round(float(p_val), 4),
+            "effect_size_d": round(d, 3) if d is not None else None,
+            "significant_005": float(p_val) < 0.05,
+        }
+    return out
+
+
 # =============================================================================
+# Sprint 16b FLAG #37: Bonferroni multiple testing correction
+# =============================================================================
+
+def _apply_multiple_testing_correction(results: list) -> None:
+    """Post-hoc Bonferroni correction. Zlicza wszystkie p-values, dodaje flagi."""
+    def _collect_tests(obj):
+        tests = []
+        if isinstance(obj, dict):
+            if "p_value" in obj and obj.get("p_value") is not None:
+                tests.append(obj)
+            for v in obj.values():
+                tests.extend(_collect_tests(v))
+        elif isinstance(obj, list):
+            for item in obj:
+                tests.extend(_collect_tests(item))
+        elif hasattr(obj, "__dict__"):
+            tests.extend(_collect_tests(obj.__dict__))
+        return tests
+
+    all_tests = []
+    for r in results:
+        all_tests.extend(_collect_tests(r))
+
+    n_tests = len(all_tests)
+    if n_tests == 0:
+        return
+
+    alpha_bonf = 0.05 / n_tests
+    alpha_bonf_strict = 0.01 / n_tests
+
+    for test in all_tests:
+        p = test.get("p_value")
+        if p is None:
+            continue
+        test["bonferroni_n_tests"] = n_tests
+        test["bonferroni_threshold_005"] = round(alpha_bonf, 6)
+        test["significant_bonferroni"] = p < alpha_bonf
+        test["significant_bonferroni_strict"] = p < alpha_bonf_strict
+
+    n_sig = sum(1 for t in all_tests if t.get("significant_bonferroni"))
+    print(f"\n[BONFERRONI] {n_tests} testów, threshold={alpha_bonf:.6f}, istotne: {n_sig}/{n_tests}")
+
+
 # Główna funkcja analizy
 # =============================================================================
 
@@ -791,10 +877,13 @@ def run_analysis(transactions_csv: str,
     results.append(h5)
     print(f"     {h5.n_events} transakcji")
 
-    print("[H6] Healthcare vs Control...")
-    h6 = analyze_healthcare_vs_control(tx_df, prices, baseline_hc, baseline_ctrl)
+    print("[H6] Healthcare vs Control (common baseline + direct)...")
+    h6 = analyze_healthcare_vs_control(tx_df, prices, baseline_hc, baseline_ctrl, baseline_all)
     results.append(h6)
     print(f"     {h6.n_events} transakcji")
+
+    # Sprint 16b FLAG #37: Bonferroni multiple testing correction
+    _apply_multiple_testing_correction(results)
 
     # Zapis JSON
     os.makedirs(RESULTS_DIR, exist_ok=True)
