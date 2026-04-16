@@ -45,6 +45,11 @@ export const envValidationSchema = Joi.object({
 
   // Anthropic (opcjonalne — Faza 2)
   ANTHROPIC_API_KEY: Joi.string().allow('').default(''),
+  ANTHROPIC_MODEL: Joi.string().default('claude-sonnet-4-6'),
+  ANTHROPIC_TIMEOUT_MS: Joi.number().default(30000),
+
+  // Polygon.io (opcjonalne — Options Flow collector)
+  POLYGON_API_KEY: Joi.string().allow('').default(''),
 
   // Azure Analysis Service (opcjonalne — 2-etapowy pipeline sentymentu)
   // URL do VM z gpt-4o-mini, np. http://74.248.113.3:3100
