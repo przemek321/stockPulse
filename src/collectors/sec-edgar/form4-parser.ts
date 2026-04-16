@@ -73,11 +73,10 @@ export function parseForm4Xml(xml: string): Form4Transaction[] {
     throw new Error('Brak <ownershipDocument> w XML');
   }
 
-  // Wyciągnij dane insidera (pierwszy reportingOwner)
-  const owners = ownership.reportingOwner || [];
-  const firstOwner = Array.isArray(owners) ? owners[0] : owners;
-  const insiderName = extractInsiderName(firstOwner);
-  const insiderRole = extractInsiderRole(firstOwner);
+  // Wyciągnij dane insiderów — obsługuje multi-reportingOwner (Sprint 16 FLAG #30 fix)
+  const ownersRaw = ownership.reportingOwner || [];
+  const ownersList = Array.isArray(ownersRaw) ? ownersRaw : [ownersRaw];
+  const { name: insiderName, role: insiderRole } = mergeOwnerRoles(ownersList);
 
   const transactions: Form4Transaction[] = [];
 
@@ -174,6 +173,60 @@ function parseTransaction(
   } catch {
     return null; // Błędne dane → skip transakcji
   }
+}
+
+/**
+ * Łączy role z wielu reportingOwners w jedną reprezentatywną rolę.
+ *
+ * Reguły (Sprint 16 FLAG #30 fix):
+ * - 1 owner → zwróć jego role
+ * - >1 owner → połącz unikalne role-parts ze wszystkich owners
+ * - Nazwa: "primary (co-filing z secondary, ...)"
+ *
+ * Motywacja: SEC Form 4 może być co-filing (małżeństwo, trust, kilku execs).
+ * Brać pierwszego ownera = skażone dane (Director SELL anti-signal błędnie
+ * aplikowany do transakcji gdzie faktyczny decision-maker jest CEO).
+ */
+function mergeOwnerRoles(owners: any[]): { name: string; role: string | null } {
+  if (owners.length === 0) {
+    return { name: 'Unknown', role: null };
+  }
+
+  if (owners.length === 1) {
+    return {
+      name: extractInsiderName(owners[0]),
+      role: extractInsiderRole(owners[0]),
+    };
+  }
+
+  // >1 owner — połącz role
+  const names: string[] = [];
+  const allRoles: string[] = [];
+
+  for (const owner of owners) {
+    names.push(extractInsiderName(owner));
+    const role = extractInsiderRole(owner);
+    if (role) allRoles.push(role);
+  }
+
+  // Unikalne role-parts (niezależnie od owner)
+  const roleParts = new Set<string>();
+  for (const r of allRoles) {
+    for (const part of r.split(',').map(s => s.trim())) {
+      if (part) roleParts.add(part);
+    }
+  }
+
+  const combinedRole = roleParts.size > 0 ? [...roleParts].join(', ') : null;
+
+  // Primary name: pierwszy owner (ale role = combined)
+  const primaryName = names[0];
+  const extraNames = names.slice(1);
+  const displayName = extraNames.length > 0
+    ? `${primaryName} (co-filing z ${extraNames.join(', ')})`
+    : primaryName;
+
+  return { name: displayName, role: combinedRole };
 }
 
 /**

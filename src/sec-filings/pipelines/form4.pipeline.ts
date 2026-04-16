@@ -80,10 +80,14 @@ export class Form4Pipeline {
     }
 
     // Sprint 15 (backtest): Director SELL = anty-sygnał (68% cena rośnie po SELL).
-    // Hard skip — nie wysyłaj do GPT, nie generuj alertu.
-    const isDirector = /\bDirector\b/i.test(payload.insiderRole ?? '');
-    if (isDirector && payload.transactionType === 'SELL') {
-      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP Director SELL (anty-sygnał)`);
+    // Sprint 16 FLAG #30 fix: pure Director only — co-filing Director+CEO nie jest skipowany
+    // (C-suite decision-making obecne, nie traktujemy jako anti-signal).
+    const role = payload.insiderRole ?? '';
+    const isDirector = /\bDirector\b/i.test(role);
+    const hasCsuite = /\bCEO\b|\bCFO\b|\bCOO\b|\bCTO\b|\bPresident\b|\bChair|\bChief\b/i.test(role);
+    const isPureDirector = isDirector && !hasCsuite;
+    if (isPureDirector && payload.transactionType === 'SELL') {
+      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP pure Director SELL (anty-sygnał)`);
       return { action: 'SKIP_DIRECTOR_SELL', symbol: payload.symbol, traceId: payload.traceId };
     }
 

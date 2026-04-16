@@ -102,4 +102,105 @@ describe('Form4 Parser', () => {
     const result = parseForm4Xml(makeXml({ code: 'M' }));
     expect(result[0].transactionType).toBe('EXERCISE');
   });
+
+  // ── FLAG #30 fix: multi-reportingOwner ──────────────────────
+
+  describe('Multi-reportingOwner (FLAG #30 fix)', () => {
+    const makeMultiOwnerXml = (owners: Array<{
+      name: string;
+      officerTitle?: string;
+      isDirector?: boolean;
+      isOfficer?: boolean;
+    }>, code: string = 'P'): string => {
+      const ownersXml = owners.map(o => {
+        const rel: string[] = [];
+        if (o.officerTitle) rel.push(`<officerTitle>${o.officerTitle}</officerTitle>`);
+        if (o.isOfficer) rel.push(`<isOfficer>1</isOfficer>`);
+        if (o.isDirector) rel.push(`<isDirector>1</isDirector>`);
+
+        return `<reportingOwner>
+          <reportingOwnerId><rptOwnerName>${o.name}</rptOwnerName></reportingOwnerId>
+          <reportingOwnerRelationship>${rel.join('')}</reportingOwnerRelationship>
+        </reportingOwner>`;
+      }).join('');
+
+      return `<?xml version="1.0"?>
+      <ownershipDocument>
+        ${ownersXml}
+        <nonDerivativeTable>
+          <nonDerivativeTransaction>
+            <transactionDate><value>2026-03-01</value></transactionDate>
+            <transactionCoding>
+              <transactionCode>${code}</transactionCode>
+            </transactionCoding>
+            <transactionAmounts>
+              <transactionShares><value>1000</value></transactionShares>
+              <transactionPricePerShare><value>50</value></transactionPricePerShare>
+            </transactionAmounts>
+          </nonDerivativeTransaction>
+        </nonDerivativeTable>
+      </ownershipDocument>`;
+    };
+
+    it('1 owner — zachowuje dotychczasowe zachowanie', () => {
+      const xml = makeMultiOwnerXml([
+        { name: 'Smith John', officerTitle: 'CEO' },
+      ]);
+      const result = parseForm4Xml(xml);
+      expect(result).toHaveLength(1);
+      expect(result[0].insiderName).toBe('Smith John');
+      expect(result[0].insiderRole).toBe('CEO');
+    });
+
+    it('2 owners CEO + Director — role łączone (nie traci CEO)', () => {
+      const xml = makeMultiOwnerXml([
+        { name: 'Smith John', officerTitle: 'CEO' },
+        { name: 'Smith Jane', isDirector: true },
+      ]);
+      const result = parseForm4Xml(xml);
+      expect(result).toHaveLength(1);
+      expect(result[0].insiderRole).toContain('CEO');
+      expect(result[0].insiderRole).toContain('Director');
+    });
+
+    it('2 owners Director + CEO — C-suite zachowany mimo kolejności', () => {
+      const xml = makeMultiOwnerXml([
+        { name: 'Smith Jane', isDirector: true },
+        { name: 'Smith John', officerTitle: 'CEO' },
+      ]);
+      const result = parseForm4Xml(xml);
+      expect(result).toHaveLength(1);
+      expect(result[0].insiderRole).toContain('CEO');
+      expect(result[0].insiderRole).toContain('Director');
+    });
+
+    it('co-filing — nazwa insidera zawiera obu', () => {
+      const xml = makeMultiOwnerXml([
+        { name: 'Smith John', officerTitle: 'CEO' },
+        { name: 'Smith Jane', isDirector: true },
+      ]);
+      const result = parseForm4Xml(xml);
+      expect(result[0].insiderName).toContain('Smith John');
+      expect(result[0].insiderName).toContain('co-filing');
+    });
+
+    it('pusty reportingOwner array — fallback do Unknown', () => {
+      const xml = `<?xml version="1.0"?>
+      <ownershipDocument>
+        <nonDerivativeTable>
+          <nonDerivativeTransaction>
+            <transactionDate><value>2026-03-01</value></transactionDate>
+            <transactionCoding><transactionCode>P</transactionCode></transactionCoding>
+            <transactionAmounts>
+              <transactionShares><value>1000</value></transactionShares>
+              <transactionPricePerShare><value>50</value></transactionPricePerShare>
+            </transactionAmounts>
+          </nonDerivativeTransaction>
+        </nonDerivativeTable>
+      </ownershipDocument>`;
+      const result = parseForm4Xml(xml);
+      expect(result[0].insiderName).toBe('Unknown');
+      expect(result[0].insiderRole).toBeNull();
+    });
+  });
 });
