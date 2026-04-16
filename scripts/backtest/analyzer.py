@@ -25,6 +25,39 @@ from config import (
 from price_fetcher import get_price_at_date
 
 
+# Sprint 16b FLAG #32 fix: Proper Cohen's d + winsorization
+def _winsorize(arr: np.ndarray, pct: float = 1.0) -> np.ndarray:
+    """Clipuje wartości poniżej p percentyla i powyżej (100-p). Default 1%."""
+    if len(arr) < 10:
+        return arr
+    lower = np.percentile(arr, pct)
+    upper = np.percentile(arr, 100 - pct)
+    return np.clip(arr, lower, upper)
+
+
+def _cohens_d(arr_events: np.ndarray, arr_baseline: np.ndarray,
+              winsorize: bool = True):
+    """
+    Proper Cohen's d: sample std (ddof=1), pooled formula, optional winsorization.
+    d = (mean_events - mean_baseline) / s_pooled
+    s_pooled = sqrt(((n1-1)*s1² + (n2-1)*s2²) / (n1+n2-2))
+    """
+    if len(arr_events) < 4 or len(arr_baseline) < 10:
+        return None
+    if winsorize:
+        arr_events = _winsorize(arr_events, pct=1.0)
+        arr_baseline = _winsorize(arr_baseline, pct=1.0)
+    n1, n2 = len(arr_events), len(arr_baseline)
+    s1_sq = np.var(arr_events, ddof=1)
+    s2_sq = np.var(arr_baseline, ddof=1)
+    pooled_var = ((n1 - 1) * s1_sq + (n2 - 1) * s2_sq) / (n1 + n2 - 2)
+    pooled_std = np.sqrt(pooled_var)
+    if pooled_std <= 0:
+        return None
+    return float((np.mean(arr_events) - np.mean(arr_baseline)) / pooled_std)
+
+
+
 # =============================================================================
 # Typy danych
 # =============================================================================
@@ -240,12 +273,9 @@ def _horizon_stats(returns_list: list[EventReturn],
             except Exception:
                 pass
 
-        # Effect size (Cohen's d)
-        effect_size = None
-        if len(bl) > 10 and len(arr) > 3:
-            pooled_std = np.sqrt((np.std(arr)**2 + np.std(bl)**2) / 2)
-            if pooled_std > 0:
-                effect_size = float((np.mean(arr) - np.mean(bl)) / pooled_std)
+        # Effect size (Cohen's d) — Sprint 16b FLAG #32 fix:
+        # proper pooled formula (ddof=1, weighted by n) + winsorization
+        effect_size = _cohens_d(arr, bl, winsorize=True)
 
         result[horizon] = {
             "n": len(arr),
