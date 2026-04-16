@@ -42,12 +42,13 @@ const CLOSE_MINUTE = 0;
 
 /**
  * Sprawdza czy giełda NYSE jest otwarta w podanym momencie.
- * Nie uwzględnia świąt NYSE (~9 dni/rok) — do dodania opcjonalnie.
+ * Sprint 16 FLAG #26 fix: uwzględnia NYSE holidays (~9 dni/rok).
  */
 export function isNyseOpen(now: Date = new Date()): boolean {
   const { weekday, hour, minute } = parseET(now);
 
   if (!TRADING_DAYS.has(weekday)) return false;
+  if (isNyseHoliday(now)) return false;
 
   const timeMinutes = hour * 60 + minute;
   const openMinutes = OPEN_HOUR * 60 + OPEN_MINUTE;   // 9:30 = 570
@@ -94,4 +95,39 @@ export function getEffectiveStartTime(alertSentAt: Date): Date {
 
   // Fallback — zwróć oryginalny czas
   return alertSentAt;
+}
+
+/**
+ * NYSE holidays 2024-2027 (Sprint 16 FLAG #26 fix).
+ *
+ * Źródło: https://www.nyse.com/markets/hours-calendars
+ * UWAGA: lista wymaga update po 2027.
+ */
+const NYSE_FULL_CLOSURES: ReadonlySet<string> = new Set([
+  // 2024
+  '2024-01-01', '2024-01-15', '2024-02-19', '2024-03-29', '2024-05-27',
+  '2024-06-19', '2024-07-04', '2024-09-02', '2024-11-28', '2024-12-25',
+  // 2025
+  '2025-01-01', '2025-01-09', '2025-01-20', '2025-02-17', '2025-04-18',
+  '2025-05-26', '2025-06-19', '2025-07-04', '2025-09-01', '2025-11-27', '2025-12-25',
+  // 2026
+  '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25',
+  '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
+  // 2027
+  '2027-01-01', '2027-01-18', '2027-02-15', '2027-03-26', '2027-05-31',
+  '2027-06-18', '2027-07-05', '2027-09-06', '2027-11-25', '2027-12-24',
+]);
+
+/**
+ * Sprawdza czy podana data to NYSE full closure (holiday).
+ * Data porównywana w ET, nie UTC.
+ */
+export function isNyseHoliday(date: Date = new Date()): boolean {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+  return NYSE_FULL_CLOSURES.has(parts);
 }
