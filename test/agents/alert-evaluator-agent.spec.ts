@@ -313,30 +313,6 @@ describe('Agent: Alert Evaluator — Reguła 6: Urgent AI Signal', () => {
   });
 });
 
-// ── Testy: Insider trade — Sprint 11 early return ──
-
-describe('Agent: Alert Evaluator — Insider trades (Sprint 11)', () => {
-  it('zawsze zwraca SKIP_RULE_INACTIVE (reguła Insider Trade Large wyłączona)', async () => {
-    const { service } = createService();
-
-    const result = await service.onInsiderTrade({
-      tradeId: 1, symbol: 'ISRG', totalValue: 500_000,
-      transactionType: 'BUY', insiderName: 'John',
-    });
-    expect(result.action).toBe('SKIP_RULE_INACTIVE');
-  });
-
-  it('SKIP nawet dla dużych trades ($5M)', async () => {
-    const { service } = createService();
-
-    const result = await service.onInsiderTrade({
-      tradeId: 1, symbol: 'ISRG', totalValue: 5_000_000,
-      transactionType: 'SELL', insiderName: 'CEO',
-    });
-    expect(result.action).toBe('SKIP_RULE_INACTIVE');
-  });
-});
-
 // ── Testy: Cache reguł ──
 
 describe('Agent: Alert Evaluator — Cache reguł', () => {

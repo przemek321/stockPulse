@@ -56,34 +56,9 @@ export class AlertEvaluatorService {
     @Optional() private readonly correlation?: CorrelationService,
   ) {}
 
-  /**
-   * Reaguje na event nowej transakcji insiderskiej.
-   *
-   * Sprint 11: Reguła "Insider Trade Large" ma isActive=false w bazie.
-   * Insider trades są obsługiwane przez Form4Pipeline (GPT-enriched conviction).
-   * Ten handler agregował surowe trades bez analizy GPT — szum bez edge'u.
-   * Handler zachowany na wypadek ponownego włączenia reguły.
-   */
-  @OnEvent(EventType.NEW_INSIDER_TRADE)
-  @Logged('alerts')
-  async onInsiderTrade(payload: {
-    tradeId: number;
-    symbol: string;
-    totalValue?: number;
-    insiderName?: string;
-    insiderRole?: string | null;
-    transactionType?: string;
-    shares?: number;
-    source?: string;
-  }): Promise<{ action: string; symbol: string }> {
-    // Sprint 11: Reguła "Insider Trade Large" wyłączona (isActive=false).
-    // Form4Pipeline obsługuje insider trades z GPT-enriched conviction i catalyst_type.
-    // Ten handler agregował surowe trades bez GPT — szum, dual signal bug (raport 2026-03-17).
-    return { action: 'SKIP_RULE_INACTIVE', symbol: payload.symbol };
-  }
-
-  // Sprint 11: flushInsiderBatch() usunięty — insider trades obsługiwane przez Form4Pipeline
-  // z GPT-enriched conviction i catalyst_type. Dual signal bug naprawiony.
+  // Sprint 11: onInsiderTrade() handler usunięty (Sprint 16b).
+  // Insider trades obsługuje wyłącznie Form4Pipeline (GPT-enriched conviction).
+  // Reguła "Insider Trade Large" pozostaje w DB jako disabled (audit trail).
 
   /**
    * Reaguje na event nowego filingu SEC.
@@ -101,7 +76,7 @@ export class AlertEvaluatorService {
     );
 
     // Tylko 8-K generuje alert z filingów.
-    // Form 4 jest obsługiwany przez onInsiderTrade — nie duplikujemy.
+    // Form 4 jest obsługiwany przez Form4Pipeline — nie duplikujemy.
     if (payload.formType !== '8-K') {
       return { action: 'SKIP_NOT_8K', symbol: payload.symbol, formType: payload.formType };
     }

@@ -161,25 +161,6 @@ describe('AlertEvaluatorService', () => {
     });
   });
 
-  // ── Fix #3: OnModuleDestroy ──────────────────────────
-
-  describe('Fix #3: onInsiderTrade — Sprint 11 early return', () => {
-    it('powinien zwrócić SKIP_RULE_INACTIVE (reguła Insider Trade Large wyłączona)', async () => {
-      const { service } = createService();
-
-      const result = await service.onInsiderTrade({
-        tradeId: 1,
-        symbol: 'ISRG',
-        totalValue: 500_000,
-        transactionType: 'BUY',
-        insiderName: 'John CEO',
-      });
-
-      expect(result.action).toBe('SKIP_RULE_INACTIVE');
-      expect(result.symbol).toBe('ISRG');
-    });
-  });
-
   // ── Fix #4: onFiling pobiera nazwę firmy ──────────────
 
   describe('Fix #4: onFiling — pobiera nazwę firmy', () => {
@@ -199,24 +180,6 @@ describe('AlertEvaluatorService', () => {
       expect(formatter.formatFilingAlert).toHaveBeenCalledWith(
         expect.objectContaining({ companyName: 'Intuitive Surgical' }),
       );
-    });
-  });
-
-  // ── Fix #6: onInsiderTrade — Sprint 11 zawsze SKIP ──────────────────────
-
-  describe('Fix #6: onInsiderTrade — Sprint 11 zawsze SKIP_RULE_INACTIVE', () => {
-    it('powinien zwrócić SKIP niezależnie od transactionType', async () => {
-      const { service } = createService();
-
-      const result = await service.onInsiderTrade({
-        tradeId: 1,
-        symbol: 'ISRG',
-        totalValue: 500_000,
-        transactionType: 'BUY',
-        insiderName: 'John CEO',
-      });
-
-      expect(result.action).toBe('SKIP_RULE_INACTIVE');
     });
   });
 
