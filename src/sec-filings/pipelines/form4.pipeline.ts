@@ -299,18 +299,23 @@ export class Form4Pipeline {
         priority,
       });
 
-      // Observation mode routing:
-      // 1. Ticker z observationOnly=true → DB only (Sprint 17 semi supply chain)
-      // 2. Sprint 16b #2: C-suite SELL → DB only. V4 backtest potwierdził
-      //    zero edge (H2 SINGLE_CSUITE all_sells: N=855 d=-0.002 p=0.95).
-      //    GPT analysis zachowana dla forward validation, Telegram pominięty.
-      const tickerObservation = ticker?.observationOnly === true;
-      const isCsuiteSell = isCsuite && parsed.transactionType === 'SELL';
-      const isObservation = tickerObservation || isCsuiteSell;
+      // Observation mode: ticker z observationOnly=true → DB only (Sprint 17 semi supply chain)
+      const isObservation = ticker?.observationOnly === true;
 
-      // Sprint 16 FLAG #10 fix: shared daily limit check
+      // Sprint 17 (V4-driven): WSZYSTKIE discretionary SELL → observation mode (DB only).
+      // V4 backtest (commit e1ab795) potwierdził zero edge predykcyjnego dla insider SELL:
+      //   - H2 all_sells d≈0 wszystkie horyzonty (N=973, żaden Bonf)
+      //   - sells_above_1000k d=+0.01 7d (N=359)
+      //   - Bonferroni threshold p<0.000446 (112 testów) — żaden SELL wariant nie przeszedł
+      // Produkcja 17.04: 3 C-suite SELL Telegram alerts (GILD×2, DXCM) — noise.
+      // Dlaczego BUY zostaje: V4 potwierdza edge (C-suite BUY 7d d=+0.82 Bonf ✓✓✓,
+      // BUY >$500K 7d d=+0.83 ✓✓✓, vs dip baseline d=+0.61).
+      const isSellNoEdge = !isBuy;
+
+      // Sprint 16 FLAG #10 fix: shared daily limit check.
+      // SELL nie wysyła Telegramu → nie powinien wyczerpywać daily slots zarezerwowanych dla BUY.
       let dailyLimitHit = false;
-      if (!isObservation && this.deliveryGate) {
+      if (!isObservation && !isSellNoEdge && this.deliveryGate) {
         const gateCheck = await this.deliveryGate.canDeliverToTelegram(payload.symbol);
         if (!gateCheck.allowed) {
           dailyLimitHit = true;
@@ -321,10 +326,17 @@ export class Form4Pipeline {
       let nonDeliveryReason: string | null = null;
 
       if (isObservation) {
+        // Semi supply chain ticker — sektor observation (priorytet nad sell_no_edge).
         delivered = false;
-        nonDeliveryReason = tickerObservation ? 'observation' : 'csuite_sell_no_edge';
+        nonDeliveryReason = 'observation';
         this.logger.debug(
-          `OBSERVATION MODE: ${payload.symbol} — alert zapisany, Telegram pominięty (${nonDeliveryReason})`,
+          `OBSERVATION MODE: ${payload.symbol} — alert zapisany, Telegram pominięty`,
+        );
+      } else if (isSellNoEdge) {
+        delivered = false;
+        nonDeliveryReason = 'sell_no_edge';
+        this.logger.debug(
+          `SELL NO EDGE: ${payload.symbol} ${parsed.insiderName} SELL — alert zapisany, Telegram pominięty (V4 backtest: zero edge).`,
         );
       } else if (dailyLimitHit) {
         delivered = false;
@@ -393,8 +405,8 @@ export class Form4Pipeline {
       }
 
       let finalAction: string;
-      if (tickerObservation) finalAction = 'ALERT_DB_ONLY_OBSERVATION';
-      else if (isCsuiteSell) finalAction = 'ALERT_DB_ONLY_CSUITE_SELL';
+      if (isObservation) finalAction = 'ALERT_DB_ONLY_OBSERVATION';
+      else if (isSellNoEdge) finalAction = 'ALERT_DB_ONLY_SELL_NO_EDGE';
       else if (dailyLimitHit) finalAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
       else if (delivered) finalAction = 'ALERT_SENT_TELEGRAM';
       else finalAction = 'ALERT_TELEGRAM_FAILED';

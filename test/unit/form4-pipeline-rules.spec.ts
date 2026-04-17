@@ -279,61 +279,89 @@ describe('Form4Pipeline — C-suite whitelist (Sprint 16b)', () => {
   });
 });
 
-describe('Form4Pipeline — C-suite SELL observation gate (Sprint 16b)', () => {
-  // V4 backtest H2 SINGLE_CSUITE all_sells: N=855 d=-0.002 p=0.95 → zero edge.
-  // Route do observation (DB only, brak Telegram). Replikacja logiki z pipeline.
-  const getCsuiteSellRouting = (
-    isCsuite: boolean,
-    txType: string,
+describe('Form4Pipeline — SELL → observation mode (Sprint 17 V4-driven)', () => {
+  // V4 backtest (commit e1ab795):
+  //   - H2 all_sells d≈0 wszystkie horyzonty (N=973, żaden Bonf)
+  //   - sells_above_1000k d=+0.01 7d (N=359)
+  //   - Bonferroni threshold p<0.000446 (112 testów) — żaden SELL wariant nie przeszedł
+  // Produkcja 17.04: 3 C-suite SELL Telegram alerts — noise.
+  // Fix: WSZYSTKIE SELL → observation mode. BUY zostaje (d=0.82 C-suite BUY 7d Bonf ✓✓✓).
+
+  // Replikacja logiki routing z Form4Pipeline.
+  const getRouting = (
+    txType: 'BUY' | 'SELL',
     tickerObservationOnly: boolean,
+    dailyLimitHit: boolean = false,
   ) => {
-    const isCsuiteSell = isCsuite && txType === 'SELL';
-    const isObservation = tickerObservationOnly || isCsuiteSell;
+    const isBuy = txType === 'BUY';
+    const isObservation = tickerObservationOnly;
+    const isSellNoEdge = !isBuy;
+
     let finalAction: string;
     let nonDeliveryReason: string | null;
-    if (tickerObservationOnly) {
+    if (isObservation) {
       finalAction = 'ALERT_DB_ONLY_OBSERVATION';
       nonDeliveryReason = 'observation';
-    } else if (isCsuiteSell) {
-      finalAction = 'ALERT_DB_ONLY_CSUITE_SELL';
-      nonDeliveryReason = 'csuite_sell_no_edge';
+    } else if (isSellNoEdge) {
+      finalAction = 'ALERT_DB_ONLY_SELL_NO_EDGE';
+      nonDeliveryReason = 'sell_no_edge';
+    } else if (dailyLimitHit) {
+      finalAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
+      nonDeliveryReason = 'daily_limit';
     } else {
       finalAction = 'ALERT_SENT_TELEGRAM';
       nonDeliveryReason = null;
     }
-    return { isObservation, finalAction, nonDeliveryReason };
+    return { isObservation, isSellNoEdge, finalAction, nonDeliveryReason };
   };
 
-  it('C-suite SELL → DB only, reason=csuite_sell_no_edge', () => {
-    const r = getCsuiteSellRouting(true, 'SELL', false);
-    expect(r.isObservation).toBe(true);
-    expect(r.finalAction).toBe('ALERT_DB_ONLY_CSUITE_SELL');
-    expect(r.nonDeliveryReason).toBe('csuite_sell_no_edge');
+  // Core flag: isSellNoEdge = !isBuy
+  it('BUY → isSellNoEdge=false', () => {
+    const r = getRouting('BUY', false);
+    expect(r.isSellNoEdge).toBe(false);
   });
 
-  it('C-suite BUY → Telegram (BUY ma edge, d=0.83)', () => {
-    const r = getCsuiteSellRouting(true, 'BUY', false);
-    expect(r.isObservation).toBe(false);
+  it('SELL → isSellNoEdge=true', () => {
+    const r = getRouting('SELL', false);
+    expect(r.isSellNoEdge).toBe(true);
+  });
+
+  // Routing
+  it('SELL (healthcare ticker) → DB only, reason=sell_no_edge', () => {
+    const r = getRouting('SELL', false);
+    expect(r.finalAction).toBe('ALERT_DB_ONLY_SELL_NO_EDGE');
+    expect(r.nonDeliveryReason).toBe('sell_no_edge');
+  });
+
+  it('BUY (healthcare ticker) → Telegram (V4: d=0.82 C-suite BUY 7d Bonf ✓✓✓)', () => {
+    const r = getRouting('BUY', false);
     expect(r.finalAction).toBe('ALERT_SENT_TELEGRAM');
+    expect(r.nonDeliveryReason).toBeNull();
   });
 
-  it('non-C-suite SELL (np. Officer generic) → Telegram', () => {
-    const r = getCsuiteSellRouting(false, 'SELL', false);
-    expect(r.isObservation).toBe(false);
-    expect(r.finalAction).toBe('ALERT_SENT_TELEGRAM');
-  });
-
-  it('ticker observation + C-suite SELL → ticker reason ma priorytet', () => {
-    const r = getCsuiteSellRouting(true, 'SELL', true);
-    expect(r.isObservation).toBe(true);
+  // Priority: ticker observation (semi) > sell_no_edge
+  it('ticker observation + SELL → observation priorytet (semantic: sektor vs backtest)', () => {
+    const r = getRouting('SELL', true);
     expect(r.finalAction).toBe('ALERT_DB_ONLY_OBSERVATION');
     expect(r.nonDeliveryReason).toBe('observation');
   });
 
-  it('ticker observation + BUY → ticker observation', () => {
-    const r = getCsuiteSellRouting(true, 'BUY', true);
-    expect(r.isObservation).toBe(true);
+  it('ticker observation + BUY → observation', () => {
+    const r = getRouting('BUY', true);
     expect(r.finalAction).toBe('ALERT_DB_ONLY_OBSERVATION');
+  });
+
+  // Daily limit: bypassed dla SELL (nie wyczerpuje slots)
+  it('SELL + dailyLimitHit → sell_no_edge priorytet (SELL nie wyczerpuje slots)', () => {
+    const r = getRouting('SELL', false, /*dailyLimitHit*/ true);
+    expect(r.finalAction).toBe('ALERT_DB_ONLY_SELL_NO_EDGE');
+    expect(r.nonDeliveryReason).toBe('sell_no_edge');
+  });
+
+  it('BUY + dailyLimitHit → daily_limit (BUY normalnie gated)', () => {
+    const r = getRouting('BUY', false, /*dailyLimitHit*/ true);
+    expect(r.finalAction).toBe('ALERT_DB_ONLY_DAILY_LIMIT');
+    expect(r.nonDeliveryReason).toBe('daily_limit');
   });
 });
 
