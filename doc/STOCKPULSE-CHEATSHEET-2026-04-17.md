@@ -11,14 +11,14 @@ Wszystkie testy robią Welch's t-test + Cohen's d (ddof=1, pooled,
 winsorized 1%) na returns po event_date vs baseline (losowe dni na tych
 samych tickerach). N=5000-10000 baseline samples.
 
-| Hipoteza | Nazwa | Co testuje | Direction w kodzie |
-|---|---|---|---|
-| **H1** | INSIDER_CLUSTER | 2+ insiderów w 7 dniach → czy cluster ma edge | any (abs ruch >1%) |
-| **H2** | SINGLE_CSUITE | Pojedyncza C-suite discretionary transakcja | any ogółem; buy/sell w sub-groups |
-| **H3** | PLAN_VS_DISCRETIONARY | 10b5-1 (automat) vs discretionary (decyzja) | sell (hit = price down) |
-| **H4** | ROLE_SENIORITY | C-suite vs Director vs Other dla SELL | sell |
-| **H5** | BUY_SIGNALS | Discretionary BUY — czy predyktywne? | buy (hit = price up) |
-| **H6** | HEALTHCARE_VS_CONTROL | Sector-specific edge dla C-suite SELL? | sell |
+| Hipoteza | Nazwa | Co testuje | Direction | V5 verdict (f69cfa8) |
+|---|---|---|---|---|
+| **H1** | INSIDER_CLUSTER | 2+ insiderów w 7 dniach → czy cluster ma edge | any | **Cluster BUY nie dodaje wartości** ponad solo BUY (N=21 vs 49, p>0.37 wszystkie h.) |
+| **H2** | SINGLE_CSUITE | Pojedyncza C-suite discretionary transakcja | any; buy/sell subs | BUY edge ✓✓✓ (V5 d=+1.18 3d Bonf ✓). SELL zero edge — **disable commitnięte (abff1c9)** |
+| **H3** | PLAN_VS_DISCRETIONARY | 10b5-1 vs discretionary | sell | **10b5-1 N=0** (Python per-tx parser). Produkcyjny parser: OK (audit 5dc2a36) |
+| **H4** | ROLE_SENIORITY | C-suite vs Director vs Other SELL | sell | Wszystkie SELL d≈0 |
+| **H5** | BUY_SIGNALS | Discretionary BUY | buy | **Strongest edge** (V5: all BUY 1d d=+1.16 Bonf strict, C-suite 1d d=+1.62) |
+| **H6** | HEALTHCARE_VS_CONTROL | Sector-specific edge dla SELL? | sell | **Healthcare d≈0, Control d=+0.10** (N=1393, 30d Bonf ✓). Direct HC-vs-CTRL d=-0.14 30d p=0.016 — healthcare jest SŁABSZY niż control dla SELL |
 
 **Dlaczego direction ma znaczenie:** hit rate liczony jako:
 - `buy`: % eventów gdzie cena WZROSŁA po eventie (edge = cena rośnie po BUY)
@@ -240,28 +240,28 @@ Zakres: 2023-04-01 → 2026-04-05, 40 874 transakcji, 28 healthcare tickers.
 
 ### Edge confirmed (Bonferroni ✓, threshold p<0.000446)
 
-| Signal | N | 7d d | Bonferroni | V4 verdict |
-|---|---|---|---|---|
-| **All discretionary BUY** | 84 | +0.68 | ✓✓✓ strict | Keep, Form 4 BUY rule |
-| **C-suite BUY** | 28 | +0.82 | ✓✓✓ | ×1.3 boost |
-| **BUY >$100K** | 65 | +0.72 | ✓✓✓ | threshold confirmed |
-| **BUY >$500K** | 41 | +0.83 | ✓✓✓ | tier boost candidate |
-| **BUY >$1M (1d/3d)** | 12 | +2.56 (1d), +1.46 (3d) | ✓✓✓ | signal, ale N=12 ostrożnie |
-| **Director BUY** | 56 | +0.59 | ✗ (raw ✓✓✓) — N mały | ×1.15 boost (Sprint 17 #1, e07bbc2) |
-| **vs dip baseline (crucial)** | 84 | +0.61 | ✓✓✓ strict | nie mean reversion |
+| Signal | N | 7d d | Bonferroni |
+|---|---|---|---|
+| **All discretionary BUY** | 84 | +0.68 | ✓✓✓ strict |
+| **C-suite BUY** | 28 | +0.82 | ✓✓✓ |
+| **BUY >$100K** | 65 | +0.72 | ✓✓✓ |
+| **BUY >$500K** | 41 | +0.83 | ✓✓✓ |
+| **BUY >$1M (1d/3d)** | 12 | +2.56 (1d), +1.46 (3d) | ✓✓✓ |
+| **Director BUY** | 56 | +0.59 | ✗ (raw ✓✓✓) — N mały |
+| **vs dip baseline (crucial)** | 84 | +0.61 | ✓✓✓ strict |
 
 ### Edge NOT confirmed (wszystkie SELL + H6)
 
-| Signal | N | d (najlepszy) | Verdict | V4 verdict |
-|---|---|---|---|---|
-| All C-suite SELL | 973 | ≈0 all horizons | **No edge** | observation mode (abff1c9, 5dc2a36) |
-| SELL >$500K | 492 | +0.09 (7d, p=0.15) | **No edge** | observation mode |
-| SELL >$1M | 359 | +0.01 (7d) | **No edge** | observation mode |
-| H1 sell_clusters | 369 | -0.15 (1d, raw ✓✓ but Bonf ✗) | Noise | observation mode |
-| H1 buy_clusters | 21 | +0.45 (7d, Bonf ✗) | Signal but underpowered | keep, monitor live |
-| H4 csuite SELL | 973 | ≈0 | **No edge** | observation mode |
-| H4 director SELL | 368 | +0.13 (7d) | **No edge** (contrast: V3 had d=0.171) | hard skip (pre-V4) |
-| H6 hc vs control | 973 vs **N=0** | — | **BROKEN: control empty** | **RESOLVED V5** (see §7.8) |
+| Signal | N | d (najlepszy) | Verdict |
+|---|---|---|---|
+| All C-suite SELL | 973 | ≈0 all horizons | **No edge** |
+| SELL >$500K | 492 | +0.09 (7d, p=0.15) | **No edge** |
+| SELL >$1M | 359 | +0.01 (7d) | **No edge** |
+| H1 sell_clusters | 369 | -0.15 (1d, raw ✓✓ but Bonf ✗) | Noise |
+| H1 buy_clusters | 21 | +0.45 (7d, Bonf ✗) | Signal but underpowered |
+| H4 csuite SELL | 973 | ≈0 | **No edge** |
+| H4 director SELL | 368 | +0.13 (7d) | **No edge** (contrast: V3 had d=0.171) |
+| H6 hc vs control | 973 vs **N=0** | — | **BROKEN: control empty** |
 
 ### Kluczowe obserwacje V4
 
@@ -278,37 +278,68 @@ Zakres: 2023-04-01 → 2026-04-05, 40 874 transakcji, 28 healthcare tickers.
    (tylko Director SELL jest hard-skip).
 7. **Zero SELL edge:** żaden wariant SELL nie przeszedł Bonferroni.
    V4 ostatecznie potwierdza że "Form 4 Insider SELL" alertowanie w
-   produkcji generuje szum. **RESOLVED** — Form4Pipeline SELL → observation
-   mode (commits abff1c9 feat(form4): SELL → observation mode, 5dc2a36
-   C-suite SELL wariant). Alert zapis do DB z `nonDeliveryReason='csuite_sell_no_edge'`,
-   brak Telegramu. GPT analysis zachowana dla forward validation.
+   produkcji generuje szum. **Decyzja Sprint 16b→17: Form4Pipeline SELL
+   route do observation mode (DB only, no Telegram)** — validated przez
+   V4, poprzednie "pending V4" rozstrzygnięte.
+8. **Cluster przegrywa z single BUY (counterintuitive):**
+   - H1 csuite_clusters 7d: d=+0.07 (N=340, Bonf ✗) — clustered C-suite events
+   - H5 csuite_buys 7d: d=+0.82 (N=28, Bonf ✓✓✓) — pojedyncze C-suite BUY
+   - H1 buy_clusters 7d: d=+0.45 (N=21, Bonf ✗) — clustered BUY events
+   - H5 buys_above_500k 7d: d=+0.83 (N=41, Bonf ✓✓✓) — pojedyncze duże BUY
 
-### 7.8 V5 OBSERVATIONS (Sprint 17, commits e07bbc2 + f69cfa8)
+   Czyli **pojedynczy duży BUY (>$500K) ma mocniejszy edge niż cluster
+   2+ insiderów**. Cluster pattern może wprowadzać noise (2 small
+   transakcje w tygodniu = cluster, ale edge słabszy niż 1 large BUY).
+   Hipoteza: insider cluster w V4 dominowany przez SELL (369 sell vs 21
+   buy clusters) — sygnał rozcieńczony. **V5 potwierdza** direct test
+   cluster_buy_vs_single_buy: p>0.37 wszystkie horyzonty (patrz V5 delta).
 
-**H6 control fix resolved (Sprint 17 #2):**
-- `control_vs_common` teraz N=1393 (było N=0 w V4).
-- 7d d=+0.09 p=0.0004 ✓✓✓, 30d d=+0.10 p=0.0002 ✓✓✓ — kontrola (non-healthcare)
-  SELL pokazuje edge na dłuższych horyzontach.
-- `hc_vs_ctrl_direct` n_hc=973 n_ctrl=1393: d=-0.058 (1d), -0.114 (3d), -0.077 (7d),
-  -0.144 (30d). **Healthcare NIE ma sector-specific edge** dla SELL — ujemne d
-  znaczy healthcare events wypadają poniżej control events.
-- **Wniosek:** healthcare boost ×1.2 dla SELL nie jest uzasadniony (i tak SELL
-  jest już w observation mode, więc boost nieaktywny). Boost ×1.2 dalej stosowany
-  dla BUY (gdzie V4 potwierdził edge).
+### V5 delta (commit f69cfa8, 18.04.2026)
 
-**Cluster vs single BUY (Sprint 17 #3):**
-- Nowa sub-analiza `cluster_buy_vs_single_buy` w H1: bezpośredni Welch's t-test
-  cluster BUY (2+ insiderów w 7d) vs single BUY (<2 insiderów w 7d forward window).
-- N_cluster=21, N_single=49, tx_type=BUY.
-- Horyzonty: 1d d=+0.22 p=0.44, 3d d=-0.10 p=0.70, 7d d=-0.01 p=0.95, 30d d=-0.23 p=0.37.
-- **Wszystkie p>0.37, d w zakresie [-0.23, +0.22].** Cluster nie dodaje
-  statystycznie istotnej wartości ponad solo BUY.
-- **Counterintuitive V4/V5 observation:** produkcja nadal alertuje na cluster
-  (INSIDER_CLUSTER pattern), ale solo BUY (single_buy) daje już cały edge.
-  Czekanie na 2-giego insidera nie jest wymagane dla alertu.
-- **Decision pending:** czy `Form 4 Insider BUY` rule powinna alertować natychmiast
-  bez czekania na cluster (obecnie robi), vs czy INSIDER_CLUSTER BUY pattern
-  (osobna ścieżka) jest zbędny. Live validation potrzebna przy N_cluster=21.
+V5 = V4 + H6 control group fix + H1 cluster_buy_vs_single_buy analysis
+(kod e07bbc2). 19/124 Bonferroni (15.3%) vs V4 24/112 (21.4%). Threshold
+p<0.000403 (V4: 0.000446). Więcej hipotez → surowszy test.
+
+**H6 naprawione (control N=1393, wcześniej N=0):**
+
+```
+Horizon  | Healthcare SELL  | Control SELL      | Direct HC-vs-CTRL
+1d       | d=-0.06 p=0.07   | d=-0.00 p=0.97    | d=-0.06 p=0.09
+3d       | d=-0.07 p=0.17   | d=+0.05 p=0.06    | d=-0.11 p=0.03 raw
+7d       | d=+0.00 p=0.84   | d=+0.09 p=0.0004  | d=-0.08 p=0.20
+30d      | d=-0.08 p=0.28   | d=+0.10 p=0.0002 ✓| d=-0.14 p=0.02 raw
+```
+
+**Kluczowa obserwacja V5 (przeciwna intuicji):** Healthcare insider SELL
+ma **zero edge**. Control (non-healthcare: AAPL, MSFT, JPM, XOM...)
+insider SELL ma **realny mały edge d=+0.10 na 30d, Bonferroni ✓✓✓**.
+Direct d=-0.14 (healthcare słabszy niż control).
+
+**Implikacja:**
+- Dla Twojego universe (28 healthcare) SELL disable jest **prawidłowy** — healthcare SELL nadal ma d≈0.
+- Dla hipotetycznego universe non-healthcare, insider SELL mógłby być sygnałem. Ale dziś irrelevant.
+- **Początkowa hipoteza "healthcare insider edge jest silniejszy niż general market"** jest FAŁSZYWA dla SELL. Dla BUY niewiadomo (w V5 wszystkie BUY były healthcare, brak control BUY do porównania).
+
+**H1 cluster_buy_vs_single_buy (nowa analiza):**
+
+- N_cluster=21, N_single=49, tx_type=BUY
+- 1d: p=0.445 | 3d: p=0.700 | 7d: p=0.955 | 30d: p=0.371
+- d: JSON ma `None` (bug w `_direct_cluster_vs_single` zapisie, nie liczony poprawnie — do fixu w Sprint 18).
+
+**Wniosek:** czekanie na 2-giego insidera dla BUY alert **nie daje
+statystycznej przewagi** nad solo BUY. p>0.37 zawsze. TODO Sprint 18:
+rozważ disable `INSIDER_CLUSTER` pattern dla BUY direction (SELL już
+observation od Sprint 15).
+
+**BUY edge robustness (V4 → V5):**
+
+| Signal | V4 7d d | V5 7d d | Trend |
+|---|---|---|---|
+| C-suite BUY | +0.82 | +0.75 | stable |
+| All BUY | +0.68 | +0.75 | +0.07 |
+| BUY >$500K 1d | +1.58 | +1.77 | +0.19 |
+
+V5 potwierdza V4 BUY edge — nie był artefakt, liczby stabilne.
 
 ---
 
@@ -372,68 +403,64 @@ PriceOutcomeService (CRON 1h NYSE) tracks 1h/4h/1d/3d outcomes
 
 ---
 
-## 10. DECISIONS RESOLVED (Sprint 17 post-V4/V5)
+## 10. PENDING — co jeszcze do zrobienia
 
-### 1. SELL → observation mode (RESOLVED)
+### ✅ RESOLVED Sprint 17 (implemented + validated)
 
-V4 + V5 oba pokazują zero edge dla insider SELL (wszystkie sub-grupy: all, >$500K,
->$1M, csuite, director, clusters). Form4Pipeline SELL teraz zapisuje do DB z
-`delivered=false, nonDeliveryReason='csuite_sell_no_edge'`, bez Telegramu.
-GPT analysis + conviction zachowane dla forward validation (sprawdzenie czy
-backtest verdict się potwierdza na live data).
-- Commits: **abff1c9** (SELL → observation mode), **5dc2a36** (C-suite SELL wariant)
-- CLAUDE.md: "alerts.nonDeliveryReason `csuite_sell_no_edge` dodane w Sprint 16b #2"
+1. ✅ **SELL disable (healthcare)** — implementacja: commit `abff1c9`.
+   V4+V5 potwierdzają d≈0 dla healthcare SELL. Produkcja: SELL → DB only.
+2. ✅ **Director BUY boost ×1.15** — implementacja: commit `e07bbc2`.
+   V4/V5 d=+0.59 raw sig. Wąsko do `/\bDirector\b/` (nie wszystkie non-C-suite).
+3. ✅ **H6 control group fix** — implementacja: commit `e07bbc2`.
+   V5 N_ctrl=1393 (wcześniej 0). **Wynik:** healthcare NIE ma sector-specific edge
+   dla SELL — control jest nawet silniejszy (d=+0.10 vs -0.08 na 30d).
+4. ✅ **H1 cluster_buy_vs_single_buy** — implementacja: commit `e07bbc2`.
+   V5: p>0.37 wszystkie horyzonty, cluster nie dodaje wartości ponad solo BUY.
+5. ✅ **Production 10b5-1 parser audit** — verified w commit message `5dc2a36`:
+   produkcyjny parser używa per-transaction `Rule10b5-1Transaction` path
+   (NIE naive string search). Żaden fix nie potrzebny.
 
-### 2. H6 control group fix (RESOLVED)
+### Sprint 18 candidates (V5-driven)
 
-V4 problem: top-level `is_healthcare==True` filter w `run_analysis` zerował control
-group przed H6. V5 (commit e07bbc2) usunął ten filter — H1-H5 filtrują per-hypothesis
-(tx_df_hc), H6 używa pełnego tx_df. V5 wynik: control_vs_common N=1393,
-hc_vs_ctrl_direct n_ctrl=1393. **Sector-specific question odpowiedziany: healthcare
-NIE ma edge przewagi nad control dla SELL.**
-- Commits: **e07bbc2** (kod), **f69cfa8** (V5 regenerate — naprawia mismatch 3a319d7)
+6. **INSIDER_CLUSTER disable dla BUY direction** — V5 cluster_buy_vs_single_buy
+   pokazuje zero różnicy (p>0.37). Solo BUY >$500K (V5 d=+1.77) >> cluster BUY.
+   Czekanie na 2-giego insidera = opóźnienie bez dodanego edge.
+   Zmiana w `CorrelationService.runPatternDetection` (dir='up' branch).
+   **Uwaga:** N=21 cluster mało, niska moc testu — rozważ jeszcze 1 run
+   z większym universum albo dłuższym zakresem.
+7. **C-suite detection ujednolicenie** (quality fix, pre-existing):
+   `form4.pipeline.ts:119` używa starego regexa `/\bChief\b/i.test(role)`,
+   podczas gdy linia 240 używa `isCsuiteRole()` (whitelist). Niespójność
+   semantyczna — zmień na `isCsuiteRole(role)`. Planowane Etap 5 w
+   execution-plan (doc/sprint17-execution-plan.md).
+8. **d=None bug w `_direct_cluster_vs_single`** — V5 JSON ma `n_a=None
+   n_b=None d=None` dla cluster_buy_vs_single_buy horyzontów (tylko p-value
+   wyliczony). Fix w `scripts/backtest/analyzer.py` funkcja `_direct_cluster_vs_single`.
+9. **report_generator nie renderuje `hc_vs_ctrl_direct` i `cluster_buy_vs_single_buy`**
+   — sekcje są w JSON, brak w markdown. Generator pomija sub_groups z nie-standardowym
+   `horizons` schemas (n_a/n_b zamiast n). Fix w `scripts/backtest/report_generator.py`.
 
-### 3. Director BUY boost ×1.15 (RESOLVED)
+### Sprint 18+ research items
 
-V4 d=0.59 raw-significant na 4 horyzontach (1d/3d/7d/30d), mniejszy niż C-suite
-d=0.83 ale wyraźny sygnał. Boost ×1.15 dodany w Form4Pipeline, kumulatywny z
-healthcare ×1.2 (Director healthcare BUY = ×1.38). C-suite priorytet w co-filing
-— albo/albo, nie stack.
-- Commit: **e07bbc2** (Sprint 17 P1 — Director BUY boost + H6 control fix + H1 cluster-vs-single)
-
-### 4. Cluster vs single BUY direct test (RESOLVED as observation)
-
-V5 sub-analiza `cluster_buy_vs_single_buy` (§7.8): cluster BUY nie dodaje
-statystycznie istotnej wartości ponad solo BUY (wszystkie p>0.37, d [-0.23, +0.22]
-przy N_cluster=21, N_single=49). Kod zaimplementowany w `_direct_cluster_vs_single`
-+ `_collect_single_buy_events` (analyzer.py:386-389). Żadna zmiana produkcji —
-obserwacja zostaje do live validation.
-- Commits: **e07bbc2** (analyzer code), **f69cfa8** (V5 results w JSON)
-
-### 5. Production 10b5-1 parser verified (RESOLVED)
-
-`form4-parser.ts:148-152` używa per-transaction XML path
-`txn.transactionCoding?.['Rule10b5-1Transaction']` + strict value match ('1' albo 'Y').
-NIE jest naive string detection (FLAG #34 z Python V3). 4 testy jednostkowe
-pokrywają edge cases.
-- CLAUDE.md: "Produkcyjny 10b5-1 parser (status OK, zweryfikowano 17.04)"
-
----
-
-## 10.1. Remaining research items (Sprint 18+)
-
-- **Top-quartile options conviction** — czy conviction>0.6 bez PDUFA ma edge? (briefing #6)
-- **EVP Sales whitelist** — czy senior operations (EVP Sales) zasługuje na C-suite boost?
-- **Live vs backtest hit rate** — produkcyjne PriceOutcome data vs V5 predictions.
+10. **Top-quartile options conviction** — czy conviction>0.6 bez PDUFA
+    ma edge? (briefing #6)
+11. **EVP Sales whitelist** — czy senior operations (EVP Sales) zasługuje
+    na C-suite boost? (obecnie wyłączony przez whitelist b503a8e)
+12. **Live vs backtest hit rate** — produkcyjne PriceOutcome data vs V5
+    predictions. Waluta prawdy.
+13. **Non-healthcare universe rozszerzenie** (V5-driven):
+    V5 H6 pokazuje że control SELL ma d=+0.10 Bonf ✓✓✓ na 30d. Horyzont
+    30d jest poza produkcyjnym PriceOutcome (max 3d), więc actionability
+    ograniczona. Ale ciekawe czy mid-cap tech insider SELL jest sygnałem
+    dla 1-3d horyzontu. Wymagałoby: fetch non-healthcare insider trades,
+    re-run backtest z shorter horizons.
 
 ### Unfixed bugs
 
-- **FLAG #28** — SEC EDGAR collector fetch bez timeout (FLAG #28 osobny od Options timeout
-  który jest naprawiony d78a92f)
-- **FLAG #32-43** — Python backtest reszta: multi-owner bug (#30 analog), Cohen's d biased,
-  brak Bonferroni w niektórych testach, H6 niewymienne baselines. CLAUDE.md: "BLOKUJE
-  zaufanie do V3 backtest results" (V4/V5 już używają fix'ów).
-- **FLAG #42** — Python backtest baseline sampling uniform per-ticker
+14. **FLAG #28** — SEC EDGAR collector fetch bez timeout (osobny od
+    Options timeout naprawionego w d78a92f).
+15. **FLAG #42** — Python backtest baseline sampling uniform per-ticker
+    (skipped w HANDOFF #2, sprawdź jeśli V4/V5 ticker concentration wysoka).
 
 ---
 
@@ -450,12 +477,16 @@ Gdy pojawi się coś w ruchu produkcyjnym, najpierw sprawdź tutaj zanim zacznie
 | Options Flow 11h zombie | Brak timeout w fetch | naprawione w d78a92f |
 | SKIP_RULE_INACTIVE spam | Dead handler | naprawione w 98b3741 |
 | "Chief Comm & Corp Aff" alert | Stary /\bChief\b/ regex matched | naprawione w b503a8e |
-| `is10b51Plan` skipuje discretionary | Naive string search (FLAG #35 TS analog?) | check `form4-parser.ts` production |
+| `is10b51Plan` skipuje discretionary | Produkcyjny parser per-tx OK — verified 5dc2a36 audit | no action needed |
+| Healthcare SELL na Telegram | Stary "Form 4 Insider Signal" rule | naprawione w abff1c9 (V4+V5 driven) |
+| Director BUY conviction niedoszacowany | Brak boost przed Sprint 17 | naprawione w e07bbc2 (×1.15) |
 
 ---
 
-**Ostatnia aktualizacja:** 18.04.2026 po V5 backtest (Sprint 17 #1-3 resolved).
-**V5 commits:** e07bbc2 (code), 3a319d7 (fictional message, JSON stale),
-f69cfa8 (regenerate fix).
-**Następna aktualizacja:** po live validation (minimum 2 tygodnie forward data
-z `nonDeliveryReason='csuite_sell_no_edge'` alerts + cluster BUY monitoring).
+**Ostatnia aktualizacja:** 18.04.2026 po V5 backtest (commit f69cfa8).
+**Next update trigger:** live vs backtest hit rate comparison (Sprint 18
+research item #12), albo fix reportu dla cluster_buy_vs_single_buy d values.
+
+**Historia V4 → V5:**
+- V4 (e1ab795): 112 testów, 24 Bonf ✓. H6 broken (ctrl N=0). No cluster-vs-single.
+- V5 (f69cfa8): 124 testów, 19 Bonf ✓. H6 fixed. Cluster-vs-single answered (no edge).
