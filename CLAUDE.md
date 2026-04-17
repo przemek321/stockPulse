@@ -238,7 +238,6 @@ Action items po analizie 24h logów produkcji — briefing "Post Sprint 16 actio
 
 - FLAG #28: SEC EDGAR collector fetch bez timeout
 - FLAG #32-43: Python backtest (multi-owner bug identyczny do #30, Cohen's d biased, naive 10b5-1 detection, brak Bonferroni, H6 niewymienne baselines) — BLOKUJE zaufanie do V3 backtest results
-- Pre-existing test failures w AlertEvaluator (9 tests): mocki nie mają metody `canDeliverToTelegram` (FLAG #10 dodał `AlertDeliveryGate` do konstruktora, mocki niezaktualizowane). Nie blokuje produkcji, ale CI może się wysypać.
 
 ## System totals (17.04.2026)
 

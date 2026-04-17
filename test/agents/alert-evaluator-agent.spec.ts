@@ -84,6 +84,16 @@ function createMockCorrelation() {
   };
 }
 
+function createMockDeliveryGate(overrides: { allowed?: boolean; count?: number } = {}) {
+  return {
+    canDeliverToTelegram: jest.fn(async () => ({
+      allowed: overrides.allowed ?? true,
+      count: overrides.count ?? 0,
+      limit: 5,
+    })),
+  };
+}
+
 function createService(overrides: any = {}) {
   const alertRepo = overrides.alertRepo ?? createMockAlertRepo();
   const ruleRepo = overrides.ruleRepo ?? createMockRuleRepo();
@@ -91,13 +101,15 @@ function createService(overrides: any = {}) {
   const telegram = overrides.telegram ?? createMockTelegram();
   const formatter = overrides.formatter ?? createMockFormatter();
   const finnhub = overrides.finnhub ?? createMockFinnhub();
+  const deliveryGate = overrides.deliveryGate ?? createMockDeliveryGate();
   const correlation = overrides.correlation ?? createMockCorrelation();
 
   const service = new AlertEvaluatorService(
     alertRepo as any, ruleRepo as any, tickerRepo as any,
-    telegram as any, formatter as any, finnhub as any, correlation as any,
+    telegram as any, formatter as any, finnhub as any,
+    deliveryGate as any, correlation as any,
   );
-  return { service, alertRepo, ruleRepo, tickerRepo, telegram, formatter, finnhub, correlation };
+  return { service, alertRepo, ruleRepo, tickerRepo, telegram, formatter, finnhub, deliveryGate, correlation };
 }
 
 // ── Testy: Weryfikacja założeń ──
@@ -135,7 +147,9 @@ describe('Agent: Alert Evaluator — Reguła 1: Sentiment Crash', () => {
       source: 'stocktwits', model: 'finbert+gpt-4o-mini',
       effectiveScore: -0.7, enrichedAnalysis: null,
     });
-    expect(result).toContain('ALERT_SENT');
+    // Sprint 11: Sentiment Crash jest SILENT rule — alert trafia do DB, nie na Telegram.
+    // Test weryfikuje że logic przeszła decyzję (nie SKIP), kierunek dostarczenia: DB-only.
+    expect(result).toContain('ALERT_DB_ONLY_SILENT_RULE');
   });
 
   it('SKIP gdy effectiveScore = -0.5 (próg jest <, nie <=)', async () => {
@@ -254,7 +268,8 @@ describe('Agent: Alert Evaluator — Reguła 5: Strong FinBERT', () => {
       symbol: 'ISRG', score: 0.85, confidence: 0.95,
       source: 'stocktwits', model: 'finbert', conviction: null,
     });
-    expect(result).toContain('ALERT_SENT');
+    // Sprint 11: Strong FinBERT Signal jest SILENT rule — alert trafia do DB, nie na Telegram.
+    expect(result).toContain('ALERT_DB_ONLY_SILENT_RULE');
   });
 
   it('SKIP gdy model != finbert (ma AI)', async () => {

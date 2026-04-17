@@ -75,6 +75,16 @@ function createMockCorrelation() {
   };
 }
 
+function createMockDeliveryGate(overrides: { allowed?: boolean; count?: number } = {}) {
+  return {
+    canDeliverToTelegram: jest.fn(async () => ({
+      allowed: overrides.allowed ?? true,
+      count: overrides.count ?? 0,
+      limit: 5,
+    })),
+  };
+}
+
 function createService(overrides: any = {}) {
   const alertRepo = overrides.alertRepo ?? createMockAlertRepo();
   const ruleRepo = overrides.ruleRepo ?? createMockRuleRepo();
@@ -82,6 +92,7 @@ function createService(overrides: any = {}) {
   const telegram = overrides.telegram ?? createMockTelegram();
   const formatter = overrides.formatter ?? createMockFormatter();
   const finnhub = overrides.finnhub ?? createMockFinnhub();
+  const deliveryGate = overrides.deliveryGate ?? createMockDeliveryGate();
   const correlation = overrides.correlation ?? createMockCorrelation();
 
   const service = new AlertEvaluatorService(
@@ -91,10 +102,11 @@ function createService(overrides: any = {}) {
     telegram as any,
     formatter as any,
     finnhub as any,
+    deliveryGate as any,
     correlation as any,
   );
 
-  return { service, alertRepo, ruleRepo, tickerRepo, telegram, formatter, finnhub, correlation };
+  return { service, alertRepo, ruleRepo, tickerRepo, telegram, formatter, finnhub, deliveryGate, correlation };
 }
 
 // ── Testy ──────────────────────────────────────────────
@@ -157,7 +169,8 @@ describe('AlertEvaluatorService', () => {
       });
 
       // Powinien wysłać alert bez crashu
-      expect(result).toBe('ALERT_SENT: High Conviction Signal');
+      // Sprint 16 Tier 1: action values zmienione z ALERT_SENT na ALERT_SENT_TELEGRAM (granular)
+      expect(result).toBe('ALERT_SENT_TELEGRAM: High Conviction Signal');
     });
   });
 

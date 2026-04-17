@@ -51,7 +51,7 @@ export function isCsuiteRole(role: string | null | undefined, name?: string): bo
 /**
  * Pipeline analizy GPT dla transakcji insiderskich (Form 4).
  *
- * Nasłuchuje event NEW_INSIDER_TRADE (równolegle z AlertEvaluatorService).
+ * Nasłuchuje event NEW_INSIDER_TRADE (jedyny listener po Sprint 16b #3 — AlertEvaluator.onInsiderTrade usunięty).
  * Buduje prompt z kontekstem (rola, 10b5-1, historia 30 dni) i wysyła do GPT.
  * GPT zwraca strukturalną ocenę wpływu na cenę → alert Telegram.
  */
