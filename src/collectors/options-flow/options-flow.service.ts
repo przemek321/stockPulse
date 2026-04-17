@@ -29,6 +29,13 @@ const POLYGON_BASE = 'https://api.polygon.io';
 const RATE_LIMIT_MS = 12_500;
 
 /**
+ * Timeout per Polygon fetch. 17.04 produkcja: runCollectionCycle duration=11h 25min
+ * bez timeout = zombie proces gdy API odpowiada wolno / nie odpowiada.
+ * Analogiczne do FLAG #28 w SEC EDGAR collector.
+ */
+const POLYGON_FETCH_TIMEOUT_MS = 30_000;
+
+/**
  * Kolektor options flow z Polygon.io (Free Tier, EOD).
  *
  * Strategia: 1 globalny scan po sesji NYSE (CRON 22:15 UTC):
@@ -217,7 +224,7 @@ export class OptionsFlowService extends BaseCollectorService {
   private async fetchContracts(symbol: string): Promise<OptionsContract[]> {
     await this.delay(RATE_LIMIT_MS);
     const url = `${POLYGON_BASE}/v3/reference/options/contracts?underlying_ticker=${symbol}&expired=false&limit=250&apiKey=${this.apiKey}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
 
     if (res.status === 429) {
       this.logger.warn('Polygon rate limit — czekam 60s');
@@ -238,7 +245,7 @@ export class OptionsFlowService extends BaseCollectorService {
   private async fetchPrevBar(occSymbol: string): Promise<DailyBar | null> {
     await this.delay(RATE_LIMIT_MS);
     const url = `${POLYGON_BASE}/v2/aggs/ticker/${occSymbol}/prev?apiKey=${this.apiKey}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
 
     if (res.status === 429) {
       this.logger.warn('Polygon rate limit — czekam 60s');
@@ -257,7 +264,7 @@ export class OptionsFlowService extends BaseCollectorService {
   private async getUnderlyingPrice(symbol: string): Promise<number | null> {
     await this.delay(RATE_LIMIT_MS);
     const url = `${POLYGON_BASE}/v2/aggs/ticker/${symbol}/prev?apiKey=${this.apiKey}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -311,7 +318,7 @@ export class OptionsFlowService extends BaseCollectorService {
           try {
             await this.delay(RATE_LIMIT_MS);
             const url = `${POLYGON_BASE}/v2/aggs/ticker/${contract.ticker}/range/1/day/${from}/${to}?apiKey=${this.apiKey}`;
-            const res = await fetch(url);
+            const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
             if (!res.ok) continue;
 
             const data = await res.json();
