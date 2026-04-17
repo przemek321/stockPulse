@@ -3,7 +3,10 @@
  * - Director SELL → hard skip (backtest: anty-sygnał)
  * - BUY conviction boost (C-suite ×1.3, healthcare ×1.2)
  * - Observation mode gate (ticker.observationOnly → DB only, brak Telegramu)
+ * - C-suite whitelist (Sprint 16b — soft roles wyłączone)
  */
+
+import { isCsuiteRole } from '../../src/sec-filings/pipelines/form4.pipeline';
 
 describe('Form4Pipeline — Director SELL skip (Sprint 15)', () => {
   const isDirectorSell = (role: string | null, txType: string) => {
@@ -100,6 +103,148 @@ describe('Observation mode gate (Sprint 17)', () => {
     const r = getObservationResult(undefined);
     expect(r.delivered).toBe(true);
     expect(r.nonDeliveryReason).toBeNull();
+  });
+});
+
+describe('Form4Pipeline — C-suite whitelist (Sprint 16b)', () => {
+  it('Chief Executive Officer → true', () => {
+    expect(isCsuiteRole('Chief Executive Officer')).toBe(true);
+  });
+
+  it('Chief Financial Officer → true', () => {
+    expect(isCsuiteRole('Chief Financial Officer')).toBe(true);
+  });
+
+  it('Chief Medical Officer → true (healthcare critical)', () => {
+    expect(isCsuiteRole('Chief Medical Officer')).toBe(true);
+  });
+
+  it('Chief Scientific Officer → true (biotech critical)', () => {
+    expect(isCsuiteRole('Chief Scientific Officer')).toBe(true);
+  });
+
+  it('Chief Legal Officer → true', () => {
+    expect(isCsuiteRole('Chief Legal Officer')).toBe(true);
+  });
+
+  it('Chief Communications Officer → false (PR/IR, nie ma insider info)', () => {
+    expect(isCsuiteRole('Chief Communications Officer')).toBe(false);
+  });
+
+  it('Chief Corporate Affairs Officer → false (GILD noise case 17.04)', () => {
+    expect(isCsuiteRole('Chief Comm & Corp Aff Officer')).toBe(false);
+  });
+
+  it('Chief People Officer → false (HR)', () => {
+    expect(isCsuiteRole('Chief People Officer')).toBe(false);
+  });
+
+  it('Chief Human Resources Officer → false', () => {
+    expect(isCsuiteRole('Chief Human Resources Officer')).toBe(false);
+  });
+
+  it('Chief Diversity Officer → false', () => {
+    expect(isCsuiteRole('Chief Diversity Officer')).toBe(false);
+  });
+
+  it('Chief Marketing Officer → false (decyzja Przemka 17.04)', () => {
+    expect(isCsuiteRole('Chief Marketing Officer')).toBe(false);
+  });
+
+  it('Chief Sustainability Officer → false', () => {
+    expect(isCsuiteRole('Chief Sustainability Officer')).toBe(false);
+  });
+
+  it('CEO akronim → true', () => {
+    expect(isCsuiteRole('CEO')).toBe(true);
+  });
+
+  it('CFO akronim → true', () => {
+    expect(isCsuiteRole('CFO')).toBe(true);
+  });
+
+  it('CMO akronim → true (Medical w healthcare universe)', () => {
+    expect(isCsuiteRole('CMO')).toBe(true);
+  });
+
+  it('President → true', () => {
+    expect(isCsuiteRole('President')).toBe(true);
+  });
+
+  it('Chairman → true', () => {
+    expect(isCsuiteRole('Chairman')).toBe(true);
+  });
+
+  it('Vice Chairman → true', () => {
+    expect(isCsuiteRole('Vice Chairman')).toBe(true);
+  });
+
+  it('EVP, Chief Legal Officer → true (Chief Legal w whitelist)', () => {
+    expect(isCsuiteRole('EVP, Chief Legal Officer')).toBe(true);
+  });
+
+  it('EVP, Finance → true (EVP z finance context)', () => {
+    expect(isCsuiteRole('EVP, Finance')).toBe(true);
+  });
+
+  it('EVP, Operations → true (EVP z operations context)', () => {
+    expect(isCsuiteRole('EVP, Operations')).toBe(true);
+  });
+
+  it('EVP, Human Resources → false (EVP bez whitelistowanego domeny)', () => {
+    expect(isCsuiteRole('EVP, Human Resources')).toBe(false);
+  });
+
+  it('Principal Financial Officer → true', () => {
+    expect(isCsuiteRole('Principal Financial Officer')).toBe(true);
+  });
+
+  it('Principal Accounting Officer → true', () => {
+    expect(isCsuiteRole('Principal Accounting Officer')).toBe(true);
+  });
+
+  it('Director → false (nie C-suite)', () => {
+    expect(isCsuiteRole('Director')).toBe(false);
+  });
+
+  it('Senior Vice President, Sales → false (SVP nie na liście)', () => {
+    expect(isCsuiteRole('Senior Vice President, Sales')).toBe(false);
+  });
+
+  it('Vice President, Operations → false (VP nie C-suite mimo "President")', () => {
+    expect(isCsuiteRole('Vice President, Operations')).toBe(false);
+  });
+
+  it('Executive Vice President → false (sam EVP bez finance/ops/product/strategy)', () => {
+    expect(isCsuiteRole('Executive Vice President')).toBe(false);
+  });
+
+  it('Executive Vice President, Finance → true (pełny spelling EVP + Finance)', () => {
+    expect(isCsuiteRole('Executive Vice President, Finance')).toBe(true);
+  });
+
+  it('Executive Vice President, Operations → true', () => {
+    expect(isCsuiteRole('Executive Vice President, Operations')).toBe(true);
+  });
+
+  it('President and CEO → true (CEO matches)', () => {
+    expect(isCsuiteRole('President and CEO')).toBe(true);
+  });
+
+  it('Chairman & CEO, Director → true (Chairman matches)', () => {
+    expect(isCsuiteRole('Chairman & CEO, Director')).toBe(true);
+  });
+
+  it('null role → false', () => {
+    expect(isCsuiteRole(null)).toBe(false);
+  });
+
+  it('empty string → false', () => {
+    expect(isCsuiteRole('')).toBe(false);
+  });
+
+  it('match by insiderName fallback → true', () => {
+    expect(isCsuiteRole(null, 'Jane Doe, CEO')).toBe(true);
   });
 });
 

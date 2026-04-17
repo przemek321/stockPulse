@@ -19,6 +19,36 @@ import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
+ * C-suite whitelist dla boost decyzji (Form4Pipeline + testy jednostkowe).
+ * Sprint 16b: zastąpiło broad /\bChief\b/i które matchowało soft roles
+ * (Chief Communications/People/Diversity/Marketing/Sustainability Officer —
+ * PR/IR/HR bez insider info o finansach firmy).
+ *
+ * Włączone: Executive/Financial/Operating/Technology/Information/Medical/
+ * Scientific/Legal/Accounting Officers, akronimy (CEO/CFO/COO/CTO/CIO/CMO/
+ * CSO/CLO), President/Chairman/Vice Chairman, EVP z Finance/Operations/
+ * Product/Strategy context, Principal Financial/Accounting Officers.
+ *
+ * CMO: tu = Chief Medical Officer (krytyczny dla healthcare universe).
+ * Chief Marketing Officer explicit wyłączony — decyzja Przemka 17.04.
+ */
+export const C_SUITE_PATTERNS: readonly RegExp[] = [
+  /\bChief\s+(Executive|Financial|Operating|Technology|Information|Medical|Scientific|Legal|Accounting)\s+Officer\b/i,
+  /\b(CEO|CFO|COO|CTO|CIO|CMO|CSO|CLO)\b/i,
+  // "President" z negative lookbehind — wyklucza "Vice President" / "Senior Vice President" / "Executive Vice President"
+  /(?<!Vice\s)(?<!Senior\s)\bPresident\b/i,
+  /\bChairman\b/i,
+  /\bVice\s+Chairman\b/i,
+  /\b(?:EVP|Executive\s+Vice\s+President)[\s,]+.*?(Finance|Operations?|Product|Strategy)\b/i,
+  /\bPrincipal\s+(Financial|Accounting)\s+Officer\b/i,
+];
+
+export function isCsuiteRole(role: string | null | undefined, name?: string): boolean {
+  const target = role ?? '';
+  return C_SUITE_PATTERNS.some(p => p.test(target) || (name ? p.test(name) : false));
+}
+
+/**
  * Pipeline analizy GPT dla transakcji insiderskich (Form 4).
  *
  * Nasłuchuje event NEW_INSIDER_TRADE (równolegle z AlertEvaluatorService).
@@ -207,15 +237,7 @@ export class Form4Pipeline {
         }
       }
 
-      // Sprint 11: C-suite priorytet — CEO/CFO/President/Chairman/EVP/CMO/COO/CTO
-      const C_SUITE_PATTERNS = [
-        /\bC[EFO][OFT]O?\b/i, /\bPresident\b/i, /\bChair/i,
-        /\bEVP\b/i, /\bCMO\b/i, /\bCOO\b/i, /\bCTO\b/i,
-        /\bChief\b/i, /\bExecutive Vice/i,
-      ];
-      const isCsuite = C_SUITE_PATTERNS.some(
-        p => p.test(parsed.insiderRole ?? '') || p.test(parsed.insiderName),
-      );
+      const isCsuite = isCsuiteRole(parsed.insiderRole, parsed.insiderName);
       const isBuy = parsed.transactionType === 'BUY';
 
       // Sprint 15 (backtest): BUY conviction boosty — potwierdzone na 3 latach danych
