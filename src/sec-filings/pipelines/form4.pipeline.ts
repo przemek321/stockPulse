@@ -295,8 +295,14 @@ export class Form4Pipeline {
         priority,
       });
 
-      // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
-      const isObservation = ticker?.observationOnly === true;
+      // Observation mode routing:
+      // 1. Ticker z observationOnly=true → DB only (Sprint 17 semi supply chain)
+      // 2. Sprint 16b #2: C-suite SELL → DB only. V4 backtest potwierdził
+      //    zero edge (H2 SINGLE_CSUITE all_sells: N=855 d=-0.002 p=0.95).
+      //    GPT analysis zachowana dla forward validation, Telegram pominięty.
+      const tickerObservation = ticker?.observationOnly === true;
+      const isCsuiteSell = isCsuite && parsed.transactionType === 'SELL';
+      const isObservation = tickerObservation || isCsuiteSell;
 
       // Sprint 16 FLAG #10 fix: shared daily limit check
       let dailyLimitHit = false;
@@ -312,8 +318,10 @@ export class Form4Pipeline {
 
       if (isObservation) {
         delivered = false;
-        nonDeliveryReason = 'observation';
-        this.logger.debug(`OBSERVATION MODE: ${payload.symbol} — alert zapisany, Telegram pominięty`);
+        nonDeliveryReason = tickerObservation ? 'observation' : 'csuite_sell_no_edge';
+        this.logger.debug(
+          `OBSERVATION MODE: ${payload.symbol} — alert zapisany, Telegram pominięty (${nonDeliveryReason})`,
+        );
       } else if (dailyLimitHit) {
         delivered = false;
         nonDeliveryReason = 'daily_limit';
@@ -381,7 +389,8 @@ export class Form4Pipeline {
       }
 
       let finalAction: string;
-      if (isObservation) finalAction = 'ALERT_DB_ONLY_OBSERVATION';
+      if (tickerObservation) finalAction = 'ALERT_DB_ONLY_OBSERVATION';
+      else if (isCsuiteSell) finalAction = 'ALERT_DB_ONLY_CSUITE_SELL';
       else if (dailyLimitHit) finalAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
       else if (delivered) finalAction = 'ALERT_SENT_TELEGRAM';
       else finalAction = 'ALERT_TELEGRAM_FAILED';

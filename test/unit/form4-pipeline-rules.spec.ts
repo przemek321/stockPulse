@@ -248,6 +248,64 @@ describe('Form4Pipeline — C-suite whitelist (Sprint 16b)', () => {
   });
 });
 
+describe('Form4Pipeline — C-suite SELL observation gate (Sprint 16b)', () => {
+  // V4 backtest H2 SINGLE_CSUITE all_sells: N=855 d=-0.002 p=0.95 → zero edge.
+  // Route do observation (DB only, brak Telegram). Replikacja logiki z pipeline.
+  const getCsuiteSellRouting = (
+    isCsuite: boolean,
+    txType: string,
+    tickerObservationOnly: boolean,
+  ) => {
+    const isCsuiteSell = isCsuite && txType === 'SELL';
+    const isObservation = tickerObservationOnly || isCsuiteSell;
+    let finalAction: string;
+    let nonDeliveryReason: string | null;
+    if (tickerObservationOnly) {
+      finalAction = 'ALERT_DB_ONLY_OBSERVATION';
+      nonDeliveryReason = 'observation';
+    } else if (isCsuiteSell) {
+      finalAction = 'ALERT_DB_ONLY_CSUITE_SELL';
+      nonDeliveryReason = 'csuite_sell_no_edge';
+    } else {
+      finalAction = 'ALERT_SENT_TELEGRAM';
+      nonDeliveryReason = null;
+    }
+    return { isObservation, finalAction, nonDeliveryReason };
+  };
+
+  it('C-suite SELL → DB only, reason=csuite_sell_no_edge', () => {
+    const r = getCsuiteSellRouting(true, 'SELL', false);
+    expect(r.isObservation).toBe(true);
+    expect(r.finalAction).toBe('ALERT_DB_ONLY_CSUITE_SELL');
+    expect(r.nonDeliveryReason).toBe('csuite_sell_no_edge');
+  });
+
+  it('C-suite BUY → Telegram (BUY ma edge, d=0.83)', () => {
+    const r = getCsuiteSellRouting(true, 'BUY', false);
+    expect(r.isObservation).toBe(false);
+    expect(r.finalAction).toBe('ALERT_SENT_TELEGRAM');
+  });
+
+  it('non-C-suite SELL (np. Officer generic) → Telegram', () => {
+    const r = getCsuiteSellRouting(false, 'SELL', false);
+    expect(r.isObservation).toBe(false);
+    expect(r.finalAction).toBe('ALERT_SENT_TELEGRAM');
+  });
+
+  it('ticker observation + C-suite SELL → ticker reason ma priorytet', () => {
+    const r = getCsuiteSellRouting(true, 'SELL', true);
+    expect(r.isObservation).toBe(true);
+    expect(r.finalAction).toBe('ALERT_DB_ONLY_OBSERVATION');
+    expect(r.nonDeliveryReason).toBe('observation');
+  });
+
+  it('ticker observation + BUY → ticker observation', () => {
+    const r = getCsuiteSellRouting(true, 'BUY', true);
+    expect(r.isObservation).toBe(true);
+    expect(r.finalAction).toBe('ALERT_DB_ONLY_OBSERVATION');
+  });
+});
+
 describe('INSIDER_CLUSTER SELL observation (Sprint 15)', () => {
   it('INSIDER_CLUSTER + negative → observation mode', () => {
     const pattern = { type: 'INSIDER_CLUSTER', direction: 'negative' };

@@ -130,7 +130,7 @@ Działający system end-to-end w 6 kontenerach Docker. Po Sprint 11 system skupi
 - **priceAtAlert**: od Sprint 11 zapisywany dla WSZYSTKICH typów alertów (Correlated Signal, Form 4, 8-K, Options). Wcześniej NULL dla 120+ alertów/2tyg.
 - **tickers.sector**: `'healthcare'` (domyślny) lub `'semi_supply_chain'`. Używany do healthcare boost guard w Form4Pipeline (`sector === 'healthcare'` → ×1.2).
 - **tickers.observationOnly**: `true` = alert zapisywany do DB ale NIE wysyłany na Telegram. Observation gate w Form4Pipeline, Form8kPipeline, AlertEvaluator.
-- **alerts.nonDeliveryReason**: `'observation'` / `'silent_hour'` / `'daily_limit'` / `null`. Rozróżnia powód `delivered=false` — krytyczne dla forward analysis i backtestów.
+- **alerts.nonDeliveryReason**: `'observation'` / `'silent_hour'` / `'daily_limit'` / `'csuite_sell_no_edge'` / `null`. Rozróżnia powód `delivered=false` — krytyczne dla forward analysis i backtestów. `'csuite_sell_no_edge'` dodane w Sprint 16b #2 (V4 backtest: H2 SINGLE_CSUITE SELL d=-0.002 p=0.95 → zero edge).
 
 ## Multi-środowisko: Laptop ↔ Jetson
 
@@ -229,10 +229,11 @@ Action items po analizie 24h logów produkcji — briefing "Post Sprint 16 actio
 - #4 OptionsFlow: AbortSignal.timeout 30s na Polygon fetchach (17.04 produkcja: runCollectionCycle duration=11h 25min bez timeout — analogiczne do FLAG #28)
 - #7 8-K pipeline: diagnoza bez zmian kodu — SKIP_NOT_8K w logach to Form 4/3 filingi (poprawne), 8-K pipeline działa (2 real 8-K/7 dni = post-earnings low activity, nie bug)
 - #1 Form4Pipeline C-suite whitelist: `/\bChief\b/i` zastąpione explicit whitelist (soft roles Comm/People/Diversity/Marketing/Sustainability wyłączone). 17.04 "Chief Communications Officer" dostawał ×1.3 boost i Telegram alert — noise. Chief Medical Officer ZOSTAJE (healthcare critical), Chief Marketing Officer WYŁĄCZONY (decyzja Przemka).
+- #2 Form4Pipeline C-suite SELL → observation mode: V4 backtest potwierdził zero edge (H2 SINGLE_CSUITE all_sells N=855 d=-0.002 p=0.95). Route do DB-only z `nonDeliveryReason='csuite_sell_no_edge'`, action `ALERT_DB_ONLY_CSUITE_SELL`. GPT analysis zachowana dla forward validation (DB record ma conviction + priceAtAlert). C-suite BUY dalej idzie na Telegram (d=0.83 vs baseline, 1.3× boost).
 
-## Sprint 16b pending (czeka na V4 backtest)
+## Produkcyjny 10b5-1 parser (status OK, zweryfikowano 17.04)
 
-- #2 C-suite SELL route to observation mode: V3 backtest pokazał d=-0.002 p=0.95 (zero edge), ale V3 ma buggy Python parser (FLAG #34). Decyzja: czekać na V4 po Python fixach (HANDOFF-CODE-REVIEW-2026-04-17-python-backtest.md), potem rozstrzygnąć: usunąć regułę, filtrować, czy zostawić.
+`form4-parser.ts:148-152` używa **per-transaction** XML path `txn.transactionCoding?.['Rule10b5-1Transaction']` + strict value match ('1' albo 'Y'). NIE jest naive string detection (odróżnia się od V3 Python FLAG #34). 4 testy jednostkowe pokrywają edge cases ('1', 'Y', pusty string, brak tagu).
 
 ## Known issues NOT yet fixed (priorytet Sprint 17)
 
