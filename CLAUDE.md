@@ -222,10 +222,23 @@ Commits c2d8ae9..7fe870b, szczegóły: [HANDOFF-CODE-REVIEW-2026-04-16.md](doc/H
 - FLAG #26: NYSE holidays 2024-2027 (isNyseHoliday w isNyseOpen)
 - FLAG #10: AlertDeliveryGate shared daily limit (4 pipelines, bankruptcy exempt)
 
+## Sprint 16b interim fixes (17.04.2026, po decyzji 17.04)
+
+Action items po analizie 24h logów produkcji — briefing "Post Sprint 16 action items".
+- #3 AlertEvaluator.onInsiderTrade: dead handler usunięty (Sprint 11 przeniósł logic do Form4Pipeline, handler generował SKIP_RULE_INACTIVE spam 12×/dobę)
+- #4 OptionsFlow: AbortSignal.timeout 30s na Polygon fetchach (17.04 produkcja: runCollectionCycle duration=11h 25min bez timeout — analogiczne do FLAG #28)
+- #7 8-K pipeline: diagnoza bez zmian kodu — SKIP_NOT_8K w logach to Form 4/3 filingi (poprawne), 8-K pipeline działa (2 real 8-K/7 dni = post-earnings low activity, nie bug)
+- #1 Form4Pipeline C-suite whitelist: `/\bChief\b/i` zastąpione explicit whitelist (soft roles Comm/People/Diversity/Marketing/Sustainability wyłączone). 17.04 "Chief Communications Officer" dostawał ×1.3 boost i Telegram alert — noise. Chief Medical Officer ZOSTAJE (healthcare critical), Chief Marketing Officer WYŁĄCZONY (decyzja Przemka).
+
+## Sprint 16b pending (czeka na V4 backtest)
+
+- #2 C-suite SELL route to observation mode: V3 backtest pokazał d=-0.002 p=0.95 (zero edge), ale V3 ma buggy Python parser (FLAG #34). Decyzja: czekać na V4 po Python fixach (HANDOFF-CODE-REVIEW-2026-04-17-python-backtest.md), potem rozstrzygnąć: usunąć regułę, filtrować, czy zostawić.
+
 ## Known issues NOT yet fixed (priorytet Sprint 17)
 
 - FLAG #28: SEC EDGAR collector fetch bez timeout
 - FLAG #32-43: Python backtest (multi-owner bug identyczny do #30, Cohen's d biased, naive 10b5-1 detection, brak Bonferroni, H6 niewymienne baselines) — BLOKUJE zaufanie do V3 backtest results
+- Pre-existing test failures w AlertEvaluator (9 tests): mocki nie mają metody `canDeliverToTelegram` (FLAG #10 dodał `AlertDeliveryGate` do konstruktora, mocki niezaktualizowane). Nie blokuje produkcji, ale CI może się wysypać.
 
 ## System totals (17.04.2026)
 
