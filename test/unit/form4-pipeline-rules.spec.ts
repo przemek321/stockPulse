@@ -39,42 +39,73 @@ describe('Form4Pipeline — Director SELL skip (Sprint 15)', () => {
   });
 });
 
-describe('Form4Pipeline — BUY conviction boost (Sprint 15)', () => {
+describe('Form4Pipeline — BUY conviction boost (Sprint 15 + Sprint 17)', () => {
+  // C-suite BUY d=0.83 → ×1.3 (V4)
+  // Director BUY d=0.59 → ×1.15 (V4, added Sprint 17)
+  // Healthcare sector → ×1.2 (kumulatywne z rolą)
+  // Priorytet: C-suite wygrywa nad Director w co-filing (albo/albo).
   const applyBuyBoost = (
     conviction: number,
     isBuy: boolean,
     isCsuite: boolean,
+    isDirector: boolean,
     sector: string | null,
   ): number => {
     if (isBuy) {
       if (isCsuite) conviction *= 1.3;
+      else if (isDirector) conviction *= 1.15;
       if (sector === 'healthcare') conviction *= 1.2;
     }
     return conviction;
   };
 
   it('C-suite healthcare BUY → ×1.3 × ×1.2 = ×1.56', () => {
-    const result = applyBuyBoost(1.0, true, true, 'healthcare');
+    const result = applyBuyBoost(1.0, true, true, false, 'healthcare');
     expect(result).toBeCloseTo(1.56, 2);
   });
 
   it('C-suite semi BUY → ×1.3 tylko (bez healthcare boost)', () => {
-    const result = applyBuyBoost(1.0, true, true, 'semi_supply_chain');
+    const result = applyBuyBoost(1.0, true, true, false, 'semi_supply_chain');
     expect(result).toBeCloseTo(1.3, 2);
   });
 
-  it('Director healthcare BUY → ×1.2 tylko (bez C-suite boost)', () => {
-    const result = applyBuyBoost(1.0, true, false, 'healthcare');
+  it('Director healthcare BUY → ×1.15 × ×1.2 = ×1.38 (Sprint 17: Director BUY d=0.59)', () => {
+    const result = applyBuyBoost(1.0, true, false, true, 'healthcare');
+    expect(result).toBeCloseTo(1.38, 2);
+  });
+
+  it('Director semi BUY → ×1.15 tylko', () => {
+    const result = applyBuyBoost(1.0, true, false, true, 'semi_supply_chain');
+    expect(result).toBeCloseTo(1.15, 2);
+  });
+
+  it('C-suite + Director co-filing BUY → tylko ×1.3 (C-suite priorytet, nie stack)', () => {
+    const result = applyBuyBoost(1.0, true, true, true, 'healthcare');
+    expect(result).toBeCloseTo(1.56, 2);
+  });
+
+  it('Non-C-suite non-Director BUY → bez boost (np. generic Officer)', () => {
+    const result = applyBuyBoost(1.0, true, false, false, 'semi_supply_chain');
+    expect(result).toBeCloseTo(1.0, 2);
+  });
+
+  it('Non-role + healthcare BUY → tylko ×1.2 (sector only)', () => {
+    const result = applyBuyBoost(1.0, true, false, false, 'healthcare');
     expect(result).toBeCloseTo(1.2, 2);
   });
 
   it('C-suite SELL → bez boost (boost tylko na BUY)', () => {
-    const result = applyBuyBoost(1.0, false, true, 'healthcare');
+    const result = applyBuyBoost(1.0, false, true, false, 'healthcare');
+    expect(result).toBeCloseTo(1.0, 2);
+  });
+
+  it('Director SELL → bez boost', () => {
+    const result = applyBuyBoost(1.0, false, false, true, 'healthcare');
     expect(result).toBeCloseTo(1.0, 2);
   });
 
   it('null sector → bez healthcare boost', () => {
-    const result = applyBuyBoost(1.0, true, true, null);
+    const result = applyBuyBoost(1.0, true, true, false, null);
     expect(result).toBeCloseTo(1.3, 2);
   });
 });

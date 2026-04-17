@@ -240,14 +240,18 @@ export class Form4Pipeline {
       const isCsuite = isCsuiteRole(parsed.insiderRole, parsed.insiderName);
       const isBuy = parsed.transactionType === 'BUY';
 
-      // Sprint 15 (backtest): BUY conviction boosty — potwierdzone na 3 latach danych
-      // C-suite BUY: d=0.83 vs baseline, d=0.60 vs dip baseline (N=39)
-      // Healthcare BUY: d=0.58 vs baseline (N=102)
-      // Boosty kumulatywne: C-suite healthcare BUY = ×1.3 × ×1.2 = ×1.56
+      // BUY conviction boosty — backtest-backed (Sprint 15 + V4 calibration):
+      // C-suite BUY:  d=0.83 (V4) — primary boost ×1.3
+      // Director BUY: d=0.59 (V4) — secondary boost ×1.15 (added Sprint 17)
+      // Healthcare BUY: d=0.58 — sector boost ×1.2 (kumulatywne z rolą)
+      // Priorytet: C-suite > Director (albo/albo, nie stack w co-filing bo Dir już objęty przez hasCsuite check).
       if (isBuy) {
         if (isCsuite) {
           analysis.conviction *= 1.3;
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} C-suite ×1.3 → conviction=${analysis.conviction.toFixed(2)}`);
+        } else if (isDirector) {
+          analysis.conviction *= 1.15;
+          this.logger.debug(`Form4 BUY boost: ${payload.symbol} Director ×1.15 → conviction=${analysis.conviction.toFixed(2)}`);
         }
         // Healthcare boost: tylko dla sektora healthcare (nie semi supply chain)
         if (ticker?.sector === 'healthcare') {

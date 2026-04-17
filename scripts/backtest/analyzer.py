@@ -380,7 +380,113 @@ def analyze_h1_clusters(tx_df: pd.DataFrame,
             },
         }
 
+        # Sprint 17: cluster BUY vs single (non-cluster) BUY — czy cluster daje edge
+        # ponad pojedynczy BUY? Odpowiada na pytanie "czy warto czekać na drugi insider".
+        # Definicja single BUY: BUY z unique_insiders<2 w forward 7d window.
+        single_buy_events = _collect_single_buy_events(disc, prices)
+        h.sub_groups["cluster_buy_vs_single_buy"] = _direct_cluster_vs_single(
+            buy_events, single_buy_events, tx_type="BUY",
+        )
+
     return h
+
+
+def _collect_single_buy_events(disc: pd.DataFrame,
+                                prices: dict[str, pd.DataFrame]) -> list[EventReturn]:
+    """
+    Sprint 17: Zbiera pojedyncze BUY (nie cluster — <2 insiders w 7d forward window).
+    Używa tego samego algorytmu H1 clustering, ale wybiera solo events.
+    """
+    events: list[EventReturn] = []
+    buy_df = disc[disc["transaction_type"] == "BUY"].copy()
+    if len(buy_df) == 0:
+        return events
+    # filing_date może być już datetime (zostało skonwertowane w analyze_h1_clusters) — bezpiecznie
+    buy_df["filing_date"] = pd.to_datetime(buy_df["filing_date"])
+    buy_df = buy_df.sort_values(["symbol", "filing_date"])
+
+    for symbol, group in buy_df.groupby("symbol"):
+        dates = group["filing_date"].values
+        i = 0
+        while i < len(dates):
+            window_end = dates[i] + np.timedelta64(CLUSTER_WINDOW_DAYS, "D")
+            window_mask = (dates >= dates[i]) & (dates <= window_end)
+            window_group = group[window_mask]
+            unique_insiders = window_group["insider_name"].nunique()
+
+            if unique_insiders < CLUSTER_MIN_INSIDERS:
+                event_date = str(pd.Timestamp(dates[i]).date())
+                ret_data = _compute_returns(prices, symbol, event_date)
+                if ret_data:
+                    events.append(EventReturn(
+                        symbol=symbol,
+                        event_date=event_date,
+                        price_at_event=ret_data["price_at_event"],
+                        returns=ret_data["returns"],
+                        tx_type="BUY",
+                        n_insiders=unique_insiders,
+                        is_healthcare=symbol in HEALTHCARE_TICKERS,
+                        is_csuite=bool(window_group["is_csuite"].any()),
+                    ))
+            i += int(window_mask.sum())
+    return events
+
+
+def _direct_cluster_vs_single(cluster_events: list,
+                               single_events: list,
+                               tx_type: str) -> dict:
+    """
+    Sprint 17: Direct comparison cluster vs single events (Welch's t-test).
+    Odpowiada na pytanie: czy cluster signal > pojedynczy signal?
+    """
+    from scipy import stats as scipy_stats
+    out = {
+        "n_cluster": len(cluster_events),
+        "n_single": len(single_events),
+        "tx_type": tx_type,
+        "horizons": {},
+    }
+    for horizon in HORIZONS:
+        vals_cluster = [
+            e.returns.get(horizon) for e in cluster_events
+            if e.returns.get(horizon) is not None
+        ]
+        vals_single = [
+            e.returns.get(horizon) for e in single_events
+            if e.returns.get(horizon) is not None
+        ]
+        if len(vals_cluster) < 3 or len(vals_single) < 3:
+            out["horizons"][horizon] = {
+                "n_cluster": len(vals_cluster),
+                "n_single": len(vals_single),
+                "mean_cluster": None,
+                "mean_single": None,
+                "t_stat": None,
+                "p_value": None,
+                "cohens_d": None,
+                "note": "insufficient N (<3)",
+            }
+            continue
+        t_stat, p_value = scipy_stats.ttest_ind(
+            vals_cluster, vals_single, equal_var=False
+        )
+        # Cohen's d (proper: Welch's pooled SD, no ddof bias)
+        mean_c = float(np.mean(vals_cluster))
+        mean_s = float(np.mean(vals_single))
+        var_c = float(np.var(vals_cluster, ddof=1))
+        var_s = float(np.var(vals_single, ddof=1))
+        pooled_sd = ((var_c + var_s) / 2) ** 0.5 if (var_c + var_s) > 0 else 0.0
+        cohens_d = (mean_c - mean_s) / pooled_sd if pooled_sd > 0 else 0.0
+        out["horizons"][horizon] = {
+            "n_cluster": len(vals_cluster),
+            "n_single": len(vals_single),
+            "mean_cluster": mean_c,
+            "mean_single": mean_s,
+            "t_stat": float(t_stat),
+            "p_value": float(p_value),
+            "cohens_d": float(cohens_d),
+        }
+    return out
 
 
 def analyze_h2_single_csuite(tx_df: pd.DataFrame,
@@ -799,10 +905,12 @@ def run_analysis(transactions_csv: str,
     # Filtruj błędne daty (np. rok 0025 zamiast 2025 z SEC XML)
     tx_df = tx_df[tx_df["transaction_date"].str.match(r"^20\d{2}-", na=False)].copy()
     tx_df = tx_df[tx_df["filing_date"].str.match(r"^20\d{2}-", na=False)].copy()
-    # V2 (P0.5 fix): zawężamy tx_df tylko do healthcare tickers
-    # H5 i H1 nie filtrowały po tickerach — używały wszystkich 61. Fix:
-    tx_df = tx_df[tx_df["is_healthcare"] == True].copy()
-    print(f"\nTransakcje (raw, po filtrze healthcare {len(HEALTHCARE_TICKERS)} tickerów): {len(tx_df)}")
+    # Sprint 17: NIE filtrujemy tx_df do healthcare globalnie.
+    # Wcześniej (V2) top-level filter zawężał do healthcare — H6 dostawał ZERO
+    # control events (bo disc_sells po filtrze healthcare zawsze is_healthcare=True).
+    # Teraz: tx_df zachowuje healthcare + control, H1-H5 filtrują per-hypothesis,
+    # H6 używa pełnego df żeby mieć prawdziwą grupę kontrolną.
+    print(f"\nTransakcje (raw, po filtrze dat): {len(tx_df)}")
 
     # Deduplikacja: kolapsuj wiele transakcji per (symbol, insider, tydzień, typ)
     # do jednego eventu — zapobiega pompowaniu N przez wewnątrz-tickerowe korelacje
@@ -818,13 +926,16 @@ def run_analysis(transactions_csv: str,
     print(f"Transakcje (po deduplikacji per insider×tydzień): {len(tx_df)} "
           f"(usunięto {n_before - len(tx_df)} duplikatów)")
 
+    # Sprint 17: zawężenie dla H1-H5 (healthcare only). H6 używa tx_df (full).
+    tx_df_hc = tx_df[tx_df["is_healthcare"] == True].copy()
+
     # Statystyki danych
     print(f"  SELL: {len(tx_df[tx_df['transaction_type'] == 'SELL'])}")
     print(f"  BUY:  {len(tx_df[tx_df['transaction_type'] == 'BUY'])}")
     print(f"  10b5-1: {tx_df['is_10b51_plan'].sum()}")
     print(f"  C-suite: {tx_df['is_csuite'].sum()}")
-    print(f"  Healthcare: {tx_df['is_healthcare'].sum()}")
-    print(f"  Control: {(~tx_df['is_healthcare']).sum()}")
+    print(f"  Healthcare: {tx_df['is_healthcare'].sum()}  (H1-H5 scope)")
+    print(f"  Control:    {(~tx_df['is_healthcare']).sum()}  (H6 control group)")
     print(f"  Tickery: {tx_df['symbol'].nunique()}")
 
     # Baseline
@@ -852,32 +963,32 @@ def run_analysis(transactions_csv: str,
     # Hipotezy
     results = []
 
-    print("\n[H1] Insider Clusters...")
-    h1 = analyze_h1_clusters(tx_df, prices, baseline_all)
+    print("\n[H1] Insider Clusters (healthcare scope)...")
+    h1 = analyze_h1_clusters(tx_df_hc, prices, baseline_all)
     results.append(h1)
     print(f"     {h1.n_events} clusterów znalezionych")
 
-    print("[H2] Single C-suite transakcje...")
-    h2 = analyze_h2_single_csuite(tx_df, prices, baseline_all)
+    print("[H2] Single C-suite transakcje (healthcare scope)...")
+    h2 = analyze_h2_single_csuite(tx_df_hc, prices, baseline_all)
     results.append(h2)
     print(f"     {h2.n_events} transakcji")
 
-    print("[H3] 10b5-1 vs Discretionary...")
-    h3 = analyze_h3_plan_vs_discretionary(tx_df, prices, baseline_all)
+    print("[H3] 10b5-1 vs Discretionary (healthcare scope)...")
+    h3 = analyze_h3_plan_vs_discretionary(tx_df_hc, prices, baseline_all)
     results.append(h3)
     print(f"     {h3.n_events} transakcji")
 
-    print("[H4] Role Seniority...")
-    h4 = analyze_h4_role_seniority(tx_df, prices, baseline_all)
+    print("[H4] Role Seniority (healthcare scope)...")
+    h4 = analyze_h4_role_seniority(tx_df_hc, prices, baseline_all)
     results.append(h4)
     print(f"     {h4.n_events} transakcji")
 
-    print("[H5] BUY Signals (+ dip baseline kontrola)...")
-    h5 = analyze_h5_buy_signals(tx_df, prices, baseline_all, dip_baseline_all)
+    print("[H5] BUY Signals (healthcare scope, + dip baseline kontrola)...")
+    h5 = analyze_h5_buy_signals(tx_df_hc, prices, baseline_all, dip_baseline_all)
     results.append(h5)
     print(f"     {h5.n_events} transakcji")
 
-    print("[H6] Healthcare vs Control (common baseline + direct)...")
+    print("[H6] Healthcare vs Control (FULL tx_df — sector-specific edge test)...")
     h6 = analyze_healthcare_vs_control(tx_df, prices, baseline_hc, baseline_ctrl, baseline_all)
     results.append(h6)
     print(f"     {h6.n_events} transakcji")

@@ -231,6 +231,21 @@ Action items po analizie 24h logów produkcji — briefing "Post Sprint 16 actio
 - #1 Form4Pipeline C-suite whitelist: `/\bChief\b/i` zastąpione explicit whitelist (soft roles Comm/People/Diversity/Marketing/Sustainability wyłączone). 17.04 "Chief Communications Officer" dostawał ×1.3 boost i Telegram alert — noise. Chief Medical Officer ZOSTAJE (healthcare critical), Chief Marketing Officer WYŁĄCZONY (decyzja Przemka).
 - #2 Form4Pipeline C-suite SELL → observation mode: V4 backtest potwierdził zero edge (H2 SINGLE_CSUITE all_sells N=855 d=-0.002 p=0.95). Route do DB-only z `nonDeliveryReason='csuite_sell_no_edge'`, action `ALERT_DB_ONLY_CSUITE_SELL`. GPT analysis zachowana dla forward validation (DB record ma conviction + priceAtAlert). C-suite BUY dalej idzie na Telegram (d=0.83 vs baseline, 1.3× boost).
 
+## Sprint 17 P1 research (18.04.2026, mierzalne)
+
+- #1 Form4Pipeline Director BUY boost ×1.15: V4 potwierdził d=0.59 dla Director BUY
+  (mniejsze niż C-suite d=0.83 ×1.3, ale wyraźny sygnał). Kumulatywne z healthcare
+  ×1.2 (Dir hc BUY = ×1.38). C-suite priorytet w co-filing (albo/albo, nie stack).
+- #2 Backtest control group fix: usunięty top-level `is_healthcare==True` filter
+  z `run_analysis`. H1-H5 filtrują healthcare per-hypothesis (tx_df_hc), H6 używa
+  pełnego tx_df (healthcare + control). Bez tego H6 miał 0 control events — teraz
+  faktyczny sector-specific edge test możliwy.
+- #3 H1 cluster vs single BUY: nowa sub-analiza w analyze_h1_clusters —
+  direct Welch's t-test cluster BUY vs non-cluster single BUY (unique_insiders<2
+  w 7d forward window). Odpowiada "czy warto czekać na drugiego insidera".
+  Funkcje: `_collect_single_buy_events`, `_direct_cluster_vs_single`. 7 testów
+  jednostkowych w `tests/test_analyzer.py`.
+
 ## Produkcyjny 10b5-1 parser (status OK, zweryfikowano 17.04)
 
 `form4-parser.ts:148-152` używa **per-transaction** XML path `txn.transactionCoding?.['Rule10b5-1Transaction']` + strict value match ('1' albo 'Y'). NIE jest naive string detection (odróżnia się od V3 Python FLAG #34). 4 testy jednostkowe pokrywają edge cases ('1', 'Y', pusty string, brak tagu).
