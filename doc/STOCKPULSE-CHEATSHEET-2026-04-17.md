@@ -297,8 +297,8 @@ Zakres: 2023-04-01 → 2026-04-05, 40 874 transakcji, 28 healthcare tickers.
 ### V5 delta (commit f69cfa8, 18.04.2026)
 
 V5 = V4 + H6 control group fix + H1 cluster_buy_vs_single_buy analysis
-(kod e07bbc2). 19/124 Bonferroni (15.3%) vs V4 24/112 (21.4%). Threshold
-p<0.000403 (V4: 0.000446). Więcej hipotez → surowszy test.
+(kod e07bbc2). 19/128 Bonferroni (14.8%) vs V4 24/112 (21.4%). Threshold
+p<0.000391 (V4: 0.000446). Więcej hipotez → surowszy test.
 
 **H6 naprawione (control N=1393, wcześniej N=0):**
 
@@ -335,8 +335,9 @@ observation od Sprint 15).
 
 | Signal | V4 7d d | V5 7d d | Trend |
 |---|---|---|---|
-| C-suite BUY | +0.82 | +0.75 | stable |
-| All BUY | +0.68 | +0.75 | +0.07 |
+| C-suite BUY (csuite_buys) | +0.82 | +0.92 | +0.10 stronger |
+| C-suite BUY (vs_random_dip_CSUITE) | +0.75 | +0.76 | stable |
+| All BUY (healthcare_buys) | +0.68 | +0.75 | +0.07 |
 | BUY >$500K 1d | +1.58 | +1.77 | +0.19 |
 
 V5 potwierdza V4 BUY edge — nie był artefakt, liczby stabilne.
@@ -489,4 +490,4 @@ research item #12), albo fix reportu dla cluster_buy_vs_single_buy d values.
 
 **Historia V4 → V5:**
 - V4 (e1ab795): 112 testów, 24 Bonf ✓. H6 broken (ctrl N=0). No cluster-vs-single.
-- V5 (f69cfa8): 124 testów, 19 Bonf ✓. H6 fixed. Cluster-vs-single answered (no edge).
+- V5 (f69cfa8): 128 testów, 19 Bonf ✓ (threshold p<0.000391). H6 fixed. Cluster-vs-single answered (no edge).

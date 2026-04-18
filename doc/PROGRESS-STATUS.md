@@ -2,19 +2,25 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-16
+> Ostatnia aktualizacja: 2026-04-18
 
-## Stan walidacji (16.04.2026)
+## Stan walidacji (18.04.2026)
 
-**Backtest V3** (16.04.2026, po FIX #1 multi-owner parser): edge **stabilny** — C-suite BUY d=0.72 (7d), All BUY d=0.54 (7d), **BUY >$1M d=1.26** (1d, N=12), C-suite BUY hit rate 3d=89.3% (vs 51.8% baseline). Delta vs V2 <1% — multi-owner fix nie zmienił wyników (co-filingi rzadkie w 28-tickerowym HC universe). Pełne wyniki: [backtest_report.md](scripts/backtest/data/results/backtest_report.md). **Pending**: H6 balanced re-run, XBI-adjusted alpha, per-(insider, year) deduplikacja, pure survivorship test (delisted CIKs).
+**Backtest V5** (18.04.2026, commit f69cfa8 regenerate po 3a319d7 mismatch): Sprint 17 P1 validation complete. **Healthcare SELL**: zero edge wszystkie horyzonty (d≈0, p>0.07). **Control SELL (non-healthcare)**: d=+0.10 na 30d, p=0.0002, Bonferroni ✓✓✓ (N=1393). **Direct HC-vs-CTRL**: d=-0.14 30d p=0.016 raw — healthcare SŁABSZY niż control dla SELL (przeciwna intuicji). **H1 cluster BUY vs solo BUY**: p>0.37 wszystkie horyzonty (N_cluster=21, N_single=49) — cluster nie dodaje wartości ponad solo BUY. **BUY edge silniejszy V4→V5**: C-suite BUY csuite_buys 7d d=+0.82→+0.92, All BUY d=+0.68→+0.75 (vs_random_dip_CSUITE stabilny: +0.75→+0.76). 128 testów, 19 Bonferroni ✓ (V4: 112/24). Threshold p<0.000391 (0.05/128). Ściąga: [STOCKPULSE-CHEATSHEET-2026-04-17.md](doc/STOCKPULSE-CHEATSHEET-2026-04-17.md). Pełne wyniki: [backtest_report.md](scripts/backtest/data/results/backtest_report.md).
 
-> ⛔ **Sprint 16 = validation only.** NIE ClinicalTrials/Polymarket/nowe reguły/zmiany boost ×1.3/×1.2. Sprint 17 = rekalibracja parametrów na podstawie pełnej walidacji. Sprint 18 = nowe features. Rozdzielaj research od development.
+> ✅ **Sprint 17 P1 resolved (18.04.2026)**: (1) C-suite SELL → observation mode (commits abff1c9, 5dc2a36). (2) Director BUY boost ×1.15 (commit e07bbc2). (3) H6 control group fix — usunięty top-level `is_healthcare==True` filter (commit e07bbc2, control N=0→N=1393). (4) H1 cluster_buy_vs_single_buy direct test (commit e07bbc2, wyniki w f69cfa8). (5) Production 10b5-1 parser audit verified (per-transaction XML path, 4 testy jednostkowe). Sprint 18 = INSIDER_CLUSTER BUY disable candidate + C-suite regex unification + d=None bug fix + report_generator sub_groups renderowanie.
 
 ## Gdzie jesteśmy
 
-**Sprint 16 — Walidacja Sprint 15** (10.04.2026, w toku). Survivorship check (selection bias 3.2% pokrycia, ale nie pure survivorship), P0 koncentracja (top-3 V1=35.9%, V2=46.4%, ale bez top-3 hit rate 80% → edge dystrybuowany), P0.5 backtest-production mismatch (zawężenie do 28 healthcare overlap, soft delete 9 production-only tickerów: ALHC, CERT, CVS, CYH, DVA, GSK, HCAT, VEEV, WBA), backtest V2 (re-run na 28 czystych HC — edge wzmocniony nie osłabiony), point-in-time audit (TickerProfileService używa NOW(), brak look-ahead w production runtime, backtest nie używa serwisu), soft delete dla alertów (`alerts.archived` column + endpoint, od dziś nie kasujemy hard-delete).
+**Sprint 16 — Walidacja Sprint 15** (10.04.2026, ukończony). Survivorship check (selection bias 3.2% pokrycia, ale nie pure survivorship), P0 koncentracja (top-3 V1=35.9%, V2=46.4%, ale bez top-3 hit rate 80% → edge dystrybuowany), P0.5 backtest-production mismatch (zawężenie do 28 healthcare overlap, soft delete 9 production-only tickerów: ALHC, CERT, CVS, CYH, DVA, GSK, HCAT, VEEV, WBA), backtest V2 (re-run na 28 czystych HC — edge wzmocniony nie osłabiony), point-in-time audit (TickerProfileService używa NOW(), brak look-ahead w production runtime, backtest nie używa serwisu), soft delete dla alertów (`alerts.archived` column + endpoint, od dziś nie kasujemy hard-delete).
 
-**Sprint 17 — Semi Supply Chain observation layer** (ukończony 2026-04-09). 14 nowych tickerów z sektora półprzewodników (3 koszyki: Memory Producers, Equipment & Packaging, OEM Anti-Signal) w **observation mode** — alerty zapisywane do DB, brak Telegramu dopóki backtest nie potwierdzi edge'u. Nowe kolumny: `tickers.sector`, `tickers.observationOnly`, `alerts.nonDeliveryReason`. Healthcare boost guard fix (`sector === 'healthcare'`). Observation gate w Form4Pipeline, Form8kPipeline, AlertEvaluator.
+**Sprint 16 P0 fixes** (16.04.2026, ukończony). 6 P0 fixów z code review (commits c2d8ae9..7fe870b): FLAG #30 multi-owner parser, FLAG #25 backfill disable, FLAG #21 winsorize baseline, FLAG #8 bankruptcy before daily cap, FLAG #26 NYSE holidays 2024-2027, FLAG #10 AlertDeliveryGate shared daily limit. Handoff: [HANDOFF-CODE-REVIEW-2026-04-16.md](HANDOFF-CODE-REVIEW-2026-04-16.md).
+
+**Sprint 16b interim fixes** (17.04.2026, ukończony). 5 commitów post 24h produkcji logs (98b3741..3277deb): dead onInsiderTrade handler usunięty (SKIP_RULE_INACTIVE spam 12×/dobę), Options Flow AbortSignal.timeout 30s (d78a92f), C-suite whitelist (b503a8e) — soft roles (Comm/People/Diversity/Marketing/Sustainability) wyłączone, Chief Medical Officer ZOSTAJE (healthcare critical), C-suite SELL → observation mode (5dc2a36, V4 d=-0.002 p=0.95).
+
+**Sprint 17 — Semi Supply Chain observation layer** (09.04.2026, ukończony). 14 nowych tickerów z sektora półprzewodników (3 koszyki: Memory Producers, Equipment & Packaging, OEM Anti-Signal) w **observation mode** — alerty zapisywane do DB, brak Telegramu dopóki backtest nie potwierdzi edge'u. Nowe kolumny: `tickers.sector`, `tickers.observationOnly`, `alerts.nonDeliveryReason`. Healthcare boost guard fix (`sector === 'healthcare'`). Observation gate w Form4Pipeline, Form8kPipeline, AlertEvaluator.
+
+**Sprint 17 P1 — V5 backtest validation** (18.04.2026, ukończony). Python fixes (FLAG #32-40, commits eabdb06, ac503d7, d7a86d6) → V4 baseline (e1ab795). Sprint 17 P1 additions w e07bbc2: Director BUY boost ×1.15 (V4 d=+0.59), H6 control group fix (usunięty top-level `is_healthcare==True` filter), H1 cluster_buy_vs_single_buy direct test (`_collect_single_buy_events` + `_direct_cluster_vs_single` w `analyzer.py`). V5 backtest: commit 3a319d7 (markdown OK, JSON stale) → fix f69cfa8 (regenerate z freshly computed data). Wyniki V5 w bloku 🎯 powyżej. Ściąga referencyjna: [STOCKPULSE-CHEATSHEET-2026-04-17.md](STOCKPULSE-CHEATSHEET-2026-04-17.md).
 
 **Aktywny pipeline**: SEC EDGAR (Form 4 + 8-K) → **Claude Sonnet** analiza (Anthropic API) → 3 wzorce korelacji (INSIDER_CLUSTER [SELL=observation], INSIDER_PLUS_8K, INSIDER_PLUS_OPTIONS) → alerty Telegram. Options Flow z PDUFA boost → standalone alert tylko z pdufaBoosted=true. Form4Pipeline: discretionary only (is10b51Plan→skip), **Director SELL→hard skip** (backtest: anty-sygnał), **BUY boosty** (C-suite ×1.3, healthcare ×1.2). **Observation mode** dla semi supply chain tickerów (delivered=false, nonDeliveryReason='observation'). **8 aktywnych reguł** alertów (w tym nowa Form 4 Insider BUY), 12 wyłączonych. **42 aktywnych tickerów** (28 zwalidowanych healthcare + 14 semi observation) + 9 soft-deleted (`isActive=false`). Raporty tygodniowe w [doc/reports/](doc/reports/).
 
@@ -884,6 +890,50 @@ Artykuł o wzroście cen pamięci/helu ujawnił katalizator w łańcuchu dostaw 
 - [ ] Faza 3: 8-K SUPPLY_DISRUPTION classifier (sektor-agnostyczny)
 - [ ] Faza 4: Go/no-go decision (d ≥ 0.30, p < 0.05, ≥5 forward sygnałów)
 
+### Sprint 16 P0 fixes — code review post-mortem (ukończony 2026-04-16)
+
+6 P0 fixów (commits c2d8ae9..7fe870b), raport: [STOCKPULSE-AUDIT-2026-04-16.md](STOCKPULSE-AUDIT-2026-04-16.md), handoff: [HANDOFF-CODE-REVIEW-2026-04-16.md](HANDOFF-CODE-REVIEW-2026-04-16.md).
+- [x] **FLAG #30** — Form 4 multi-reportingOwner parser (mergeOwnerRoles + pure Director SELL detection)
+- [x] **FLAG #25** — disable broken PriceOutcome backfill (getQuote current price ≠ historical)
+- [x] **FLAG #21** — winsorize options baseline (spike contamination, camouflage effect)
+- [x] **FLAG #8** — bankruptcy detection before daily cap (Item 1.03 nie wymaga GPT)
+- [x] **FLAG #26** — NYSE holidays 2024-2027 (isNyseHoliday w isNyseOpen)
+- [x] **FLAG #10** — AlertDeliveryGate shared daily limit (4 pipelines, bankruptcy exempt)
+
+### Sprint 16b interim fixes (ukończony 2026-04-17)
+
+5 commitów post analizie 24h logów produkcji (98b3741..3277deb). Briefing "Post Sprint 16 action items".
+- [x] **#3** — AlertEvaluator.onInsiderTrade: dead handler usunięty (Sprint 11 przeniósł logic do Form4Pipeline, handler generował SKIP_RULE_INACTIVE spam 12×/dobę) — commit 98b3741
+- [x] **#4** — OptionsFlow AbortSignal.timeout 30s na Polygon fetchach (17.04 produkcja: runCollectionCycle duration=11h 25min) — commit d78a92f
+- [x] **#7** — 8-K pipeline diagnoza: SKIP_NOT_8K w logach to Form 4/3 (poprawne), pipeline działa (2 real 8-K/7 dni = post-earnings low activity)
+- [x] **#1** — Form4Pipeline C-suite whitelist: `/\bChief\b/i` → explicit whitelist (soft roles Comm/People/Diversity/Marketing/Sustainability wyłączone). Chief Medical Officer ZOSTAJE (healthcare critical), Chief Marketing Officer WYŁĄCZONY (decyzja Przemka) — commit b503a8e
+- [x] **#2** — Form4Pipeline C-suite SELL → observation mode: V4 backtest potwierdził zero edge (H2 SINGLE_CSUITE all_sells N=855 d=-0.002 p=0.95). Route do DB-only z `nonDeliveryReason='csuite_sell_no_edge'`, action `ALERT_DB_ONLY_CSUITE_SELL`. C-suite BUY dalej na Telegram (d=0.83, ×1.3 boost) — commit 5dc2a36
+
+### Sprint 17 P1 — V5 backtest validation (ukończony 2026-04-18)
+
+Python backtest fixes (FLAG #32-40): commits eabdb06 (multi-owner + 10b5-1 per-transaction), ac503d7 (proper Cohen's d + winsorization), d7a86d6 (Bonferroni + H6 common baseline). V4 baseline: e1ab795.
+
+Sprint 17 P1 additions w commit e07bbc2:
+- [x] **#1** — Form4Pipeline Director BUY boost ×1.15: V4 potwierdził d=+0.59 dla Director BUY (mniejsze niż C-suite d=+0.83 ×1.3, ale wyraźny sygnał). Kumulatywne z healthcare ×1.2 (Dir hc BUY = ×1.38). C-suite priorytet w co-filing (albo/albo, nie stack)
+- [x] **#2** — Backtest control group fix: usunięty top-level `is_healthcare==True` filter z `run_analysis`. H1-H5 filtrują healthcare per-hypothesis (tx_df_hc), H6 używa pełnego tx_df (healthcare + control). V5: control N=1393 (wcześniej 0)
+- [x] **#3** — H1 cluster vs single BUY: nowa sub-analiza w `analyze_h1_clusters` — direct Welch's t-test cluster BUY vs non-cluster single BUY (unique_insiders<2 w 7d forward window). Funkcje: `_collect_single_buy_events`, `_direct_cluster_vs_single`. 7 testów jednostkowych w `tests/test_analyzer.py`
+
+V5 backtest execution:
+- [x] Commit 3a319d7 ("docs: V5 backtest wyniki"): markdown OK (z freshly computed data), JSON stale (control_vs_common n=0, brak cluster_buy_vs_single_buy w H1). Fabrication detekcja — Claude Code cytował liczby z faktycznego runu w commit message, ale committnął stary JSON
+- [x] Commit f69cfa8 ("fix(backtest): V5 regenerate"): fresh JSON + markdown z tego samego runu (timestamp 2026-04-18 00:44). Verify przez `python3 -c "import json; ..."` bezpośrednio z JSON
+
+V5 kluczowe liczby (z `backtest_results.json`):
+- H6 `control_vs_common` N=1393: 7d d=+0.09 p=0.0004 ✓✓✓, 30d d=+0.10 p=0.0002 ✓✓✓
+- H6 `hc_vs_ctrl_direct` n_hc=973 n_ctrl=1393: d=-0.058 (1d) do -0.144 (30d, p=0.016) — healthcare SŁABSZY niż control dla SELL
+- H1 `cluster_buy_vs_single_buy` N_cluster=21 N_single=49: d w [-0.23, +0.22], p>0.37 wszystkie horyzonty
+- BUY edge stability/wzrost: C-suite BUY csuite_buys 7d V4→V5 = +0.82→+0.92, All BUY (healthcare_buys) +0.68→+0.75, BUY >$500K 1d +1.58→+1.77 (vs_random_dip_CSUITE 7d stabilny: +0.75→+0.76)
+
+Sprint 18 candidates (V5-driven):
+- [ ] INSIDER_CLUSTER disable dla BUY direction (V5: cluster nie dodaje wartości, solo BUY wystarczy)
+- [ ] C-suite detection ujednolicenie (`form4.pipeline.ts:119` stary regex vs linia 240 `isCsuiteRole()`)
+- [ ] d=None bug w `_direct_cluster_vs_single` (JSON zapisuje None zamiast d values — tylko p-value działa)
+- [ ] report_generator nie renderuje `hc_vs_ctrl_direct` i `cluster_buy_vs_single_buy` (schemas z n_a/n_b zamiast n)
+
 ## Kluczowe liczby
 
 - **Tickery do monitorowania**: 51 total — 37 healthcare + 14 semi supply chain (observation mode). Config: `stockpulse-healthcare-universe.json` + `stockpulse-semi-supply-chain.json`
@@ -908,5 +958,8 @@ Artykuł o wzroście cen pamięci/helu ujawnił katalizator w łańcuchu dostaw 
 - **Sprint 15**: Backtest 3Y (43 946 tx, 6 hipotez), BUY rule (d=0.43), Director SELL skip, INSIDER_CLUSTER SELL observation, 7 bugfixów, raport 8h bez sentymentu, Signal Timeline redesign
 - **Sprint 16**: UTC fix (Options Flow CRON, getLastTradingDay), INSIDER_PLUS_OPTIONS 72h→120h/5d, Options Flow kolumna Kurs, Signal Timeline dropdown, SEC EDGAR skan 100 pozycji/7d, reprocess-filing endpoint
 - **Sprint 17**: Semi Supply Chain observation layer — 14 nowych tickerów (3 koszyki: Memory, Equipment, OEM) w observation mode. Nowe kolumny: `tickers.sector` + `observationOnly`, `alerts.nonDeliveryReason`. Observation gate w Form4/Form8k/AlertEvaluator. Healthcare boost guard fix
+- **Sprint 16 P0 fixes**: 6 P0 fixów z code review (commits c2d8ae9..7fe780b) — FLAG #30/#25/#21/#8/#26/#10
+- **Sprint 16b interim**: 5 commitów (98b3741..3277deb) — dead handler, Options timeout, C-suite whitelist, C-suite SELL observation, CLAUDE.md
+- **Sprint 17 P1 V5**: Director BUY boost ×1.15, H6 control fix, H1 cluster vs solo BUY. Commit e07bbc2 (code) + f69cfa8 (V5 regenerate po 3a319d7 mismatch). V5 wyniki: healthcare SELL zero edge, control SELL d=+0.10 30d ✓✓✓, cluster vs solo p>0.37
 - **Dashboard**: 4 zakładki (Dashboard + Signal Timeline + System Logs + Słownik), panel Status Systemu, 28 endpointów REST (w tym reprocess-filing)
 - **Testy jednostkowe**: 14 plików spec.ts, ~420 testów (unit: correlation, form4-parser, form8k-parser, price-impact-scorer, alert-evaluator; agents: alert-evaluator-agent, correlation-agent, collectors-agent, price-outcome-agent, sec-filings-agent, sentiment-agent, options-flow-scoring, options-flow-agent, unusual-activity-detector)
