@@ -29,7 +29,7 @@ export class PdufaBioScheduler implements OnModuleInit {
       'collect-pdufa-bio',
       {},
       {
-        repeat: { pattern: '0 */6 * * *', tz: 'UTC' },
+        repeat: { pattern: '15 */6 * * *', tz: 'UTC' },
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       },
@@ -41,6 +41,6 @@ export class PdufaBioScheduler implements OnModuleInit {
       removeOnFail: { count: 5 },
     });
 
-    this.logger.log('Zaplanowano scraping PDUFA.bio: CRON 0 */6 * * * UTC (+ natychmiastowy start)');
+    this.logger.log('Zaplanowano scraping PDUFA.bio: CRON 15 */6 * * * UTC (00:15/06:15/12:15/18:15, + natychmiastowy start)');
   }
 }

@@ -28,12 +28,12 @@ export class SecEdgarScheduler implements OnModuleInit {
       'collect-sec-edgar',
       {},
       {
-        repeat: { pattern: '0,30 * * * *', tz: 'UTC' },
+        repeat: { pattern: '5,35 * * * *', tz: 'UTC' },
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       },
     );
 
-    this.logger.log('Zaplanowano zbieranie SEC EDGAR: CRON 0,30 * * * * UTC (co 30 min)');
+    this.logger.log('Zaplanowano zbieranie SEC EDGAR: CRON 5,35 * * * * UTC (co 30 min, offset od price-outcome)');
   }
 }
