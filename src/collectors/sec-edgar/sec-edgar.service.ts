@@ -12,6 +12,9 @@ import { parseForm4Xml } from './form4-parser';
 
 const EDGAR_BASE = 'https://data.sec.gov';
 
+/** Timeout per fetch — bez tego wolna odpowiedź SEC wiesza cały cykl (FLAG #28). */
+const SEC_FETCH_TIMEOUT_MS = 30_000;
+
 /**
  * Kolektor danych z SEC EDGAR.
  * Zbiera: filingi (10-K, 10-Q, 8-K), transakcje insiderów (Form 4).
@@ -240,7 +243,10 @@ export class SecEdgarService extends BaseCollectorService {
    * Wrapper HTTP do SEC z obsługą rate limitu.
    */
   private async fetchUrl(url: string): Promise<any> {
-    const res = await fetch(url, { headers: this.headers });
+    const res = await fetch(url, {
+      headers: this.headers,
+      signal: AbortSignal.timeout(SEC_FETCH_TIMEOUT_MS),
+    });
 
     if (res.status === 403) {
       throw new Error('SEC 403 — sprawdź User-Agent');
@@ -261,6 +267,7 @@ export class SecEdgarService extends BaseCollectorService {
   private async fetchText(url: string): Promise<string> {
     const res = await fetch(url, {
       headers: { ...this.headers, Accept: 'text/xml, application/xml' },
+      signal: AbortSignal.timeout(SEC_FETCH_TIMEOUT_MS),
     });
 
     if (!res.ok) {
