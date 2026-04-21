@@ -141,7 +141,7 @@ export class SystemLogService implements OnModuleInit {
    * - info/null: 7 dni (normalny flow, default + pre-migration)
    * - warn/error: 30 dni (problemy, do debugowania)
    */
-  @Cron('0 3 * * *')
+  @Cron('0 3 * * *', { timeZone: 'UTC' })
   async cleanup(): Promise<void> {
     const results: Record<string, number> = {};
 

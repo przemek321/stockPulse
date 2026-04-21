@@ -46,7 +46,7 @@ export class PriceOutcomeService {
    * Pomija cykl gdy giełda NYSE zamknięta (cena = last close, bezwartościowa).
    * Grupuje po symbolu: 1 zapytanie API = wszystkie sloty tego symbolu.
    */
-  @Cron('0 * * * *')
+  @Cron('0 * * * *', { timeZone: 'UTC' })
   @Logged('price-outcome')
   async fillPriceOutcomes(): Promise<{ processed: number; updated: number }> {
     if (!isNyseOpen()) {
