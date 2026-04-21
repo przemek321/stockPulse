@@ -23,12 +23,13 @@ export class PdufaBioScheduler implements OnModuleInit {
       await this.queue.removeRepeatableByKey(job.key);
     }
 
-    // Scraping strony co 6 godzin
+    // Scraping strony co 6 godzin.
+    // Cron pattern zamiast `every: ms` dla deterministycznego timingu (nie dryfuje od restartu).
     await this.queue.add(
       'collect-pdufa-bio',
       {},
       {
-        repeat: { every: 6 * 60 * 60 * 1000 }, // 6 godzin
+        repeat: { pattern: '0 */6 * * *', tz: 'UTC' },
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       },
@@ -40,6 +41,6 @@ export class PdufaBioScheduler implements OnModuleInit {
       removeOnFail: { count: 5 },
     });
 
-    this.logger.log('Zaplanowano scraping PDUFA.bio co 6 godzin (+ natychmiastowy start)');
+    this.logger.log('Zaplanowano scraping PDUFA.bio: CRON 0 */6 * * * UTC (+ natychmiastowy start)');
   }
 }
