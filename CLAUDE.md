@@ -252,7 +252,6 @@ Action items po analizie 24h logów produkcji — briefing "Post Sprint 16 actio
 
 ## Known issues NOT yet fixed (priorytet Sprint 18)
 
-- FLAG #28: SEC EDGAR collector fetch bez timeout (Options Flow fix: d78a92f, EDGAR pozostaje)
 - FLAG #41-43: Python backtest — baseline sampling uniform per-ticker (#42 skipped w HANDOFF #2), inne nierozstrzygnięte
 - Sprint 18 candidates post-V5: INSIDER_CLUSTER BUY disable (V5 cluster vs solo p>0.37), C-suite regex ujednolicenie (`form4.pipeline.ts:119` `/\bChief\b/` vs linia 240 `isCsuiteRole()`), d=None bug w `_direct_cluster_vs_single` (JSON zapisuje None zamiast wyliczonych wartości), report_generator nie renderuje `hc_vs_ctrl_direct` ani `cluster_buy_vs_single_buy` (sekcje w JSON, brak w markdown)
 
@@ -264,6 +263,7 @@ Action items po analizie 24h logów produkcji — briefing "Post Sprint 16 actio
 - FLAG #35 10b5-1 per-transaction: fixed (eabdb06)
 - FLAG #37 brak Bonferroni: fixed (d7a86d6)
 - FLAG #40 H6 niewymienne baselines: fixed (d7a86d6 common baseline + e07bbc2 control fix)
+- FLAG #28 SEC EDGAR fetch bez timeout: fixed (7e63d9d AbortSignal.timeout 30s na fetchUrl + fetchText, analogicznie do Options Flow d78a92f)
 
 ## System totals (18.04.2026, po Sprint 17 P1 V5)
 
