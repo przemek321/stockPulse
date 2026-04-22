@@ -6,7 +6,7 @@
  * - C-suite whitelist (Sprint 16b — soft roles wyłączone)
  */
 
-import { isCsuiteRole } from '../../src/sec-filings/pipelines/form4.pipeline';
+import { isCsuiteRole, isDirectorRole } from '../../src/sec-filings/pipelines/form4.pipeline';
 
 describe('Form4Pipeline — Director SELL skip (Sprint 15)', () => {
   const isDirectorSell = (role: string | null, txType: string) => {
@@ -407,5 +407,113 @@ describe('nonDeliveryReason priority (AlertEvaluator)', () => {
 
   it('null gdy wszystko false (alert dostarczony)', () => {
     expect(getNonDeliveryReason(false, false, false)).toBeNull();
+  });
+});
+
+describe('Form4Pipeline — isDirectorRole (TASK-02)', () => {
+  it.each([
+    ['Director', true],
+    ['Independent Director', true],
+    ['Chairman & CEO, Director', true],
+    ['Director Emeritus', true],
+    ['Managing Director', true],
+    ['CEO', false],
+    ['Chief Executive Officer', false],
+    ['President', false],
+    ['GM, ASE Inc. Chung-Li Branch', false],
+    ['Vice President, Operations', false],
+    ['10% Owner', false],
+    ['', false],
+  ])('isDirectorRole(%j) → %s', (role, expected) => {
+    expect(isDirectorRole(role)).toBe(expected);
+  });
+
+  it('null → false', () => {
+    expect(isDirectorRole(null)).toBe(false);
+  });
+
+  it('undefined → false', () => {
+    expect(isDirectorRole(undefined)).toBe(false);
+  });
+});
+
+describe('Form4Pipeline — SKIP_NON_ROLE_SELL hard skip (TASK-02, 22.04.2026)', () => {
+  // Replikacja kroku 4b w decision tree (analogicznie do pattern w Director SELL skip testach).
+  // Warunki: transactionType='SELL' AND !isCsuiteRole AND !isDirectorRole.
+  // Step 4b odpala PO 10b5-1 check (krok 2) i pure Director SELL (krok 3), PRZED daily cap.
+  const shouldSkipNonRoleSell = (
+    role: string | null,
+    txType: string,
+    insiderName?: string,
+  ): boolean => {
+    return (
+      txType === 'SELL' &&
+      !isCsuiteRole(role, insiderName) &&
+      !isDirectorRole(role)
+    );
+  };
+
+  it('GM SELL (ASX case 22.04.2026 — Chen Tien-Szu $152M) → skip', () => {
+    expect(shouldSkipNonRoleSell('GM, ASE Inc. Chung-Li Branch', 'SELL')).toBe(true);
+  });
+
+  it('Vice President SELL → skip', () => {
+    expect(shouldSkipNonRoleSell('Vice President, Operations', 'SELL')).toBe(true);
+  });
+
+  it('Senior VP, Sales SELL → skip', () => {
+    expect(shouldSkipNonRoleSell('Senior Vice President, Sales', 'SELL')).toBe(true);
+  });
+
+  it('Chief Marketing Officer SELL → skip (Sprint 16b wyłączony z whitelist)', () => {
+    expect(shouldSkipNonRoleSell('Chief Marketing Officer', 'SELL')).toBe(true);
+  });
+
+  it('Chief Communications Officer SELL → skip (PR/IR)', () => {
+    expect(shouldSkipNonRoleSell('Chief Communications Officer', 'SELL')).toBe(true);
+  });
+
+  it('10% Owner SELL → skip (żadna hipoteza H1-H6 nie testowała edge)', () => {
+    expect(shouldSkipNonRoleSell('10% Owner', 'SELL')).toBe(true);
+  });
+
+  it('Generic Officer SELL → skip', () => {
+    expect(shouldSkipNonRoleSell('Officer', 'SELL')).toBe(true);
+  });
+
+  it('CEO SELL → NIE skip (C-suite przechodzi do csuite_sell_no_edge w kroku 8)', () => {
+    expect(shouldSkipNonRoleSell('Chief Executive Officer', 'SELL')).toBe(false);
+  });
+
+  it('CFO SELL → NIE skip', () => {
+    expect(shouldSkipNonRoleSell('Chief Financial Officer', 'SELL')).toBe(false);
+  });
+
+  it('Director SELL → NIE skip (łapany wcześniej przez SKIP_DIRECTOR_SELL w kroku 3)', () => {
+    expect(shouldSkipNonRoleSell('Director', 'SELL')).toBe(false);
+  });
+
+  it('Chairman & CEO, Director SELL → NIE skip (ma CEO → C-suite)', () => {
+    expect(shouldSkipNonRoleSell('Chairman & CEO, Director', 'SELL')).toBe(false);
+  });
+
+  it('GM BUY → NIE skip (BUY zawsze przechodzi dalej)', () => {
+    expect(shouldSkipNonRoleSell('GM, Some Branch', 'BUY')).toBe(false);
+  });
+
+  it('VP BUY → NIE skip (BUY przechodzi bez boost, healthcare sector może dodać ×1.2)', () => {
+    expect(shouldSkipNonRoleSell('Vice President', 'BUY')).toBe(false);
+  });
+
+  it('null role + SELL → skip (brak roli = non-role)', () => {
+    expect(shouldSkipNonRoleSell(null, 'SELL')).toBe(true);
+  });
+
+  it('null role + BUY → NIE skip', () => {
+    expect(shouldSkipNonRoleSell(null, 'BUY')).toBe(false);
+  });
+
+  it('Match przez insiderName fallback (CEO w nazwisku) SELL → NIE skip', () => {
+    expect(shouldSkipNonRoleSell(null, 'SELL', 'Jane Doe, CEO')).toBe(false);
   });
 });

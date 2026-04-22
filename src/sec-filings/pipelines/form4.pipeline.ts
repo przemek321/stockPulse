@@ -50,6 +50,21 @@ export function isCsuiteRole(role: string | null | undefined, name?: string): bo
 }
 
 /**
+ * Director check dla TASK-02 hard skip gate (non-role SELL).
+ * Wychwytuje każdą rolę zawierającą słowo "Director" (Director, Independent Director,
+ * Chairman of the Board & Director, Director Emeritus etc.).
+ *
+ * Nota: "pure Director" w kroku 4 decision tree = Director bez C-suite w tym samym
+ * filingu (co-filing Director+CEO NIE jest pure Director — C-suite priorytet).
+ * isDirectorRole() samo nie rozróżnia pure vs mixed; ta logika zostaje inline
+ * w onInsiderTrade, bo zależy od hasCsuite z co-filera.
+ */
+export function isDirectorRole(role: string | null | undefined): boolean {
+  const target = role ?? '';
+  return /\bDirector\b/i.test(target);
+}
+
+/**
  * Pipeline analizy GPT dla transakcji insiderskich (Form 4).
  *
  * Nasłuchuje event NEW_INSIDER_TRADE (jedyny listener po Sprint 16b #3 — AlertEvaluator.onInsiderTrade usunięty).
@@ -98,6 +113,28 @@ export class Form4Pipeline {
     traceId?: string;
     parentTraceId?: string;
   }): Promise<{ action: string; symbol: string; traceId?: string }> {
+    // Decision tree (post Sprint 18 TASK-02, 2026-04-22):
+    //
+    //   1. transactionType in {BUY, SELL} & totalValue >= $100K? else SKIP_*
+    //   2. is10b51Plan?                                          → SKIP_10B51_PLAN
+    //   3. Pure Director + SELL?                                 → SKIP_DIRECTOR_SELL
+    //                                                              (Sprint 15 backtest: anty-sygnał)
+    //   4. SELL AND !C-suite AND !Director?                      → SKIP_NON_ROLE_SELL  [TASK-02]
+    //                                                              V4 C-suite SELL d≈0 → non-role
+    //                                                              SELL tym bardziej. PRZED daily
+    //                                                              cap + observation gate: oszczędza
+    //                                                              GPT call, blokuje fałszywy
+    //                                                              correlation alert przez observation
+    //                                                              path (ASX 22.04: GM $152M SELL
+    //                                                              → INSIDER_PLUS_OPTIONS fałszywy
+    //                                                              CRITICAL w portalu).
+    //   5. Daily cap (max 20 GPT/ticker/day)?                    → SKIP_DAILY_CAP
+    //   6. GPT analysis + priority scoring
+    //   7. Rule boosts (C-suite BUY ×1.3, Dir BUY ×1.15, healthcare BUY ×1.2)
+    //   8. AlertDispatcherService.dispatch() (TASK-01):
+    //        observation > sell_no_edge > csuite_sell > cluster_sell > silent > daily_limit
+    //   9. CorrelationService.storeSignal() + schedulePatternCheck()
+
     // Filtruj: tylko BUY/SELL > $100K
     if (!payload.totalValue || payload.totalValue < 100_000) {
       return { action: 'SKIP_LOW_VALUE', symbol: payload.symbol, traceId: payload.traceId };
@@ -117,12 +154,32 @@ export class Form4Pipeline {
     // Sprint 16 FLAG #30 fix: pure Director only — co-filing Director+CEO nie jest skipowany
     // (C-suite decision-making obecne, nie traktujemy jako anti-signal).
     const role = payload.insiderRole ?? '';
-    const isDirector = /\bDirector\b/i.test(role);
+    const isDirector = isDirectorRole(role);
     const hasCsuite = /\bCEO\b|\bCFO\b|\bCOO\b|\bCTO\b|\bPresident\b|\bChair|\bChief\b/i.test(role);
     const isPureDirector = isDirector && !hasCsuite;
     if (isPureDirector && payload.transactionType === 'SELL') {
       this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP pure Director SELL (anty-sygnał)`);
       return { action: 'SKIP_DIRECTOR_SELL', symbol: payload.symbol, traceId: payload.traceId };
+    }
+
+    // TASK-02 (22.04.2026): hard skip dla non-C-suite, non-Director SELL.
+    // V4 backtest H2 SINGLE_CSUITE all_sells N=855 d=-0.002 p=0.95 (zero edge dla C-suite SELL).
+    // Non-C-suite SELL (VP, GM, Officer-without-Chief-prefix) ma mniej insider info niż C-suite,
+    // więc tym bardziej nie ma edge'u. Hard skip PRZED daily cap i observation gate:
+    //  - oszczędza GPT call (daily cap max 20/ticker/day),
+    //  - blokuje fałszywy correlation alert generowany przez ścieżkę observation
+    //    (ASX 22.04: GM "ASE Inc. Chung-Li Branch" SELL $152M → observation save →
+    //     correlation INSIDER_PLUS_OPTIONS → fałszywy CRITICAL -0.70 w portalu).
+    // 10% Owner też trafia tu (żadna hipoteza H1-H6 nie testowała — zostaje w skip).
+    if (
+      payload.transactionType === 'SELL' &&
+      !isCsuiteRole(role, payload.insiderName) &&
+      !isDirector
+    ) {
+      this.logger.debug(
+        `Form4: ${payload.symbol} ${payload.insiderName} (${role || 'brak roli'}) — SKIP_NON_ROLE_SELL`,
+      );
+      return { action: 'SKIP_NON_ROLE_SELL', symbol: payload.symbol, traceId: payload.traceId };
     }
 
     // Sprawdź daily cap
