@@ -128,17 +128,23 @@ export class OptionsFlowScoringService {
    * Scoruje pojedynczy OptionsFlow record (dla use case bez agregacji).
    */
   async scoreFlow(flow: OptionsFlow): Promise<ScoringResult> {
+    // TypeORM decimal columns (volumeSpikeRatio, otmDistance) są zwracane jako string
+    // mimo deklaracji `number` w entity. Explicit Number() cast na wejściu — inaczej
+    // > 1000 robi porównanie leksykalne, toFixed/arithmetic rzuca TypeError.
+    const spikeRatio = Number(flow.volumeSpikeRatio);
+    const otmDistance = Number(flow.otmDistance);
+
     // Sprint 11: spike ratio > 1000 → anomalia danych
-    const suspicious = flow.volumeSpikeRatio > 1000;
+    const suspicious = spikeRatio > 1000;
     if (suspicious) {
       this.logger.warn(
-        `${flow.symbol}: spike ratio ${flow.volumeSpikeRatio.toFixed(0)}× > 1000 — suspicious, conviction ×0.5`,
+        `${flow.symbol}: spike ratio ${spikeRatio.toFixed(0)}× > 1000 — suspicious, conviction ×0.5`,
       );
     }
 
-    const spikeComponent = 0.35 * clamp(flow.volumeSpikeRatio / 10, 0, 1);
+    const spikeComponent = 0.35 * clamp(spikeRatio / 10, 0, 1);
     const volumeComponent = 0.20 * clamp(Math.log10(flow.dailyVolume / 500), 0, 1);
-    const otmComponent = 0.15 * clamp(flow.otmDistance / 0.15, 0, 1);
+    const otmComponent = 0.15 * clamp(otmDistance / 0.15, 0, 1);
     const dteComponent = 0.15 * clamp(1 - flow.dte / 60, 0, 1);
     // Bez agregacji brak call/put dominance — używamy 0.5 (neutral)
     const dominanceComponent = 0;

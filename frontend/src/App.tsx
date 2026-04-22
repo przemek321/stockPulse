@@ -13,7 +13,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import CollectorStatus from './components/CollectorStatus';
 import DataPanel from './components/DataPanel';
 import TopStatusBar from './components/TopStatusBar';
-import { fetchTickers, fetchAlertRules, fetchAlerts, fetchPipelineLogs, fetchFilingsGpt, fetchAlertOutcomes, fetchOptionsFlow, AlertOutcome } from './api';
+import { fetchTickers, fetchAlertRules, fetchAlerts, fetchFilingsGpt, fetchAlertOutcomes, fetchOptionsFlow, AlertOutcome } from './api';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SystemLogsTab from './components/SystemLogsTab';
 import PriceOutcomePanel from './components/PriceOutcomePanel';
@@ -127,7 +127,13 @@ export default function App() {
       {/* Bloomberg-style top bar (logo + metryki + tabs) */}
       <TopStatusBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <Container maxWidth="lg" sx={{ py: 2 }}>
+      <Container
+        maxWidth="lg"
+        sx={{
+          py: 2,
+          px: { xs: 1, sm: 2, md: 3 },
+        }}
+      >
 
       {/* Tab 0: Dashboard */}
       {activeTab === 0 && (
@@ -142,11 +148,13 @@ export default function App() {
       <Tabs
         value={dashSubTab}
         onChange={(_, v) => setDashSubTab(v)}
+        variant="scrollable"
+        scrollButtons={false}
         sx={{ mb: 2 }}
         TabIndicatorProps={{ sx: { height: 3 } }}
       >
-        <Tab label="Kluczowe" sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
-        <Tab label="Szczegóły & Dane" sx={{ fontWeight: 700, fontSize: '0.85rem' }} />
+        <Tab label="Kluczowe" sx={{ fontWeight: 700, fontSize: { xs: '0.85rem', sm: '0.95rem' } }} />
+        <Tab label="Szczegóły & Dane" sx={{ fontWeight: 700, fontSize: { xs: '0.85rem', sm: '0.95rem' } }} />
       </Tabs>
 
       {/* ═══════════════════════════════════════════════════════════ */}
@@ -678,136 +686,6 @@ export default function App() {
       {/* ═══ SZCZEGÓŁY & DANE — debug, dane źródłowe, config   ═══ */}
       {/* ═══════════════════════════════════════════════════════════ */}
       {dashSubTab === 1 && (<>
-
-      {/* ── Pipeline AI — Logi Egzekucji ────── */}
-      <DataPanel
-        title="Pipeline AI — Logi Egzekucji"
-        icon={<PsychologyIcon sx={{ color: '#ff9800' }} />}
-        badgeColor="warning"
-        defaultSortKey="createdAt"
-        defaultSortDir="desc"
-        columns={[
-          {
-            key: 'status',
-            label: 'Status',
-            render: (v: string) => {
-              const colors: Record<string, string> = {
-                AI_ESCALATED: '#66bb6a',
-                FINBERT_ONLY: '#90a4ae',
-                AI_FAILED: '#ef5350',
-                AI_DISABLED: '#ffa726',
-                SKIPPED_SHORT: '#616161',
-                SKIPPED_NOT_FOUND: '#616161',
-                FINBERT_FALLBACK: '#ce93d8',
-                ERROR: '#ef5350',
-              };
-              return (
-                <Chip
-                  label={v}
-                  size="small"
-                  sx={{ bgcolor: colors[v] || '#616161', color: '#fff', fontWeight: 700, fontSize: '0.6rem' }}
-                />
-              );
-            },
-          },
-          { key: 'symbol', label: 'Ticker' },
-          {
-            key: 'tier',
-            label: 'Tier',
-            render: (v: number | null) => {
-              if (v == null) return '—';
-              const colors: Record<number, string> = { 1: '#66bb6a', 2: '#ffa726', 3: '#90a4ae' };
-              return <span style={{ color: colors[v] || '#fff', fontWeight: 700 }}>T{v}</span>;
-            },
-          },
-          { key: 'source', label: 'Źródło' },
-          {
-            key: 'finbertScore',
-            label: 'FinBERT',
-            render: (v: number | null) => {
-              if (v == null) return '—';
-              const num = Number(v);
-              const color = num > 0.2 ? '#66bb6a' : num < -0.2 ? '#ef5350' : '#90a4ae';
-              return <span style={{ color, fontWeight: 700 }}>{num.toFixed(3)}</span>;
-            },
-          },
-          {
-            key: 'finbertConfidence',
-            label: 'Conf.',
-            render: (v: number | null) => (v != null ? `${(Number(v) * 100).toFixed(1)}%` : '—'),
-          },
-          {
-            key: 'tierReason',
-            label: 'Powód',
-            render: (v: string | null) => (
-              <span title={v || ''} style={{ cursor: 'help', fontSize: '0.7rem', color: '#b0bec5' }}>
-                {v?.slice(0, 50) || '—'}{v && v.length > 50 ? '…' : ''}
-              </span>
-            ),
-          },
-          {
-            key: 'inputText',
-            label: 'Tekst',
-            render: (v: string | null) => {
-              if (!v) return '—';
-              return <TextDialog label={`${v.slice(0, 50)}${v.length > 50 ? '…' : ''}`} text={v} color="#b0bec5" />;
-            },
-          },
-          {
-            key: 'pdufaContext',
-            label: 'PDUFA',
-            render: (v: string | null) =>
-              v ? <Chip label="TAK" size="small" sx={{ bgcolor: '#42a5f5', color: '#fff', fontSize: '0.6rem' }} /> : '—',
-          },
-          {
-            key: 'responsePayload',
-            label: 'AI Wynik',
-            render: (v: any) => {
-              if (!v) return '—';
-              const sentColor =
-                v.sentiment === 'BULLISH' ? '#66bb6a' : v.sentiment === 'BEARISH' ? '#ef5350' : '#90a4ae';
-              return <span style={{ color: sentColor, fontWeight: 700 }}>{v.sentiment} ({v.conviction})</span>;
-            },
-          },
-          {
-            key: '_prompt',
-            label: 'Prompt',
-            render: (_: any, row: any) => {
-              const prompt = row.responsePayload?.prompt_used;
-              if (!prompt) return '—';
-              return <TextDialog label={`${prompt.slice(0, 50)}…`} text={prompt} />;
-            },
-          },
-          {
-            key: 'finbertDurationMs',
-            label: 'FinBERT ms',
-            render: (v: number | null) => (v != null ? `${v}ms` : '—'),
-          },
-          {
-            key: 'azureDurationMs',
-            label: 'Azure ms',
-            render: (v: number | null) => (v != null ? `${v}ms` : '—'),
-          },
-          {
-            key: 'errorMessage',
-            label: 'Błąd',
-            render: (v: string | null) => {
-              if (!v) return '—';
-              return <TextDialog label={`${v.slice(0, 35)}…`} text={v} color="#ef5350" />;
-            },
-          },
-          {
-            key: 'createdAt',
-            label: 'Data',
-            render: (v: string) => fmtDate(v),
-          },
-        ]}
-        fetchData={async () => {
-          const data = await fetchPipelineLogs(200);
-          return data.logs;
-        }}
-      />
-
 
       {/* ── Tickery Healthcare ──────────────────────────── */}
       <DataPanel

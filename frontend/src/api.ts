@@ -72,40 +72,6 @@ export interface Alert {
   sentAt: string;
 }
 
-export interface EnrichedAnalysis {
-  ticker: string;
-  type: string;
-  sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-  urgency: 'HIGH' | 'MEDIUM' | 'LOW';
-  summary: string;
-  relevance: number;
-  novelty: number;
-  confidence: number;
-  source_authority: number;
-  temporal_signal: 'immediate' | 'short_term' | 'medium_term';
-  catalyst_type: string;
-  price_impact_direction: 'positive' | 'negative' | 'neutral';
-  price_impact_magnitude: 'low' | 'medium' | 'high';
-  conviction: number;
-  escalation_reason: string;
-  processing_time_ms: number;
-}
-
-export interface SentimentScore {
-  id: number;
-  symbol: string;
-  score: number;
-  confidence: number;
-  source: string;
-  model: string;
-  rawText: string;
-  externalId: string;
-  enrichedAnalysis: EnrichedAnalysis | null;
-  gptConviction: number | null;
-  effectiveScore: number | null;
-  timestamp: string;
-}
-
 /* ── Endpointy ──────────────────────────────── */
 
 export const fetchHealth = () => get<HealthData>('/health');
@@ -113,36 +79,6 @@ export const fetchTickers = (sector?: string) =>
   get<{ count: number; tickers: Ticker[] }>(`/tickers${sector ? `?sector=${sector}` : ''}`);
 export const fetchAlertRules = () => get<{ count: number; rules: AlertRule[] }>('/alerts/rules');
 export const fetchAlerts = () => get<{ count: number; alerts: Alert[] }>('/alerts');
-export const fetchSentimentScores = (limit = 500) =>
-  get<{ count: number; scores: SentimentScore[] }>(`/sentiment/scores?limit=${limit}`);
-
-export const fetchAiScores = (limit = 500) =>
-  get<{ count: number; scores: SentimentScore[] }>(`/sentiment/scores?limit=${limit}&ai_only=true`);
-
-export interface AiPipelineLog {
-  id: number;
-  symbol: string;
-  source: string;
-  entityType: string;
-  entityId: number;
-  status: string;
-  tier: number | null;
-  tierReason: string | null;
-  finbertScore: number | null;
-  finbertConfidence: number | null;
-  inputText: string | null;
-  pdufaContext: string | null;
-  requestPayload: Record<string, any> | null;
-  responsePayload: Record<string, any> | null;
-  finbertDurationMs: number | null;
-  azureDurationMs: number | null;
-  errorMessage: string | null;
-  sentimentScoreId: number | null;
-  createdAt: string;
-}
-
-export const fetchPipelineLogs = (limit = 200) =>
-  get<{ count: number; logs: AiPipelineLog[] }>(`/sentiment/pipeline-logs?limit=${limit}`);
 
 export interface SecFilingGpt {
   id: number;
@@ -271,12 +207,6 @@ export interface SystemOverview {
     silent7d: number;
     tickers7d: number;
     last24h: number;
-  } | null;
-  pipeline: {
-    total24h: number;
-    escalated24h: number;
-    failed24h: number;
-    finbertOnly24h: number;
   } | null;
   failedJobs7d: number;
 }
