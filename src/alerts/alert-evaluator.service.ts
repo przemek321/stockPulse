@@ -11,6 +11,7 @@ import { SourceCategory, StoredSignal } from '../correlation/types/correlation.t
 import { Logged } from '../common/decorators/logged.decorator';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 import { AlertDeliveryGate } from './alert-delivery-gate.service';
+import { AlertDispatcherService } from './alert-dispatcher.service';
 
 /**
  * Ewaluator reguł alertów.
@@ -40,6 +41,7 @@ export class AlertEvaluatorService {
     private readonly formatter: TelegramFormatterService,
     private readonly finnhub: FinnhubService,
     private readonly deliveryGate: AlertDeliveryGate,
+    private readonly dispatcher: AlertDispatcherService,
     @Optional() private readonly correlation?: CorrelationService,
   ) {}
 
@@ -117,27 +119,16 @@ export class AlertEvaluatorService {
       direction: 'positive' | 'negative' | 'neutral';
     },
   ): Promise<string> {
-    // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+    // TASK-01: centralized dispatch via AlertDispatcherService.
     const ticker = await this.tickerRepo.findOne({ where: { symbol } });
-    const isObservation = ticker?.observationOnly === true;
-
-    // Sprint 16 FLAG #10: shared AlertDeliveryGate zamiast lokalnego checku
-    let dailyLimitHit = false;
-    if (!isObservation) {
-      const gateCheck = await this.deliveryGate.canDeliverToTelegram(symbol);
-      if (!gateCheck.allowed) {
-        dailyLimitHit = true;
-      }
-    }
-
-    // Ustal powód niedostarczenia (jeśli jest)
-    let nonDeliveryReason: string | null = null;
-    if (isObservation) nonDeliveryReason = 'observation';
-    else if (dailyLimitHit) nonDeliveryReason = 'daily_limit';
-
-    const delivered = (dailyLimitHit || isObservation)
-      ? false
-      : await this.telegram.sendMarkdown(message);
+    const dispatchResult = await this.dispatcher.dispatch({
+      ticker: symbol,
+      ruleName: rule.name,
+      message,
+      isObservationTicker: ticker?.observationOnly === true,
+    });
+    const delivered = dispatchResult.delivered;
+    const nonDeliveryReason = dispatchResult.suppressedBy;
 
     // Price Outcome Tracker — pobierz cenę PRZED zapisem (1 zapis zamiast 2)
     let priceAtAlert: number | null = null;
@@ -165,16 +156,8 @@ export class AlertEvaluatorService {
 
     await this.alertRepo.save(alert);
 
-    // Granularny action dla observability
-    let alertAction: string;
-    if (isObservation) alertAction = 'ALERT_DB_ONLY_OBSERVATION';
-    else if (dailyLimitHit) alertAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
-    else if (delivered) alertAction = 'ALERT_SENT_TELEGRAM';
-    else alertAction = 'ALERT_TELEGRAM_FAILED';
-
-    this.logger.log(
-      `Alert ${alertAction}: ${rule.name} dla ${symbol}`,
-    );
+    const alertAction = dispatchResult.action;
+    this.logger.log(`Alert ${alertAction}: ${rule.name} dla ${symbol}`);
 
     // Rejestruj sygnał w CorrelationService
     if (this.correlation && correlationData) {

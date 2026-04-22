@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { OptionsFlowScoringService } from './options-flow-scoring.service';
 import { OptionsFlowAlertService } from './options-flow-alert.service';
@@ -12,6 +12,7 @@ import {
 import { TelegramModule } from '../alerts/telegram/telegram.module';
 import { CorrelationModule } from '../correlation/correlation.module';
 import { CollectorsModule } from '../collectors/collectors.module';
+import { AlertsModule } from '../alerts/alerts.module';
 
 /**
  * Moduł scoringu i alertów options flow.
@@ -23,6 +24,7 @@ import { CollectorsModule } from '../collectors/collectors.module';
     TelegramModule,
     CorrelationModule,
     CollectorsModule,
+    forwardRef(() => AlertsModule), // TASK-01: AlertDispatcherService
   ],
   providers: [OptionsFlowScoringService, OptionsFlowAlertService],
   exports: [OptionsFlowScoringService],

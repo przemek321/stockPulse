@@ -10,6 +10,7 @@ import { TelegramService } from '../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 import { Logged } from '../common/decorators/logged.decorator';
+import { AlertDispatcherService } from '../alerts/alert-dispatcher.service';
 
 /** Minimalny |conviction| do rejestracji w CorrelationService */
 const MIN_CONVICTION_CORRELATION = 0.25;
@@ -49,6 +50,7 @@ export class OptionsFlowAlertService {
     private readonly telegram: TelegramService,
     private readonly formatter: TelegramFormatterService,
     @Optional() private readonly finnhub: FinnhubService,
+    @Optional() private readonly dispatcher?: AlertDispatcherService,
   ) {}
 
   @OnEvent(EventType.NEW_OPTIONS_FLOW)
@@ -172,22 +174,22 @@ export class OptionsFlowAlertService {
       sessionDate: flow.sessionDate.toString(),
     });
 
-    // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
+    // TASK-01: centralized dispatch via AlertDispatcherService.
+    // Options flow standalone alert NIE był gated przez daily limit (pre-TASK-01).
+    // Zachowuję to poprzez bypassDailyLimit=true — zmiana policy to osobny task.
     const ticker = await this.tickerRepo.findOne({ where: { symbol: flow.symbol } });
-    const isObservation = ticker?.observationOnly === true;
-    let nonDeliveryReason: string | null = null;
-    let delivered: boolean;
+    const dispatchResult = this.dispatcher
+      ? await this.dispatcher.dispatch({
+          ticker: flow.symbol,
+          ruleName: rule.name,
+          message,
+          isObservationTicker: ticker?.observationOnly === true,
+          bypassDailyLimit: true,
+        })
+      : { delivered: false, suppressedBy: 'dispatcher_unavailable', action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE', ticker: flow.symbol, ruleName: rule.name, channel: 'db_only' as const };
 
-    if (isObservation) {
-      delivered = false;
-      nonDeliveryReason = 'observation';
-      this.logger.debug(`OBSERVATION MODE: ${flow.symbol} — options alert zapisany, Telegram pominięty`);
-    } else {
-      delivered = await this.telegram.sendMarkdown(message);
-      if (!delivered) {
-        this.logger.error(`TELEGRAM FAILED: Options Flow alert for ${flow.symbol} not delivered — saved to DB`);
-      }
-    }
+    const delivered = dispatchResult.delivered;
+    const nonDeliveryReason = dispatchResult.suppressedBy;
 
     // Price at alert
     let priceAtAlert: number | undefined;
@@ -221,11 +223,7 @@ export class OptionsFlowAlertService {
       `Alert: ${flow.symbol} unusual options conviction=${scoring.conviction.toFixed(3)} ${scoring.direction}`,
     );
 
-    return isObservation
-      ? 'ALERT_DB_ONLY_OBSERVATION'
-      : delivered
-        ? 'ALERT_SENT_TELEGRAM'
-        : 'ALERT_TELEGRAM_FAILED';
+    return dispatchResult.action;
   }
 
   /**

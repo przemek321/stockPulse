@@ -16,6 +16,7 @@ import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
+import { AlertDispatcherService } from '../../alerts/alert-dispatcher.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -78,6 +79,7 @@ export class Form4Pipeline {
     @Optional() private readonly finnhub?: FinnhubService,
     @Optional() private readonly tickerProfile?: TickerProfileService,
     @Optional() private readonly deliveryGate?: AlertDeliveryGate,
+    @Optional() private readonly dispatcher?: AlertDispatcherService,
   ) {}
 
   @OnEvent(EventType.NEW_INSIDER_TRADE)
@@ -299,54 +301,25 @@ export class Form4Pipeline {
         priority,
       });
 
-      // Observation mode: ticker z observationOnly=true → DB only (Sprint 17 semi supply chain)
-      const isObservation = ticker?.observationOnly === true;
+      // TASK-01: centralized dispatch via AlertDispatcherService.
+      // isObservationTicker: Sprint 17 semi supply chain.
+      // isSellNoEdge: Sprint 17 V4 backtest — wszystkie discretionary SELL zero edge (H2 d≈0).
+      //   Produkcja 17.04: 3 C-suite SELL Telegram (GILD×2, DXCM) — noise eliminated.
+      //   BUY zostaje: V4 C-suite BUY 7d d=+0.82 ✓✓✓, BUY >$500K d=+0.83 ✓✓✓.
+      const dispatchResult = this.dispatcher
+        ? await this.dispatcher.dispatch({
+            ticker: payload.symbol,
+            ruleName: rule.name,
+            traceId: payload.traceId,
+            parentTraceId: payload.parentTraceId,
+            message,
+            isObservationTicker: ticker?.observationOnly === true,
+            isSellNoEdge: !isBuy,
+          })
+        : { delivered: false, suppressedBy: 'dispatcher_unavailable', action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE', ticker: payload.symbol, ruleName: rule.name, channel: 'db_only' as const, traceId: payload.traceId };
 
-      // Sprint 17 (V4-driven): WSZYSTKIE discretionary SELL → observation mode (DB only).
-      // V4 backtest (commit e1ab795) potwierdził zero edge predykcyjnego dla insider SELL:
-      //   - H2 all_sells d≈0 wszystkie horyzonty (N=973, żaden Bonf)
-      //   - sells_above_1000k d=+0.01 7d (N=359)
-      //   - Bonferroni threshold p<0.000446 (112 testów) — żaden SELL wariant nie przeszedł
-      // Produkcja 17.04: 3 C-suite SELL Telegram alerts (GILD×2, DXCM) — noise.
-      // Dlaczego BUY zostaje: V4 potwierdza edge (C-suite BUY 7d d=+0.82 Bonf ✓✓✓,
-      // BUY >$500K 7d d=+0.83 ✓✓✓, vs dip baseline d=+0.61).
-      const isSellNoEdge = !isBuy;
-
-      // Sprint 16 FLAG #10 fix: shared daily limit check.
-      // SELL nie wysyła Telegramu → nie powinien wyczerpywać daily slots zarezerwowanych dla BUY.
-      let dailyLimitHit = false;
-      if (!isObservation && !isSellNoEdge && this.deliveryGate) {
-        const gateCheck = await this.deliveryGate.canDeliverToTelegram(payload.symbol);
-        if (!gateCheck.allowed) {
-          dailyLimitHit = true;
-        }
-      }
-
-      let delivered: boolean;
-      let nonDeliveryReason: string | null = null;
-
-      if (isObservation) {
-        // Semi supply chain ticker — sektor observation (priorytet nad sell_no_edge).
-        delivered = false;
-        nonDeliveryReason = 'observation';
-        this.logger.debug(
-          `OBSERVATION MODE: ${payload.symbol} — alert zapisany, Telegram pominięty`,
-        );
-      } else if (isSellNoEdge) {
-        delivered = false;
-        nonDeliveryReason = 'sell_no_edge';
-        this.logger.debug(
-          `SELL NO EDGE: ${payload.symbol} ${parsed.insiderName} SELL — alert zapisany, Telegram pominięty (V4 backtest: zero edge).`,
-        );
-      } else if (dailyLimitHit) {
-        delivered = false;
-        nonDeliveryReason = 'daily_limit';
-      } else {
-        delivered = await this.telegram.sendMarkdown(message);
-        if (!delivered) {
-          this.logger.error(`TELEGRAM FAILED: Form4 alert for ${payload.symbol} not delivered — saved to DB`);
-        }
-      }
+      const delivered = dispatchResult.delivered;
+      const nonDeliveryReason = dispatchResult.suppressedBy;
 
       // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
       let priceAtAlert: number | undefined;
@@ -404,14 +377,7 @@ export class Form4Pipeline {
         }
       }
 
-      let finalAction: string;
-      if (isObservation) finalAction = 'ALERT_DB_ONLY_OBSERVATION';
-      else if (isSellNoEdge) finalAction = 'ALERT_DB_ONLY_SELL_NO_EDGE';
-      else if (dailyLimitHit) finalAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
-      else if (delivered) finalAction = 'ALERT_SENT_TELEGRAM';
-      else finalAction = 'ALERT_TELEGRAM_FAILED';
-
-      return { action: finalAction, symbol: payload.symbol, traceId: payload.traceId };
+      return { action: dispatchResult.action, symbol: payload.symbol, traceId: payload.traceId };
     } catch (err) {
       this.logger.error(`Form4 Pipeline error ${payload.symbol}: ${err.message}`);
       return { action: 'ERROR', symbol: payload.symbol, traceId: payload.traceId };

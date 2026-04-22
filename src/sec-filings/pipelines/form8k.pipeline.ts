@@ -23,6 +23,7 @@ import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
+import { AlertDispatcherService } from '../../alerts/alert-dispatcher.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -57,6 +58,7 @@ export class Form8kPipeline {
     @Optional() private readonly finnhub?: FinnhubService,
     @Optional() private readonly tickerProfile?: TickerProfileService,
     @Optional() private readonly deliveryGate?: AlertDeliveryGate,
+    @Optional() private readonly dispatcher?: AlertDispatcherService,
   ) {
     this.userAgent = this.config.get<string>(
       'SEC_USER_AGENT',
@@ -208,34 +210,19 @@ export class Form8kPipeline {
         priority,
       });
 
-      // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
-      const isObservation = ticker?.observationOnly === true;
+      // TASK-01: centralized dispatch via AlertDispatcherService.
+      const dispatchResult = this.dispatcher
+        ? await this.dispatcher.dispatch({
+            ticker: payload.symbol,
+            ruleName: rule.name,
+            traceId: payload.traceId,
+            message,
+            isObservationTicker: ticker?.observationOnly === true,
+          })
+        : { delivered: false, suppressedBy: 'dispatcher_unavailable', action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE', ticker: payload.symbol, ruleName: rule.name, channel: 'db_only' as const, traceId: payload.traceId };
 
-      // Sprint 16 FLAG #10 fix: shared daily limit check
-      let dailyLimitHit = false;
-      if (!isObservation && this.deliveryGate) {
-        const gateCheck = await this.deliveryGate.canDeliverToTelegram(payload.symbol);
-        if (!gateCheck.allowed) {
-          dailyLimitHit = true;
-        }
-      }
-
-      let delivered: boolean;
-      let nonDeliveryReason: string | null = null;
-
-      if (isObservation) {
-        delivered = false;
-        nonDeliveryReason = 'observation';
-        this.logger.debug(`OBSERVATION MODE: ${payload.symbol} — 8-K alert zapisany, Telegram pominięty`);
-      } else if (dailyLimitHit) {
-        delivered = false;
-        nonDeliveryReason = 'daily_limit';
-      } else {
-        delivered = await this.telegram.sendMarkdown(message);
-        if (!delivered) {
-          this.logger.error(`TELEGRAM FAILED: 8-K alert for ${payload.symbol} not delivered — saved to DB`);
-        }
-      }
+      const delivered = dispatchResult.delivered;
+      const nonDeliveryReason = dispatchResult.suppressedBy;
 
       // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
       let priceAtAlert: number | undefined;
@@ -293,13 +280,7 @@ export class Form8kPipeline {
         }
       }
 
-      let finalAction: string;
-      if (isObservation) finalAction = 'ALERT_DB_ONLY_OBSERVATION';
-      else if (dailyLimitHit) finalAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
-      else if (delivered) finalAction = 'ALERT_SENT_TELEGRAM';
-      else finalAction = 'ALERT_TELEGRAM_FAILED';
-
-      return { action: finalAction, symbol: payload.symbol, traceId: payload.traceId };
+      return { action: dispatchResult.action, symbol: payload.symbol, traceId: payload.traceId };
     } catch (err) {
       this.logger.error(`8-K Pipeline error ${payload.symbol}: ${err.message}`);
       return { action: 'ERROR', symbol: payload.symbol, traceId: payload.traceId };
@@ -324,23 +305,20 @@ export class Form8kPipeline {
       documentUrl: filing.documentUrl,
     });
 
-    // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
-    // UWAGA: bankruptcy NIE jest gated przez AlertDeliveryGate (FLAG #10).
-    // Item 1.03 to event krytyczny — daily limit nie może go blokować.
-    const isObservation = ticker?.observationOnly === true;
-    let delivered: boolean;
-    let nonDeliveryReason: string | null = null;
+    // TASK-01: centralized dispatch. Bankruptcy NIE jest gated przez daily limit
+    // (FLAG #10): Item 1.03 to event krytyczny — bypassDailyLimit=true.
+    const dispatchResult = this.dispatcher
+      ? await this.dispatcher.dispatch({
+          ticker: symbol,
+          ruleName,
+          message,
+          isObservationTicker: ticker?.observationOnly === true,
+          bypassDailyLimit: true,
+        })
+      : { delivered: false, suppressedBy: 'dispatcher_unavailable', action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE', ticker: symbol, ruleName, channel: 'db_only' as const };
 
-    if (isObservation) {
-      delivered = false;
-      nonDeliveryReason = 'observation';
-      this.logger.debug(`OBSERVATION MODE: ${symbol} — bankruptcy alert zapisany, Telegram pominięty`);
-    } else {
-      delivered = await this.telegram.sendMarkdown(message);
-      if (!delivered) {
-        this.logger.error(`TELEGRAM FAILED: 8-K Bankruptcy alert for ${symbol} not delivered — saved to DB`);
-      }
-    }
+    const delivered = dispatchResult.delivered;
+    const nonDeliveryReason = dispatchResult.suppressedBy;
 
     // Sprint 11: pobierz cenę dla bankruptcy alertu
     let priceAtAlert: number | undefined;

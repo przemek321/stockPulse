@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Alert, AlertRule, InsiderTrade, Ticker } from '../entities';
 import { AlertEvaluatorService } from './alert-evaluator.service';
 import { AlertDeliveryGate } from './alert-delivery-gate.service';
+import { AlertDispatcherService } from './alert-dispatcher.service';
 import { SummarySchedulerService } from './summary-scheduler.service';
 import { TelegramModule } from './telegram/telegram.module';
 import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
@@ -25,8 +26,9 @@ import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
   providers: [
     AlertEvaluatorService,
     AlertDeliveryGate,
+    AlertDispatcherService,
     SummarySchedulerService,
   ],
-  exports: [TelegramModule, AlertEvaluatorService, AlertDeliveryGate],
+  exports: [TelegramModule, AlertEvaluatorService, AlertDeliveryGate, AlertDispatcherService],
 })
 export class AlertsModule {}
