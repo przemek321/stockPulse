@@ -15,9 +15,6 @@ export const QUEUE_NAMES = {
   /** Zbieranie wzmianek z Reddit */
   REDDIT: 'reddit-collector',
 
-  /** Analiza sentymentu (FinBERT + Claude) — Faza 2 */
-  SENTIMENT: 'sentiment-analysis',
-
   /** Ewaluacja reguł alertów i wysyłka powiadomień */
   ALERTS: 'alert-processing',
 

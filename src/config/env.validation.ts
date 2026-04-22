@@ -54,11 +54,7 @@ export const envValidationSchema = Joi.object({
   // Admin API token (dla /system-logs/trace, /system-logs/ticker, /system-logs/decisions)
   ADMIN_API_TOKEN: Joi.string().allow('').default(''),
 
-  // Azure Analysis Service (opcjonalne — 2-etapowy pipeline sentymentu)
-  // URL do VM z gpt-4o-mini, np. http://74.248.113.3:3100
+  // Azure Analysis Service (legacy — VM z gpt-4o-mini, standby po migracji do Anthropic Sprint 12)
   AZURE_ANALYSIS_URL: Joi.string().uri().allow('').default(''),
   AZURE_ANALYSIS_TIMEOUT_MS: Joi.number().default(30000),
-
-  // FinBERT sidecar (opcjonalne — Faza 2)
-  FINBERT_SIDECAR_URL: Joi.string().default('http://localhost:8000'),
 });

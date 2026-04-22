@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { SignalDirection } from '../../common/types';
 
 /**
  * Formatter wiadomości alertów dla Telegram.
@@ -7,66 +6,6 @@ import { SignalDirection } from '../../common/types';
  */
 @Injectable()
 export class TelegramFormatterService {
-  /**
-   * Formatuje alert sentymentu.
-   */
-  formatSentimentAlert(data: {
-    symbol: string;
-    companyName: string;
-    priority: string;
-    ruleName: string;
-    sentimentScore: number;
-    details?: string;
-    enrichedAnalysis?: Record<string, any> | null;
-  }): string {
-    const icon = this.priorityIcon(data.priority);
-    const score = data.sentimentScore.toFixed(2);
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
-
-    const lines = [
-      `${icon} *StockPulse Alert*`,
-      '',
-      `*${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} ${this.escapeMarkdown(data.ruleName)}`,
-      '',
-      `📊 *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
-      `• Sentiment: ${this.escapeMarkdown(score)}`,
-      data.details ? `• ${this.escapeMarkdown(data.details)}` : '',
-    ];
-
-    // Sekcja AI — jeśli tekst był eskalowany do gpt-4o-mini
-    if (data.enrichedAnalysis) {
-      const ea = data.enrichedAnalysis;
-      lines.push('');
-      lines.push('🤖 *Analiza AI \\(gpt\\-4o\\-mini\\):*');
-      if (ea.sentiment) {
-        const conv = ea.conviction != null ? `, conviction: ${this.escapeMarkdown(String(ea.conviction))}` : '';
-        lines.push(`• Sentyment: ${this.escapeMarkdown(ea.sentiment)}${conv}`);
-      }
-      if (ea.type || ea.urgency) {
-        const parts: string[] = [];
-        if (ea.type) parts.push(`Typ: ${this.escapeMarkdown(ea.type)}`);
-        if (ea.urgency) parts.push(`Pilność: ${this.escapeMarkdown(ea.urgency)}`);
-        lines.push(`• ${parts.join(' \\| ')}`);
-      }
-      if (ea.price_impact_direction || ea.price_impact_magnitude) {
-        const dir = ea.price_impact_direction || '?';
-        const mag = ea.price_impact_magnitude || '?';
-        lines.push(`• Wpływ cenowy: ${this.escapeMarkdown(dir)} / ${this.escapeMarkdown(mag)}`);
-      }
-      if (ea.catalyst_type) {
-        lines.push(`• Katalizator: ${this.escapeMarkdown(ea.catalyst_type)}`);
-      }
-      if (ea.summary) {
-        lines.push(`• ${this.escapeMarkdown(ea.summary.substring(0, 150))}`);
-      }
-    }
-
-    lines.push('');
-    lines.push(`⏰ ${timestamp}`);
-
-    return lines.filter(Boolean).join('\n');
-  }
-
   /**
    * Formatuje alert insider trade z pełnymi danymi z Form 4 XML.
    */
@@ -115,62 +54,6 @@ export class TelegramFormatterService {
   }
 
   /**
-   * Formatuje zbiorczy alert insider trade — wiele transakcji tego samego tickera
-   * zagregowanych w oknie 5 min (np. nocny dump SEC EDGAR).
-   */
-  formatInsiderBatchAlert(data: {
-    symbol: string;
-    companyName: string;
-    tradeCount: number;
-    totalValue: number;
-    totalShares: number;
-    trades: {
-      insiderName: string;
-      insiderRole?: string | null;
-      transactionType: string;
-      totalValue: number;
-      shares: number;
-    }[];
-    priority: string;
-  }): string {
-    const icon = this.priorityIcon(data.priority);
-    const value = this.escapeMarkdown(
-      `$${data.totalValue.toLocaleString('en-US')}`,
-    );
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
-
-    const lines = [
-      `${icon} *StockPulse Alert*`,
-      '',
-      `\u{1F575}\uFE0F *${this.escapeMarkdown(String(data.tradeCount))} Transakcji Insiderów* \u2014 \\$${this.escapeMarkdown(data.symbol)}`,
-      '',
-      `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
-      `\u2022 Łączna wartość: ${value}`,
-      `\u2022 Łącznie akcji: ${this.escapeMarkdown(data.totalShares.toLocaleString('en-US'))}`,
-      '',
-    ];
-
-    // Pokaż max 5 transakcji ze szczegółami
-    const shown = data.trades.slice(0, 5);
-    for (const t of shown) {
-      const tv = this.escapeMarkdown(`$${t.totalValue.toLocaleString('en-US')}`);
-      lines.push(
-        `  \u2022 ${this.escapeMarkdown(t.insiderName)} — ${this.escapeMarkdown(t.transactionType)} ${tv}`,
-      );
-    }
-    if (data.trades.length > 5) {
-      lines.push(
-        `  \u2022 \\.\\.\\.i ${this.escapeMarkdown(String(data.trades.length - 5))} więcej`,
-      );
-    }
-
-    lines.push('');
-    lines.push(`\u23F0 ${timestamp}`);
-
-    return lines.join('\n');
-  }
-
-  /**
    * Formatuje alert o nowym filingu SEC.
    */
   formatFilingAlert(data: {
@@ -196,93 +79,6 @@ export class TelegramFormatterService {
     ]
       .filter(Boolean)
       .join('\n');
-  }
-
-  /**
-   * Formatuje alert High Conviction Signal — czytelny format bez rozkładu wymiarów.
-   */
-  formatConvictionAlert(data: {
-    symbol: string;
-    priority: string;
-    conviction: number;
-    finbertScore: number;
-    finbertConfidence: number;
-    source: string;
-    enrichedAnalysis: Record<string, any>;
-  }): string {
-    const icon = this.priorityIcon(data.priority);
-    const ea = data.enrichedAnalysis;
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
-
-    const direction = data.conviction > 0 ? 'BYCZY' : 'NIEDŹWIEDZI';
-    const dirIcon = data.conviction > 0 ? '\u{1F7E2}' : '\u{1F534}';
-
-    const lines = [
-      `${icon} *StockPulse — Silny Sygnał*`,
-      '',
-      `${dirIcon} *${this.escapeMarkdown(direction)}* — \\$${this.escapeMarkdown(data.symbol)}`,
-      '',
-      `\u{1F3AF} *Conviction: ${this.escapeMarkdown(data.conviction.toFixed(3))}*`,
-    ];
-
-    if (ea.catalyst_type) {
-      lines.push('');
-      lines.push(`\u{1F3F7}\uFE0F Katalizator: ${this.escapeMarkdown(ea.catalyst_type)}`);
-    }
-
-    if (ea.summary) {
-      lines.push(`\u{1F4AC} ${this.escapeMarkdown(ea.summary.substring(0, 200))}`);
-    }
-
-    lines.push('');
-    lines.push(`\u{1F4CC} Źródło: ${this.escapeMarkdown(data.source)}`);
-    lines.push(`\u23F0 ${timestamp}`);
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Formatuje alert Urgent AI Signal — GPT ocenił news jako pilny (urgency=HIGH).
-   * Osobny format od High Conviction — to nie jest sygnał siły, a pilności.
-   */
-  formatUrgentAiAlert(data: {
-    symbol: string;
-    priority: string;
-    conviction: number;
-    finbertScore: number;
-    finbertConfidence: number;
-    source: string;
-    enrichedAnalysis: Record<string, any>;
-  }): string {
-    const icon = this.priorityIcon(data.priority);
-    const ea = data.enrichedAnalysis;
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
-
-    const direction = data.conviction > 0 ? 'BYCZY' : 'NIEDŹWIEDZI';
-    const dirIcon = data.conviction > 0 ? '\u{1F7E2}' : '\u{1F534}';
-
-    const lines = [
-      `${icon} *StockPulse — Pilny Sygna\u0142 AI*`,
-      '',
-      `${dirIcon} *${this.escapeMarkdown(direction)}* — \\$${this.escapeMarkdown(data.symbol)}`,
-      '',
-      `\u{1F3AF} *Conviction: ${this.escapeMarkdown(data.conviction.toFixed(3))}*`,
-    ];
-
-    if (ea.catalyst_type) {
-      lines.push('');
-      lines.push(`\u{1F3F7}\uFE0F Katalizator: ${this.escapeMarkdown(ea.catalyst_type)}`);
-    }
-
-    if (ea.summary) {
-      lines.push(`\u{1F4AC} ${this.escapeMarkdown(ea.summary.substring(0, 200))}`);
-    }
-
-    lines.push('');
-    lines.push(`\u{1F4CC} Źródło: ${this.escapeMarkdown(data.source)}`);
-    lines.push(`\u23F0 ${timestamp}`);
-
-    return lines.join('\n');
   }
 
   /**
@@ -346,81 +142,6 @@ export class TelegramFormatterService {
     lines.push(`\u{1F4C5} Sesja: ${this.escapeMarkdown(data.sessionDate)}`);
 
     return lines.join('\n');
-  }
-
-  /**
-   * Formatuje alert Signal Override — GPT koryguje FinBERT (Bullish lub Bearish).
-   * Pokazuje konflikt modeli: FinBERT score vs GPT conviction + effective score.
-   */
-  formatSignalOverrideAlert(data: {
-    symbol: string;
-    companyName: string;
-    finbertScore: number;
-    gptConviction: number;
-    effectiveScore: number;
-    direction: SignalDirection;
-    catalystType: string;
-    summary: string;
-    priority: string;
-  }): string {
-    const icon = this.priorityIcon(data.priority);
-    const dirIcon = data.direction === 'BULLISH' ? '\u{1F7E2}' : '\u{1F534}';
-    const dirLabel = data.direction === 'BULLISH' ? 'Byczy' : 'Niedźwiedzi';
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
-
-    const lines = [
-      `${icon} *StockPulse Alert*`,
-      '',
-      `${dirIcon} *${this.escapeMarkdown(data.priority)}* — \\$${this.escapeMarkdown(data.symbol)} Korekta Sygnału \\(${this.escapeMarkdown(dirLabel)}\\)`,
-      '',
-      `\u{1F4CA} *${this.escapeMarkdown(data.companyName)}* \\(${this.escapeMarkdown(data.symbol)}\\)`,
-      `\u2022 FinBERT: ${this.escapeMarkdown(data.finbertScore.toFixed(3))}`,
-      `\u2022 Korekta GPT: ${this.escapeMarkdown(data.direction)} ${this.escapeMarkdown(data.gptConviction.toFixed(3))}`,
-      `\u2022 Wynik efektywny: ${this.escapeMarkdown(data.effectiveScore.toFixed(3))}`,
-    ];
-
-    if (data.catalystType && data.catalystType !== 'unknown') {
-      lines.push(`\u2022 Katalizator: ${this.escapeMarkdown(data.catalystType)}`);
-    }
-
-    if (data.summary) {
-      lines.push(`\u2022 ${this.escapeMarkdown(data.summary.substring(0, 200))}`);
-    }
-
-    lines.push('');
-    lines.push('\u26A0\uFE0F Konflikt modeli — wymaga weryfikacji');
-    lines.push(`\u23F0 ${timestamp}`);
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Formatuje alert Strong FinBERT Signal — fallback gdy VM offline.
-   */
-  formatStrongFinbertAlert(data: {
-    symbol: string;
-    priority: string;
-    score: number;
-    confidence: number;
-    source: string;
-  }): string {
-    const icon = this.priorityIcon(data.priority);
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
-
-    const direction = data.score > 0 ? 'BYCZY' : 'NIEDŹWIEDZI';
-    const dirIcon = data.score > 0 ? '\u{1F7E2}' : '\u{1F534}';
-
-    return [
-      `${icon} *StockPulse — Silny Sygnał FinBERT \\(niepotwierdzone\\)*`,
-      '',
-      `${dirIcon} *${this.escapeMarkdown(direction)}* — \\$${this.escapeMarkdown(data.symbol)}`,
-      '',
-      `\u{1F4CA} FinBERT: wynik ${this.escapeMarkdown(data.score.toFixed(3))}, pewność ${this.escapeMarkdown(data.confidence.toFixed(3))}`,
-      `\u26A0\uFE0F Brak potwierdzenia AI — VM offline`,
-      '',
-      `\u{1F4CC} Źródło: ${this.escapeMarkdown(data.source)}`,
-      `\u23F0 ${timestamp}`,
-    ].join('\n');
   }
 
   /**

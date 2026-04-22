@@ -1,12 +1,11 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, MoreThanOrEqual, FindOptionsWhere } from 'typeorm';
+import { Repository, MoreThan, FindOptionsWhere } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Alert, AlertRule, Ticker } from '../entities';
 import { EventType } from '../events/event-types';
 import { TelegramService } from './telegram/telegram.service';
 import { TelegramFormatterService } from './telegram/telegram-formatter.service';
-import { SignalDirection } from '../common/types';
 import { CorrelationService } from '../correlation/correlation.service';
 import { SourceCategory, StoredSignal } from '../correlation/types/correlation.types';
 import { Logged } from '../common/decorators/logged.decorator';
@@ -19,19 +18,7 @@ import { AlertDeliveryGate } from './alert-delivery-gate.service';
  * i sprawdza czy pasują do aktywnych reguł.
  * Implementuje throttling — minimalna przerwa między alertami tego samego typu per ticker.
  */
-// Sprint 11: INSIDER_AGGREGATION_WINDOW_MS usunięty — insider trades obsługiwane przez Form4Pipeline
-
-/**
- * Reguły "silent" — zapisywane do bazy, ale NIE wysyłane na Telegram.
- * Raport 2026-03-17: Sentiment Crash + Strong FinBERT = 80 alertów/tydzień (44%), zero edge.
- * Dane zachowane w DB do analizy, ale Telegram nie jest zasypywany szumem.
- */
-const SILENT_RULES: ReadonlySet<string> = new Set([
-  'Sentiment Crash',
-  'Strong FinBERT Signal',
-]);
-
-// Sprint 11: InsiderBatch interface usunięty — insider trades obsługiwane przez Form4Pipeline
+// Sprint 11: INSIDER_AGGREGATION_WINDOW_MS + InsiderBatch usunięte — insider trades obsługiwane przez Form4Pipeline
 
 @Injectable()
 export class AlertEvaluatorService {
@@ -116,368 +103,6 @@ export class AlertEvaluatorService {
   }
 
   /**
-   * Reaguje na wynik analizy sentymentu.
-   *
-   * Sprint 11: WYŁĄCZONY — sentiment pipeline nie emituje SENTIMENT_SCORED
-   * (SentimentListenerService ma skomentowane @OnEvent).
-   * Wszystkie 6 reguł sentymentowych ma isActive=false w bazie (seed z healthcare-universe.json).
-   * Handler zachowany na wypadek ponownego włączenia pipeline'u.
-   *
-   * Reguły (wszystkie nieaktywne):
-   * 1. Sentiment Crash: effectiveScore < -0.5 AND confidence > 0.7
-   * 2. Bullish Signal Override: FinBERT < -0.5, GPT mówi BULLISH (effectiveScore > 0.1)
-   * 3. Bearish Signal Override: FinBERT > 0.5, GPT mówi BEARISH (effectiveScore < -0.1)
-   * 4. High Conviction Signal: |conviction| > 0.7 (raw, nieznormalizowany)
-   * 5. Strong FinBERT Signal: model=finbert AND |score| > 0.7 AND confidence > 0.8
-   * 6. Urgent AI Signal: urgency=HIGH AND relevance >= 0.7 AND |conviction| >= 0.3
-   */
-  @OnEvent(EventType.SENTIMENT_SCORED)
-  @Logged('alerts')
-  async onSentimentScored(payload: {
-    scoreId: number;
-    symbol: string;
-    score: number;
-    confidence: number;
-    label: string;
-    source: string;
-    model: string;
-    conviction: number | null;
-    gptConviction: number | null;
-    effectiveScore: number | null;
-    enrichedAnalysis: Record<string, any> | null;
-  }): Promise<{
-    symbol: string;
-    checks: {
-      sentimentCrash: string;
-      signalOverride: string;
-      highConviction: string;
-      strongFinbert: string;
-      urgentSignal: string;
-    };
-  }> {
-    // Sprint 11: Sentiment pipeline wyłączony — ten handler nie powinien być wywoływany.
-    // Gdyby jednak SENTIMENT_SCORED został wyemitowany, reguły mają isActive=false
-    // w bazie, więc getRule() zwróci null i alerty nie wyjdą.
-    // Early return zapobiega zbędnym zapytaniom do DB.
-    this.logger.debug(
-      `onSentimentScored: ${payload.symbol} — POMINIĘTY (Sprint 11, reguły sentymentowe wyłączone)`,
-    );
-    return {
-      symbol: payload.symbol,
-      checks: {
-        sentimentCrash: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
-        signalOverride: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
-        highConviction: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
-        strongFinbert: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
-        urgentSignal: 'SKIP: Sprint 11 — reguły sentymentowe wyłączone',
-      },
-    };
-  }
-
-  /**
-   * Sprawdza regułę "Sentiment Crash" — silny negatywny sygnał.
-   * Używa effectiveScore (= znormalizowany GPT conviction LUB FinBERT score).
-   * Stara logika supresji AI usunięta — effectiveScore przejmuje tę odpowiedzialność:
-   * jeśli GPT mówi bullish/neutral, effectiveScore > -0.5, więc Crash nie odpali.
-   */
-  private async checkSentimentCrash(payload: {
-    symbol: string;
-    score: number;
-    confidence: number;
-    source: string;
-    model: string;
-    effectiveScore: number | null;
-    enrichedAnalysis: Record<string, any> | null;
-  }): Promise<string> {
-    const scoreForEval = payload.effectiveScore ?? payload.score;
-
-    if (scoreForEval >= -0.5) return `SKIP: effectiveScore ${scoreForEval.toFixed(3)} >= -0.5`;
-    if (payload.confidence < 0.7) return `SKIP: confidence ${payload.confidence.toFixed(2)} < 0.7`;
-
-    this.logger.debug(
-      `Negatywny sentyment: ${payload.symbol} effectiveScore=${scoreForEval} finbert=${payload.score} (${payload.model})`,
-    );
-
-    const ruleName = 'Sentiment Crash';
-    const rule = await this.getRule(ruleName);
-    if (!rule) return 'SKIP: reguła nieaktywna';
-
-    const catalyst = payload.enrichedAnalysis?.catalyst_type;
-
-    const isThrottled = await this.isThrottled(
-      rule.name,
-      payload.symbol,
-      rule.throttleMinutes,
-      catalyst,
-    );
-    if (isThrottled) return `THROTTLED: ${ruleName}`;
-
-    const message = this.formatter.formatSentimentAlert({
-      symbol: payload.symbol,
-      companyName: payload.symbol,
-      priority: rule.priority,
-      ruleName,
-      sentimentScore: scoreForEval,
-      details: `Model: ${payload.model}, Źródło: ${payload.source}, Confidence: ${payload.confidence.toFixed(2)}`,
-      enrichedAnalysis: payload.enrichedAnalysis,
-    });
-
-    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
-      sourceCategory: this.mapSourceCategory(payload.source),
-      conviction: Math.abs(scoreForEval),
-      direction: 'negative',
-    });
-    return `${sentAction}: ${ruleName}`;
-  }
-
-  /**
-   * Sprawdza reguły "Bullish/Bearish Signal Override" — GPT koryguje FinBERT.
-   * Bullish Override: FinBERT < -0.5, GPT mówi BULLISH (effectiveScore > 0.1)
-   * Bearish Override: FinBERT > 0.5, GPT mówi BEARISH (effectiveScore < -0.1)
-   */
-  private async checkSignalOverride(payload: {
-    symbol: string;
-    score: number;
-    confidence: number;
-    source: string;
-    gptConviction: number | null;
-    effectiveScore: number | null;
-    enrichedAnalysis: Record<string, any> | null;
-  }): Promise<string> {
-    if (payload.gptConviction == null || payload.effectiveScore == null)
-      return 'SKIP: brak gptConviction lub effectiveScore';
-
-    const finbertScore = payload.score;
-    const effectiveScore = payload.effectiveScore;
-
-    let direction: SignalDirection | null = null;
-
-    // Bullish Override: FinBERT widzi intensywny negatywny tekst, GPT koryguje na BULLISH
-    if (finbertScore < -0.5 && effectiveScore > 0.1) {
-      direction = 'BULLISH';
-    }
-
-    // Bearish Override: FinBERT widzi pozytywny tekst, GPT koryguje na BEARISH
-    if (finbertScore > 0.5 && effectiveScore < -0.1) {
-      direction = 'BEARISH';
-    }
-
-    if (!direction)
-      return `SKIP: brak override (finbert=${finbertScore.toFixed(3)}, effective=${effectiveScore.toFixed(3)})`;
-
-    const ruleName = `${direction === 'BULLISH' ? 'Bullish' : 'Bearish'} Signal Override`;
-    this.logger.debug(
-      `${ruleName}: ${payload.symbol} finbert=${finbertScore} effectiveScore=${effectiveScore} gptConviction=${payload.gptConviction}`,
-    );
-
-    const rule = await this.getRule(ruleName);
-    if (!rule) return `SKIP: reguła ${ruleName} nieaktywna`;
-
-    const catalyst = payload.enrichedAnalysis?.catalyst_type;
-
-    const isThrottled = await this.isThrottled(
-      rule.name,
-      payload.symbol,
-      rule.throttleMinutes,
-      catalyst,
-    );
-    if (isThrottled) return `THROTTLED: ${ruleName}`;
-
-    const ticker = await this.tickerRepo.findOne({
-      where: { symbol: payload.symbol },
-    });
-
-    const message = this.formatter.formatSignalOverrideAlert({
-      symbol: payload.symbol,
-      companyName: ticker?.name ?? payload.symbol,
-      finbertScore,
-      gptConviction: payload.gptConviction,
-      effectiveScore,
-      direction,
-      catalystType: catalyst ?? 'unknown',
-      summary: payload.enrichedAnalysis?.summary ?? '',
-      priority: rule.priority,
-    });
-
-    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
-      sourceCategory: this.mapSourceCategory(payload.source),
-      conviction: Math.abs(effectiveScore),
-      direction: direction === 'BULLISH' ? 'positive' : 'negative',
-    });
-    return `${sentAction}: ${ruleName}`;
-  }
-
-  /**
-   * Sprawdza regułę "High Conviction Signal" — |conviction| > 0.7.
-   * Wymaga enrichedAnalysis (wynik 2-etapowej analizy AI).
-   * UWAGA: używa raw gptConviction (skala [-2, +2]), NIE effectiveScore.
-   * Próg obniżony z 1.5 na 0.7 — historycznie max conviction = 1.008,
-   * więc stary próg 1.5 był nieosiągalny (0 wyzwoleń ever).
-   */
-  private async checkHighConviction(payload: {
-    symbol: string;
-    score: number;
-    confidence: number;
-    source: string;
-    conviction: number | null;
-    enrichedAnalysis: Record<string, any> | null;
-  }): Promise<string> {
-    if (payload.conviction == null)
-      return 'SKIP: conviction null';
-    if (Math.abs(payload.conviction) < 0.7)
-      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 0.7`;
-
-    this.logger.debug(
-      `High conviction: ${payload.symbol} conviction=${payload.conviction}`,
-    );
-
-    const ruleName = 'High Conviction Signal';
-    const rule = await this.getRule(ruleName);
-    if (!rule) return 'SKIP: reguła nieaktywna';
-
-    const catalyst = payload.enrichedAnalysis?.catalyst_type;
-
-    const isThrottled = await this.isThrottled(
-      rule.name,
-      payload.symbol,
-      rule.throttleMinutes,
-      catalyst,
-    );
-    if (isThrottled) return `THROTTLED: ${ruleName}`;
-
-    const message = this.formatter.formatConvictionAlert({
-      symbol: payload.symbol,
-      priority: rule.priority,
-      conviction: payload.conviction,
-      finbertScore: payload.score,
-      finbertConfidence: payload.confidence,
-      source: payload.source,
-      enrichedAnalysis: payload.enrichedAnalysis ?? {},
-    });
-
-    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
-      sourceCategory: this.mapSourceCategory(payload.source),
-      conviction: Math.min(Math.abs(payload.conviction) / 2.0, 1.0), // normalizacja [-2,+2] → [0,1]
-      direction: payload.conviction > 0 ? 'positive' : 'negative',
-    });
-    return `${sentAction}: ${ruleName}`;
-  }
-
-  /**
-   * Sprawdza regułę "Strong FinBERT Signal" — fallback gdy VM offline.
-   * Silny sygnał FinBERT (|score| > 0.7, conf > 0.8) bez potwierdzenia AI.
-   */
-  private async checkStrongFinbert(payload: {
-    symbol: string;
-    score: number;
-    confidence: number;
-    source: string;
-    model: string;
-    conviction: number | null;
-  }): Promise<string> {
-    // Tylko sygnały bez analizy AI (VM offline lub nie eskalowany)
-    if (payload.conviction != null) return 'SKIP: conviction != null (ma analizę AI)';
-    if (payload.model !== 'finbert') return `SKIP: model=${payload.model} (nie finbert)`;
-    if (Math.abs(payload.score) <= 0.7)
-      return `SKIP: |score| ${Math.abs(payload.score).toFixed(3)} <= 0.7`;
-    if (payload.confidence <= 0.8)
-      return `SKIP: confidence ${payload.confidence.toFixed(2)} <= 0.8`;
-
-    this.logger.debug(
-      `Strong FinBERT (unconfirmed): ${payload.symbol} score=${payload.score} conf=${payload.confidence}`,
-    );
-
-    const ruleName = 'Strong FinBERT Signal';
-    const rule = await this.getRule(ruleName);
-    if (!rule) return 'SKIP: reguła nieaktywna';
-
-    const isThrottled = await this.isThrottled(
-      rule.name,
-      payload.symbol,
-      rule.throttleMinutes,
-    );
-    if (isThrottled) return `THROTTLED: ${ruleName}`;
-
-    const message = this.formatter.formatStrongFinbertAlert({
-      symbol: payload.symbol,
-      priority: rule.priority,
-      score: payload.score,
-      confidence: payload.confidence,
-      source: payload.source,
-    });
-
-    const sentAction = await this.sendAlert(payload.symbol, rule, message, undefined, {
-      sourceCategory: this.mapSourceCategory(payload.source),
-      conviction: Math.abs(payload.score),
-      direction: payload.score > 0 ? 'positive' : 'negative',
-    });
-    return `${sentAction}: ${ruleName}`;
-  }
-
-  /**
-   * Sprawdza regułę "Urgent AI Signal" — urgency=HIGH z wysoką relevance.
-   * Łapie sygnały (np. FDA approval), które mają niski conviction
-   * przez source_authority degradację (np. StockTwits = 0.15).
-   * Używa osobnej reguły z 60-min throttle per (rule, symbol, catalyst).
-   */
-  private async checkUrgentSignal(payload: {
-    symbol: string;
-    score: number;
-    confidence: number;
-    source: string;
-    conviction: number | null;
-    enrichedAnalysis: Record<string, any> | null;
-  }): Promise<string> {
-    const ea = payload.enrichedAnalysis;
-    if (!ea) return 'SKIP: brak enrichedAnalysis';
-    if (payload.conviction == null) return 'SKIP: conviction null';
-
-    if (ea.urgency !== 'HIGH')
-      return `SKIP: urgency=${ea.urgency ?? 'null'} (nie HIGH)`;
-    if ((ea.relevance ?? 0) < 0.7)
-      return `SKIP: relevance ${(ea.relevance ?? 0).toFixed(2)} < 0.7`;
-    if ((ea.confidence ?? 0) < 0.6)
-      return `SKIP: confidence ${(ea.confidence ?? 0).toFixed(2)} < 0.6`;
-    if (Math.abs(payload.conviction) < 0.3)
-      return `SKIP: |conviction| ${Math.abs(payload.conviction).toFixed(3)} < 0.3`;
-
-    this.logger.debug(
-      `Urgent signal: ${payload.symbol} urgency=${ea.urgency} relevance=${ea.relevance} conviction=${payload.conviction}`,
-    );
-
-    const ruleName = 'Urgent AI Signal';
-    const rule = await this.getRule(ruleName);
-    if (!rule) return 'SKIP: reguła nieaktywna';
-
-    const catalyst = ea.catalyst_type;
-
-    const isThrottled = await this.isThrottled(
-      rule.name,
-      payload.symbol,
-      rule.throttleMinutes,
-      catalyst,
-    );
-    if (isThrottled) return `THROTTLED: ${ruleName}`;
-
-    const message = this.formatter.formatUrgentAiAlert({
-      symbol: payload.symbol,
-      priority: rule.priority,
-      conviction: payload.conviction,
-      finbertScore: payload.score,
-      finbertConfidence: payload.confidence,
-      source: payload.source,
-      enrichedAnalysis: ea,
-    });
-
-    const sentAction = await this.sendAlert(payload.symbol, rule, message, catalyst, {
-      sourceCategory: this.mapSourceCategory(payload.source),
-      conviction: Math.min(Math.abs(payload.conviction) / 2.0, 1.0),
-      direction: payload.conviction > 0 ? 'positive' : 'negative',
-    });
-    return `${sentAction}: ${ruleName}`;
-  }
-
-  /**
    * Wysyła alert i zapisuje go w historii.
    * Po wysłaniu rejestruje sygnał w CorrelationService do detekcji wzorców.
    */
@@ -496,12 +121,9 @@ export class AlertEvaluatorService {
     const ticker = await this.tickerRepo.findOne({ where: { symbol } });
     const isObservation = ticker?.observationOnly === true;
 
-    // Silent rules: zapisz do DB, ale nie wysyłaj na Telegram (szum bez edge)
-    const isSilent = SILENT_RULES.has(rule.name);
-
     // Sprint 16 FLAG #10: shared AlertDeliveryGate zamiast lokalnego checku
     let dailyLimitHit = false;
-    if (!isSilent && !isObservation) {
+    if (!isObservation) {
       const gateCheck = await this.deliveryGate.canDeliverToTelegram(symbol);
       if (!gateCheck.allowed) {
         dailyLimitHit = true;
@@ -511,10 +133,9 @@ export class AlertEvaluatorService {
     // Ustal powód niedostarczenia (jeśli jest)
     let nonDeliveryReason: string | null = null;
     if (isObservation) nonDeliveryReason = 'observation';
-    else if (isSilent) nonDeliveryReason = 'silent_hour';
     else if (dailyLimitHit) nonDeliveryReason = 'daily_limit';
 
-    const delivered = (isSilent || dailyLimitHit || isObservation)
+    const delivered = (dailyLimitHit || isObservation)
       ? false
       : await this.telegram.sendMarkdown(message);
 
@@ -547,7 +168,6 @@ export class AlertEvaluatorService {
     // Granularny action dla observability
     let alertAction: string;
     if (isObservation) alertAction = 'ALERT_DB_ONLY_OBSERVATION';
-    else if (isSilent) alertAction = 'ALERT_DB_ONLY_SILENT_RULE';
     else if (dailyLimitHit) alertAction = 'ALERT_DB_ONLY_DAILY_LIMIT';
     else if (delivered) alertAction = 'ALERT_SENT_TELEGRAM';
     else alertAction = 'ALERT_TELEGRAM_FAILED';

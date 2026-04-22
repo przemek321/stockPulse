@@ -11,9 +11,7 @@ export enum EventType {
   NEW_FILING = 'filing.new',
   /** Nowa transakcja insider (Form 4) */
   NEW_INSIDER_TRADE = 'insider-trade.new',
-  /** Wynik analizy sentymentu */
-  SENTIMENT_SCORED = 'sentiment.scored',
-  /** Wykryto anomalię (volume spike, sentiment crash) */
+  /** Wykryto anomalię (volume spike, options unusual activity) */
   ANOMALY_DETECTED = 'anomaly.detected',
   /** Wyzwolono alert */
   ALERT_TRIGGERED = 'alert.triggered',
