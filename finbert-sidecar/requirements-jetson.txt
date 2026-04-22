@@ -1,9 +1,0 @@
-# Zależności FinBERT na Jetson NX (JetPack 5.x, Python 3.8)
-# PyTorch jest już zainstalowany w obrazie L4T — nie instalujemy ponownie
-# Wersje kompatybilne z Python 3.8 (obraz L4T R35.x)
-fastapi>=0.100.0,<1.0
-uvicorn[standard]>=0.30.0,<0.34
-transformers>=4.30.0,<4.46
-huggingface_hub>=0.20.0,<0.27
-pydantic>=2.0,<3.0
-eval_type_backport>=0.2.0
