@@ -1,5 +1,7 @@
 # StockPulse na NVIDIA Jetson Orin NX
 
+> ⚠️ **22.04.2026 FinBERT cleanup**: Sekcje o `finbert-sidecar/`, `Dockerfile.jetson`, `make rebuild-finbert`, `make backfill`, Python 3.8 kompatybilności (`from __future__ import annotations`, `eval_type_backport`) są **historyczne**. FinBERT został usunięty z projektu — Jetson od tej daty uruchamia tylko 4 kontenery Node.js: app, frontend, postgres, redis (pgadmin wyłączony przez `profiles`). Instrukcje instalacyjne L4T + NVIDIA Container Toolkit pozostają aktualne jeśli w przyszłości dodasz inne GPU workloady. Bieżący `docker-compose.jetson.yml` ma tylko app `/proc /sys` binds i pgadmin profile override.
+
 ## Środowisko
 
 | Element | Wartość |

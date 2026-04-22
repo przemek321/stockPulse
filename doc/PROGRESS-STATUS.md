@@ -2,7 +2,9 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-18
+> Ostatnia aktualizacja: 2026-04-22
+
+> ⚠️ **22.04.2026 FinBERT cleanup**: Sekcja "Sprint 2a: FinBERT Sidecar" poniżej jest **historyczna**. FinBERT sidecar + sentiment pipeline zostały usunięte z projektu (commits 988bf03, ba45976, d3a1b5c, b3a2f2b, 4b117db) — backtest Sprint 15 potwierdził zero edge na sentymencie. Tabele DB `sentiment_scores` i `ai_pipeline_logs` zachowane jako orphan do drop-migration w Sprint 18. Szczegóły w CLAUDE.md → Already resolved.
 
 ## Stan walidacji (18.04.2026)
 

@@ -3,6 +3,8 @@
 > Szczegółowy opis każdego pliku, co robi i z czym jest powiązany.
 > Ostatnia aktualizacja: 2026-04-05
 
+> ⚠️ **22.04.2026 FinBERT cleanup**: sekcje `src/sentiment/finbert-client.service.ts`, `sentiment-listener.service.ts`, `sentiment-processor.service.ts`, entities `sentiment-score.entity.ts` + `ai-pipeline-log.entity.ts`, `common/types.ts`, `src/database/seeds/backfill-sentiment.ts`, katalog `finbert-sidecar/` są **nieaktualne** — pliki zostały usunięte z repo (commits 988bf03, ba45976, d3a1b5c, b3a2f2b, 4b117db). `src/sentiment/` zawiera teraz tylko `anthropic-client.service.ts`, `azure-openai-client.service.ts` (alias), `sentiment.module.ts` (slim).
+
 ## Drzewo katalogów
 
 ```
