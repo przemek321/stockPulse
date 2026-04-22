@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Alert, AlertRule, InsiderTrade, SentimentScore, Ticker } from '../entities';
+import { Alert, AlertRule, InsiderTrade, Ticker } from '../entities';
 import { AlertEvaluatorService } from './alert-evaluator.service';
 import { AlertDeliveryGate } from './alert-delivery-gate.service';
 import { SummarySchedulerService } from './summary-scheduler.service';
@@ -16,7 +16,7 @@ import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Alert, AlertRule, InsiderTrade, SentimentScore, Ticker]),
+    TypeOrmModule.forFeature([Alert, AlertRule, InsiderTrade, Ticker]),
     PdufaBioModule,
     TelegramModule,
     forwardRef(() => CorrelationModule),

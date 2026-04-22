@@ -116,7 +116,6 @@ stats:
 		UNION ALL SELECT 'raw_mentions', COUNT(*) FROM raw_mentions \
 		UNION ALL SELECT 'news_articles', COUNT(*) FROM news_articles \
 		UNION ALL SELECT 'sec_filings', COUNT(*) FROM sec_filings \
-		UNION ALL SELECT 'sentiment_scores', COUNT(*) FROM sentiment_scores \
 		UNION ALL SELECT 'alerts', COUNT(*) FROM alerts \
 		ORDER BY 1;"
 

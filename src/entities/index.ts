@@ -1,5 +1,4 @@
 export { Ticker } from './ticker.entity';
-export { SentimentScore } from './sentiment-score.entity';
 export { RawMention } from './raw-mention.entity';
 export { NewsArticle } from './news-article.entity';
 export { SecFiling } from './sec-filing.entity';
@@ -8,7 +7,6 @@ export { Alert } from './alert.entity';
 export { AlertRule } from './alert-rule.entity';
 export { CollectionLog } from './collection-log.entity';
 export { PdufaCatalyst } from './pdufa-catalyst.entity';
-export { AiPipelineLog } from './ai-pipeline-log.entity';
 export { SystemLog } from './system-log.entity';
 export { OptionsFlow } from './options-flow.entity';
 export { OptionsVolumeBaseline } from './options-volume-baseline.entity';

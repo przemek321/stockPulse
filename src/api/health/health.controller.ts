@@ -14,7 +14,6 @@ import {
   NewsArticle,
   SecFiling,
   InsiderTrade,
-  SentimentScore,
   Alert,
   AlertRule,
   CollectionLog,
@@ -49,7 +48,6 @@ export class HealthController {
     @InjectRepository(NewsArticle) private readonly newsRepo: Repository<NewsArticle>,
     @InjectRepository(SecFiling) private readonly filingRepo: Repository<SecFiling>,
     @InjectRepository(InsiderTrade) private readonly tradeRepo: Repository<InsiderTrade>,
-    @InjectRepository(SentimentScore) private readonly scoreRepo: Repository<SentimentScore>,
     @InjectRepository(Alert) private readonly alertRepo: Repository<Alert>,
     @InjectRepository(AlertRule) private readonly ruleRepo: Repository<AlertRule>,
     @InjectRepository(CollectionLog) private readonly logRepo: Repository<CollectionLog>,
@@ -94,14 +92,13 @@ export class HealthController {
 
     // Totale per tabela (równoległe zapytania)
     const [
-      tickers, mentions, news, filings, trades, scores, alerts, rules, logs, pdufaEvents,
+      tickers, mentions, news, filings, trades, alerts, rules, logs, pdufaEvents,
     ] = await Promise.all([
       this.tickerRepo.count(),
       this.mentionRepo.count(),
       this.newsRepo.count(),
       this.filingRepo.count(),
       this.tradeRepo.count(),
-      this.scoreRepo.count(),
       this.alertRepo.count(),
       this.ruleRepo.count(),
       this.logRepo.count(),
@@ -158,7 +155,6 @@ export class HealthController {
           { name: 'news_articles', count: news },
           { name: 'sec_filings', count: filings },
           { name: 'insider_trades', count: trades },
-          { name: 'sentiment_scores', count: scores },
           { name: 'alerts', count: alerts },
           { name: 'alert_rules', count: rules },
           { name: 'collection_logs', count: logs },
@@ -179,71 +175,13 @@ export class HealthController {
     const interval = `${days} days`;
 
     const [
-      pipelineStats,
-      sourceDistribution,
-      topConvictions,
-      pdufaImpact,
       alertsSent,
       pdufaStatus,
       priceOutcomes,
       hitRateByRule,
       hitRateByCatalyst,
     ] = await Promise.all([
-      // 1. Statystyki pipeline (status × tier)
-      this.dataSource.query(`
-        SELECT
-          status, tier, COUNT(*) as count,
-          ROUND(AVG(finbert_duration_ms)) as avg_finbert_ms,
-          ROUND(AVG(azure_duration_ms)) as avg_azure_ms
-        FROM ai_pipeline_logs
-        WHERE created_at > NOW() - INTERVAL '${interval}'
-        GROUP BY status, tier
-        ORDER BY count DESC
-      `),
-
-      // 2. Rozkład źródeł danych
-      this.dataSource.query(`
-        SELECT source, COUNT(*) as count
-        FROM ai_pipeline_logs
-        WHERE created_at > NOW() - INTERVAL '${interval}'
-        GROUP BY source
-        ORDER BY count DESC
-      `),
-
-      // 3. Top 20 conviction scores
-      this.dataSource.query(`
-        SELECT
-          symbol, score, confidence, model,
-          "enrichedAnalysis"->>'conviction' as conviction,
-          "enrichedAnalysis"->>'catalyst_type' as catalyst,
-          "enrichedAnalysis"->>'relevance' as relevance,
-          "enrichedAnalysis"->>'sentiment' as ai_sentiment,
-          "enrichedAnalysis"->>'summary' as summary,
-          "rawText",
-          timestamp
-        FROM sentiment_scores
-        WHERE "enrichedAnalysis" IS NOT NULL
-          AND timestamp > NOW() - INTERVAL '${interval}'
-        ORDER BY ABS(("enrichedAnalysis"->>'conviction')::numeric) DESC
-        LIMIT 20
-      `),
-
-      // 4. PDUFA context impact
-      this.dataSource.query(`
-        SELECT
-          symbol,
-          pdufa_context IS NOT NULL as had_pdufa,
-          ROUND(AVG(ABS((response_payload->>'relevance')::numeric)), 3) as avg_relevance,
-          ROUND(AVG(ABS((response_payload->>'conviction')::numeric)), 3) as avg_conviction,
-          COUNT(*) as count
-        FROM ai_pipeline_logs
-        WHERE status = 'AI_ESCALATED'
-          AND created_at > NOW() - INTERVAL '${interval}'
-        GROUP BY symbol, had_pdufa
-        ORDER BY symbol, had_pdufa
-      `),
-
-      // 5. Alerty wysłane na Telegram
+      // 1. Alerty wysłane na Telegram
       this.dataSource.query(`
         SELECT
           "ruleName" as rule_name, symbol, priority, "catalystType" as catalyst_type,
@@ -253,7 +191,7 @@ export class HealthController {
         ORDER BY "sentAt" DESC
       `),
 
-      // 6. Status scrapera PDUFA + lista upcoming tickerów
+      // 2. Status scrapera PDUFA + lista upcoming tickerów
       this.dataSource.query(`
         SELECT COUNT(*) as total_events,
           COUNT(*) FILTER (WHERE outcome IS NOT NULL) as resolved,
@@ -270,7 +208,7 @@ export class HealthController {
         FROM pdufa_catalysts
       `),
 
-      // 7. Price outcomes — alerty z wypełnionymi cenami z okresu
+      // 3. Price outcomes — alerty z wypełnionymi cenami z okresu
       this.dataSource.query(`
         SELECT
           "ruleName" as rule_name,
@@ -310,7 +248,7 @@ export class HealthController {
         ORDER BY "sentAt" DESC
       `),
 
-      // 8. Hit rate per rule_name (1d + 3d)
+      // 4. Hit rate per rule_name (1d + 3d)
       this.dataSource.query(`
         SELECT
           "ruleName" as rule_name,
@@ -364,7 +302,7 @@ export class HealthController {
         ORDER BY total_alerts DESC
       `),
 
-      // 9. Hit rate per catalyst_type (1d + 3d)
+      // 5. Hit rate per catalyst_type (1d + 3d)
       this.dataSource.query(`
         SELECT
           COALESCE("catalystType", 'unknown') as catalyst_type,
@@ -423,10 +361,6 @@ export class HealthController {
       generatedAt: new Date().toISOString(),
       periodDays: days,
       sections: {
-        pipelineStats,
-        sourceDistribution,
-        topConvictions,
-        pdufaImpact,
         alertsSent,
         pdufaStatus: pdufaStatus[0] || {},
         priceOutcomes,
@@ -497,17 +431,6 @@ export class HealthController {
       WHERE "sentAt" >= $2
     `, [last24h, last7d]);
 
-    // Pipeline GPT — ile wywołań / błędów w 24h
-    const pipelineStats = await this.dataSource.query(`
-      SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE status = 'AI_ESCALATED') as escalated,
-        COUNT(*) FILTER (WHERE status = 'AI_FAILED') as failed,
-        COUNT(*) FILTER (WHERE status = 'FINBERT_ONLY') as finbert_only
-      FROM ai_pipeline_logs
-      WHERE created_at >= $1
-    `, [last24h]);
-
     // BullMQ failed jobs — via collection_logs FAILED w 7d
     const failedJobs7d = await this.logRepo.count({
       where: {
@@ -543,12 +466,6 @@ export class HealthController {
         silent7d: parseInt(alertStats[0].silent),
         tickers7d: parseInt(alertStats[0].tickers),
         last24h: parseInt(alertStats[0].last_24h),
-      } : null,
-      pipeline: pipelineStats[0] ? {
-        total24h: parseInt(pipelineStats[0].total),
-        escalated24h: parseInt(pipelineStats[0].escalated),
-        failed24h: parseInt(pipelineStats[0].failed),
-        finbertOnly24h: parseInt(pipelineStats[0].finbert_only),
       } : null,
       failedJobs7d,
     };

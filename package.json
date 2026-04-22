@@ -10,7 +10,6 @@
     "start:prod": "node dist/main.js",
     "test": "jest",
     "test:agents": "jest --testPathPattern=test/agents/",
-    "test:agent:sentiment": "jest test/agents/sentiment-agent.spec.ts",
     "test:agent:alerts": "jest test/agents/alert-evaluator-agent.spec.ts",
     "test:agent:correlation": "jest test/agents/correlation-agent.spec.ts",
     "test:agent:sec": "jest test/agents/sec-filings-agent.spec.ts",
@@ -23,8 +22,7 @@
     "test:edgar": "node scripts/test-sec-edgar.js",
     "test:stocktwits": "node scripts/test-stocktwits.js",
     "test:telegram": "node scripts/test-telegram.js",
-    "seed": "node node_modules/typescript/bin/tsc -p tsconfig.build.json && node dist/database/seeds/seed.js",
-    "backfill:sentiment": "node node_modules/typescript/bin/tsc -p tsconfig.build.json && node dist/database/seeds/backfill-sentiment.js"
+    "seed": "node node_modules/typescript/bin/tsc -p tsconfig.build.json && node dist/database/seeds/seed.js"
   },
   "dependencies": {
     "@nestjs/bullmq": "^10.2.0",

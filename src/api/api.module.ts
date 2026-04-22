@@ -9,7 +9,6 @@ import { OptionsFlowController } from './options-flow/options-flow.controller';
 import { SystemStatsService } from './health/system-stats.service';
 import {
   Ticker,
-  SentimentScore,
   RawMention,
   NewsArticle,
   SecFiling,
@@ -18,7 +17,6 @@ import {
   AlertRule,
   CollectionLog,
   PdufaCatalyst,
-  AiPipelineLog,
   OptionsFlow,
   OptionsVolumeBaseline,
 } from '../entities';
@@ -34,7 +32,6 @@ import { PriceOutcomeModule } from '../price-outcome/price-outcome.module';
   imports: [
     TypeOrmModule.forFeature([
       Ticker,
-      SentimentScore,
       RawMention,
       NewsArticle,
       SecFiling,
@@ -43,7 +40,6 @@ import { PriceOutcomeModule } from '../price-outcome/price-outcome.module';
       AlertRule,
       CollectionLog,
       PdufaCatalyst,
-      AiPipelineLog,
       OptionsFlow,
       OptionsVolumeBaseline,
     ]),

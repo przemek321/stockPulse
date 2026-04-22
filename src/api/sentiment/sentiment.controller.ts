@@ -1,30 +1,31 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
-  SentimentScore,
   RawMention,
   NewsArticle,
   SecFiling,
   InsiderTrade,
   PdufaCatalyst,
-  AiPipelineLog,
 } from '../../entities';
 
 /**
- * REST API sentymentu i danych zbieranych przez kolektory.
- * GET /api/sentiment/scores          — wyniki analizy sentymentu (wszystkie tickery)
+ * REST API danych zbieranych przez kolektory (legacy route name /sentiment).
+ *
+ * Sentiment-specific endpointy (/scores, /pipeline-logs, /:ticker) usunięte
+ * razem z FinBERT pipeline (22.04.2026). Route path '/api/sentiment/*' zachowany
+ * dla kompatybilności z frontendem (hardcoded fetche do /insider-trades i /pdufa).
+ *
  * GET /api/sentiment/news            — ostatnie newsy (wszystkie tickery)
  * GET /api/sentiment/mentions        — ostatnie wzmianki social media
  * GET /api/sentiment/filings         — ostatnie filingi SEC
+ * GET /api/sentiment/filings-gpt     — filingi SEC z analizą GPT (Claude Sonnet)
+ * GET /api/sentiment/pdufa           — nadchodzące katalizatory PDUFA
  * GET /api/sentiment/insider-trades  — transakcje insiderów (Form 4)
- * GET /api/sentiment/:ticker         — dane sentymentu per ticker
  */
 @Controller('sentiment')
 export class SentimentController {
   constructor(
-    @InjectRepository(SentimentScore)
-    private readonly scoreRepo: Repository<SentimentScore>,
     @InjectRepository(RawMention)
     private readonly mentionRepo: Repository<RawMention>,
     @InjectRepository(NewsArticle)
@@ -33,30 +34,7 @@ export class SentimentController {
     private readonly tradeRepo: Repository<InsiderTrade>,
     @InjectRepository(PdufaCatalyst)
     private readonly pdufaRepo: Repository<PdufaCatalyst>,
-    @InjectRepository(AiPipelineLog)
-    private readonly pipelineLogRepo: Repository<AiPipelineLog>,
   ) {}
-
-  /** Wszystkie wyniki sentymentu (najnowsze). ?ai_only=true → tylko z analizą AI */
-  @Get('scores')
-  async getScores(
-    @Query('limit') limit?: string,
-    @Query('ai_only') aiOnly?: string,
-  ) {
-    const take = Math.min(parseInt(limit || '100', 10), 500);
-
-    const qb = this.scoreRepo
-      .createQueryBuilder('s')
-      .orderBy('s.timestamp', 'DESC')
-      .take(take);
-
-    if (aiOnly === 'true') {
-      qb.where('s.enrichedAnalysis IS NOT NULL');
-    }
-
-    const scores = await qb.getMany();
-    return { count: scores.length, scores };
-  }
 
   /** Ostatnie newsy ze wszystkich tickerów. */
   @Get('news')
@@ -133,31 +111,6 @@ export class SentimentController {
     return { count: catalysts.length, catalysts };
   }
 
-  /** Logi pipeline AI — pełna historia egzekucji analizy sentymentu. */
-  @Get('pipeline-logs')
-  async getPipelineLogs(
-    @Query('limit') limit?: string,
-    @Query('status') status?: string,
-    @Query('symbol') symbol?: string,
-  ) {
-    const take = Math.min(parseInt(limit || '100', 10), 500);
-
-    const qb = this.pipelineLogRepo
-      .createQueryBuilder('log')
-      .orderBy('log.created_at', 'DESC')
-      .take(take);
-
-    if (status) {
-      qb.andWhere('log.status = :status', { status });
-    }
-    if (symbol) {
-      qb.andWhere('log.symbol = :symbol', { symbol: symbol.toUpperCase() });
-    }
-
-    const logs = await qb.getMany();
-    return { count: logs.length, logs };
-  }
-
   /** Transakcje insiderów z Form 4 (SEC EDGAR). */
   @Get('insider-trades')
   async getInsiderTrades(@Query('limit') limit?: string) {
@@ -167,47 +120,5 @@ export class SentimentController {
       take,
     });
     return { count: trades.length, trades };
-  }
-
-  /**
-   * Dane sentymentu dla jednego tickera.
-   * ?limit=50 — ile wyników (domyślnie 50).
-   */
-  @Get(':ticker')
-  async getSentiment(
-    @Param('ticker') ticker: string,
-    @Query('limit') limit?: string,
-  ) {
-    const symbol = ticker.toUpperCase();
-    const take = Math.min(parseInt(limit || '50', 10), 200);
-
-    const [scores, mentions, news] = await Promise.all([
-      this.scoreRepo.find({
-        where: { symbol },
-        order: { timestamp: 'DESC' },
-        take,
-      }),
-      // detectedTickers to jsonb array — używamy operatora @> (contains)
-      this.mentionRepo
-        .createQueryBuilder('m')
-        .where(`m."detectedTickers" @> :tickers`, {
-          tickers: JSON.stringify([symbol]),
-        })
-        .orderBy('m."collectedAt"', 'DESC')
-        .limit(take)
-        .getMany(),
-      this.newsRepo.find({
-        where: { symbol },
-        order: { publishedAt: 'DESC' },
-        take: Math.min(take, 20),
-      }),
-    ]);
-
-    return {
-      symbol,
-      scores: { count: scores.length, data: scores },
-      mentions: { count: mentions.length, data: mentions },
-      news: { count: news.length, data: news },
-    };
   }
 }
