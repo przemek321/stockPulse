@@ -23,14 +23,11 @@ ifeq ($(ARCH),aarch64)
   COMPOSE_FILES := -f docker-compose.yml -f docker-compose.jetson.yml
   ENV_NAME := jetson
 else
-  # Laptop/desktop x86_64
+  # Laptop/desktop x86_64 — bazowy compose (brak FinBERT = brak GPU overridów)
+  COMPOSE_FILES := -f docker-compose.yml
   ifeq ($(shell docker info --format '{{.Runtimes.nvidia}}' 2>/dev/null),)
-    # Brak GPU — tryb CPU
-    COMPOSE_FILES := -f docker-compose.yml -f docker-compose.cpu.yml
     ENV_NAME := cpu
   else
-    # GPU NVIDIA (desktop CUDA)
-    COMPOSE_FILES := -f docker-compose.yml
     ENV_NAME := gpu
   endif
 endif
@@ -48,7 +45,7 @@ up:
 down:
 	$(DC) down
 
-## Rebuild po zmianach kodu (app + frontend + finbert)
+## Rebuild po zmianach kodu (app + frontend)
 rebuild:
 	@echo "▶ Rebuild: $(ENV_NAME)"
 	$(DC) up -d --build
@@ -56,10 +53,6 @@ rebuild:
 ## Rebuild tylko backendu (szybki)
 rebuild-app:
 	$(DC) up -d --build app
-
-## Rebuild FinBERT (po zmianach modelu/sidecar)
-rebuild-finbert:
-	$(DC) up -d --build finbert
 
 ## Logi (wszystkie serwisy, follow)
 logs:
@@ -87,24 +80,10 @@ status:
 				console.log('  Telegram:', h.telegram?.configured ? 'OK' : 'brak'); \
 			}); \
 		});" 2>/dev/null || echo "  API: nie działa"
-	@docker exec stockpulse-app node -e "\
-		const http = require('http'); \
-		http.get('http://finbert:8000/health', res => { \
-			let d = ''; \
-			res.on('data', c => d+=c); \
-			res.on('end', () => { \
-				const h = JSON.parse(d); \
-				console.log('  FinBERT:', h.status, '(' + h.device?.device + ',', h.device?.gpu_name || 'CPU', ')'); \
-			}); \
-		});" 2>/dev/null || echo "  FinBERT: nie działa"
 
 ## Seed bazy danych (tickery + reguły alertów)
 seed:
 	docker exec stockpulse-app npm run seed
-
-## Backfill sentymentu (analiza istniejących danych FinBERTem)
-backfill:
-	docker exec stockpulse-app npm run backfill:sentiment
 
 ## Backup bazy do pliku
 backup:
@@ -151,9 +130,8 @@ help:
 	@echo "  make rebuild-app    Rebuild tylko backendu"
 	@echo "  make status         Status + health check"
 	@echo "  make logs           Logi (follow)"
-	@echo "  make log S=finbert  Logi konkretnego serwisu"
+	@echo "  make log S=app      Logi konkretnego serwisu"
 	@echo "  make seed           Seed bazy danych"
-	@echo "  make backfill       Backfill sentymentu"
 	@echo "  make backup         Backup bazy"
 	@echo "  make restore        Restore bazy"
 	@echo "  make stats          Statystyki bazy"

@@ -11,7 +11,6 @@ services:
       # Wewnątrz Docker network hosty to nazwy serwisów, nie localhost
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
-      FINBERT_SIDECAR_URL: http://finbert:8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,34 +81,6 @@ services:
     networks:
       - stockpulse-net
 
-  # ── FinBERT Sidecar — analiza sentymentu tekstów finansowych ──
-  # GPU (CUDA):  FINBERT_DOCKERFILE=Dockerfile docker compose up finbert
-  # CPU (laptop): FINBERT_DOCKERFILE=Dockerfile.cpu docker compose up finbert
-  finbert:
-    build:
-      context: ./finbert-sidecar
-      dockerfile: ${FINBERT_DOCKERFILE:-Dockerfile}
-    container_name: stockpulse-finbert
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    environment:
-      MODEL_NAME: ${FINBERT_MODEL_NAME:-ProsusAI/finbert}
-      BATCH_SIZE: ${FINBERT_BATCH_SIZE:-16}
-      MAX_TOKEN_LENGTH: ${FINBERT_MAX_TOKEN_LENGTH:-512}
-    volumes:
-      # Cache modelu HuggingFace — nie pobiera ponownie przy restart
-      - finbert_cache:/app/model_cache
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    networks:
-      - stockpulse-net
-
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: stockpulse-pgadmin
@@ -134,7 +105,6 @@ volumes:
   postgres_data:
   redis_data:
   pgadmin_data:
-  finbert_cache:
 
 networks:
   stockpulse-net:
