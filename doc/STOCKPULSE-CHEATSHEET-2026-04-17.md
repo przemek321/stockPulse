@@ -423,12 +423,13 @@ PriceOutcomeService (CRON 1h NYSE) tracks 1h/4h/1d/3d outcomes
 
 ### Sprint 18 candidates (V5-driven)
 
-6. **INSIDER_CLUSTER disable dla BUY direction** — V5 cluster_buy_vs_single_buy
-   pokazuje zero różnicy (p>0.37). Solo BUY >$500K (V5 d=+1.77) >> cluster BUY.
-   Czekanie na 2-giego insidera = opóźnienie bez dodanego edge.
-   Zmiana w `CorrelationService.runPatternDetection` (dir='up' branch).
-   **Uwaga:** N=21 cluster mało, niska moc testu — rozważ jeszcze 1 run
-   z większym universum albo dłuższym zakresem.
+6. ✅ **INSIDER_CLUSTER disable dla BUY direction** — DONE TASK-09 (23.04.2026).
+   V5 cluster_buy_vs_single_buy p>0.37 wszystkie horyzonty. Fix: `detectInsiderCluster`
+   w `correlation.service.ts` zwraca `null` dla `dir==='positive'`. SELL zostaje
+   (observation mode Sprint 15). 6 nowych testów w `correlation.spec.ts`. Historic
+   audit 90d: 0 BUY cluster alertów w DB (retroactive archive niepotrzebny).
+   Opcja B hybrid boost (retroactive conviction bump na solo BUY alert)
+   odłożona na Sprint 19.
 7. **C-suite detection ujednolicenie** (quality fix, pre-existing):
    `form4.pipeline.ts:119` używa starego regexa `/\bChief\b/i.test(role)`,
    podczas gdy linia 240 używa `isCsuiteRole()` (whitelist). Niespójność

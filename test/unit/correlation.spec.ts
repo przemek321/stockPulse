@@ -461,3 +461,91 @@ describe('TASK-04 — scenariusz HPE cascade 22.04.2026', () => {
     expect(shouldSkipDuplicatePatternDetection(hash, cached, baseTime + 16 * 60_000)).toBe(false);
   });
 });
+
+// ── TASK-09: detectInsiderCluster BUY disabled (V5 p>0.37 vs solo BUY) ────
+
+const WINDOW_7D = 7 * 24 * 3600_000;
+
+/**
+ * Re-implementacja detectInsiderCluster z TASK-09 (23.04.2026) — BUY wyłączony.
+ * V5 backtest (commit f69cfa8): cluster_buy_vs_single_buy N=21/49, p>0.37 wszystkie
+ * horyzonty. SELL zostaje (observation mode Sprint 15, obsługiwany w triggerCorrelatedAlert).
+ */
+function detectInsiderCluster(signals: StoredSignal[], now: number) {
+  const window = now - WINDOW_7D;
+  const recent = signals.filter(s => s.source_category === 'form4' && s.timestamp > window);
+
+  if (recent.length < 2) return null;
+
+  const dir = getDominantDirection(recent);
+  if (!dir) return null;
+
+  if (dir === 'positive') return null; // TASK-09 disable
+
+  const confirming = recent.filter(s => s.direction === dir);
+  if (confirming.length < 2) return null;
+
+  return {
+    type: 'INSIDER_CLUSTER' as const,
+    signals: confirming,
+    correlated_conviction: aggregateConviction(confirming),
+    direction: dir,
+  };
+}
+
+describe('TASK-09 — detectInsiderCluster BUY disabled', () => {
+  const now = 1_700_000_000_000;
+
+  it('2 BUY Form4 w 7d → null (V5 p>0.37 vs solo BUY)', () => {
+    const signals = [
+      makeSignal({ id: 's1', source_category: 'form4', direction: 'positive', conviction: 0.7, timestamp: now - 1000 }),
+      makeSignal({ id: 's2', source_category: 'form4', direction: 'positive', conviction: 0.6, timestamp: now - 500 }),
+    ];
+    expect(detectInsiderCluster(signals, now)).toBeNull();
+  });
+
+  it('3 BUY Form4 różni insiderzy → null (dominant positive nadal disabled)', () => {
+    const signals = [
+      makeSignal({ id: 's1', source_category: 'form4', direction: 'positive', conviction: 0.8, timestamp: now - 3000 }),
+      makeSignal({ id: 's2', source_category: 'form4', direction: 'positive', conviction: 0.9, timestamp: now - 2000 }),
+      makeSignal({ id: 's3', source_category: 'form4', direction: 'positive', conviction: 0.5, timestamp: now - 1000 }),
+    ];
+    expect(detectInsiderCluster(signals, now)).toBeNull();
+  });
+
+  it('2 SELL Form4 w 7d → emituje pattern (observation mode w triggerCorrelatedAlert)', () => {
+    const signals = [
+      makeSignal({ id: 's1', source_category: 'form4', direction: 'negative', conviction: -0.7, timestamp: now - 1000 }),
+      makeSignal({ id: 's2', source_category: 'form4', direction: 'negative', conviction: -0.6, timestamp: now - 500 }),
+    ];
+    const result = detectInsiderCluster(signals, now);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe('INSIDER_CLUSTER');
+    expect(result!.direction).toBe('negative');
+    expect(result!.signals).toHaveLength(2);
+  });
+
+  it('1 BUY + 1 SELL Form4 (50/50, brak dominacji) → null (getDominantDirection)', () => {
+    const signals = [
+      makeSignal({ id: 's1', source_category: 'form4', direction: 'positive', conviction: 0.7, timestamp: now - 1000 }),
+      makeSignal({ id: 's2', source_category: 'form4', direction: 'negative', conviction: -0.6, timestamp: now - 500 }),
+    ];
+    expect(detectInsiderCluster(signals, now)).toBeNull();
+  });
+
+  it('2 SELL Form4 ale >7d temu → null (okno)', () => {
+    const signals = [
+      makeSignal({ id: 's1', source_category: 'form4', direction: 'negative', conviction: -0.7, timestamp: now - 8 * 24 * 3600_000 }),
+      makeSignal({ id: 's2', source_category: 'form4', direction: 'negative', conviction: -0.6, timestamp: now - 500 }),
+    ];
+    expect(detectInsiderCluster(signals, now)).toBeNull();
+  });
+
+  it('2 BUY social (nie form4) → null (tylko form4 liczy się do clustra)', () => {
+    const signals = [
+      makeSignal({ id: 's1', source_category: 'social', direction: 'positive', conviction: 0.7, timestamp: now - 1000 }),
+      makeSignal({ id: 's2', source_category: 'social', direction: 'positive', conviction: 0.6, timestamp: now - 500 }),
+    ];
+    expect(detectInsiderCluster(signals, now)).toBeNull();
+  });
+});

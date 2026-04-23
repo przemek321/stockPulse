@@ -374,7 +374,15 @@ export class CorrelationService implements OnModuleDestroy {
     };
   }
 
-  /** Pattern 4: 2+ insider transactions w ciągu 7 dni */
+  /**
+   * Pattern 4: 2+ insider transactions w ciągu 7 dni.
+   *
+   * TASK-09 (23.04.2026): BUY direction wyłączony (return null dla positive).
+   * V5 backtest (commit f69cfa8) cluster_buy_vs_single_buy: N_cluster=21 vs N_single=49,
+   * p>0.37 wszystkie horyzonty (1d/3d/7d/30d) — czekanie na 2-giego insidera nie
+   * dodaje edge'u nad solo BUY. Solo BUY pokrywa signal przez Form 4 Insider BUY rule
+   * (d=0.75-0.92 V5). SELL zostaje (observation mode Sprint 15 — DB only).
+   */
   private detectInsiderCluster(signals: StoredSignal[], now: number): DetectedPattern | null {
     const window = now - WINDOW_7D;
     const recent = signals.filter(s => s.source_category === 'form4' && s.timestamp > window);
@@ -383,6 +391,9 @@ export class CorrelationService implements OnModuleDestroy {
 
     const dir = this.getDominantDirection(recent);
     if (!dir) return null;
+
+    // BUY cluster wyłączony — V5 cluster vs solo BUY p>0.37, solo BUY wystarcza
+    if (dir === 'positive') return null;
 
     const confirming = recent.filter(s => s.direction === dir);
     if (confirming.length < 2) return null;
@@ -540,9 +551,10 @@ export class CorrelationService implements OnModuleDestroy {
     const tickerEntity = await this.tickerRepo.findOne({ where: { symbol: ticker } });
     const isTickerObservation = tickerEntity?.observationOnly === true;
 
-    // Sprint 15 (backtest): INSIDER_CLUSTER SELL → observation mode
-    // Backtest: sell clusters hit rate 42.8%, p=0.204, brak edge.
-    // BUY clusters (d=0.47, p=0.009) nadal alertują normalnie.
+    // Sprint 15: INSIDER_CLUSTER SELL → observation mode (backtest p=0.204 zero edge).
+    // TASK-09 (23.04.2026): BUY cluster disabled na poziomie detekcji
+    // (detectInsiderCluster zwraca null dla positive — V5 p>0.37 vs solo BUY),
+    // więc tu trafia tylko SELL. Flaga zostawiona dla defence-in-depth.
     const isClusterSellObservation =
       pattern.type === 'INSIDER_CLUSTER' && pattern.direction === 'negative';
 
