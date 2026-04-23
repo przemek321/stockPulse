@@ -73,6 +73,20 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       const totalAlerts = alerts.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
       const totalDelivered = alerts.reduce((sum, r) => sum + parseInt(r.delivered ?? '0', 10), 0);
 
+      // Breakdown suppressed — grupuj nonDeliveryReason (TASK-07, 23.04.2026).
+      // Raport 8h pokazywał "Łącznie: 2 (dostarczono: 0)" bez kontekstu, wyglądało
+      // jak alarm. Po audycie: suppressed to observation (semi) / sell_no_edge /
+      // csuite_sell_no_edge — poprawne zachowanie, nie bug. Breakdown daje wgląd.
+      const reasons = await this.alertRepo
+        .createQueryBuilder('a')
+        .select('a.nonDeliveryReason', 'reason')
+        .addSelect('COUNT(*)', 'count')
+        .where('a.sentAt > :since', { since })
+        .andWhere('a.delivered = false')
+        .andWhere('a.nonDeliveryReason IS NOT NULL')
+        .groupBy('a.nonDeliveryReason')
+        .getRawMany();
+
       // Insider trades (discretionary BUY/SELL, non-10b5-1)
       const trades = await this.tradeRepo
         .createQueryBuilder('t')
@@ -95,7 +109,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         // Brak danych PDUFA nie blokuje raportu
       }
 
-      const message = this.formatSummary(alerts, totalAlerts, totalDelivered, trades) + pdufaSection;
+      const message = this.formatSummary(alerts, totalAlerts, totalDelivered, reasons, trades) + pdufaSection;
       const sent = await this.telegram.sendMarkdown(message);
 
       if (sent) {
@@ -111,12 +125,30 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Mapuje `nonDeliveryReason` na polskie etykiety dla raportu 8h.
+   * Wartości pokrywają się z AlertDispatcherService.dispatch() suppression values
+   * (observation, sell_no_edge, csuite_sell_no_edge, cluster_sell_no_edge,
+   * silent_rule, daily_limit, telegram_failed) + legacy silent_hour.
+   */
+  private static readonly REASON_LABELS: Record<string, string> = {
+    observation: 'Obserwacja',
+    sell_no_edge: 'SELL (zero edge)',
+    csuite_sell_no_edge: 'C-suite SELL (zero edge)',
+    cluster_sell_no_edge: 'Cluster SELL (zero edge)',
+    silent_rule: 'Silent rule',
+    silent_hour: 'Cicha godzina',
+    daily_limit: 'Dzienny limit',
+    telegram_failed: 'Telegram failed',
+  };
+
+  /**
    * Formatuje wiadomość podsumowania w MarkdownV2.
    */
   private formatSummary(
     alertsByRule: { rule: string; count: string; delivered: string }[],
     totalAlerts: number,
     totalDelivered: number,
+    reasonBreakdown: { reason: string; count: string }[],
     trades: { type: string; count: string; totalValue: string }[],
   ): string {
     const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -138,6 +170,17 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       lines.push(`  Łącznie: ${esc(String(totalAlerts))} \\(dostarczono: ${esc(String(totalDelivered))}\\)`);
       for (const r of alertsByRule) {
         lines.push(`  • ${esc(r.rule)}: ${esc(r.count)}`);
+      }
+
+      // Breakdown powodów niedostarczenia — pokazuje czemu totalDelivered < totalAlerts.
+      // Np. "Obserwacja: 11" = semi tickery observation mode, poprawne zachowanie.
+      const suppressed = totalAlerts - totalDelivered;
+      if (suppressed > 0 && reasonBreakdown.length > 0) {
+        lines.push(`  _Niedostarczone \\(${esc(String(suppressed))}\\):_`);
+        for (const r of reasonBreakdown) {
+          const label = SummarySchedulerService.REASON_LABELS[r.reason] ?? r.reason;
+          lines.push(`    ◦ ${esc(label)}: ${esc(r.count)}`);
+        }
       }
     }
 
