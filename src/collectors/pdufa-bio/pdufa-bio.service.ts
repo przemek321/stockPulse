@@ -7,6 +7,7 @@ import { BaseCollectorService } from '../shared/base-collector.service';
 import { PdufaCatalyst, CollectionLog } from '../../entities';
 import { DataSource } from '../../common/interfaces/data-source.enum';
 import { EventType } from '../../events/event-types';
+import { Logged } from '../../common/decorators/logged.decorator';
 import { parsePdufaCalendarHtml } from './pdufa-parser';
 
 /**
@@ -37,10 +38,58 @@ export class PdufaBioService extends BaseCollectorService {
   }
 
   /**
-   * Scrapuje stronę pdufa.bio i zapisuje nowe eventy PDUFA.
-   * URL kalendarza: dynamiczny rok.
+   * Wrapper zachowujący kontrakt BaseCollectorService (Promise<number>)
+   * dla getHealthStatus i innych bazowych metod. Rozszerzony wynik
+   * (inserted + parsed) wyciągamy w runCollectionCycle przez scrapeAndInsert.
    */
   async collect(): Promise<number> {
+    const { inserted } = await this.scrapeAndInsert();
+    return inserted;
+  }
+
+  /**
+   * Override BaseCollectorService.runCollectionCycle — dodaje `parsed` count
+   * do output dla obserwacji parsera w system_logs. Gdy parsed===0, zwraca
+   * action='PARSER_EMPTY' (level=warn) — sygnał że scraper nie widzi
+   * żadnych wierszy (HTTP OK ale parser zwrócił 0).
+   *
+   * TASK-06 (23.04.2026): diagnostyka pokazała że count=0 jest legit gdy
+   * dedup (parsed>0, inserted=0). Prawdziwy alarm to parsed=0.
+   */
+  @Logged('collectors')
+  async runCollectionCycle(): Promise<{
+    collector: string;
+    count: number;
+    parsed: number;
+    action?: string;
+  }> {
+    const collector = this.getSourceName();
+    const start = Date.now();
+    try {
+      const { inserted, parsed } = await this.scrapeAndInsert();
+      await this.logCollection('SUCCESS', inserted, Date.now() - start);
+      if (parsed === 0) {
+        return { collector, count: inserted, parsed, action: 'PARSER_EMPTY' };
+      }
+      return { collector, count: inserted, parsed };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Błąd cyklu zbierania: ${msg}`);
+      await this.logCollection('FAILED', 0, Date.now() - start, msg);
+      throw error;
+    }
+  }
+
+  /**
+   * Scrapuje stronę pdufa.bio i zapisuje nowe eventy PDUFA.
+   * Zwraca {inserted, parsed}:
+   * - parsed = liczba wierszy zwróconych przez parser (zdrowie scrapera)
+   * - inserted = liczba NOWYCH eventów (po dedup); istniejące tylko aktualizują scrapedAt
+   */
+  private async scrapeAndInsert(): Promise<{
+    inserted: number;
+    parsed: number;
+  }> {
     const year = new Date().getFullYear();
     const url = `https://www.pdufa.bio/pdufa-calendar-${year}`;
 
@@ -51,12 +100,12 @@ export class PdufaBioService extends BaseCollectorService {
       this.logger.warn(
         'Brak eventów PDUFA w HTML — możliwa zmiana struktury strony',
       );
-      return 0;
+      return { inserted: 0, parsed: 0 };
     }
 
     this.logger.log(`Sparsowano ${parsed.length} eventów PDUFA z pdufa.bio`);
 
-    let newCount = 0;
+    let inserted = 0;
 
     for (const event of parsed) {
       // Deduplikacja: (ticker + drugName + pdufaDate) — UNIQUE constraint
@@ -85,7 +134,7 @@ export class PdufaBioService extends BaseCollectorService {
       });
 
       await this.pdufaRepo.save(pdufaEvent);
-      newCount++;
+      inserted++;
 
       this.eventEmitter.emit(EventType.NEW_PDUFA_EVENT, {
         pdufaEventId: pdufaEvent.id,
@@ -102,7 +151,7 @@ export class PdufaBioService extends BaseCollectorService {
       );
     }
 
-    return newCount;
+    return { inserted, parsed: parsed.length };
   }
 
   /**

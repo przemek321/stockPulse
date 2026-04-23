@@ -107,7 +107,11 @@ function extractLogMeta(args: any[], result: any): LogMeta {
 
     // Action-based level mapping
     const action: string = result.action ?? '';
-    if (action === 'ALERT_TELEGRAM_FAILED' || action === 'REDIS_ERROR') {
+    if (
+      action === 'ALERT_TELEGRAM_FAILED' ||
+      action === 'REDIS_ERROR' ||
+      action === 'PARSER_EMPTY'
+    ) {
       meta.level = 'warn';
     } else if (action === 'ERROR') {
       meta.level = 'error';

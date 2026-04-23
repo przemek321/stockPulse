@@ -2,7 +2,9 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-22
+> Ostatnia aktualizacja: 2026-04-23
+
+> 🔍 **23.04.2026 TASK-06 PDUFA parser observability**: Diagnoza 7-dniowych logów z `count=0` we wszystkich cyklach PDUFA: scraper DZIAŁA, parser zwraca 14 events, wszystkie w DB → dedup → `newCount=0`. `scraped_at` istniejących aktualizowany dziś 08:26. Prawdziwy sygnał awarii to `parsed.length === 0` (HTTP OK ale 0 rows). Fix: `PdufaBioService.scrapeAndInsert()` zwraca `{inserted, parsed}`, override `runCollectionCycle()` z `@Logged` — output `{collector, count, parsed, action?}`, gdy parsed=0 → `action='PARSER_EMPTY'` mapuje na warn level (nowa pozycja w extractLogMeta). System Logs rozróżnia `{count:0, parsed:14}` (dedup normalny) vs `{count:0, parsed:0, action:'PARSER_EMPTY'}` (alarm). 8 nowych testów (parser empty detection + integration runCollectionCycle z mocked fetchPage). **Odrzucone z task description**: "3+ consecutive zeros" alarm (false positive 90% roku bo PDUFA ma legit 2+ tygodniowe pauzy), Redis state tracking. 7/12 tasków done (TASK-01..06 + 08). Zostało: TASK-07, TASK-09..12.
 
 > ⚠️ **22.04.2026 FinBERT cleanup**: Sekcja "Sprint 2a: FinBERT Sidecar" poniżej jest **historyczna**. FinBERT sidecar + sentiment pipeline zostały usunięte z projektu (commits 988bf03, ba45976, d3a1b5c, b3a2f2b, 4b117db) — backtest Sprint 15 potwierdził zero edge na sentymencie. Tabele DB `sentiment_scores` i `ai_pipeline_logs` zachowane jako orphan do drop-migration w Sprint 18. Szczegóły w CLAUDE.md → Already resolved.
 
