@@ -210,6 +210,35 @@ describe('Form4Pipeline — C-suite whitelist (Sprint 16b)', () => {
     expect(isCsuiteRole('Vice Chairman')).toBe(true);
   });
 
+  // TASK-10 (23.04.2026): unifikacja regex — Chairwoman/Chairperson muszą dalej łapać,
+  // bo stary broad regex `\bChair` (prefix match) w hasCsuite też je obejmował.
+  // Expansion: /\bChair(man|woman|person)\b/i.
+  it('Chairwoman → true (gender-neutral, TASK-10)', () => {
+    expect(isCsuiteRole('Chairwoman')).toBe(true);
+  });
+
+  it('Chairperson → true (gender-neutral, TASK-10)', () => {
+    expect(isCsuiteRole('Chairperson')).toBe(true);
+  });
+
+  it('Vice Chairwoman → true (TASK-10)', () => {
+    expect(isCsuiteRole('Vice Chairwoman')).toBe(true);
+  });
+
+  it('Vice Chairperson → true (TASK-10)', () => {
+    expect(isCsuiteRole('Vice Chairperson')).toBe(true);
+  });
+
+  it('Chairperson of the Board → true (TASK-10)', () => {
+    expect(isCsuiteRole('Chairperson of the Board')).toBe(true);
+  });
+
+  it('Chairing the Committee → false (nie formalna rola)', () => {
+    // Samo "Chair" bez suffixu (man|woman|person) nie matchuje — intencjonalnie,
+    // "Chair" alone nie jest formalnym C-suite title w SEC filings.
+    expect(isCsuiteRole('Chairing the Committee')).toBe(false);
+  });
+
   it('EVP, Chief Legal Officer → true (Chief Legal w whitelist)', () => {
     expect(isCsuiteRole('EVP, Chief Legal Officer')).toBe(true);
   });
@@ -515,5 +544,107 @@ describe('Form4Pipeline — SKIP_NON_ROLE_SELL hard skip (TASK-02, 22.04.2026)',
 
   it('Match przez insiderName fallback (CEO w nazwisku) SELL → NIE skip', () => {
     expect(shouldSkipNonRoleSell(null, 'SELL', 'Jane Doe, CEO')).toBe(false);
+  });
+});
+
+describe('Form4Pipeline — isPureDirector via isCsuiteRole (TASK-10, 23.04.2026)', () => {
+  // TASK-10: inline regex `/\bCEO|CFO|COO|CTO|President|Chair|Chief\b/i` zastąpiony przez
+  // isCsuiteRole() w step 3 decision tree. Skutki semantyczne:
+  //   - Director + Vice President: stary regex matchował "President" → hasCsuite=true (bug),
+  //     teraz negative lookbehind → hasCsuite=false → pure Director SELL → SKIP.
+  //   - Director + Chief Marketing Officer: stary regex matchował "Chief" (catch-all) →
+  //     hasCsuite=true (noise), teraz whitelist nie zawiera Marketing → hasCsuite=false →
+  //     pure Director SELL → SKIP (Sprint 16b rozszerzenie do step 3).
+  //   - Director + CEO/CFO/Chairman/CMO: dalej hasCsuite=true → NIE skip (bez zmiany).
+  const isPureDirectorSell = (role: string | null) => {
+    const r = role ?? '';
+    const isDirector = isDirectorRole(r);
+    const hasCsuite = isCsuiteRole(r);
+    return isDirector && !hasCsuite;
+  };
+
+  // No change — C-suite priorytet (co-filing)
+  it('Director + CEO co-filing → NIE pure Director', () => {
+    expect(isPureDirectorSell('Chairman & CEO, Director')).toBe(false);
+  });
+
+  it('Director + CFO co-filing → NIE pure Director', () => {
+    expect(isPureDirectorSell('CFO and Director')).toBe(false);
+  });
+
+  it('Director + Chief Medical Officer co-filing → NIE pure Director (healthcare critical)', () => {
+    expect(isPureDirectorSell('Director, Chief Medical Officer')).toBe(false);
+  });
+
+  it('Director + Chairman → NIE pure Director', () => {
+    expect(isPureDirectorSell('Chairman, Director')).toBe(false);
+  });
+
+  it('Director + President → NIE pure Director', () => {
+    expect(isPureDirectorSell('President and Director')).toBe(false);
+  });
+
+  // Change — broad regex bug: "Vice President" matched via \bPresident\b
+  it('Director + Vice President → pure Director (strict lookbehind, nowa semantyka)', () => {
+    expect(isPureDirectorSell('Vice President and Director')).toBe(true);
+  });
+
+  it('Director + Senior Vice President → pure Director', () => {
+    expect(isPureDirectorSell('Senior Vice President, Director')).toBe(true);
+  });
+
+  it('Director + Executive Vice President (bez finance/ops) → pure Director', () => {
+    expect(isPureDirectorSell('Executive Vice President, Director')).toBe(true);
+  });
+
+  it('Director + EVP, Finance → NIE pure Director (EVP+finance whitelist match)', () => {
+    expect(isPureDirectorSell('EVP, Finance, Director')).toBe(false);
+  });
+
+  // Change — broad regex bug: "\bChief\b" łapał wszystkie Chief X
+  it('Director + Chief Marketing Officer → pure Director (Sprint 16b soft role excluded)', () => {
+    expect(isPureDirectorSell('Chief Marketing Officer, Director')).toBe(true);
+  });
+
+  it('Director + Chief Communications Officer → pure Director', () => {
+    expect(isPureDirectorSell('Chief Communications Officer & Director')).toBe(true);
+  });
+
+  it('Director + Chief People Officer → pure Director (HR)', () => {
+    expect(isPureDirectorSell('Chief People Officer, Director')).toBe(true);
+  });
+
+  it('Director + Chief Sustainability Officer → pure Director', () => {
+    expect(isPureDirectorSell('Chief Sustainability Officer, Director')).toBe(true);
+  });
+
+  // No change — pure Director
+  it('pure Director (Independent Director) → pure Director', () => {
+    expect(isPureDirectorSell('Independent Director')).toBe(true);
+  });
+
+  it('pure Director (Director) → pure Director', () => {
+    expect(isPureDirectorSell('Director')).toBe(true);
+  });
+
+  // No change — non-Director
+  it('CEO alone → NIE pure Director (not Director)', () => {
+    expect(isPureDirectorSell('Chief Executive Officer')).toBe(false);
+  });
+
+  it('10% Owner → NIE pure Director (not Director)', () => {
+    expect(isPureDirectorSell('10% Owner')).toBe(false);
+  });
+
+  it('GM, ASE Inc. Chung-Li Branch → NIE pure Director', () => {
+    expect(isPureDirectorSell('GM, ASE Inc. Chung-Li Branch')).toBe(false);
+  });
+
+  it('null role → NIE pure Director', () => {
+    expect(isPureDirectorSell(null)).toBe(false);
+  });
+
+  it('empty string → NIE pure Director', () => {
+    expect(isPureDirectorSell('')).toBe(false);
   });
 });

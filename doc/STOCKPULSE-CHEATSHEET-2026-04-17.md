@@ -430,11 +430,15 @@ PriceOutcomeService (CRON 1h NYSE) tracks 1h/4h/1d/3d outcomes
    audit 90d: 0 BUY cluster alertów w DB (retroactive archive niepotrzebny).
    Opcja B hybrid boost (retroactive conviction bump na solo BUY alert)
    odłożona na Sprint 19.
-7. **C-suite detection ujednolicenie** (quality fix, pre-existing):
-   `form4.pipeline.ts:119` używa starego regexa `/\bChief\b/i.test(role)`,
-   podczas gdy linia 240 używa `isCsuiteRole()` (whitelist). Niespójność
-   semantyczna — zmień na `isCsuiteRole(role)`. Planowane Etap 5 w
-   execution-plan (doc/sprint17-execution-plan.md).
+7. ✅ **C-suite detection ujednolicenie** — DONE TASK-10 (23.04.2026).
+   `form4.pipeline.ts:170` inline regex `/\bCEO|CFO|COO|CTO|President|Chair|Chief\b/i`
+   zastąpiony przez `isCsuiteRole(role)` (ta sama whitelist co kroki 4 i 7 decision
+   tree). `C_SUITE_PATTERNS` rozszerzona o `Chair(man|woman|person)` — gender-neutral
+   warianty które stary broad regex też łapał. Skutki semantyczne: Director + Vice
+   President (bug: stary regex matched `\bPresident` bez lookbehind) teraz pure
+   Director SELL → SKIP. Director + Chief Marketing Officer (Sprint 16b soft role
+   excluded) też pure Director SELL → SKIP. 26 nowych testów
+   (`form4-pipeline-rules.spec.ts` — 6 Chair variants + 20 isPureDirector coverage).
 8. **d=None bug w `_direct_cluster_vs_single`** — V5 JSON ma `n_a=None
    n_b=None d=None` dla cluster_buy_vs_single_buy horyzontów (tylko p-value
    wyliczony). Fix w `scripts/backtest/analyzer.py` funkcja `_direct_cluster_vs_single`.

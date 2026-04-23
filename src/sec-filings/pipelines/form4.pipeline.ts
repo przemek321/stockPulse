@@ -38,8 +38,10 @@ export const C_SUITE_PATTERNS: readonly RegExp[] = [
   /\b(CEO|CFO|COO|CTO|CIO|CMO|CSO|CLO)\b/i,
   // "President" z negative lookbehind — wyklucza "Vice President" / "Senior Vice President" / "Executive Vice President"
   /(?<!Vice\s)(?<!Senior\s)\bPresident\b/i,
-  /\bChairman\b/i,
-  /\bVice\s+Chairman\b/i,
+  // Chair(man|woman|person) — gender-neutral warianty; stary broad regex `\bChair` w hasCsuite
+  // też je łapał, więc ekspansja zamyka TASK-10 bez regresji dla Chairwoman/Chairperson of the Board.
+  /\bChair(man|woman|person)\b/i,
+  /\bVice\s+Chair(man|woman|person)\b/i,
   /\b(?:EVP|Executive\s+Vice\s+President)[\s,]+.*?(Finance|Operations?|Product|Strategy)\b/i,
   /\bPrincipal\s+(Financial|Accounting)\s+Officer\b/i,
 ];
@@ -54,10 +56,12 @@ export function isCsuiteRole(role: string | null | undefined, name?: string): bo
  * Wychwytuje każdą rolę zawierającą słowo "Director" (Director, Independent Director,
  * Chairman of the Board & Director, Director Emeritus etc.).
  *
- * Nota: "pure Director" w kroku 4 decision tree = Director bez C-suite w tym samym
+ * Nota: "pure Director" w kroku 3 decision tree = Director bez C-suite w tym samym
  * filingu (co-filing Director+CEO NIE jest pure Director — C-suite priorytet).
  * isDirectorRole() samo nie rozróżnia pure vs mixed; ta logika zostaje inline
- * w onInsiderTrade, bo zależy od hasCsuite z co-filera.
+ * w onInsiderTrade: `isPureDirector = isDirectorRole(role) && !isCsuiteRole(role)`.
+ * Od TASK-10 (23.04.2026) używamy tej samej isCsuiteRole whitelist dla obu gate'ów
+ * (krok 3 pure Director SELL + krok 4 non-role SELL + krok 7 BUY boost).
  */
 export function isDirectorRole(role: string | null | undefined): boolean {
   const target = role ?? '';
@@ -165,9 +169,15 @@ export class Form4Pipeline {
     // Sprint 15 (backtest): Director SELL = anty-sygnał (68% cena rośnie po SELL).
     // Sprint 16 FLAG #30 fix: pure Director only — co-filing Director+CEO nie jest skipowany
     // (C-suite decision-making obecne, nie traktujemy jako anti-signal).
+    // TASK-10 (23.04.2026): stary broad regex `/\bCEO|CFO|COO|CTO|President|Chair|Chief\b/i`
+    // zastąpiony przez isCsuiteRole() — ta sama whitelist co linia 325 i kroku 4 SELL (kroki
+    // decision tree 3/4/7 używają identycznej definicji C-suite). Broad regex łapał
+    // Chief Marketing/Communications/Sustainability Officer (soft roles Sprint 16b excluded)
+    // oraz "Vice President" (nie ma negative lookbehind) — tu traktujemy ich co-filing jako
+    // pure Director SELL, bo C-suite *decision-making* musi być realny (whitelist-backed).
     const role = payload.insiderRole ?? '';
     const isDirector = isDirectorRole(role);
-    const hasCsuite = /\bCEO\b|\bCFO\b|\bCOO\b|\bCTO\b|\bPresident\b|\bChair|\bChief\b/i.test(role);
+    const hasCsuite = isCsuiteRole(role);
     const isPureDirector = isDirector && !hasCsuite;
     if (isPureDirector && payload.transactionType === 'SELL') {
       this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP pure Director SELL (anty-sygnał)`);
