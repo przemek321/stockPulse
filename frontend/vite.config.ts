@@ -9,6 +9,9 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3001,
+    // Vite 5+: DNS rebinding protection — whitelist Tailscale MagicDNS
+    // (*.ts.net to prywatna sieć z własną autoryzacją) oraz localhost.
+    allowedHosts: ['.ts.net', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
         // W Docker: backend = serwis "app"; lokalnie: localhost
