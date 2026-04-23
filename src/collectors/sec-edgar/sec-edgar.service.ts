@@ -169,6 +169,19 @@ export class SecEdgarService extends BaseCollectorService {
   /**
    * Pobiera i parsuje Form 4 XML, tworzy rekordy InsiderTrade z prawdziwymi danymi.
    * Błędy nie przerywają kolekcji filingów — logowane i pomijane.
+   *
+   * TASK-03 (22.04.2026): multi-transaction Form 4 aggregation.
+   * Jeden Form 4 może mieć N transakcji (np. ASX 22.04: 4 SELL od tego samego insidera
+   * w jednym filingu = 530k shares / $247M). Wcześniej parser emitował N eventów →
+   * throttle kasował 2-N → correlation widziała tylko pierwszą magnitude.
+   *
+   * Nowa logika: WSZYSTKIE rekordy InsiderTrade są zapisane do DB (historia zachowana,
+   * dedupe przez accessionNumber_N), ALE event NEW_INSIDER_TRADE jest emitowany
+   * per grupa (insiderName, transactionType) — jeden event z aggregate wartościami.
+   *
+   * Grupowanie tylko w obrębie tego samego filing (accessionNumber), żeby zachować
+   * semantykę "1 filing = 1 decision point". Split executions across filings (rzadkie)
+   * dalej są osobnymi eventami.
    */
   private async parseAndSaveForm4(
     symbol: string,
@@ -185,9 +198,10 @@ export class SecEdgarService extends BaseCollectorService {
         return;
       }
 
+      // Save all rows (history preserved, dedupe by accessionNumber_N)
+      const savedTrades: Array<{ entity: InsiderTrade; txn: typeof transactions[0] }> = [];
       for (let i = 0; i < transactions.length; i++) {
         const txn = transactions[i];
-        // Deduplikacja: accession + index transakcji w filingu
         const txnAccession = `${accessionNumber}_${i}`;
 
         const exists = await this.insiderTradeRepo.findOne({
@@ -208,29 +222,66 @@ export class SecEdgarService extends BaseCollectorService {
           is10b51Plan: txn.is10b51Plan,
           sharesOwnedAfter: txn.sharesOwnedAfter ?? undefined,
         });
-
         await this.insiderTradeRepo.save(trade);
-
-        const tradeTraceId = randomUUID();
-        this.eventEmitter.emit(EventType.NEW_INSIDER_TRADE, {
-          tradeId: trade.id,
-          symbol,
-          totalValue: txn.totalValue,
-          insiderName: txn.insiderName,
-          insiderRole: txn.insiderRole,
-          transactionType: txn.transactionType,
-          shares: txn.shares,
-          is10b51Plan: txn.is10b51Plan,
-          sharesOwnedAfter: txn.sharesOwnedAfter,
-          source: 'SEC_EDGAR',
-          traceId: tradeTraceId,
-          parentTraceId,
-        });
+        savedTrades.push({ entity: trade, txn });
 
         this.logger.log(
           `Insider ${symbol}: ${txn.insiderName} ${txn.transactionType} ` +
             `${txn.shares} akcji @ $${txn.pricePerShare ?? '?'} = $${txn.totalValue.toLocaleString('en-US')}`,
         );
+      }
+
+      if (savedTrades.length === 0) return;
+
+      // Group by (insiderName, transactionType). "BUY"+"SELL" od tego samego insidera
+      // (np. exercise option + sell) to osobne grupy (różny sygnał ekonomiczny).
+      // is10b51Plan też w kluczu — plan vs discretionary nie łącz, bo pipeline skipuje planowe.
+      const groups = new Map<string, Array<typeof savedTrades[0]>>();
+      for (const row of savedTrades) {
+        const key = `${row.txn.insiderName}::${row.txn.transactionType}::${row.txn.is10b51Plan ? 1 : 0}`;
+        const list = groups.get(key) ?? [];
+        list.push(row);
+        groups.set(key, list);
+      }
+
+      for (const group of groups.values()) {
+        // Primary = pierwsza transakcja w grupie (najniższy index w filingu).
+        const primary = group[0];
+        const aggregateValue = group.reduce((s, r) => s + r.txn.totalValue, 0);
+        const aggregateShares = group.reduce((s, r) => s + r.txn.shares, 0);
+
+        const tradeTraceId = randomUUID();
+        this.eventEmitter.emit(EventType.NEW_INSIDER_TRADE, {
+          tradeId: primary.entity.id,
+          symbol,
+          // Backward compat: single-trade group wygląda identycznie jak przed TASK-03
+          // (aggregate fields pominięte). Multi-trade group: totalValue/shares to aggregate,
+          // dodatkowe aggregate* pola informują pipeline o grupowaniu.
+          totalValue: aggregateValue,
+          shares: aggregateShares,
+          insiderName: primary.txn.insiderName,
+          insiderRole: primary.txn.insiderRole,
+          transactionType: primary.txn.transactionType,
+          is10b51Plan: primary.txn.is10b51Plan,
+          sharesOwnedAfter: group[group.length - 1].txn.sharesOwnedAfter,
+          source: 'SEC_EDGAR',
+          traceId: tradeTraceId,
+          parentTraceId,
+          ...(group.length > 1
+            ? {
+                aggregateCount: group.length,
+                aggregateTradeIds: group.map(r => r.entity.id),
+              }
+            : {}),
+        });
+
+        if (group.length > 1) {
+          this.logger.log(
+            `Insider ${symbol} AGGREGATED: ${primary.txn.insiderName} ${primary.txn.transactionType} ` +
+              `${group.length} transakcji = ${aggregateShares.toLocaleString('en-US')} akcji / ` +
+              `$${aggregateValue.toLocaleString('en-US')}`,
+          );
+        }
       }
     } catch (error) {
       this.logger.warn(

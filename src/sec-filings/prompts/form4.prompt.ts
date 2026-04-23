@@ -16,6 +16,10 @@ export interface Form4PromptData {
   sharesOwnedAfter: number | null;
   is10b51Plan: boolean;
   transactionDate: string;
+  /** TASK-03: gdy Form 4 zawiera N>1 transakcji od tego samego insidera tego samego typu,
+   *  shares/totalValue są aggregate z całej grupy. Pole informuje GPT że to split-fill
+   *  execution — N oddzielnych fill'ów (np. 4×size) w jednym filingu SEC. */
+  aggregateCount?: number;
 }
 
 export function buildForm4Prompt(
@@ -25,6 +29,11 @@ export function buildForm4Prompt(
   recentFilings: Form4PromptData[],
   tickerProfile?: string | null,
 ): string {
+  const aggregateNote = parsed.aggregateCount && parsed.aggregateCount > 1
+    ? `\n- AGGREGATED: ${parsed.aggregateCount} fills od tego samego insidera w jednym Form 4 filingu ` +
+      `(values/shares są sumą). Split-fill execution to świadoma decyzja (market impact management lub ` +
+      `broker TWAP) — magnitude jest tym silniejsza im więcej fills w jednym dniu.`
+    : '';
   return `You are a financial analyst specializing in insider trading signals for US healthcare stocks.
 
 Analyze this SEC Form 4 insider transaction and assess its price impact.
@@ -40,7 +49,7 @@ TRANSACTION:
 - Total value: $${parsed.totalValue.toLocaleString()}
 - Shares owned after: ${parsed.sharesOwnedAfter != null ? parsed.sharesOwnedAfter.toLocaleString() : 'N/A'}
 - Is 10b5-1 plan (pre-scheduled): ${parsed.is10b51Plan ? 'YES' : 'NO'}
-- Transaction date: ${parsed.transactionDate}
+- Transaction date: ${parsed.transactionDate}${aggregateNote}
 
 RECENT INSIDER ACTIVITY (last 30 days, same company):
 ${recentFilings.length === 0

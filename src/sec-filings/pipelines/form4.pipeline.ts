@@ -112,8 +112,20 @@ export class Form4Pipeline {
     source?: string;
     traceId?: string;
     parentTraceId?: string;
+    /** TASK-03: multi-transaction Form 4 grouping. Primary trade (najniższy id w filingu)
+     *  dostaje aggregate z całej grupy (insiderName, transactionType, is10b51Plan).
+     *  totalValue/shares w payloadzie to już suma. aggregateTradeIds to wszystkie siblings
+     *  z tego filing'u włącznie z primary. */
+    aggregateCount?: number;
+    aggregateTradeIds?: number[];
   }): Promise<{ action: string; symbol: string; traceId?: string }> {
-    // Decision tree (post Sprint 18 TASK-02, 2026-04-22):
+    // Decision tree (post Sprint 18 TASK-02 + TASK-03, 2026-04-22):
+    //
+    // TASK-03 (aggregation): gdy collector wykryje multi-transaction Form 4 (N fills tego
+    // samego insidera, tego samego typu BUY/SELL w jednym filingu), emituje JEDEN event
+    // z primary tradeId + aggregateCount + aggregateTradeIds + zsumowanym totalValue/shares.
+    // Pipeline używa tych aggregate values w GPT prompt i telegram message. Siblings są
+    // zapisane w DB (historia), ale nie generują osobnych eventów.
     //
     //   1. transactionType in {BUY, SELL} & totalValue >= $100K? else SKIP_*
     //   2. is10b51Plan?                                          → SKIP_10B51_PLAN
@@ -207,21 +219,35 @@ export class Form4Pipeline {
         take: 20,
       });
 
+      // TASK-03: dla multi-transaction Form 4 używamy aggregate values z payloadu
+      // (collector już zsumował grupę). Single-trade filings: aggregate fields pominięte
+      // w payloadzie → używamy wartości primary trade (backward compat).
+      const isAggregate = (payload.aggregateCount ?? 1) > 1;
+      const siblingIds = new Set<number>(payload.aggregateTradeIds ?? [trade.id]);
+      const effectiveShares = isAggregate ? (payload.shares ?? Number(trade.shares)) : Number(trade.shares);
+      const effectiveValue = isAggregate ? (payload.totalValue ?? Number(trade.totalValue)) : Number(trade.totalValue);
+      // Dla aggregate pricePerShare = avg ważone wolumenem; dla single = oryginalna cena.
+      const effectivePricePerShare = isAggregate && effectiveShares > 0
+        ? effectiveValue / effectiveShares
+        : (trade.pricePerShare ? Number(trade.pricePerShare) : null);
+
       // Buduj dane do promptu
       const parsed: Form4PromptData = {
         insiderName: trade.insiderName,
         insiderRole: trade.insiderRole,
         transactionType: trade.transactionType,
-        shares: Number(trade.shares),
-        pricePerShare: trade.pricePerShare ? Number(trade.pricePerShare) : null,
-        totalValue: Number(trade.totalValue),
+        shares: effectiveShares,
+        pricePerShare: effectivePricePerShare,
+        totalValue: effectiveValue,
         sharesOwnedAfter: trade.sharesOwnedAfter ? Number(trade.sharesOwnedAfter) : null,
         is10b51Plan: trade.is10b51Plan ?? false,
         transactionDate: trade.transactionDate?.toISOString?.() ?? '',
+        aggregateCount: payload.aggregateCount,
       };
 
+      // Historia: wykluczamy siblings z tego samego filing'u (są już zsumowane w parsed)
       const recentFilings: Form4PromptData[] = recentTrades
-        .filter(t => t.id !== trade.id)
+        .filter(t => !siblingIds.has(t.id))
         .map(t => ({
           insiderName: t.insiderName,
           insiderRole: t.insiderRole,
@@ -408,8 +434,9 @@ export class Form4Pipeline {
       }
 
       this.logger.log(
-        `Form4 GPT alert: ${payload.symbol} ${parsed.insiderName} — ` +
-          `${analysis.price_impact.direction}/${analysis.price_impact.magnitude} ` +
+        `Form4 GPT alert: ${payload.symbol} ${parsed.insiderName}` +
+          (isAggregate ? ` [×${payload.aggregateCount} fills]` : '') +
+          ` — ${analysis.price_impact.direction}/${analysis.price_impact.magnitude} ` +
           `conviction=${analysis.conviction.toFixed(2)}`,
       );
 
