@@ -327,9 +327,10 @@ Direct d=-0.14 (healthcare słabszy niż control).
 - (TASK-11 23.04.2026: "d=None bug" zweryfikowany jako stale wpis — `_direct_cluster_vs_single` liczy cohens_d poprawnie w JSON od f69cfa8, cheatsheet był przed-regenerate. Dodany regression test w `tests/test_analyzer.py::test_v5_production_scenario_d_not_none`.)
 
 **Wniosek:** czekanie na 2-giego insidera dla BUY alert **nie daje
-statystycznej przewagi** nad solo BUY. p>0.37 zawsze. TODO Sprint 18:
-rozważ disable `INSIDER_CLUSTER` pattern dla BUY direction (SELL już
-observation od Sprint 15).
+statystycznej przewagi** nad solo BUY. p>0.37 zawsze. ✅ TASK-09
+(23.04.2026): `INSIDER_CLUSTER` BUY disabled na poziomie detekcji
+(`detectInsiderCluster` zwraca `null` dla `dir==='positive'`). SELL
+zostaje observation od Sprint 15.
 
 **BUY edge robustness (V4 → V5):**
 
@@ -495,9 +496,11 @@ Gdy pojawi się coś w ruchu produkcyjnym, najpierw sprawdź tutaj zanim zacznie
 
 ---
 
-**Ostatnia aktualizacja:** 18.04.2026 po V5 backtest (commit f69cfa8).
-**Next update trigger:** live vs backtest hit rate comparison (Sprint 18
-research item #12), albo fix reportu dla cluster_buy_vs_single_buy d values.
+**Ostatnia aktualizacja:** 23.04.2026 po Sprint 18 zamknięciu (TASK-01..12 +
+FOLLOW-1..8). Cluster_buy_vs_single_buy d values: zweryfikowane jako poprawne
+w JSON (TASK-11), renderowane w `backtest_report.md` (TASK-12).
+**Next update trigger:** live vs backtest hit rate comparison po 7d okna
+produkcji (FOLLOW-9 w Sprint 19 backlog).
 
 **Historia V4 → V5:**
 - V4 (e1ab795): 112 testów, 24 Bonf ✓. H6 broken (ctrl N=0). No cluster-vs-single.
