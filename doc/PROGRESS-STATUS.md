@@ -14,7 +14,7 @@
 
 > 🔁 **22.04.2026 TASK-04 CorrelationService content-hash deduplication**: HPE cascade 22.04 20:33-20:38: 7 `PATTERNS_DETECTED` w 6 min, tylko 1 Telegram alert wyszedł (PATTERN_THROTTLE 2h łapał DEDUP_SKIP). Cascade = marnowanie CPU (424ms/iter) + log clutter, nie alert spam. **Fix:** content-hash dedup w `runPatternDetection` — in-memory `Map<ticker, {hash, ts}>`, 15-min window, hash = sha256(sorted (type + signalIds)) truncated. Powtórzone detekcje z tym samym składem patternów zwracają `PATTERNS_DETECTED_DUPLICATE` bez wołania `triggerCorrelatedAlert`. **Observability gap zamknięty:** `@Logged('correlation')` na `triggerCorrelatedAlert` (wcześniej DEDUP_SKIP / SKIP_LOW_CONVICTION / dispatch actions niewidoczne w system_logs — gap w TASK-01 audycie). Exported pure `hashPatternSet()` + `shouldSkipDuplicatePatternDetection()`. 20 nowych testów. Odrzucone z propozycji: TTL cleanup signals (już jest), 30-min per-pattern rate limit (PATTERN_THROTTLE 2h wystarcza). 5/12 tasków done (TASK-01/02/03/04/08), TASK-05..12 czeka.
 
-> ⚠️ **Znana regresja (pre-existing)**: `test/unit/alert-evaluator.spec.ts` nie kompiluje się — describe block "Fix #1: onSentimentScored" referencuje metodę usuniętą w FinBERT cleanup 22.04. Fix = usunąć stale block. Nie związane z TASK-04, osobny commit.
+> ✅ **Stale AlertEvaluator specs** (commit `1dc3b16`, 22.04.2026): usunięte describe blocks (`onSentimentScored`, `checkHighConviction`, `checkSentimentCrash`, `checkStrongFinbert`) referencujące metody usunięte w FinBERT cleanup, oraz dodany `createMockDispatcher()` po TASK-01. 10/10 suites, 271 testów pass.
 
 ## Stan walidacji (18.04.2026)
 
