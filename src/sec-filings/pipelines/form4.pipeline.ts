@@ -16,7 +16,7 @@ import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
-import { AlertDispatcherService } from '../../alerts/alert-dispatcher.service';
+import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 
 /**
@@ -409,7 +409,7 @@ export class Form4Pipeline {
             isObservationTicker: ticker?.observationOnly === true,
             isSellNoEdge: !isBuy,
           })
-        : { delivered: false, suppressedBy: 'dispatcher_unavailable', action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE', ticker: payload.symbol, ruleName: rule.name, channel: 'db_only' as const, traceId: payload.traceId };
+        : buildDispatcherUnavailableFallback({ ticker: payload.symbol, ruleName: rule.name, traceId: payload.traceId });
 
       const delivered = dispatchResult.delivered;
       const nonDeliveryReason = dispatchResult.suppressedBy;

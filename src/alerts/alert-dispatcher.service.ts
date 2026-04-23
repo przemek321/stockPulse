@@ -45,6 +45,34 @@ export interface DispatchResult {
 }
 
 /**
+ * FOLLOW-1 (23.04.2026): fallback result gdy AlertDispatcherService nie jest
+ * wired (DI @Optional() w Form4/Form8k/Correlation/OptionsFlow pipelines).
+ * W produkcji AlertsModule eksportuje serwis, więc ścieżka jest defensive-only —
+ * @Optional() pokrywa edge case'y testów + ewentualne future refactory rozłączające
+ * moduły. Helper zastępuje 5 duplikowanych literałów ternary-fallback.
+ *
+ * traceId jest opcjonalny celowo: 2/5 pipeline'ów (Form4, Form8k main path) mają
+ * `payload.traceId` w scope, 3/5 (Form8k bankruptcy, Correlation, OptionsFlow)
+ * nie — handlery dostają tylko `symbol`/`ticker`. Brak traceId w fallback jest
+ * consistent z brakiem w happy-path `dispatcher.dispatch(...)` calls.
+ */
+export function buildDispatcherUnavailableFallback(args: {
+  ticker: string;
+  ruleName: string;
+  traceId?: string;
+}): DispatchResult {
+  return {
+    action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE',
+    ticker: args.ticker,
+    ruleName: args.ruleName,
+    traceId: args.traceId,
+    channel: 'db_only',
+    delivered: false,
+    suppressedBy: 'dispatcher_unavailable',
+  };
+}
+
+/**
  * Centralny punkt dispatch'u alertów. Zastępuje rozproszoną logikę suppression
  * w pipeline'ach (Form4, Form8k, Correlation, OptionsFlow, AlertEvaluator).
  *

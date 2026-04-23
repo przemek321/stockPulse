@@ -128,7 +128,10 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
    * Mapuje `nonDeliveryReason` na polskie etykiety dla raportu 8h.
    * Wartości pokrywają się z AlertDispatcherService.dispatch() suppression values
    * (observation, sell_no_edge, csuite_sell_no_edge, cluster_sell_no_edge,
-   * silent_rule, daily_limit, telegram_failed) + legacy silent_hour.
+   * silent_rule, daily_limit, telegram_failed, dispatcher_unavailable)
+   * + legacy silent_hour. FOLLOW-1 (23.04.2026): dispatcher_unavailable dodany
+   * jako defensive label — w produkcji AlertsModule eksportuje dispatcher, ale
+   * gdyby future refactor rozłączył moduły, raport 8h pokaże czytelną etykietę.
    */
   private static readonly REASON_LABELS: Record<string, string> = {
     observation: 'Obserwacja',
@@ -139,6 +142,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     silent_hour: 'Cicha godzina',
     daily_limit: 'Dzienny limit',
     telegram_failed: 'Telegram failed',
+    dispatcher_unavailable: 'Dispatcher niedostępny',
   };
 
   /**

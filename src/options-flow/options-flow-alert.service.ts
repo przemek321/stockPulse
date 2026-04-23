@@ -10,7 +10,7 @@ import { TelegramService } from '../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 import { Logged } from '../common/decorators/logged.decorator';
-import { AlertDispatcherService } from '../alerts/alert-dispatcher.service';
+import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
 
 /** Minimalny |conviction| do rejestracji w CorrelationService */
 const MIN_CONVICTION_CORRELATION = 0.25;
@@ -186,7 +186,7 @@ export class OptionsFlowAlertService {
           isObservationTicker: ticker?.observationOnly === true,
           bypassDailyLimit: true,
         })
-      : { delivered: false, suppressedBy: 'dispatcher_unavailable', action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE', ticker: flow.symbol, ruleName: rule.name, channel: 'db_only' as const };
+      : buildDispatcherUnavailableFallback({ ticker: flow.symbol, ruleName: rule.name });
 
     const delivered = dispatchResult.delivered;
     const nonDeliveryReason = dispatchResult.suppressedBy;

@@ -18,7 +18,7 @@ import {
 } from './types/correlation.types';
 import { Logged } from '../common/decorators/logged.decorator';
 import { AlertDeliveryGate } from '../alerts/alert-delivery-gate.service';
-import { AlertDispatcherService } from '../alerts/alert-dispatcher.service';
+import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
 
 /**
  * CorrelationService — wykrywa wzorce między sygnałami z różnych źródeł.
@@ -593,7 +593,7 @@ export class CorrelationService implements OnModuleDestroy {
           isObservationTicker: isTickerObservation,
           isClusterSellObservation,
         })
-      : { delivered: false, suppressedBy: 'dispatcher_unavailable', action: 'ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE', ticker, ruleName: 'Correlated Signal', channel: 'db_only' as const };
+      : buildDispatcherUnavailableFallback({ ticker, ruleName: 'Correlated Signal' });
 
     const delivered = dispatchResult.delivered;
     const nonDeliveryReason = dispatchResult.suppressedBy;

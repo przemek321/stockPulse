@@ -1,4 +1,8 @@
-import { AlertDispatcherService, DispatchParams } from '../../src/alerts/alert-dispatcher.service';
+import {
+  AlertDispatcherService,
+  DispatchParams,
+  buildDispatcherUnavailableFallback,
+} from '../../src/alerts/alert-dispatcher.service';
 
 /**
  * Testy jednostkowe dla AlertDispatcherService (TASK-01, 22.04.2026).
@@ -164,5 +168,37 @@ describe('AlertDispatcherService.dispatch — @Logged meta extraction', () => {
     expect(result.ruleName).toBe('Form 4 Insider BUY');
     expect(result.traceId).toBe('trace-123');
     expect(result.action).toBeDefined(); // extractLogMeta wyciąga action → decisionReason
+  });
+});
+
+describe('buildDispatcherUnavailableFallback (FOLLOW-1, 23.04.2026)', () => {
+  it('zwraca DispatchResult compatible shape z suppressedBy=dispatcher_unavailable', () => {
+    const result = buildDispatcherUnavailableFallback({
+      ticker: 'AAPL',
+      ruleName: 'Form 4 Insider BUY',
+    });
+    expect(result.suppressedBy).toBe('dispatcher_unavailable');
+    expect(result.action).toBe('ALERT_DB_ONLY_DISPATCHER_UNAVAILABLE');
+    expect(result.channel).toBe('db_only');
+    expect(result.delivered).toBe(false);
+    expect(result.ticker).toBe('AAPL');
+    expect(result.ruleName).toBe('Form 4 Insider BUY');
+  });
+
+  it('traceId undefined gdy nie przekazany (Form8k bankruptcy / Correlation / OptionsFlow)', () => {
+    const result = buildDispatcherUnavailableFallback({
+      ticker: 'NVDA',
+      ruleName: '8-K Bankruptcy',
+    });
+    expect(result.traceId).toBeUndefined();
+  });
+
+  it('traceId propagowany gdy przekazany (Form4, Form8k main path)', () => {
+    const result = buildDispatcherUnavailableFallback({
+      ticker: 'MRNA',
+      ruleName: 'Form 4 Insider BUY',
+      traceId: 'trace-abc-123',
+    });
+    expect(result.traceId).toBe('trace-abc-123');
   });
 });
