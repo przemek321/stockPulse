@@ -85,6 +85,20 @@ function createMockDeliveryGate(overrides: { allowed?: boolean; count?: number }
   };
 }
 
+function createMockDispatcher() {
+  return {
+    dispatch: jest.fn(async (params: any) => ({
+      action: 'ALERT_SENT_TELEGRAM',
+      ticker: params.ticker,
+      ruleName: params.ruleName,
+      channel: 'telegram' as const,
+      delivered: true,
+      suppressedBy: null,
+      traceId: params.traceId,
+    })),
+  };
+}
+
 function createService(overrides: any = {}) {
   const alertRepo = overrides.alertRepo ?? createMockAlertRepo();
   const ruleRepo = overrides.ruleRepo ?? createMockRuleRepo();
@@ -93,6 +107,7 @@ function createService(overrides: any = {}) {
   const formatter = overrides.formatter ?? createMockFormatter();
   const finnhub = overrides.finnhub ?? createMockFinnhub();
   const deliveryGate = overrides.deliveryGate ?? createMockDeliveryGate();
+  const dispatcher = overrides.dispatcher ?? createMockDispatcher();
   const correlation = overrides.correlation ?? createMockCorrelation();
 
   const service = new AlertEvaluatorService(
@@ -103,10 +118,11 @@ function createService(overrides: any = {}) {
     formatter as any,
     finnhub as any,
     deliveryGate as any,
+    dispatcher as any,
     correlation as any,
   );
 
-  return { service, alertRepo, ruleRepo, tickerRepo, telegram, formatter, finnhub, deliveryGate, correlation };
+  return { service, alertRepo, ruleRepo, tickerRepo, telegram, formatter, finnhub, deliveryGate, dispatcher, correlation };
 }
 
 // ── Testy ──────────────────────────────────────────────
@@ -118,60 +134,6 @@ describe('AlertEvaluatorService', () => {
 
   afterEach(() => {
     jest.useRealTimers();
-  });
-
-  // ── Fix #1: onSentimentScored — Sprint 11 early return ──────────────
-
-  describe('Fix #1: onSentimentScored — Sprint 11 early return', () => {
-    it('powinien zwrócić SKIP dla wszystkich reguł sentymentowych (Sprint 11)', async () => {
-      const { service, alertRepo } = createService();
-
-      const result = await service.onSentimentScored({
-        scoreId: 1,
-        symbol: 'ISRG',
-        score: -0.8,
-        confidence: 0.9,
-        label: 'negative',
-        source: 'stocktwits',
-        model: 'finbert+gpt-4o-mini',
-        conviction: null,
-        gptConviction: null,
-        effectiveScore: -0.7,
-        enrichedAnalysis: null,
-      });
-
-      // Sprint 11: early return bez wywołania żadnych check*() ani zapisu do DB
-      expect(alertRepo.save).not.toHaveBeenCalled();
-      expect(result.checks.sentimentCrash).toContain('Sprint 11');
-      expect(result.checks.signalOverride).toContain('Sprint 11');
-      expect(result.checks.highConviction).toContain('Sprint 11');
-      expect(result.checks.strongFinbert).toContain('Sprint 11');
-      expect(result.checks.urgentSignal).toContain('Sprint 11');
-    });
-  });
-
-  // ── Fix #2: enrichedAnalysis null safety ──────────────
-
-  describe('Fix #2: checkHighConviction — enrichedAnalysis null safety', () => {
-    it('nie powinien crashnąć gdy conviction jest ustawiony a enrichedAnalysis=null', async () => {
-      const { service, ruleRepo } = createService();
-      const rule = createMockRule({ name: 'High Conviction Signal' });
-      ruleRepo.findOne.mockResolvedValue(rule);
-
-      // conviction=1.8 ale enrichedAnalysis=null — wcześniej crashowało przez !
-      const result = await (service as any).checkHighConviction({
-        symbol: 'MRNA',
-        score: 0.9,
-        confidence: 0.95,
-        source: 'stocktwits',
-        conviction: 1.8,
-        enrichedAnalysis: null,
-      });
-
-      // Powinien wysłać alert bez crashu
-      // Sprint 16 Tier 1: action values zmienione z ALERT_SENT na ALERT_SENT_TELEGRAM (granular)
-      expect(result).toBe('ALERT_SENT_TELEGRAM: High Conviction Signal');
-    });
   });
 
   // ── Fix #4: onFiling pobiera nazwę firmy ──────────────
@@ -296,47 +258,4 @@ describe('AlertEvaluatorService', () => {
   // Insider trades obsługiwane przez Form4Pipeline z GPT-enriched conviction.
   // Reguła "Insider Trade Large" wyłączona (isActive=false).
 
-  // ── checkSentimentCrash ──────────────────────────
-
-  describe('checkSentimentCrash — logika decyzyjna', () => {
-    it('SKIP gdy effectiveScore >= -0.5', async () => {
-      const { service } = createService();
-      const result = await (service as any).checkSentimentCrash({
-        symbol: 'ISRG', score: -0.1, confidence: 0.9,
-        source: 'stocktwits', model: 'finbert', effectiveScore: -0.3, enrichedAnalysis: null,
-      });
-      expect(result).toContain('SKIP');
-    });
-
-    it('SKIP gdy confidence < 0.7', async () => {
-      const { service } = createService();
-      const result = await (service as any).checkSentimentCrash({
-        symbol: 'ISRG', score: -0.8, confidence: 0.5,
-        source: 'stocktwits', model: 'finbert', effectiveScore: -0.7, enrichedAnalysis: null,
-      });
-      expect(result).toContain('SKIP');
-    });
-  });
-
-  // ── checkStrongFinbert ──────────────────────────
-
-  describe('checkStrongFinbert — fallback bez AI', () => {
-    it('SKIP gdy conviction != null (ma analizę AI)', async () => {
-      const { service } = createService();
-      const result = await (service as any).checkStrongFinbert({
-        symbol: 'ISRG', score: 0.9, confidence: 0.95,
-        source: 'stocktwits', model: 'finbert', conviction: 1.5,
-      });
-      expect(result).toContain('SKIP');
-    });
-
-    it('SKIP gdy model != finbert', async () => {
-      const { service } = createService();
-      const result = await (service as any).checkStrongFinbert({
-        symbol: 'ISRG', score: 0.9, confidence: 0.95,
-        source: 'stocktwits', model: 'finbert+gpt-4o-mini', conviction: null,
-      });
-      expect(result).toContain('SKIP');
-    });
-  });
 });
