@@ -2,6 +2,7 @@
 Generator raportu markdown z wynikami backtesta.
 Produkuje czytelny raport z tabelami, wnioskami i rekomendacjami dla pipeline'u.
 """
+from __future__ import annotations
 
 import os
 from datetime import datetime
@@ -24,6 +25,76 @@ def _sig_marker(data: dict) -> str:
     if data.get("significant_005"):
         return " **"
     return ""
+
+
+def _direct_comparison_meta(sub_data: dict) -> dict | None:
+    """
+    TASK-12 (23.04.2026): wykrywa bidirectional-comparison sub_group (dwie kohorty).
+    Zwraca meta z kluczami schema albo None dla standardowego sub_group `n`.
+
+    Schematy:
+    - cluster_buy_vs_single_buy (H1): n_cluster/n_single, mean_cluster/mean_single, cohens_d
+    - hc_vs_ctrl_direct       (H6): n_hc/n_ctrl, avg_hc_pct/avg_ctrl_pct, effect_size_d
+    """
+    if "n_cluster" in sub_data and "n_single" in sub_data:
+        return {
+            "label_a": "cluster", "label_b": "single",
+            "avg_a_key": "mean_cluster", "avg_b_key": "mean_single",
+            "d_key": "cohens_d",
+        }
+    if "n_hc" in sub_data and "n_ctrl" in sub_data:
+        return {
+            "label_a": "hc", "label_b": "ctrl",
+            "avg_a_key": "avg_hc_pct", "avg_b_key": "avg_ctrl_pct",
+            "d_key": "effect_size_d",
+        }
+    return None
+
+
+def _direct_comparison_sig(h: dict) -> str:
+    if h.get("significant_bonferroni_strict"):
+        return "✓✓✓"
+    if h.get("significant_bonferroni"):
+        return "✓✓"
+    if h.get("significant_005"):
+        return "✓"
+    return "✗"
+
+
+def _direct_comparison_table(sub_data: dict, meta: dict) -> str:
+    """Tabela markdown dla direct comparison (dwie kohorty, Welch's t-test)."""
+    horizons = sub_data.get("horizons", {})
+    la, lb = meta["label_a"], meta["label_b"]
+    na_key, nb_key = f"n_{la}", f"n_{lb}"
+
+    header = (
+        f"| Horyzont | N_{la} | N_{lb} | Avg {la} | Avg {lb} | p-value | Effect (d) | Sig? |"
+    )
+    sep = "|----------|------|------|---------|---------|---------|------------|------|"
+    rows = [header, sep]
+
+    for h_name in HORIZONS:
+        d = horizons.get(h_name, {})
+        if d.get("note"):
+            rows.append(
+                f"| {h_name} | {d.get(na_key, 0)} | {d.get(nb_key, 0)} "
+                f"| — | — | — | — | {d['note']} |"
+            )
+            continue
+        p_val = d.get("p_value")
+        # cluster_buy_vs_single_buy schema w JSON ma raw float (bez round(4)) —
+        # inny niż standardowy schema. Format w renderer, nie w analyzer, żeby
+        # nie regenerować JSON i nie mieszać produkcyjnego i stale data.
+        p_str = f"{p_val:.4f}" if isinstance(p_val, (int, float)) else "—"
+        rows.append(
+            f"| {h_name} | {d.get(na_key, 0)} | {d.get(nb_key, 0)} "
+            f"| {_fmt(d.get(meta['avg_a_key']))} "
+            f"| {_fmt(d.get(meta['avg_b_key']))} "
+            f"| {p_str} "
+            f"| {_fmt(d.get(meta['d_key']), '')} "
+            f"| {_direct_comparison_sig(d)} |"
+        )
+    return "\n".join(rows)
 
 
 def _horizon_table(horizons: dict, direction: str = "") -> str:
@@ -116,6 +187,21 @@ def generate_report(results: list, transactions_csv: str) -> str:
 
         if sub:
             for sub_name, sub_data in sub.items():
+                # TASK-12: direct-comparison sub_groups (cluster_buy_vs_single_buy,
+                # hc_vs_ctrl_direct) mają schema n_a/n_b zamiast n — inny renderer.
+                direct_meta = _direct_comparison_meta(sub_data)
+                if direct_meta is not None:
+                    la, lb = direct_meta["label_a"], direct_meta["label_b"]
+                    n_a = sub_data.get(f"n_{la}", 0)
+                    n_b = sub_data.get(f"n_{lb}", 0)
+                    tx = sub_data.get("tx_type")
+                    tx_suffix = f", tx={tx}" if tx else ""
+                    report += (
+                        f"### {sub_name} (N_{la}={n_a}, N_{lb}={n_b}{tx_suffix})\n\n"
+                    )
+                    report += _direct_comparison_table(sub_data, direct_meta) + "\n\n"
+                    continue
+
                 sub_n = sub_data.get("n", 0)
                 sub_horizons = sub_data.get("horizons", {})
                 if sub_n == 0:

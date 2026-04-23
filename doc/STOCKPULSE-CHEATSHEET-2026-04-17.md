@@ -444,9 +444,13 @@ PriceOutcomeService (CRON 1h NYSE) tracks 1h/4h/1d/3d outcomes
    liczy cohens_d poprawnie (JSON V5 ma +0.22/-0.10/-0.01/-0.23). Bug opisany przed
    f69cfa8 regenerate — commit message sam cytował "d [-0.23,+0.22]". Dodany
    regression test `test_v5_production_scenario_d_not_none` (N=21/49 jak prod V5).
-9. **report_generator nie renderuje `hc_vs_ctrl_direct` i `cluster_buy_vs_single_buy`**
-   — sekcje są w JSON, brak w markdown. Generator pomija sub_groups z nie-standardowym
-   `horizons` schemas (n_a/n_b zamiast n). Fix w `scripts/backtest/report_generator.py`.
+9. ✅ **report_generator renderuje `hc_vs_ctrl_direct` + `cluster_buy_vs_single_buy`**
+   — DONE TASK-12 (23.04.2026). Dodane `_direct_comparison_meta` + `_direct_comparison_sig`
+   + `_direct_comparison_table` w `report_generator.py` (routing przez schema detection:
+   n_cluster+n_single → cluster/single, n_hc+n_ctrl → hc/ctrl). `backtest_report.md`
+   regenerated: linia 72 cluster_buy_vs_single_buy, linia 346 hc_vs_ctrl_direct.
+   13 testów w `tests/test_report_generator.py` (meta detection, sig hierarchy, table
+   rendering, integration real JSON, graceful fallback).
 
 ### Sprint 18+ research items
 
