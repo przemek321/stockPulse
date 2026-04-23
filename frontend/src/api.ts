@@ -275,6 +275,8 @@ export interface TimelineAlert {
   hoursSincePrev: number | null;
   sameDirectionAsPrev: boolean | null;
   directionCorrect1d: boolean | null;
+  delivered: boolean;
+  nonDeliveryReason: string | null;
 }
 
 export interface TimelineSummary {

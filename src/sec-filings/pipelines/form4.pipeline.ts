@@ -326,7 +326,7 @@ export class Form4Pipeline {
         if (!filing) {
           this.logger.warn(`Form4: filing not found for accession ${baseAccession} — GPT analysis not persisted`);
         } else if (!filing.gptAnalysis) {
-          filing.gptAnalysis = analysis as any;
+          filing.gptAnalysis = analysis;
           filing.priceImpactDirection = analysis.price_impact.direction;
           await this.filingRepo.save(filing);
         }

@@ -412,20 +412,20 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
                 fontSize: TYPOGRAPHY.size.md,
                 fontWeight: 700,
                 // TASK-05: observation/silent/etc. → przytłumiony kolor
-                color: (a as any).nonDeliveryReason
+                color: a.nonDeliveryReason
                      ? COLORS.text.secondary
                      : a.priority === 'CRITICAL' ? COLORS.down
                      : a.priority === 'HIGH' ? COLORS.warning
                      : COLORS.text.primary,
               }}>
                 {a.priority || '—'}
-                {(a as any).nonDeliveryReason && (
+                {a.nonDeliveryReason && (
                   <Typography component="span" sx={{ fontSize: TYPOGRAPHY.size.xs, ml: 0.5, fontWeight: 400, color: COLORS.text.secondary }}>
-                    ({(a as any).nonDeliveryReason === 'observation' ? 'obserwacja'
-                      : (a as any).nonDeliveryReason === 'csuite_sell_no_edge' ? 'C-suite SELL'
-                      : (a as any).nonDeliveryReason === 'cluster_sell_no_edge' ? 'cluster SELL'
-                      : (a as any).nonDeliveryReason === 'sell_no_edge' ? 'SELL zero edge'
-                      : (a as any).nonDeliveryReason})
+                    ({a.nonDeliveryReason === 'observation' ? 'obserwacja'
+                      : a.nonDeliveryReason === 'csuite_sell_no_edge' ? 'C-suite SELL'
+                      : a.nonDeliveryReason === 'cluster_sell_no_edge' ? 'cluster SELL'
+                      : a.nonDeliveryReason === 'sell_no_edge' ? 'SELL zero edge'
+                      : a.nonDeliveryReason})
                   </Typography>
                 )}
               </Typography>

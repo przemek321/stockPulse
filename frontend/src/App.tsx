@@ -121,8 +121,11 @@ const nonDeliveryLabel = (reason: string | null | undefined): string | null => {
  *  chip "default" (szary) + sufix typu "(obserwacja)" — żeby observation mode
  *  nie pokazywał się jak pełny CRITICAL. Magnitude conviction pozostaje w DB
  *  bez zmian (potrzebne do future backtest). */
-const PriorityChip = ({ value, row }: { value: string; row?: any }) => {
-  const reason = row?.nonDeliveryReason as string | null | undefined;
+const PriorityChip = ({ value, row }: {
+  value: string;
+  row?: { nonDeliveryReason?: string | null };
+}) => {
+  const reason = row?.nonDeliveryReason;
   const suppressed = !!reason;
 
   const color = suppressed

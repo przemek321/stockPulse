@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
+import { SecFilingAnalysis } from '../sec-filings/types/sec-filing-analysis';
 
 /**
  * SEC filing (8-K, 10-Q, 10-K, Form 4, SC 13D itd.).
@@ -47,7 +48,7 @@ export class SecFiling {
 
   /** Analiza GPT filingu (price_impact, conviction, summary, key_facts itd.) */
   @Column({ type: 'jsonb', nullable: true })
-  gptAnalysis: Record<string, any> | null;
+  gptAnalysis: SecFilingAnalysis | null;
 
   /** Kierunek wpływu cenowego z analizy GPT (positive/negative/neutral) */
   @Column({ type: 'varchar', length: 10, nullable: true })

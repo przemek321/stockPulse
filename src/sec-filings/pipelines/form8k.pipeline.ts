@@ -178,7 +178,7 @@ export class Form8kPipeline {
       }
 
       // Zapisz wynik do bazy
-      filing.gptAnalysis = analysis as any;
+      filing.gptAnalysis = analysis;
       filing.priceImpactDirection = analysis.price_impact.direction;
       await this.filingRepo.save(filing);
 
