@@ -69,6 +69,11 @@ export interface Alert {
   message: string;
   catalystType: string | null;
   delivered: boolean;
+  /** Powód niedostarczenia alertu (gdy delivered=false).
+   *  Enum-like: 'observation' | 'silent_hour' | 'daily_limit' | 'csuite_sell_no_edge'
+   *  | 'cluster_sell_no_edge' | 'sell_no_edge' | 'telegram_failed' | null.
+   *  Frontend używa do visual distinction (TASK-05 22.04.2026). */
+  nonDeliveryReason: string | null;
   sentAt: string;
 }
 

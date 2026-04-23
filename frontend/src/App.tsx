@@ -93,17 +93,60 @@ const fmtDateShort = (v: string | null) =>
 const stripMd = (v: string) =>
   v?.replace(/\\([_*\[\]()~`>#+\-=|{}.!\\$])/g, '$1') || '';
 
-/** Chip z kolorem wg priorytetu */
-const PriorityChip = ({ value }: { value: string }) => {
-  const color =
-    value === 'CRITICAL'
-      ? 'error'
-      : value === 'HIGH'
-      ? 'warning'
-      : value === 'MEDIUM'
-      ? 'info'
-      : 'default';
-  return <Chip label={value} color={color as any} size="small" />;
+/** Etykieta dla nonDeliveryReason → user-friendly label obok priority */
+const nonDeliveryLabel = (reason: string | null | undefined): string | null => {
+  if (!reason) return null;
+  switch (reason) {
+    case 'observation':
+      return 'obserwacja';
+    case 'csuite_sell_no_edge':
+      return 'C-suite SELL (zero edge)';
+    case 'cluster_sell_no_edge':
+      return 'cluster SELL (zero edge)';
+    case 'sell_no_edge':
+      return 'SELL (zero edge)';
+    case 'silent_hour':
+      return 'cicha godzina';
+    case 'daily_limit':
+      return 'daily limit';
+    case 'telegram_failed':
+      return 'Telegram błąd';
+    default:
+      return reason;
+  }
+};
+
+/** Chip z kolorem wg priorytetu.
+ *  TASK-05 (22.04.2026): gdy alert ma nonDeliveryReason, wizualnie wyciszamy —
+ *  chip "default" (szary) + sufix typu "(obserwacja)" — żeby observation mode
+ *  nie pokazywał się jak pełny CRITICAL. Magnitude conviction pozostaje w DB
+ *  bez zmian (potrzebne do future backtest). */
+const PriorityChip = ({ value, row }: { value: string; row?: any }) => {
+  const reason = row?.nonDeliveryReason as string | null | undefined;
+  const suppressed = !!reason;
+
+  const color = suppressed
+    ? 'default'
+    : value === 'CRITICAL'
+    ? 'error'
+    : value === 'HIGH'
+    ? 'warning'
+    : value === 'MEDIUM'
+    ? 'info'
+    : 'default';
+
+  const label = suppressed
+    ? `${value} (${nonDeliveryLabel(reason)})`
+    : value;
+
+  return (
+    <Chip
+      label={label}
+      color={color as any}
+      size="small"
+      variant={suppressed ? 'outlined' : 'filled'}
+    />
+  );
 };
 
 declare const __BUILD_DATE__: string;
@@ -356,7 +399,7 @@ export default function App() {
             {
               key: 'priority',
               label: 'Priorytet',
-              render: (v: string) => <PriorityChip value={v} />,
+              render: (v: string, row: any) => <PriorityChip value={v} row={row} />,
             },
             {
               key: 'catalystType',
@@ -424,7 +467,7 @@ export default function App() {
           {
             key: 'priority',
             label: 'Priorytet',
-            render: (v: string) => <PriorityChip value={v} />,
+            render: (v: string, row: any) => <PriorityChip value={v} row={row} />,
           },
           {
             key: 'catalystType',

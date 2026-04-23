@@ -162,6 +162,10 @@ export class AlertsController {
         directionCorrect,
         priceOutcomeDone: a.priceOutcomeDone,
         sentAt: a.sentAt,
+        // TASK-05: frontend używa nonDeliveryReason do visual distinction
+        // (observation mode → chip bez CRITICAL styling)
+        delivered: a.delivered,
+        nonDeliveryReason: a.nonDeliveryReason,
       };
     });
 
@@ -200,6 +204,8 @@ export class AlertsController {
         "priceAtAlert",
         price1h, price4h, price1d, price3d,
         "sentAt",
+        delivered,
+        "nonDeliveryReason",
         -- Conviction wyciągnięty z message (MarkdownV2 escaping: "Conviction: 0\.505")
         (regexp_match(
           replace(replace(message, E'\\\\.', '.'), E'\\\\-', '-'),
@@ -308,6 +314,7 @@ export class AlertsController {
       SELECT
         id, symbol, "ruleName", priority, "alertDirection", "catalystType",
         message, "priceAtAlert", price1h, price4h, price1d, price3d, "sentAt",
+        delivered, "nonDeliveryReason",
         (regexp_match(
           replace(replace(message, E'\\\\.', '.'), E'\\\\-', '-'),
           'Conviction:\\s*([+-]?\\d+\\.?\\d*)', 'i'

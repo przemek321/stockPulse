@@ -411,11 +411,23 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
               <Typography sx={{
                 fontSize: TYPOGRAPHY.size.md,
                 fontWeight: 700,
-                color: a.priority === 'CRITICAL' ? COLORS.down
+                // TASK-05: observation/silent/etc. → przytłumiony kolor
+                color: (a as any).nonDeliveryReason
+                     ? COLORS.text.secondary
+                     : a.priority === 'CRITICAL' ? COLORS.down
                      : a.priority === 'HIGH' ? COLORS.warning
                      : COLORS.text.primary,
               }}>
                 {a.priority || '—'}
+                {(a as any).nonDeliveryReason && (
+                  <Typography component="span" sx={{ fontSize: TYPOGRAPHY.size.xs, ml: 0.5, fontWeight: 400, color: COLORS.text.secondary }}>
+                    ({(a as any).nonDeliveryReason === 'observation' ? 'obserwacja'
+                      : (a as any).nonDeliveryReason === 'csuite_sell_no_edge' ? 'C-suite SELL'
+                      : (a as any).nonDeliveryReason === 'cluster_sell_no_edge' ? 'cluster SELL'
+                      : (a as any).nonDeliveryReason === 'sell_no_edge' ? 'SELL zero edge'
+                      : (a as any).nonDeliveryReason})
+                  </Typography>
+                )}
               </Typography>
             </Box>
             <Box>
