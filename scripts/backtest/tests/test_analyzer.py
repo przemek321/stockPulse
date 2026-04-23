@@ -135,10 +135,10 @@ class TestCollectSingleBuyEvents:
 class TestDirectClusterVsSingle:
     """Sprint 17: Welch's t-test cluster vs single events."""
 
-    def _make_event(self, r1=0.02, r4=0.04, r30=0.05):
+    def _make_event(self, r1=0.02, r3=0.03, r7=0.04, r30=0.05):
         return EventReturn(
             symbol="X", event_date="2025-01-01", price_at_event=100.0,
-            returns={"1d": r1, "4d": r4, "30d": r30},
+            returns={"1d": r1, "3d": r3, "7d": r7, "30d": r30},
             tx_type="BUY", n_insiders=1,
             is_healthcare=True, is_csuite=True,
         )
@@ -164,3 +164,35 @@ class TestDirectClusterVsSingle:
         assert result["tx_type"] == "BUY"
         assert result["n_cluster"] == 10
         assert result["n_single"] == 10
+
+    def test_v5_production_scenario_d_not_none(self):
+        # TASK-11 (23.04.2026) regression guard: V5 backtest N_cluster=21 N_single=49
+        # daje realne cohens_d (floaty), nie None. Cheatsheet raportował d=None
+        # przed f69cfa8 — ta asercja zabezpiecza przed regresją wstecz.
+        rng = np.random.RandomState(2026)
+        cluster = [
+            self._make_event(r1=float(r1), r3=float(r3), r7=float(r7), r30=float(r30))
+            for r1, r3, r7, r30 in zip(
+                rng.normal(0.019, 0.04, 21),
+                rng.normal(0.017, 0.04, 21),
+                rng.normal(0.025, 0.06, 21),
+                rng.normal(0.031, 0.08, 21),
+            )
+        ]
+        single = [
+            self._make_event(r1=float(r1), r3=float(r3), r7=float(r7), r30=float(r30))
+            for r1, r3, r7, r30 in zip(
+                rng.normal(0.010, 0.04, 49),
+                rng.normal(0.021, 0.04, 49),
+                rng.normal(0.026, 0.06, 49),
+                rng.normal(0.057, 0.08, 49),
+            )
+        ]
+        result = _direct_cluster_vs_single(cluster, single, "BUY")
+        for horizon in ("1d", "3d", "7d", "30d"):
+            h = result["horizons"][horizon]
+            assert h["cohens_d"] is not None, f"{horizon}: cohens_d regression do None"
+            assert isinstance(h["cohens_d"], float)
+            assert h["p_value"] is not None
+            assert h["n_cluster"] == 21
+            assert h["n_single"] == 49

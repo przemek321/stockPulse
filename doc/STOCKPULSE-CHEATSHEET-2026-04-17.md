@@ -323,8 +323,8 @@ Direct d=-0.14 (healthcare słabszy niż control).
 **H1 cluster_buy_vs_single_buy (nowa analiza):**
 
 - N_cluster=21, N_single=49, tx_type=BUY
-- 1d: p=0.445 | 3d: p=0.700 | 7d: p=0.955 | 30d: p=0.371
-- d: JSON ma `None` (bug w `_direct_cluster_vs_single` zapisie, nie liczony poprawnie — do fixu w Sprint 18).
+- 1d: d=+0.22 p=0.445 | 3d: d=-0.10 p=0.700 | 7d: d=-0.01 p=0.955 | 30d: d=-0.23 p=0.371
+- (TASK-11 23.04.2026: "d=None bug" zweryfikowany jako stale wpis — `_direct_cluster_vs_single` liczy cohens_d poprawnie w JSON od f69cfa8, cheatsheet był przed-regenerate. Dodany regression test w `tests/test_analyzer.py::test_v5_production_scenario_d_not_none`.)
 
 **Wniosek:** czekanie na 2-giego insidera dla BUY alert **nie daje
 statystycznej przewagi** nad solo BUY. p>0.37 zawsze. TODO Sprint 18:
@@ -439,9 +439,11 @@ PriceOutcomeService (CRON 1h NYSE) tracks 1h/4h/1d/3d outcomes
    Director SELL → SKIP. Director + Chief Marketing Officer (Sprint 16b soft role
    excluded) też pure Director SELL → SKIP. 26 nowych testów
    (`form4-pipeline-rules.spec.ts` — 6 Chair variants + 20 isPureDirector coverage).
-8. **d=None bug w `_direct_cluster_vs_single`** — V5 JSON ma `n_a=None
-   n_b=None d=None` dla cluster_buy_vs_single_buy horyzontów (tylko p-value
-   wyliczony). Fix w `scripts/backtest/analyzer.py` funkcja `_direct_cluster_vs_single`.
+8. ✅ **d=None bug w `_direct_cluster_vs_single`** — DONE TASK-11 (23.04.2026).
+   Zweryfikowany jako stale doc entry, nie real bug: funkcja w `analyzer.py:435-489`
+   liczy cohens_d poprawnie (JSON V5 ma +0.22/-0.10/-0.01/-0.23). Bug opisany przed
+   f69cfa8 regenerate — commit message sam cytował "d [-0.23,+0.22]". Dodany
+   regression test `test_v5_production_scenario_d_not_none` (N=21/49 jak prod V5).
 9. **report_generator nie renderuje `hc_vs_ctrl_direct` i `cluster_buy_vs_single_buy`**
    — sekcje są w JSON, brak w markdown. Generator pomija sub_groups z nie-standardowym
    `horizons` schemas (n_a/n_b zamiast n). Fix w `scripts/backtest/report_generator.py`.
