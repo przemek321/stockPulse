@@ -6,7 +6,7 @@
  * - C-suite whitelist (Sprint 16b — soft roles wyłączone)
  */
 
-import { isCsuiteRole, isDirectorRole } from '../../src/sec-filings/pipelines/form4.pipeline';
+import { isCsuiteRole, isDirectorRole, Form4Pipeline } from '../../src/sec-filings/pipelines/form4.pipeline';
 
 describe('Form4Pipeline — Director SELL skip (Sprint 15)', () => {
   const isDirectorSell = (role: string | null, txType: string) => {
@@ -646,5 +646,106 @@ describe('Form4Pipeline — isPureDirector via isCsuiteRole (TASK-10, 23.04.2026
 
   it('empty string → NIE pure Director', () => {
     expect(isPureDirectorSell('')).toBe(false);
+  });
+});
+
+/**
+ * FOLLOW-6 (23.04.2026): end-to-end regression guard dla ASX case (Sprint 18 trigger).
+ *
+ * Background: 22.04.2026 collector wciągnął Form 4 z ASX gdzie Chen Tien-Szu
+ * "GM, ASE Inc. Chung-Li Branch" sprzedał akcje za $152M. Ten SELL przeszedł
+ * przez Form4Pipeline → observation save (semi ticker observation route NIE
+ * blokował korelacji) → CorrelationService → fałszywy CRITICAL alert
+ * "INSIDER + Unusual Options" w portalu z conviction -0.70.
+ *
+ * TASK-02 (22.04.2026) dodało krok 4b SKIP_NON_ROLE_SELL PRZED daily cap +
+ * observation gate. Izolowane testy reguł (SKIP_NON_ROLE_SELL block powyżej)
+ * weryfikują pure-function decision logic, ale NIE dowodzą że kolejność
+ * kroków w `onInsiderTrade` faktycznie blokuje wszystkie side-effects.
+ *
+ * Ten test jest acceptance/regression guard: jeśli ktoś przesunie observation
+ * gate przed SKIP_NON_ROLE_SELL albo zmieni kolejność checks, ten test
+ * wyłoży się natychmiast — bez niego regresja invisible aż do kolejnego
+ * ASX-case'a w produkcji.
+ */
+describe('Form4Pipeline integration — ASX regression (FOLLOW-6, 23.04.2026)', () => {
+  function buildPipelineWithMocks() {
+    const mocks = {
+      tradeRepo: { findOne: jest.fn(), save: jest.fn() },
+      filingRepo: { findOne: jest.fn(), save: jest.fn() },
+      tickerRepo: { findOne: jest.fn() },
+      alertRepo: { save: jest.fn(), findOne: jest.fn() },
+      ruleRepo: { findOne: jest.fn() },
+      azureOpenai: { analyzeCustomPrompt: jest.fn() },
+      telegram: { sendMarkdown: jest.fn() },
+      formatter: { formatInsiderTradeAlert: jest.fn() },
+      dailyCap: { canCallGpt: jest.fn() },
+      correlation: { storeSignal: jest.fn(), schedulePatternCheck: jest.fn() },
+      finnhub: { getQuote: jest.fn() },
+      tickerProfile: { getSignalProfile: jest.fn() },
+      deliveryGate: { canDeliverToTelegram: jest.fn() },
+      dispatcher: { dispatch: jest.fn() },
+    };
+    const pipeline = new Form4Pipeline(
+      mocks.tradeRepo as any,
+      mocks.filingRepo as any,
+      mocks.tickerRepo as any,
+      mocks.alertRepo as any,
+      mocks.ruleRepo as any,
+      mocks.azureOpenai as any,
+      mocks.telegram as any,
+      mocks.formatter as any,
+      mocks.dailyCap as any,
+      mocks.correlation as any,
+      mocks.finnhub as any,
+      mocks.tickerProfile as any,
+      mocks.deliveryGate as any,
+      mocks.dispatcher as any,
+    );
+    return { pipeline, mocks };
+  }
+
+  it('ASX GM SELL $152M → SKIP_NON_ROLE_SELL bez żadnych side-effects', async () => {
+    const { pipeline, mocks } = buildPipelineWithMocks();
+
+    const result = await pipeline.onInsiderTrade({
+      tradeId: 12345,
+      symbol: 'ASX',
+      insiderName: 'Chen Tien-Szu',
+      insiderRole: 'GM, ASE Inc. Chung-Li Branch',
+      transactionType: 'SELL',
+      totalValue: 152_554_997,
+      shares: 328_000,
+      is10b51Plan: false,
+      sharesOwnedAfter: 50_000,
+      source: 'sec-edgar',
+      traceId: 'asx-regression-trace',
+    });
+
+    expect(result.action).toBe('SKIP_NON_ROLE_SELL');
+    expect(result.symbol).toBe('ASX');
+    expect(result.traceId).toBe('asx-regression-trace');
+
+    // Krok 4b SKIP_NON_ROLE_SELL musi być PRZED daily cap, GPT, correlation,
+    // dispatcher, alert save, ticker fetch — nic z poniższych nie powinno
+    // być wywołane. Każda regresja kolejności wyłoży któryś expect.
+    expect(mocks.dailyCap.canCallGpt).not.toHaveBeenCalled();
+    expect(mocks.tradeRepo.findOne).not.toHaveBeenCalled();
+    expect(mocks.tradeRepo.save).not.toHaveBeenCalled();
+    expect(mocks.filingRepo.findOne).not.toHaveBeenCalled();
+    expect(mocks.filingRepo.save).not.toHaveBeenCalled();
+    expect(mocks.tickerRepo.findOne).not.toHaveBeenCalled();
+    expect(mocks.ruleRepo.findOne).not.toHaveBeenCalled();
+    expect(mocks.azureOpenai.analyzeCustomPrompt).not.toHaveBeenCalled();
+    expect(mocks.formatter.formatInsiderTradeAlert).not.toHaveBeenCalled();
+    expect(mocks.telegram.sendMarkdown).not.toHaveBeenCalled();
+    expect(mocks.correlation.storeSignal).not.toHaveBeenCalled();
+    expect(mocks.correlation.schedulePatternCheck).not.toHaveBeenCalled();
+    expect(mocks.deliveryGate.canDeliverToTelegram).not.toHaveBeenCalled();
+    expect(mocks.dispatcher.dispatch).not.toHaveBeenCalled();
+    expect(mocks.alertRepo.save).not.toHaveBeenCalled();
+    expect(mocks.alertRepo.findOne).not.toHaveBeenCalled();
+    expect(mocks.tickerProfile.getSignalProfile).not.toHaveBeenCalled();
+    expect(mocks.finnhub.getQuote).not.toHaveBeenCalled();
   });
 });
