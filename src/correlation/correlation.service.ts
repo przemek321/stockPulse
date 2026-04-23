@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject, OnModuleDestroy, Optional } from '@nestjs/c
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Redis from 'ioredis';
+import { createHash } from 'crypto';
 import { CORRELATION_REDIS } from './redis.provider';
 import { TelegramService } from '../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
@@ -47,6 +48,54 @@ const MIN_CORRELATED_CONVICTION = 0.20;
 /** Minimalny |conviction| ostatniego sygnału w ESCALATING_SIGNAL */
 const MIN_ESCALATING_LAST_CONVICTION = 0.25;
 
+/** TASK-04: okno dedupu content-hash patternów.
+ *  15 min — jeśli przez 15 min skład signals się nie zmienił, to powtórzone
+ *  runPatternDetection wywołane przez debounce to szum (logi + CPU).
+ *  Po 15 min świeży start (np. po restart / po cleanup TTL Redis).
+ *  Per-ticker throttling już istnieje (PATTERN_THROTTLE, 2h dla OPTIONS / 24h dla CLUSTER)
+ *  jako ostateczna bariera dla alert dispatch. */
+const PATTERN_HASH_WINDOW_MS = 15 * 60_000;
+
+/**
+ * TASK-04: content-hash zbioru wykrytych patternów.
+ *
+ * Klucz = (type + sorted signal IDs) — dwa wywołania runPatternDetection
+ * zwracają ten sam hash, jeśli:
+ *   (a) wykryte są te same typy patternów,
+ *   (b) w każdym patternie skład signals (po ID) jest identyczny.
+ *
+ * Hash change = nowy signal dołączył do jednego z patternów ALBO pojawił się
+ * nowy typ patternu. Oba przypadki wart emitowania; stagnacja = szum.
+ */
+export function hashPatternSet(patterns: DetectedPattern[]): string {
+  if (patterns.length === 0) return '';
+  const normalized = patterns
+    .map(p => ({
+      type: p.type,
+      signalIds: p.signals.map(s => s.id).sort(),
+    }))
+    .sort((a, b) => a.type.localeCompare(b.type));
+  return createHash('sha256')
+    .update(JSON.stringify(normalized))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/**
+ * Decyzja: czy pominąć wyzwalanie alertów bo zbiór patternów nie zmienił się
+ * od ostatniego runa. Czysta funkcja dla testowalności.
+ */
+export function shouldSkipDuplicatePatternDetection(
+  newHash: string,
+  cached: { hash: string; ts: number } | undefined,
+  now: number,
+  windowMs: number = PATTERN_HASH_WINDOW_MS,
+): boolean {
+  if (!cached) return false;
+  if (now - cached.ts > windowMs) return false;
+  return cached.hash === newHash;
+}
+
 @Injectable()
 export class CorrelationService implements OnModuleDestroy {
   private readonly logger = new Logger(CorrelationService.name);
@@ -57,11 +106,19 @@ export class CorrelationService implements OnModuleDestroy {
    */
   private readonly pendingChecks = new Map<string, { ts: number; timer: ReturnType<typeof setTimeout> }>();
 
+  /** TASK-04: per-ticker cache ostatniego hash zbioru patternów.
+   *  In-memory (nie Redis) — po restarcie pierwszy pattern zostanie emitowany niepotrzebnie,
+   *  potem się zestabilizuje. Redis dodałby latency + klucz do zarządzania dla minimalnej
+   *  korzyści (restart ~ raz/deploy, window 15 min = pomijalne re-fire).
+   *  Cleanup opportunistyczny w runPatternDetection (stale entries >1h). */
+  private readonly lastPatternHash = new Map<string, { hash: string; ts: number }>();
+
   onModuleDestroy(): void {
     for (const { timer } of this.pendingChecks.values()) {
       clearTimeout(timer);
     }
     this.pendingChecks.clear();
+    this.lastPatternHash.clear();
   }
 
   constructor(
@@ -176,6 +233,33 @@ export class CorrelationService implements OnModuleDestroy {
         if (p) patterns.push(p);
       }
 
+      if (patterns.length === 0) {
+        return { ticker, signals: allSignals.length, patterns: 0, action: 'NO_PATTERNS' };
+      }
+
+      // TASK-04 (22.04.2026): content-hash dedup. HPE cascade 22.04: 7 runPatternDetection
+      // calls w 6 min, każda iteracja wywoływała triggerCorrelatedAlert (redundantne wołanie
+      // bo i tak trafiałoby DEDUP_SKIP na PATTERN_THROTTLE 2h). Fix: porównaj skład
+      // patternów z ostatnim runem — jeśli identyczny w ciągu 15 min, zwróć early bez
+      // wywołania triggerCorrelatedAlert. Opportunistic cleanup cache'u przy okazji.
+      const newHash = hashPatternSet(patterns);
+      const cached = this.lastPatternHash.get(ticker);
+      if (shouldSkipDuplicatePatternDetection(newHash, cached, now)) {
+        return {
+          ticker,
+          signals: allSignals.length,
+          patterns: patterns.length,
+          action: 'PATTERNS_DETECTED_DUPLICATE',
+        };
+      }
+      this.lastPatternHash.set(ticker, { hash: newHash, ts: now });
+      // Cleanup stale entries (>1h) gdy mapa urośnie
+      if (this.lastPatternHash.size > 100) {
+        for (const [t, entry] of this.lastPatternHash) {
+          if (now - entry.ts > 3600_000) this.lastPatternHash.delete(t);
+        }
+      }
+
       for (const pattern of patterns) {
         await this.triggerCorrelatedAlert(ticker, pattern);
       }
@@ -184,7 +268,7 @@ export class CorrelationService implements OnModuleDestroy {
         ticker,
         signals: allSignals.length,
         patterns: patterns.length,
-        action: patterns.length > 0 ? 'PATTERNS_DETECTED' : 'NO_PATTERNS',
+        action: 'PATTERNS_DETECTED',
       };
     } catch (err) {
       this.logger.error(`Pattern detection error for ${ticker}: ${err.message}`);
@@ -435,12 +519,22 @@ export class CorrelationService implements OnModuleDestroy {
 
   // ── Alert z deduplikacją ──────────────────────────────────
 
-  /** Wysyła alert correlated pattern z deduplikacją w Redis */
+  /**
+   * Wysyła alert correlated pattern z deduplikacją w Redis.
+   *
+   * TASK-04 (22.04.2026): @Logged('correlation') dodany żeby zamknąć observability gap.
+   * Audyt 22.04 pokazał, że decyzje DEDUP_SKIP / SKIP_LOW_CONVICTION / dispatch wyniki
+   * były niewidoczne w system_logs — tylko runPatternDetection był logowany. Teraz każde
+   * wywołanie (pattern-level decision) trafia do system_logs z traceId + decisionReason.
+   */
+  @Logged('correlation')
   private async triggerCorrelatedAlert(
     ticker: string,
     pattern: DetectedPattern,
-  ): Promise<string> {
-    if (Math.abs(pattern.correlated_conviction) < MIN_CORRELATED_CONVICTION) return 'SKIP_LOW_CONVICTION';
+  ): Promise<{ action: string; ticker: string; patternType: PatternType }> {
+    if (Math.abs(pattern.correlated_conviction) < MIN_CORRELATED_CONVICTION) {
+      return { action: 'SKIP_LOW_CONVICTION', ticker, patternType: pattern.type };
+    }
 
     // Observation mode: ticker z observationOnly=true → DB only, brak Telegramu
     const tickerEntity = await this.tickerRepo.findOne({ where: { symbol: ticker } });
@@ -455,7 +549,7 @@ export class CorrelationService implements OnModuleDestroy {
     // Deduplikacja: sprawdź czy ten wzorzec nie był już alertowany
     const dedupKey = `fired:${ticker}:${pattern.type}`;
     const alreadyFired = await this.redis.get(dedupKey);
-    if (alreadyFired) return 'DEDUP_SKIP';
+    if (alreadyFired) return { action: 'DEDUP_SKIP', ticker, patternType: pattern.type };
 
     const priority = Math.abs(pattern.correlated_conviction) >= 0.6
       ? 'CRITICAL'
@@ -525,6 +619,6 @@ export class CorrelationService implements OnModuleDestroy {
         `conviction=${pattern.correlated_conviction.toFixed(2)} ${pattern.direction}`,
     );
 
-    return dispatchResult.action;
+    return { action: dispatchResult.action, ticker, patternType: pattern.type };
   }
 }

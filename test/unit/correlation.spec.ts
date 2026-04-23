@@ -318,3 +318,146 @@ describe('detectEscalatingSignal', () => {
     expect(detectEscalatingSignal(signals, now)).toBeNull();
   });
 });
+
+// ── TASK-04: content-hash deduplikacja runPatternDetection ─────────────
+
+import {
+  hashPatternSet,
+  shouldSkipDuplicatePatternDetection,
+} from '../../src/correlation/correlation.service';
+import { DetectedPattern } from '../../src/correlation/types/correlation.types';
+
+function makePattern(opts: Partial<DetectedPattern> & { signalIds: string[] }): DetectedPattern {
+  return {
+    type: opts.type ?? 'INSIDER_PLUS_OPTIONS',
+    direction: opts.direction ?? 'positive',
+    correlated_conviction: opts.correlated_conviction ?? 0.6,
+    description: opts.description ?? 'test',
+    signals: opts.signalIds.map((id, idx) =>
+      makeSignal({ id, timestamp: 1000 + idx }),
+    ),
+  };
+}
+
+describe('TASK-04 — hashPatternSet (content hash)', () => {
+  it('pusta lista → pusty string', () => {
+    expect(hashPatternSet([])).toBe('');
+  });
+
+  it('ten sam skład patternów i signals → ten sam hash', () => {
+    const p1 = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a', 'b'] });
+    const p2 = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a', 'b'] });
+    expect(hashPatternSet([p1])).toBe(hashPatternSet([p2]));
+  });
+
+  it('dodany signal → inny hash', () => {
+    const p1 = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a', 'b'] });
+    const p2 = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a', 'b', 'c'] });
+    expect(hashPatternSet([p1])).not.toBe(hashPatternSet([p2]));
+  });
+
+  it('kolejność signal IDs nie ma znaczenia (internal sort)', () => {
+    const p1 = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a', 'b', 'c'] });
+    const p2 = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['c', 'a', 'b'] });
+    expect(hashPatternSet([p1])).toBe(hashPatternSet([p2]));
+  });
+
+  it('kolejność patternów nie ma znaczenia (internal sort po type)', () => {
+    const pA = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a'] });
+    const pB = makePattern({ type: 'INSIDER_CLUSTER', signalIds: ['b'] });
+    expect(hashPatternSet([pA, pB])).toBe(hashPatternSet([pB, pA]));
+  });
+
+  it('nowy typ patternu dodany → inny hash', () => {
+    const pA = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a'] });
+    const pB = makePattern({ type: 'INSIDER_CLUSTER', signalIds: ['b'] });
+    expect(hashPatternSet([pA])).not.toBe(hashPatternSet([pA, pB]));
+  });
+
+  it('różne typy patternów z tymi samymi signals → różne hashe', () => {
+    const pA = makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['a', 'b'] });
+    const pB = makePattern({ type: 'INSIDER_PLUS_8K', signalIds: ['a', 'b'] });
+    expect(hashPatternSet([pA])).not.toBe(hashPatternSet([pB]));
+  });
+
+  it('hash ma 16 znaków (truncated sha256)', () => {
+    const p = makePattern({ signalIds: ['a'] });
+    expect(hashPatternSet([p])).toHaveLength(16);
+  });
+});
+
+describe('TASK-04 — shouldSkipDuplicatePatternDetection', () => {
+  const now = 1_700_000_000_000;
+  const WINDOW = 15 * 60_000;
+
+  it('brak cached → nie skip (pierwszy run)', () => {
+    expect(shouldSkipDuplicatePatternDetection('abc123', undefined, now)).toBe(false);
+  });
+
+  it('cached taki sam hash, w oknie → skip', () => {
+    const cached = { hash: 'abc123', ts: now - 5 * 60_000 };
+    expect(shouldSkipDuplicatePatternDetection('abc123', cached, now)).toBe(true);
+  });
+
+  it('cached inny hash, w oknie → nie skip (pattern set zmienił się)', () => {
+    const cached = { hash: 'old___', ts: now - 5 * 60_000 };
+    expect(shouldSkipDuplicatePatternDetection('new___', cached, now)).toBe(false);
+  });
+
+  it('cached taki sam hash, poza oknem (>15 min) → nie skip (refresh)', () => {
+    const cached = { hash: 'abc123', ts: now - 16 * 60_000 };
+    expect(shouldSkipDuplicatePatternDetection('abc123', cached, now)).toBe(false);
+  });
+
+  it('granica okna: dokładnie 15 min → skip (mniej-niż-równe OK)', () => {
+    const cached = { hash: 'abc123', ts: now - WINDOW };
+    expect(shouldSkipDuplicatePatternDetection('abc123', cached, now)).toBe(true);
+  });
+
+  it('granica okna: 15 min + 1ms → nie skip', () => {
+    const cached = { hash: 'abc123', ts: now - WINDOW - 1 };
+    expect(shouldSkipDuplicatePatternDetection('abc123', cached, now)).toBe(false);
+  });
+
+  it('custom window: 5 min → skip tylko w 5-min oknie', () => {
+    const cached = { hash: 'abc123', ts: now - 4 * 60_000 };
+    expect(shouldSkipDuplicatePatternDetection('abc123', cached, now, 5 * 60_000)).toBe(true);
+    const cachedOld = { hash: 'abc123', ts: now - 6 * 60_000 };
+    expect(shouldSkipDuplicatePatternDetection('abc123', cachedOld, now, 5 * 60_000)).toBe(false);
+  });
+});
+
+describe('TASK-04 — scenariusz HPE cascade 22.04.2026', () => {
+  // Symulacja: 7 runPatternDetection w 6 min, pierwsze 3 kolejne z nowym signalem,
+  // kolejne 4 bez zmian (noise). Dedup powinien pozwolić pierwszym 3, zblokować resztę.
+  const baseTime = 1_700_000_000_000;
+
+  it('pierwszy run: brak cache → nie skip', () => {
+    const patterns = [makePattern({ type: 'INSIDER_PLUS_OPTIONS', signalIds: ['s1'] })];
+    const hash = hashPatternSet(patterns);
+    expect(shouldSkipDuplicatePatternDetection(hash, undefined, baseTime)).toBe(false);
+  });
+
+  it('drugi run 13s później, nowy signal dołączył → nowy hash, nie skip', () => {
+    const firstHash = hashPatternSet([makePattern({ signalIds: ['s1'] })]);
+    const cached = { hash: firstHash, ts: baseTime };
+    const secondPatterns = [makePattern({ signalIds: ['s1', 's2'] })];
+    const secondHash = hashPatternSet(secondPatterns);
+    expect(secondHash).not.toBe(firstHash);
+    expect(shouldSkipDuplicatePatternDetection(secondHash, cached, baseTime + 13_000)).toBe(false);
+  });
+
+  it('trzeci run 14s po drugim, bez nowego signala → ten sam hash, SKIP', () => {
+    const patterns = [makePattern({ signalIds: ['s1', 's2'] })];
+    const hash = hashPatternSet(patterns);
+    const cached = { hash, ts: baseTime + 13_000 };
+    expect(shouldSkipDuplicatePatternDetection(hash, cached, baseTime + 27_000)).toBe(true);
+  });
+
+  it('po 16 min bez zmiany → cache expiry → nie skip (fresh start)', () => {
+    const patterns = [makePattern({ signalIds: ['s1', 's2'] })];
+    const hash = hashPatternSet(patterns);
+    const cached = { hash, ts: baseTime };
+    expect(shouldSkipDuplicatePatternDetection(hash, cached, baseTime + 16 * 60_000)).toBe(false);
+  });
+});
