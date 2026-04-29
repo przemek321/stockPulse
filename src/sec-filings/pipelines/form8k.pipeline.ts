@@ -18,6 +18,11 @@ import {
 } from '../parsers/form8k.parser';
 import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysis';
 import { detectMissingDataFacts } from '../utils/missing-data-detector';
+import {
+  extractGuidanceStatus,
+  shouldEnforceConvictionFloor,
+  GuidanceStatus,
+} from '../utils/extract-guidance-status';
 import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
@@ -135,7 +140,30 @@ export class Form8kPipeline {
 
       // Wyciągnij tekst sekcji i zbuduj prompt
       const itemText = extractItemText(filingText, mainItem);
-      const prompt = promptBuilder(payload.symbol, companyName, itemText, mainItem, signalProfile);
+
+      // S19-FIX-02: pre-LLM guidance keyword extraction.
+      // Skanujemy CAŁY filingText (nie obcięty itemText) — nagłówek release
+      // typu "Affirms Full Year 2026 Adjusted Financial Guidance" często ląduje
+      // na początku 8-K i nie zawsze pojawia się w extracted Item 2.02 fragment.
+      const guidanceStatus = extractGuidanceStatus(filingText);
+      const guidanceFactsBlock = formatGuidanceFactsForPrompt(guidanceStatus);
+      if (guidanceStatus.matchedFragments.length > 0) {
+        this.logger.debug(
+          `8-K guidance extract dla ${payload.symbol}: ` +
+            `affirms=${guidanceStatus.hasAffirmation} (adj=${guidanceStatus.affirmsAdjusted}) ` +
+            `lowers=${guidanceStatus.hasLowering} (gaap_only=${guidanceStatus.lowersGaapOnly}) ` +
+            `raises=${guidanceStatus.hasRaising} withdraws=${guidanceStatus.hasWithdrawal}`,
+        );
+      }
+
+      const prompt = promptBuilder(
+        payload.symbol,
+        companyName,
+        itemText,
+        mainItem,
+        signalProfile,
+        guidanceFactsBlock,
+      );
 
       // Wyślij do GPT
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
@@ -159,6 +187,22 @@ export class Form8kPipeline {
           );
           return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
         }
+      }
+
+      // S19-FIX-02: post-GPT conviction floor enforcement gdy filing zawiera
+      // affirmation guidance + brak niezależnego lowering/withdrawal poza GAAP-only.
+      // HUM 29.04 case: affirmsAdjusted=true, lowersGaapOnly=true → floor -0.3.
+      // GPT mimo "Confirmed facts" w prompcie potrafi nadal zwrócić bear conviction
+      // (training drift na bear vocab managed care — 'MLR', 'guidance', 'EPS decline').
+      // Floor jest deterministycznym dolnym limitem — happy path bez zmian (tylko
+      // negative conviction poniżej -0.3 jest capowany do -0.3).
+      if (shouldEnforceConvictionFloor(guidanceStatus) && analysis.conviction < -0.3) {
+        this.logger.warn(
+          `8-K guidance floor dla ${payload.symbol} Item ${mainItem}: ` +
+            `affirmation detected (adj=${guidanceStatus.affirmsAdjusted}, lowers_gaap_only=${guidanceStatus.lowersGaapOnly}), ` +
+            `conviction ${analysis.conviction.toFixed(2)} → -0.30`,
+        );
+        analysis.conviction = -0.3;
       }
 
       // Safety net: korekcja znaku conviction na podstawie price_impact.direction
@@ -539,3 +583,39 @@ export class Form8kPipeline {
     return !!(await this.alertRepo.findOne({ where }));
   }
 }
+
+/**
+ * S19-FIX-02: format extracted guidance status jako structured block do GPT prompt.
+ * Zwraca null gdy zero matches (prompt nie dostaje sekcji "Confirmed facts" w ogóle).
+ */
+function formatGuidanceFactsForPrompt(status: GuidanceStatus): string | null {
+  if (status.matchedFragments.length === 0) return null;
+
+  const lines: string[] = [];
+  if (status.affirmsAdjusted) {
+    lines.push('- guidance_status: AFFIRMED_ADJUSTED — full-year Adjusted/non-GAAP guidance was reaffirmed by management.');
+    lines.push('  → Constraint: conviction must NOT be more negative than -0.3. Adjusted affirmation in managed care typically signals operational continuity, not bear catalyst.');
+  } else if (status.hasAffirmation) {
+    lines.push('- guidance_status: AFFIRMED — guidance was reaffirmed by management (qualifier unclear).');
+    lines.push('  → Constraint: conviction must NOT be more negative than -0.3 unless explicit lowering also detected.');
+  }
+  if (status.lowersGaapOnly && !status.hasLowering) {
+    lines.push('- gaap_change: LOWERED_GAAP_ONLY — GAAP guidance was lowered, but Adjusted/non-GAAP was NOT lowered. GAAP changes are typically non-cash (impairments, one-time items) and should NOT drive bearish conviction in managed care.');
+  } else if (status.hasLowering) {
+    lines.push('- guidance_status: LOWERED — guidance reduction detected (not GAAP-only).');
+  }
+  if (status.hasRaising) {
+    lines.push('- guidance_status: RAISED — guidance increase detected.');
+  }
+  if (status.hasWithdrawal) {
+    lines.push('- guidance_status: WITHDRAWN — guidance was withdrawn/suspended. Strong bearish signal regardless of other factors.');
+  }
+  lines.push('');
+  lines.push('Matched text fragments:');
+  for (const frag of status.matchedFragments) {
+    lines.push(`  • ${frag}`);
+  }
+  return lines.join('\n');
+}
+
+export { formatGuidanceFactsForPrompt };
