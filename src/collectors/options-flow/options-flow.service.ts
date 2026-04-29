@@ -36,6 +36,33 @@ const RATE_LIMIT_MS = 12_500;
 const POLYGON_FETCH_TIMEOUT_MS = 30_000;
 
 /**
+ * S19-FIX-04 (29.04.2026): outer cycle budget. Per-request timeout 30s
+ * (Sprint 16b FIX-04 d78a92f) zatrzymuje pojedyncze zawieszone fetche,
+ * ALE nie ogranicza całego cyklu który jest sekwencyjny:
+ *   42 tickers × (2 head requests + ~50 contracts × 1 fetchPrevBar) = 2184 requests
+ *   2184 × (12.5s rate limit + 5-30s fetch) = 7-25h cycle (potwierdzone:
+ *   17.04 11h25min, 29.04 11h36min — ten sam bug, dwa razy).
+ *
+ * Budget 6h: zostawia margines na rate limit retry (60s pauses) ale gwarantuje
+ * że cycle nigdy nie zachodzi na następny CRON slot (16:30 ET = 21:30 CEST,
+ * następny dzień 16:30 ET = 21:30 CEST → 24h gap). 6h budget = max 1 cycle/dzień,
+ * brak nakładania się na siebie.
+ */
+const OPTIONS_FLOW_CYCLE_BUDGET_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * S19-FIX-04: cap na liczbę kontraktów per ticker. Polygon zwraca do 250
+ * kontraktów per underlying, po filterContracts (DTE≤60, OTM≤30%) typowo
+ * zostaje 30-150. Worst-case: MRNA 200 contracts × 12.5s = 41 minut na sam
+ * jeden ticker. Cap 50 = max 11 minut per ticker, 42 tickers × 11min = 7.7h
+ * theoretical worst case (z 30s fetches), ale typowo 4-5h. Wybór 50 bo:
+ * - 95th percentile filteredCount w prod logach = ~70
+ * - top-50 kontraktów po implied liquidity (po sortowaniu desc by underlyingDistance)
+ *   pokrywa najbardziej tradeable strikes
+ */
+const MAX_CONTRACTS_PER_TICKER = 50;
+
+/**
  * Kolektor options flow z Polygon.io (Free Tier, EOD).
  *
  * Strategia: 1 globalny scan po sesji NYSE (CRON 22:15 UTC):
@@ -81,15 +108,59 @@ export class OptionsFlowService extends BaseCollectorService {
     const sessionDate = this.getLastTradingDay(today);
     let totalNew = 0;
 
-    for (const ticker of tickers) {
-      try {
-        const count = await this.collectForSymbol(ticker.symbol, sessionDate, today);
-        totalNew += count;
-      } catch (error) {
-        this.logger.warn(
-          `Błąd options-flow dla ${ticker.symbol}: ${error instanceof Error ? error.message : error}`,
-        );
+    // S19-FIX-04: outer cycle budget. Per-request timeout (30s) nie ogranicza
+    // całego sekwencyjnego cyklu — bez tego budgetu cycle trwa 11h+ w produkcji.
+    const cycleAbort = new AbortController();
+    const startedAt = Date.now();
+    const budgetTimer = setTimeout(() => {
+      this.logger.warn(
+        `OPTIONS_FLOW cycle budget exceeded (${OPTIONS_FLOW_CYCLE_BUDGET_MS}ms) — aborting pending fetches`,
+      );
+      cycleAbort.abort();
+    }, OPTIONS_FLOW_CYCLE_BUDGET_MS);
+
+    let processed = 0;
+    let aborted = false;
+
+    try {
+      for (const ticker of tickers) {
+        if (cycleAbort.signal.aborted) {
+          aborted = true;
+          this.logger.warn(
+            `OPTIONS_FLOW cycle aborted: ${processed}/${tickers.length} tickers processed, ` +
+              `elapsed=${Date.now() - startedAt}ms, totalNew=${totalNew}`,
+          );
+          break;
+        }
+        try {
+          const count = await this.collectForSymbol(
+            ticker.symbol,
+            sessionDate,
+            today,
+            cycleAbort.signal,
+          );
+          totalNew += count;
+          processed++;
+        } catch (error) {
+          // AbortError z cycle budget bubble'uje tu (per-ticker try/catch)
+          if (cycleAbort.signal.aborted) {
+            aborted = true;
+            break;
+          }
+          this.logger.warn(
+            `Błąd options-flow dla ${ticker.symbol}: ${error instanceof Error ? error.message : error}`,
+          );
+        }
       }
+    } finally {
+      clearTimeout(budgetTimer);
+    }
+
+    if (!aborted) {
+      this.logger.log(
+        `OPTIONS_FLOW cycle done: ${processed}/${tickers.length} tickers, totalNew=${totalNew}, ` +
+          `elapsed=${Date.now() - startedAt}ms`,
+      );
     }
 
     return totalNew;
@@ -102,27 +173,32 @@ export class OptionsFlowService extends BaseCollectorService {
     symbol: string,
     sessionDate: string,
     today: Date,
+    cycleSignal?: AbortSignal,
   ): Promise<number> {
     // 1. Pobierz cenę underlying (z ostatniego agg)
-    const underlyingPrice = await this.getUnderlyingPrice(symbol);
+    const underlyingPrice = await this.getUnderlyingPrice(symbol, cycleSignal);
     if (!underlyingPrice) return 0;
 
     // 2. Pobierz listę aktywnych kontraktów
-    const contracts = await this.fetchContracts(symbol);
+    const contracts = await this.fetchContracts(symbol, cycleSignal);
     if (!contracts || contracts.length === 0) return 0;
 
-    // 3. Filtruj po DTE i OTM distance
-    const filtered = filterContracts(contracts, underlyingPrice, today);
+    // 3. Filtruj po DTE i OTM distance + S19-FIX-04 cap (max 50 contracts/ticker)
+    const allFiltered = filterContracts(contracts, underlyingPrice, today);
+    const filtered = allFiltered.slice(0, MAX_CONTRACTS_PER_TICKER);
     this.logger.debug(
-      `${symbol}: ${contracts.length} kontraktów → ${filtered.length} po filtrze`,
+      `${symbol}: ${contracts.length} kontraktów → ${allFiltered.length} po filtrze` +
+        (filtered.length < allFiltered.length ? ` → ${filtered.length} (cap)` : ''),
     );
 
     let newFlows = 0;
 
     for (const contract of filtered) {
+      // S19-FIX-04: abort check przed każdym contract — break inner loop gdy cycle budget exceeded
+      if (cycleSignal?.aborted) break;
       try {
         // 4. Pobierz EOD bar
-        const bar = await this.fetchPrevBar(contract.ticker);
+        const bar = await this.fetchPrevBar(contract.ticker, cycleSignal);
         if (!bar || bar.v <= 0) continue;
 
         // 5. Pobierz/stwórz baseline
@@ -219,16 +295,28 @@ export class OptionsFlowService extends BaseCollectorService {
   }
 
   /**
+   * Łączy per-fetch timeout (30s) z cycle budget signal (6h).
+   * AbortSignal.any (Node 18+) — pierwszy abort wygrywa.
+   */
+  private buildFetchSignal(cycleSignal?: AbortSignal): AbortSignal {
+    const fetchTimeout = AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS);
+    return cycleSignal ? AbortSignal.any([fetchTimeout, cycleSignal]) : fetchTimeout;
+  }
+
+  /**
    * Pobiera listę aktywnych kontraktów opcyjnych per ticker.
    */
-  private async fetchContracts(symbol: string): Promise<OptionsContract[]> {
-    await this.delay(RATE_LIMIT_MS);
+  private async fetchContracts(
+    symbol: string,
+    cycleSignal?: AbortSignal,
+  ): Promise<OptionsContract[]> {
+    await this.delay(RATE_LIMIT_MS, cycleSignal);
     const url = `${POLYGON_BASE}/v3/reference/options/contracts?underlying_ticker=${symbol}&expired=false&limit=250&apiKey=${this.apiKey}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
+    const res = await fetch(url, { signal: this.buildFetchSignal(cycleSignal) });
 
     if (res.status === 429) {
       this.logger.warn('Polygon rate limit — czekam 60s');
-      await this.delay(60_000);
+      await this.delay(60_000, cycleSignal);
       return [];
     }
     if (!res.ok) {
@@ -242,14 +330,17 @@ export class OptionsFlowService extends BaseCollectorService {
   /**
    * Pobiera EOD bar (previous day) dla kontraktu opcyjnego.
    */
-  private async fetchPrevBar(occSymbol: string): Promise<DailyBar | null> {
-    await this.delay(RATE_LIMIT_MS);
+  private async fetchPrevBar(
+    occSymbol: string,
+    cycleSignal?: AbortSignal,
+  ): Promise<DailyBar | null> {
+    await this.delay(RATE_LIMIT_MS, cycleSignal);
     const url = `${POLYGON_BASE}/v2/aggs/ticker/${occSymbol}/prev?apiKey=${this.apiKey}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
+    const res = await fetch(url, { signal: this.buildFetchSignal(cycleSignal) });
 
     if (res.status === 429) {
       this.logger.warn('Polygon rate limit — czekam 60s');
-      await this.delay(60_000);
+      await this.delay(60_000, cycleSignal);
       return null;
     }
     if (!res.ok) return null;
@@ -261,10 +352,13 @@ export class OptionsFlowService extends BaseCollectorService {
   /**
    * Pobiera cenę underlying z /prev aggregate.
    */
-  private async getUnderlyingPrice(symbol: string): Promise<number | null> {
-    await this.delay(RATE_LIMIT_MS);
+  private async getUnderlyingPrice(
+    symbol: string,
+    cycleSignal?: AbortSignal,
+  ): Promise<number | null> {
+    await this.delay(RATE_LIMIT_MS, cycleSignal);
     const url = `${POLYGON_BASE}/v2/aggs/ticker/${symbol}/prev?apiKey=${this.apiKey}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
+    const res = await fetch(url, { signal: this.buildFetchSignal(cycleSignal) });
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -357,7 +451,27 @@ export class OptionsFlowService extends BaseCollectorService {
     return totalUpdated;
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  /**
+   * S19-FIX-04: delay z abort support. Bez tego cycle abort musiałby
+   * czekać pełne 12.5s × pozostałe iteracje zanim inner-loop check'ł by
+   * `cycleSignal.aborted`. Z signal: natychmiastowy cancel + reject =
+   * try/catch w pętli wybija się, abort propaguje do outer loop.
+   */
+  private delay(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('AbortError: cycle budget exceeded'));
+        return;
+      }
+      const t = setTimeout(() => resolve(), ms);
+      signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(t);
+          reject(new Error('AbortError: cycle budget exceeded'));
+        },
+        { once: true },
+      );
+    });
   }
 }
