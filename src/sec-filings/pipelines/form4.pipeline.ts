@@ -216,6 +216,23 @@ export class Form4Pipeline {
 
       // Pobierz ticker info
       const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
+
+      // S19-FIX-03: observation gate PRZED GPT call.
+      // Form4 prompt ma hardcoded "SECTOR: Healthcare" + healthcare conviction
+      // calibration. Dla semi tickers (Sprint 17 obs mode: AMAT/ASML/MU/etc.)
+      // GPT dostaje błędną semantykę sektora, a CorrelationService.storeSignal
+      // (linia ~467) i tak by zapisał sygnał do Redis bezwarunkowo —
+      // INSIDER_PLUS_OPTIONS / INSIDER_PLUS_8K mogłyby zbudować pattern
+      // na brudnym signal. Skip oszczędza GPT cost + zapobiega zanieczyszczeniu
+      // korelacji.
+      if (ticker?.observationOnly === true) {
+        this.logger.debug(
+          `Form4 observation skip: ${payload.symbol} (sector=${ticker.sector ?? 'unknown'}) — ` +
+            `bez GPT, bez correlation signal`,
+        );
+        return { action: 'SKIP_OBSERVATION_TICKER', symbol: payload.symbol, traceId: payload.traceId };
+      }
+
       const companyName = ticker?.name ?? payload.symbol;
 
       // Pobierz historię transakcji (30 dni) tego samego tickera
@@ -406,7 +423,8 @@ export class Form4Pipeline {
             traceId: payload.traceId,
             parentTraceId: payload.parentTraceId,
             message,
-            isObservationTicker: ticker?.observationOnly === true,
+            // S19-FIX-03: isObservationTicker pominięte — observation tickers
+            // skipowane w tickerRepo gate na początku onInsiderTrade (return SKIP_OBSERVATION_TICKER).
             isSellNoEdge: !isBuy,
           })
         : buildDispatcherUnavailableFallback({ ticker: payload.symbol, ruleName: rule.name, traceId: payload.traceId });

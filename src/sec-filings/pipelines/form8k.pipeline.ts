@@ -97,16 +97,30 @@ export class Form8kPipeline {
         return { action: 'SKIP_ALREADY_ANALYZED', symbol: payload.symbol, traceId: payload.traceId };
       }
 
-      // Pobierz tekst filingu z SEC EDGAR
+      // S19-FIX-03: observation gate PRZED HTTP fetch / GPT call.
+      // Wszystkie 4 prompty 8-K mają hardcoded "SECTOR: Healthcare" + healthcare-specific
+      // instructions ("MLR above 90% for managed care = severe bearish"). Dla semi
+      // tickers (AMAT/ASML/MU/etc., Sprint 17 obs mode) prompt podaje GPT błędną
+      // semantykę sektora, conviction jest niewalidowany, a sygnał i tak by trafił
+      // do CorrelationService.storeSignal (linia ~280) i mógł zasilić
+      // INSIDER_PLUS_8K pattern. Brudne dane w Redis + zbędny GPT cost.
+      // Skip TUŻ po check'u "already analyzed" — przed fetchFilingText (HTTP) i GPT call.
+      const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
+      if (ticker?.observationOnly === true) {
+        this.logger.debug(
+          `8-K observation skip: ${payload.symbol} (sector=${ticker.sector ?? 'unknown'}) — ` +
+            `bez fetchFilingText, bez GPT, bez correlation signal`,
+        );
+        return { action: 'SKIP_OBSERVATION_TICKER', symbol: payload.symbol, traceId: payload.traceId };
+      }
+      const companyName = ticker?.name ?? payload.symbol;
+
+      // Pobierz tekst filingu z SEC EDGAR (po skip — observation tickers nie konsumują HTTP fetch)
       const filingText = await this.fetchFilingText(filing.documentUrl);
       if (!filingText || filingText.length < 100) {
         this.logger.debug(`8-K ${payload.symbol}: tekst za krótki (${filingText?.length ?? 0} znaków)`);
         return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol, traceId: payload.traceId };
       }
-
-      // Pobierz ticker info
-      const ticker = await this.tickerRepo.findOne({ where: { symbol: payload.symbol } });
-      const companyName = ticker?.name ?? payload.symbol;
 
       // Wykryj Items w 8-K
       const items = detectItems(filingText);
@@ -262,7 +276,8 @@ export class Form8kPipeline {
               ruleName,
               traceId: payload.traceId,
               message,
-              isObservationTicker: ticker?.observationOnly === true,
+              // S19-FIX-03: isObservationTicker pominięte — observation tickers
+              // skipowane w tickerRepo gate przed fetchFilingText (SKIP_OBSERVATION_TICKER).
               isGptMissingData: true,
             })
           : buildDispatcherUnavailableFallback({
@@ -342,7 +357,8 @@ export class Form8kPipeline {
             ruleName: rule.name,
             traceId: payload.traceId,
             message,
-            isObservationTicker: ticker?.observationOnly === true,
+            // S19-FIX-03: isObservationTicker pominięte — observation tickers
+            // skipowane w tickerRepo gate przed fetchFilingText (SKIP_OBSERVATION_TICKER).
           })
         : buildDispatcherUnavailableFallback({ ticker: payload.symbol, ruleName: rule.name, traceId: payload.traceId });
 
