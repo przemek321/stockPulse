@@ -85,7 +85,7 @@ describe('Agent: SEC Filings — detectItems()', () => {
 });
 
 // ══════════════════════════════════════════════
-// extractItemText() — wyciąganie sekcji + MAX_TEXT_LENGTH=8000
+// extractItemText() — wyciąganie sekcji + MAX_TEXT_LENGTH=50 000 (S19-FIX-02c)
 // ══════════════════════════════════════════════
 
 describe('Agent: SEC Filings — extractItemText()', () => {
@@ -102,10 +102,11 @@ describe('Agent: SEC Filings — extractItemText()', () => {
     expect(result).toContain('Some filing text');
   });
 
-  it('truncate do 8000 znaków (MAX_TEXT_LENGTH)', () => {
-    const longText = 'Item 2.02 ' + 'A'.repeat(10000);
+  it('truncate do 50 000 znaków (MAX_TEXT_LENGTH, S19-FIX-02c — bumped z 8k)', () => {
+    const longText = 'Item 2.02 ' + 'A'.repeat(60_000);
     const result = extractItemText(longText, '2.02');
-    expect(result.length).toBeLessThanOrEqual(8000);
+    expect(result.length).toBeLessThanOrEqual(50_000);
+    expect(result.length).toBeGreaterThan(8_000);
   });
 
   it('strip HTML przed truncation', () => {

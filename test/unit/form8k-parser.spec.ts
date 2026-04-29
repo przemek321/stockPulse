@@ -75,10 +75,11 @@ describe('Form 8-K Parser', () => {
       expect(result).toContain('resigned as CEO');
     });
 
-    it('ogranicza tekst do 8000 znaków', () => {
-      const longText = 'Item 2.02 ' + 'x'.repeat(10000);
+    it('ogranicza tekst do MAX_TEXT_LENGTH (50 000 znaków, S19-FIX-02c)', () => {
+      const longText = 'Item 2.02 ' + 'x'.repeat(60_000);
       const result = extractItemText(longText, '2.02');
-      expect(result.length).toBeLessThanOrEqual(8000);
+      expect(result.length).toBeLessThanOrEqual(50_000);
+      expect(result.length).toBeGreaterThan(8_000); // wcześniej obcinał do 8k, teraz 50k
     });
 
     it('zwraca cały tekst (stripHtml) gdy Item nie znaleziony', () => {

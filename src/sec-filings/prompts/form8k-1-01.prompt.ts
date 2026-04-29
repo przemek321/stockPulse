@@ -11,7 +11,7 @@ COMPANY: ${companyName} (${ticker})
 SECTOR: Healthcare
 
 FILING TEXT:
-${text.slice(0, 8000)}
+${text.slice(0, 50_000)}
 
 Focus on extracting:
 1. Contract value (total, annual, or milestone-based)

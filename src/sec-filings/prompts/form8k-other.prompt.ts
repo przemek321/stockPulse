@@ -17,7 +17,7 @@ COMPANY: ${companyName} (${ticker})
 SECTOR: Healthcare
 
 FILING TEXT:
-${text.slice(0, 8000)}
+${text.slice(0, 50_000)}
 
 This is an open-ended material event. Assess it freely.
 

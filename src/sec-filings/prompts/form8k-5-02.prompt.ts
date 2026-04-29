@@ -11,7 +11,7 @@ COMPANY: ${companyName} (${ticker})
 SECTOR: Healthcare
 
 FILING TEXT:
-${text.slice(0, 8000)}
+${text.slice(0, 50_000)}
 
 Focus on:
 1. Who is departing and who is arriving (CEO, CFO, or other)

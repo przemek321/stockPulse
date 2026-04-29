@@ -10,8 +10,19 @@ import { buildForm8k202Prompt } from '../prompts/form8k-2-02.prompt';
 import { buildForm8k502Prompt } from '../prompts/form8k-5-02.prompt';
 import { buildForm8kOtherPrompt } from '../prompts/form8k-other.prompt';
 
-/** Maksymalna długość tekstu wysyłanego do GPT */
-const MAX_TEXT_LENGTH = 8000;
+/**
+ * Maksymalna długość tekstu wysyłanego do GPT.
+ *
+ * S19-FIX-02c (29.04.2026): podniesione z 8 000 do 50 000.
+ * Stary limit pochodzil z ery GPT-3.5/4 (4-8k context) i obcinal 50-75% Item
+ * 2.02 dla typowego earnings 8-K (15-30k chars). Claude Sonnet 4 ma 200k
+ * context window — 50k input ≈ 12.5k tokens, koszt ~$0.04 per filing
+ * (Sonnet $3/MTok). 95th percentile 8-K Item 2.02 mieści się w 50k.
+ *
+ * Edge case: M&A 8-K z dołączonym agreement może przekroczyć 50k — wtedy
+ * extractor nadal obcina ale model widzi cały merits + management discussion.
+ */
+const MAX_TEXT_LENGTH = 50_000;
 
 /**
  * Wykrywa numery Item w tekście 8-K.

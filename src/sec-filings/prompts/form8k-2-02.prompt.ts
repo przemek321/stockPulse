@@ -18,7 +18,7 @@ COMPANY: ${companyName} (${ticker})
 SECTOR: Healthcare
 
 FILING TEXT:
-${text.slice(0, 8000)}
+${text.slice(0, 50_000)}
 
 ${extractedFacts ? `## CONFIRMED FACTS (extracted deterministically — TRUST THESE OVER YOUR OWN INFERENCE FROM THE TEXT):\n${extractedFacts}\n\n` : ''}Focus on extracting:
 1. EPS: reported vs analyst consensus (if mentioned)
