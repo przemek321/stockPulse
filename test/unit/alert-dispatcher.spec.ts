@@ -72,6 +72,43 @@ describe('AlertDispatcherService.dispatch — suppression priority', () => {
     expect(result.action).toBe('ALERT_DB_ONLY_SELL_NO_EDGE');
   });
 
+  it('gpt_missing_data wygrywa nad sell_no_edge/csuite/cluster/silent/daily (S19-FIX-01)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isGptMissingData: true,
+      isSellNoEdge: true,
+      isCsuiteSellObservation: true,
+      isClusterSellObservation: true,
+      isSilent: true,
+    });
+    expect(result.suppressedBy).toBe('gpt_missing_data');
+    expect(result.action).toBe('ALERT_DB_ONLY_GPT_MISSING_DATA');
+    expect(result.channel).toBe('db_only');
+    expect(result.delivered).toBe(false);
+  });
+
+  it('observation wygrywa nad gpt_missing_data', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isObservationTicker: true,
+      isGptMissingData: true,
+    });
+    expect(result.suppressedBy).toBe('observation');
+  });
+
+  it('gpt_missing_data wygrywa nad daily_limit (gate by-blokował)', async () => {
+    const { dispatcher, gate } = buildDispatcher();
+    gate.allowed = false;
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isGptMissingData: true,
+    });
+    expect(result.suppressedBy).toBe('gpt_missing_data');
+    expect(result.action).toBe('ALERT_DB_ONLY_GPT_MISSING_DATA');
+  });
+
   it('csuite_sell_no_edge wygrywa nad cluster/silent/daily', async () => {
     const { dispatcher } = buildDispatcher();
     const result = await dispatcher.dispatch({

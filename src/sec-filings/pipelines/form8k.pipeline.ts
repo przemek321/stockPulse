@@ -17,6 +17,7 @@ import {
   stripHtml,
 } from '../parsers/form8k.parser';
 import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysis';
+import { detectMissingDataFacts } from '../utils/missing-data-detector';
 import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
@@ -175,6 +176,81 @@ export class Form8kPipeline {
             `conviction ${analysis.conviction} → ${-analysis.conviction} (direction=positive)`,
         );
         analysis.conviction = -analysis.conviction;
+      }
+
+      // S19-FIX-01: post-GPT missing-data guard.
+      // HUM 29.04.2026 trigger case: GPT zwrócił key_facts z 'niedostępne'/'brak danych'
+      // ale conviction=-1.6, magnitude=high, confidence=0.82, requires_immediate_attention=true
+      // → CRITICAL na Telegram na halucynacji. Faktycznie HUM affirmed FY guidance + beat EPS.
+      // Guard: jeśli LLM sam zadeklarował brak danych w key_facts → cap conviction do 0.3,
+      // bypass scoring, alert do DB only z nonDeliveryReason='gpt_missing_data'.
+      // Correlation signal pomijamy defensywnie — halucynacja nie zasila Redis.
+      const missingDataFacts = detectMissingDataFacts(analysis.key_facts);
+      if (missingDataFacts.length > 0) {
+        const cappedConviction = Math.max(-0.3, Math.min(0.3, analysis.conviction));
+        this.logger.warn(
+          `8-K GPT missing-data flag dla ${payload.symbol}: ` +
+            `${missingDataFacts.length}/${analysis.key_facts.length} fact(s) zadeklarowało brak danych ` +
+            `(conviction ${analysis.conviction.toFixed(2)} → ${cappedConviction.toFixed(2)})`,
+        );
+        analysis.conviction = cappedConviction;
+        filing.gptAnalysis = analysis;
+        filing.priceImpactDirection = analysis.price_impact.direction;
+        await this.filingRepo.save(filing);
+
+        const ruleName = mapToRuleName(analysis, '8-K');
+        const message = this.formatter.formatForm8kGptAlert({
+          symbol: payload.symbol,
+          companyName,
+          itemNumber: mainItem,
+          analysis,
+          priority: 'MEDIUM',
+        });
+
+        const dispatchResult = this.dispatcher
+          ? await this.dispatcher.dispatch({
+              ticker: payload.symbol,
+              ruleName,
+              traceId: payload.traceId,
+              message,
+              isObservationTicker: ticker?.observationOnly === true,
+              isGptMissingData: true,
+            })
+          : buildDispatcherUnavailableFallback({
+              ticker: payload.symbol,
+              ruleName,
+              traceId: payload.traceId,
+            });
+
+        let priceAtAlert: number | undefined;
+        try {
+          if (this.finnhub) {
+            priceAtAlert = (await this.finnhub.getQuote(payload.symbol)) ?? undefined;
+          }
+        } catch { /* noop */ }
+
+        try {
+          await this.alertRepo.save(
+            this.alertRepo.create({
+              symbol: payload.symbol,
+              ruleName,
+              priority: 'MEDIUM',
+              channel: 'TELEGRAM',
+              message,
+              delivered: dispatchResult.delivered,
+              nonDeliveryReason: dispatchResult.suppressedBy,
+              catalystType: analysis.catalyst_type,
+              alertDirection: analysis.price_impact.direction === 'neutral'
+                ? (analysis.conviction >= 0 ? 'positive' : 'negative')
+                : analysis.price_impact.direction,
+              priceAtAlert,
+            }),
+          );
+        } catch (err) {
+          this.logger.error(`Failed to save 8-K missing-data alert for ${payload.symbol}: ${err.message}`);
+        }
+
+        return { action: dispatchResult.action, symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Zapisz wynik do bazy

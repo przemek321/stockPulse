@@ -136,7 +136,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
 
   it('wszystkie znane suppressed reasons mapują się na PL etykiety', async () => {
     const { scheduler, telegram } = buildScheduler({
-      alertsByRule: [{ rule: 'R', count: '8', delivered: '0' }],
+      alertsByRule: [{ rule: 'R', count: '9', delivered: '0' }],
       reasons: [
         { reason: 'observation', count: '1' },
         { reason: 'sell_no_edge', count: '1' },
@@ -146,6 +146,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
         { reason: 'daily_limit', count: '1' },
         { reason: 'telegram_failed', count: '1' },
         { reason: 'dispatcher_unavailable', count: '1' },
+        { reason: 'gpt_missing_data', count: '1' },
       ],
       trades: [],
     });
@@ -163,5 +164,6 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
     expect(plain).toContain('Dzienny limit');
     expect(plain).toContain('Telegram failed');
     expect(plain).toContain('Dispatcher niedostępny');
+    expect(plain).toContain('GPT brak danych');
   });
 });

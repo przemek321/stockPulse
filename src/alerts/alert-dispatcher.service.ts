@@ -9,11 +9,12 @@ import { Logged } from '../common/decorators/logged.decorator';
  *
  * Priorytet suppression (najbardziej-specific wygrywa):
  *   1. isObservationTicker  — semi supply chain / healthcare observation mode
- *   2. isSellNoEdge         — Sprint 17 Form4 SELL (V4 backtest: zero edge)
- *   3. isCsuiteSellObservation — Sprint 16b Form4 C-suite SELL
- *   4. isClusterSellObservation — Sprint 15 Correlation INSIDER_CLUSTER SELL
- *   5. isSilent             — silent rule (reserved, po cleanup SILENT_RULES brak)
- *   6. dailyLimitHit        — AlertDeliveryGate shared limit (chyba że bypassDailyLimit)
+ *   2. isGptMissingData     — S19-FIX-01: GPT zadeklarował brak danych w key_facts (HUM 29.04 case)
+ *   3. isSellNoEdge         — Sprint 17 Form4 SELL (V4 backtest: zero edge)
+ *   4. isCsuiteSellObservation — Sprint 16b Form4 C-suite SELL
+ *   5. isClusterSellObservation — Sprint 15 Correlation INSIDER_CLUSTER SELL
+ *   6. isSilent             — silent rule (reserved, po cleanup SILENT_RULES brak)
+ *   7. dailyLimitHit        — AlertDeliveryGate shared limit (chyba że bypassDailyLimit)
  */
 export interface DispatchParams {
   ticker: string;
@@ -23,6 +24,7 @@ export interface DispatchParams {
   message: string;
 
   isObservationTicker?: boolean;
+  isGptMissingData?: boolean;
   isSellNoEdge?: boolean;
   isCsuiteSellObservation?: boolean;
   isClusterSellObservation?: boolean;
@@ -103,6 +105,8 @@ export class AlertDispatcherService {
 
     if (params.isObservationTicker) {
       suppressedBy = 'observation';
+    } else if (params.isGptMissingData) {
+      suppressedBy = 'gpt_missing_data';
     } else if (params.isSellNoEdge) {
       suppressedBy = 'sell_no_edge';
     } else if (params.isCsuiteSellObservation) {

@@ -143,6 +143,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     daily_limit: 'Dzienny limit',
     telegram_failed: 'Telegram failed',
     dispatcher_unavailable: 'Dispatcher niedostępny',
+    gpt_missing_data: 'GPT brak danych',
   };
 
   /**

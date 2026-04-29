@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "incident": "HUM 8-K Item 2.02 false positive — GPT halucynacja na fragmencie filingu",
+    "alertId": 2381,
+    "filingId": 1822,
+    "sentAt": "2026-04-29T10:35:12.645Z",
+    "decisionReason": "ALERT_SENT_TELEGRAM",
+    "actualOutcome": "Humana affirmed FY2026 Adjusted guidance, BEAT EPS $10.31 vs $9.97 consensus, MLR 89.4% w line z own guidance",
+    "rootCause": "GPT eksplicytnie zadeklarował brak danych w 2 z 4 key_facts ('niedostępne'/'brak'), ale i tak zwrócił conviction=-1.6 (skrajny tail) i requires_immediate_attention=true. Pipeline nie miał guardu na tę logiczną sprzeczność.",
+    "fix": "S19-FIX-01 — Post-GPT missing data guard: jeśli key_facts matchuje /(niedostępn|brak (szczegółowych|danych)|unknown|nie wiadomo|insufficient|nie podano|nie ujawniono)/i → cap |conviction| ≤ 0.3 + nonDeliveryReason='gpt_missing_data'."
+  },
+  "filing": {
+    "id": 1822,
+    "symbol": "HUM",
+    "formType": "8-K",
+    "accessionNumber": "0000049071-26-000021",
+    "filingDate": "2026-04-29",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/49071/000004907126000021/hum-20260429.htm"
+  },
+  "gptAnalysis": {
+    "summary": "Humana odnotowała znaczący miss EPS z powodu gwałtownego wzrostu wskaźnika MLR i obniżyła całoroczne prognozy finansowe.",
+    "key_facts": [
+      "EPS raportowany poniżej konsensusu analityków — dokładne liczby niedostępne w przesłanym tekście",
+      "Przychód: brak szczegółowych danych liczbowych w przesłanym fragmencie filing",
+      "Guidance całoroczna: obniżona — kluczowy negatywny katalizator",
+      "MLR: podwyższony powyżej oczekiwań, prawdopodobnie przekraczający 89-90% — krytyczny sygnał niedźwiedzi dla segmentu Medicare Advantage"
+    ],
+    "conclusion": "Silna presja spadkowa na cenę akcji HUM spodziewana natychmiast po publikacji wyników — podwyższony MLR przekraczający poziomy akceptowalne (powyżej 89-90%) w połączeniu z cięciem guidance to sygnał skrajnie niedźwiedzi dla spółek managed care. Inwestorzy mogą oczekiwać korekty rzędu kilkunastu procent.",
+    "conviction": -1.6,
+    "price_impact": {
+      "direction": "negative",
+      "magnitude": "high",
+      "confidence": 0.82,
+      "time_horizon": "immediate"
+    },
+    "catalyst_type": "earnings",
+    "requires_immediate_attention": true
+  }
+}
