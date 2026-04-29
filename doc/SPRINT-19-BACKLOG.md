@@ -4,6 +4,45 @@
 > Items zebrane z: cheatsheet "Sprint 18+ research", TASKS-2026-04-22 odrzucone
 > opcje, post-Sprint audyt FOLLOW-*, plan-observability-tier1 Tier 2.
 
+---
+
+## ✅ DONE 29.04.2026 — P0 fixes po HUM/UNH false positives
+
+Pojedyncza sesja (5 commitów + 1 docs) po dwóch incydentach (UNH 27.04 21:05
+correlated false CRITICAL, HUM 29.04 10:35 GPT halucynacja earnings miss).
+
+| FIX | Commit | Zakres | Test count |
+|---|---|---|---|
+| FIX-01 | `1dded97` | Post-GPT missing-data guard w Form8kPipeline (cap conviction \|0.3\|, dispatch z `gpt_missing_data`, skip correlation signal) | +16 |
+| FIX-02 | `3a3c5ad` | Pre-LLM Affirms keyword extraction + post-GPT conviction floor -0.3 dla affirmation-mode filings | +22 |
+| FIX-02b | `9af8567` | Naprawa hardcoded `"requires_immediate_attention": true` w 8-K Item 2.02 prompt → `false` + decision rule | +7 |
+| docs | `98db615` | Korekta błędnej diagnozy w komentarzach FIX-02 (root cause = `extractItemText`, nie slice) | 0 |
+| FIX-02c | `f36e203` | Bump filing text limit 8 000 → 50 000 chars (4 prompty + parser MAX_TEXT_LENGTH); ~$0.04/filing input cost | 0 (test asserts updated) |
+| FIX-03 | `b7ca9aa` | Observation ticker skip PRZED GPT call w Form4Pipeline + Form8kPipeline; zamyka brudny correlation signal dla 14 semi tickers | +4 |
+
+**Cumulative**: 375/375 unit pass, tsc clean, 5 deploy clean w 1 sesji, 0 prod regressions.
+
+**Defense in depth (warstwy obrony przeciw HUM/UNH-class halucynacjom):**
+1. Prompt template (FIX-02b): zniknął strukturalny wymóg `true`
+2. Pre-LLM extraction (FIX-02): deterministyczne keywords podawane GPT jako facts
+3. Większy kontekst (FIX-02c): 6× więcej input do LLM → mniej zgadywania
+4. Post-GPT floor (FIX-02): cap halucynacji bear pomimo "Confirmed facts"
+5. Post-GPT missing-data guard (FIX-01): block self-contradicting alertów
+6. Observation gate przed LLM (FIX-03): semi tickers zero footprint w correlation
+
+**Pozostałe Sprint 19 P0/P1 do zrobienia (z planu HANDOFF-2026-04-23):**
+- FIX-04 — direction conflict guard w `triggerCorrelatedAlert` (UNH 27.04 mixed signal)
+- FIX-05 — pre-LLM EPS/Revenue/MLR numbers extraction
+- FIX-06 — Form4 sell_no_edge nie zasila `correlation.storeSignal` (UNH 27.04 backdoor)
+- FIX-07 — subsidiary executive detection (Conway "CEO, Optum" ≠ UNH parent CEO)
+- FIX-08 — managed care vertical (decyzja A obs mode 30d / B per-sector prompty)
+
+Pierwsze 6 fixów (FIX-01..03) zamknęły **HUM-class halucynacje**, **UNH-class
+brudne correlation signals dla semi**, oraz **prompt design errors**.
+FIX-04..08 zostają do następnych sesji.
+
+---
+
 ## Kategorie
 
 - **DEFERRED** — odłożone z poprzedniego sprintu (decyzja świadoma, Opcja B)
