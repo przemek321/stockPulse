@@ -142,9 +142,14 @@ export class Form8kPipeline {
       const itemText = extractItemText(filingText, mainItem);
 
       // S19-FIX-02: pre-LLM guidance keyword extraction.
-      // Skanujemy CAŁY filingText (nie obcięty itemText) — nagłówek release
-      // typu "Affirms Full Year 2026 Adjusted Financial Guidance" często ląduje
-      // na początku 8-K i nie zawsze pojawia się w extracted Item 2.02 fragment.
+      // Skanujemy CAŁY raw filingText (przed wycięciem do Item 2.02), bo
+      // `extractItemText(filingText, '2.02')` bierze sekcję OD pierwszego
+      // matcha "Item 2.02" do następnego Item — headline release (typowo
+      // cover page / intro w pierwszych 500-2000 znakach) jest PRZED tym
+      // matchem i przepada. HUM 29.04 case: "Affirms Full Year 2026 Adjusted
+      // Financial Guidance" w cover page → niewidoczny dla GPT po
+      // extractItemText. Skan całego filingText łapie headline niezależnie
+      // od pozycji "Item 2.02" w dokumencie.
       const guidanceStatus = extractGuidanceStatus(filingText);
       const guidanceFactsBlock = formatGuidanceFactsForPrompt(guidanceStatus);
       if (guidanceStatus.matchedFragments.length > 0) {

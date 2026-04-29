@@ -3,18 +3,24 @@
  * Raises / Withdraws guidance" z tekstu 8-K Item 2.02.
  *
  * Trigger case: HUM 8-K 29.04.2026 — release headline "Affirms Full Year 2026
- * Adjusted Financial Guidance" nie trafił do GPT prompt (prompt obcięty do 8000
- * znaków, nagłówek dropped). GPT zobaczył tylko YoY EPS decline + GAAP guidance
- * cut $8.89→$8.36 i wymyślił "guidance lowered" → bear conviction.
+ * Adjusted Financial Guidance" nie trafił do GPT prompt. Mechaniczna przyczyna:
+ * `extractItemText(filingText, '2.02')` w `form8k.parser.ts` szuka pierwszego
+ * matcha `/Item 2\.02/i` i bierze sekcję OD tej pozycji do następnego "Item
+ * X.XX" lub "SIGNATURES". Headline release (typowo cover page / intro w
+ * pierwszych 500-2000 znakach filingu) jest PRZED tym matchem, więc całkowicie
+ * pomijany przez extractor.
+ * `text.slice(0, 8000)` w prompt builderze bierze pierwsze 8000 znaków
+ * już-wyciętej sekcji Item 2.02 — nie obcina od tyłu i nie ma związku z
+ * gubieniem headline'u (slice działa od początku). GPT widział tylko Item 2.02
+ * body + appendix XBRL, bez headline z affirmation, więc zhalucynował
+ * "guidance lowered" → bear conviction.
  *
- * Fix: pre-extract z całego raw filing text deterministyczne keywords, podać
- * GPT jako structured `extractedFacts` block, oraz post-GPT enforce floor
- * conviction gdy `affirmsAdjusted=true` (no bear allowed niżej niż -0.3).
+ * Fix: skanujemy CAŁY raw `filingText` (przed wycięciem do Item 2.02), żeby
+ * złapać headline z cover page; deterministyczne keywords podajemy GPT jako
+ * structured `extractedFacts` block; post-GPT enforce floor conviction gdy
+ * `affirmsAdjusted=true` (no bear allowed niżej niż -0.3).
  *
  * Design notes:
- * - Skanujemy CAŁY filing text (nie obcięty 8000 char fragment) — nagłówek
- *   release często ląduje w pierwszych 200 znakach, ale text obcinany od tyłu
- *   może go wyciąć w rzadkich edge cases.
  * - Healthcare/managed care = adjusted-driven. `affirmsAdjusted` ma priorytet
  *   nad `hasLowering` jeśli oba match (HUM: lowers GAAP + affirms Adjusted →
  *   net signal = neutral/positive).
