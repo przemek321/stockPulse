@@ -48,6 +48,20 @@ CONVICTION SCALE (must match event significance — do NOT default to ±1.5):
 - 0.0: truly neutral, results exactly as expected
 Use the FULL range. Routine earnings with in-line results should be ±0.1-0.3.
 
+REQUIRES_IMMEDIATE_ATTENTION DECISION RULE (default: false):
+Set to TRUE only if ALL of the following hold:
+1. |conviction| >= 1.0
+2. price_impact.magnitude == "high"
+3. price_impact.confidence >= 0.7
+4. key_facts contain CONCRETE numbers (no "niedostępne", "brak danych", "unknown", "insufficient")
+Otherwise set to FALSE. Routine earnings, in-line results, mild beats/misses,
+or filings where critical numbers are missing/unclear → ALWAYS false.
+
+KEY_FACTS RULE: Only include facts that you can support with concrete numbers
+or explicit statements from the filing text. Do NOT speculate. If a metric
+(EPS, revenue, guidance, MLR) is not present in the filing text, OMIT that
+key_fact entirely — do NOT write "niedostępne" or "brak danych" as a fact.
+
 IMPORTANT: Write summary, conclusion, and key_facts in POLISH language.
 
 Respond with JSON only, no preamble:
@@ -63,6 +77,6 @@ Respond with JSON only, no preamble:
   "conclusion": "1-2 zdania po polsku: wpływ na cenę z kluczowymi liczbami",
   "key_facts": ["EPS raportowany vs szacunek", "przychód vs szacunek", "zmiana guidance", "MLR jeśli dotyczy"],
   "catalyst_type": "earnings",
-  "requires_immediate_attention": true
+  "requires_immediate_attention": false
 }`;
 }
