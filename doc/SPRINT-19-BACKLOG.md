@@ -6,12 +6,13 @@
 
 ---
 
-## ✅ DONE 29.04.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle
+## ✅ DONE 29-30.04.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit
 
-Pojedyncza sesja (8 commitów = 6 fixów + 2 docs) po trzech incydentach:
+Trzy sesje (9 commitów = 7 fixów + 2 docs) po czterech incydentach:
 UNH 27.04 21:05 correlated false CRITICAL, HUM 29.04 10:35 GPT halucynacja
 earnings miss, options-flow runCollectionCycle 11h 36min (29.04 — drugi raz
-po 17.04, mimo Sprint 16b FIX-04).
+po 17.04, mimo Sprint 16b FIX-04), oraz 4/4 alerty 29-30.04 (ABBV/CI/DXCM/AMGN)
+gpt_missing_data bo GPT widział wrapper bez liczb.
 
 | FIX | Commit | Zakres | Test count |
 |---|---|---|---|
@@ -23,8 +24,17 @@ po 17.04, mimo Sprint 16b FIX-04).
 | FIX-03 | `b7ca9aa` | Observation ticker skip PRZED GPT call w Form4Pipeline + Form8kPipeline; zamyka brudny correlation signal dla 14 semi tickers | +4 |
 | docs | `9c04729` | Aktualizacja CLAUDE.md + SPRINT-19-BACKLOG po pierwszej fali fixów | 0 |
 | FIX-04 | `05ade62` | Outer cycle budget 6h w OptionsFlowService (`AbortController` + `setTimeout`), `buildFetchSignal` łączy per-request timeout z cycle abort (Node 18+ `AbortSignal.any`), `delay(ms, signal?)` respektuje abort, cap 50 contracts/ticker — naprawia 11h+ zombie cycle z 17.04 + 29.04 | +10 |
+| FIX-10 | `13b56dd` | Fetch Exhibit 99.1 dla Item 2.02 (`fetchExhibit991()` z directory index.json, regex 10 naming variants, konkatenacja PRZED extractItemText/extractGuidanceStatus) — naprawia 4/4 false positive ABBV/CI/DXCM/AMGN gpt_missing_data | +21 |
 
-**Cumulative**: 385/385 unit pass, tsc clean, 6 deploy clean w 1 sesji, 0 prod regressions.
+**Cumulative**: 406/406 unit pass, tsc clean, 7 deploy clean, 0 prod regressions.
+
+**Earnings exhibit fetching (FIX-10):**
+- 8-K Item 2.02 to wrapper (~40KB) odsyłający do Exhibit 99.1 (200-300KB press release z liczbami)
+- Stary `fetchFilingText` szybką ścieżką (.htm endswith) skipowal index.json — exhibit nigdy nie pobierany
+- Helper `fetchExhibit991`: directory index.json → naming regex `/ex(hibit)?[-_]?99[-_.]?1\b/` lub `/ex(hibit)?991/` (10 wariantów: `abbv-...exhibit991.htm`, `ex991.htm`, `ex-99-1.htm`, `cmpny_ex991.htm`, etc.)
+- Integracja: po `detectItems` jeśli `'2.02' ∈ items` → konkatenacja `wrapper + '=== EXHIBIT 99.1 (PRESS RELEASE) ===' + exhibit` PRZED `extractItemText` i `extractGuidanceStatus` (FIX-02 keyword scan teraz widzi headline guidance z exhibit)
+- Failure path graceful: brak exhibit / HTTP error / krótki text → zostaje sam wrapper, missing-data guard FIX-01 nadal łapie
+- Filtering precision: regex wymaga prefiksu `ex`/`exhibit` — `abbv-20260429-991.htm` (mylące "991" bez prefix) NIE matchuje
 
 **Defense in depth — 8-K halucynacje (warstwy obrony przeciw HUM/UNH-class):**
 1. Prompt template (FIX-02b): zniknął strukturalny wymóg `true`
