@@ -116,7 +116,7 @@ export class Form8kPipeline {
       const companyName = ticker?.name ?? payload.symbol;
 
       // Pobierz tekst filingu z SEC EDGAR (po skip — observation tickers nie konsumują HTTP fetch)
-      const filingText = await this.fetchFilingText(filing.documentUrl);
+      let filingText = await this.fetchFilingText(filing.documentUrl);
       if (!filingText || filingText.length < 100) {
         this.logger.debug(`8-K ${payload.symbol}: tekst za krótki (${filingText?.length ?? 0} znaków)`);
         return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol, traceId: payload.traceId };
@@ -127,6 +127,28 @@ export class Form8kPipeline {
       if (items.length === 0) {
         this.logger.debug(`8-K ${payload.symbol}: brak rozpoznanych Items`);
         return { action: 'SKIP_NO_ITEMS', symbol: payload.symbol, traceId: payload.traceId };
+      }
+
+      // S19-FIX-10: Dla Item 2.02 (earnings) main 8-K to wrapper odsyłający do
+      // Exhibit 99.1 (press release z faktycznymi liczbami EPS/revenue/MLR/guidance).
+      // 4/4 alerty 29-30.04 (ABBV/CI/DXCM/AMGN) trafiły w gpt_missing_data guard
+      // właśnie dlatego — GPT widział wrapper bez liczb. Pobieramy exhibit z directory
+      // index.json i konkatenujemy z main body PRZED extractItemText/extractGuidanceStatus.
+      // Failure path (brak exhibit, HTTP error): zostaje sam wrapper — guard FIX-01 nadal
+      // zadziała, jeden niedostarczony alert vs łapanie liczb z exhibit.
+      if (items.includes('2.02')) {
+        const exhibit = await this.fetchExhibit991(filing.documentUrl);
+        if (exhibit && exhibit.length > 200) {
+          filingText = filingText + '\n\n=== EXHIBIT 99.1 (PRESS RELEASE) ===\n\n' + exhibit;
+          this.logger.debug(
+            `8-K Item 2.02 ${payload.symbol}: Exhibit 99.1 dołączony (+${exhibit.length} znaków)`,
+          );
+        } else {
+          this.logger.warn(
+            `8-K Item 2.02 ${payload.symbol}: brak Exhibit 99.1 (wrapper-only) — ` +
+              `GPT może zwrócić brak danych, missing-data guard złapie`,
+          );
+        }
       }
 
       // Sprint 16 FLAG #8 fix: Bankruptcy PRZED daily cap.
@@ -568,6 +590,71 @@ export class Form8kPipeline {
       return stripHtml(html);
     } catch (err) {
       this.logger.warn(`Błąd pobierania tekstu 8-K: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * S19-FIX-10: Pobiera Exhibit 99.1 (press release) dla 8-K Item 2.02.
+   *
+   * Main 8-K dla earnings to ~40KB wrapper z sekcją "Item 2.02 Results of
+   * Operations" odsyłającą do Exhibit 99.1 — faktyczne liczby (EPS, revenue,
+   * MLR, guidance) są w exhibit (200-300KB). Przez `fetchFilingText` szybką
+   * ścieżką (linia 521-523, .htm endswith) pomijaliśmy index.json i nie
+   * trafialiśmy do exhibit.
+   *
+   * Naming variants spotykane w SEC: `exhibit991.htm`, `ex991.htm`,
+   * `ex-99-1.htm`, `ex99-1.htm`, `abbv-20260331xexhibit991.htm`,
+   * `cmpny_ex991.htm`. Regex łapie wszystkie.
+   *
+   * Zwraca null gdy brak exhibit lub HTTP error → caller dołącza sam wrapper
+   * i polega na missing-data guard (FIX-01) jako fallback.
+   */
+  private async fetchExhibit991(documentUrl: string): Promise<string | null> {
+    let dirUrl: string;
+    const lower = documentUrl.toLowerCase();
+    if (lower.endsWith('.htm') || lower.endsWith('.html')) {
+      const lastSlash = documentUrl.lastIndexOf('/');
+      if (lastSlash < 0) return null;
+      dirUrl = documentUrl.substring(0, lastSlash);
+    } else {
+      dirUrl = documentUrl.replace(/\/$/, '');
+    }
+
+    try {
+      const indexRes = await fetch(`${dirUrl}/index.json`, {
+        headers: {
+          'User-Agent': this.userAgent,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!indexRes.ok) return null;
+
+      const indexData = await indexRes.json();
+      const items = indexData?.directory?.item;
+      if (!Array.isArray(items)) return null;
+
+      const exhibit = items.find((entry: any) => {
+        const name = (entry?.name ?? '').toLowerCase();
+        if (!name.endsWith('.htm') && !name.endsWith('.html')) return false;
+        // Match: ex(hibit)?[-_]?99[-_.]?1 — łapie ex991, ex-99-1, exhibit99.1, etc.
+        return /ex(hibit)?[-_]?99[-_.]?1\b/.test(name) || /ex(hibit)?991/.test(name);
+      });
+      if (!exhibit?.name) return null;
+
+      const docRes = await fetch(`${dirUrl}/${exhibit.name}`, {
+        headers: {
+          'User-Agent': this.userAgent,
+          Accept: 'text/html, text/plain',
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!docRes.ok) return null;
+      const html = await docRes.text();
+      return stripHtml(html);
+    } catch (err) {
+      this.logger.warn(`Błąd pobierania Exhibit 99.1: ${err.message}`);
       return null;
     }
   }
