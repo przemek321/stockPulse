@@ -468,9 +468,19 @@ export class Form4Pipeline {
           `conviction=${analysis.conviction.toFixed(2)}`,
       );
 
+      // S19-FIX-07 (02.05.2026): Form4 SELL z zero-edge gate'em (Sprint 17 V4 H2 d≈0)
+      // NIE zasila Redis Sorted Set. Backdoor wykryty 29.04+01.05: GILD CRITICAL Form4
+      // dispatched DB-only z `sell_no_edge` ale signal trafiał do correlation, zasilał
+      // INSIDER_PLUS_OPTIONS klaster i triggerował Correlated HIGH negative na Telegram.
+      // V5 backtest dowiódł zero edge dla SELL → signal nie powinien wpływać na pattern
+      // detection. BUY (delivered=true) zostaje w Redis bez zmian.
+      const isSellNoEdgeSuppressed =
+        dispatchResult.suppressedBy === 'sell_no_edge' ||
+        dispatchResult.suppressedBy === 'csuite_sell_no_edge';
+
       // Rejestruj sygnał w CorrelationService
       // Normalizacja conviction z [-2.0, +2.0] (GPT) → [-1.0, +1.0] (CorrelationService)
-      if (this.correlation) {
+      if (this.correlation && !isSellNoEdgeSuppressed) {
         try {
           const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {
@@ -487,6 +497,11 @@ export class Form4Pipeline {
         } catch (err) {
           this.logger.warn(`Correlation storeSignal error: ${err.message}`);
         }
+      } else if (this.correlation && isSellNoEdgeSuppressed) {
+        this.logger.debug(
+          `Form4 ${payload.symbol} ${dispatchResult.suppressedBy}: pomijam correlation.storeSignal ` +
+            `(V5 backtest zero edge dla SELL — nie zasilamy Redis żeby uniknąć INSIDER_PLUS_OPTIONS backdoor)`,
+        );
       }
 
       return { action: dispatchResult.action, symbol: payload.symbol, traceId: payload.traceId };

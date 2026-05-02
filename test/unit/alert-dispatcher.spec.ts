@@ -109,6 +109,53 @@ describe('AlertDispatcherService.dispatch — suppression priority', () => {
     expect(result.action).toBe('ALERT_DB_ONLY_GPT_MISSING_DATA');
   });
 
+  it('direction_conflict wygrywa nad sell_no_edge/csuite/cluster/silent/daily (S19-FIX-05)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isDirectionConflict: true,
+      isSellNoEdge: true,
+      isCsuiteSellObservation: true,
+      isClusterSellObservation: true,
+      isSilent: true,
+    });
+    expect(result.suppressedBy).toBe('direction_conflict');
+    expect(result.action).toBe('ALERT_DB_ONLY_DIRECTION_CONFLICT');
+    expect(result.channel).toBe('db_only');
+    expect(result.delivered).toBe(false);
+  });
+
+  it('observation wygrywa nad direction_conflict (priority order)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isObservationTicker: true,
+      isDirectionConflict: true,
+    });
+    expect(result.suppressedBy).toBe('observation');
+  });
+
+  it('gpt_missing_data wygrywa nad direction_conflict (priority order)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isGptMissingData: true,
+      isDirectionConflict: true,
+    });
+    expect(result.suppressedBy).toBe('gpt_missing_data');
+  });
+
+  it('direction_conflict wygrywa nad daily_limit (gate by-blokował)', async () => {
+    const { dispatcher, gate } = buildDispatcher();
+    gate.allowed = false;
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isDirectionConflict: true,
+    });
+    expect(result.suppressedBy).toBe('direction_conflict');
+    expect(result.action).toBe('ALERT_DB_ONLY_DIRECTION_CONFLICT');
+  });
+
   it('csuite_sell_no_edge wygrywa nad cluster/silent/daily', async () => {
     const { dispatcher } = buildDispatcher();
     const result = await dispatcher.dispatch({

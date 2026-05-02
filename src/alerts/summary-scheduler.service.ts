@@ -144,6 +144,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     telegram_failed: 'Telegram failed',
     dispatcher_unavailable: 'Dispatcher niedostępny',
     gpt_missing_data: 'GPT brak danych',
+    direction_conflict: 'Konflikt kierunków',
   };
 
   /**

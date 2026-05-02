@@ -82,6 +82,49 @@ export function hashPatternSet(patterns: DetectedPattern[]): string {
 }
 
 /**
+ * S19-FIX-05 (02.05.2026): wykrywa konflikt kierunków między signal categories.
+ *
+ * Trigger: 3× UNH false positive CRITICAL w 4 dni (29.04 00:14 + 22:58, 30.04 23:03).
+ * Wszystkie: 1× negative Form4 SELL (-0.20) + 4× positive options (+0.32..+0.53).
+ * `aggregateConviction` brał `strongest` (najwyższe abs) z najsilniejszej kategorii
+ * + boost — efekt: dominował options sum jako "positive", Form4 SELL maskowany.
+ * Tytuł "Insider + Unusual Options" mylący (sugeruje insider BUY + bullish opcje).
+ *
+ * Definicja konfliktu: net direction Form4 jest przeciwna do net direction Options
+ * lub 8-K. "Net direction" = znak sumy conviction w kategorii (próg `neutralThreshold`
+ * eliminuje przypadki gdzie net wyzeruje się — np. 1× +0.3 + 1× -0.3).
+ *
+ * Skip check: jeśli mamy <2 source categories, brak conflict z definicji.
+ * (INSIDER_CLUSTER ma tylko form4 — zostaje obsłużony przez własną logikę.)
+ */
+export function detectDirectionConflict(
+  signals: StoredSignal[],
+  neutralThreshold = 0.05,
+): boolean {
+  const netByCategory = new Map<string, number>();
+  for (const sig of signals) {
+    const sign = sig.direction === 'positive' ? 1 : -1;
+    const contribution = Math.abs(sig.conviction) * sign;
+    netByCategory.set(
+      sig.source_category,
+      (netByCategory.get(sig.source_category) ?? 0) + contribution,
+    );
+  }
+  if (netByCategory.size < 2) return false;
+
+  const directions: Array<'positive' | 'negative'> = [];
+  for (const sum of netByCategory.values()) {
+    if (Math.abs(sum) < neutralThreshold) continue; // neutral nie wprowadza konfliktu
+    directions.push(sum > 0 ? 'positive' : 'negative');
+  }
+  if (directions.length < 2) return false;
+
+  const hasPositive = directions.includes('positive');
+  const hasNegative = directions.includes('negative');
+  return hasPositive && hasNegative;
+}
+
+/**
  * Decyzja: czy pominąć wyzwalanie alertów bo zbiór patternów nie zmienił się
  * od ostatniego runa. Czysta funkcja dla testowalności.
  */
@@ -558,6 +601,13 @@ export class CorrelationService implements OnModuleDestroy {
     const isClusterSellObservation =
       pattern.type === 'INSIDER_CLUSTER' && pattern.direction === 'negative';
 
+    // S19-FIX-05: konflikt kierunków między source categories → DB only.
+    // UNH 29.04+30.04 case: 1× Form4 SELL -0.20 + 4× options +0.32..+0.53 →
+    // aggregateConviction zwraca +0.7 (positive dominanta) → "Insider + Unusual
+    // Options" CRITICAL positive z mylącym tytułem (sugeruje insider BUY).
+    // Net direction Form4 jest negative, options positive → konflikt.
+    const isDirectionConflict = detectDirectionConflict(pattern.signals);
+
     // Deduplikacja: sprawdź czy ten wzorzec nie był już alertowany
     const dedupKey = `fired:${ticker}:${pattern.type}`;
     const alreadyFired = await this.redis.get(dedupKey);
@@ -585,6 +635,7 @@ export class CorrelationService implements OnModuleDestroy {
     // TASK-01: centralized dispatch via AlertDispatcherService.
     // Sprint 15: INSIDER_CLUSTER SELL → observation (backtest p=0.204 zero edge).
     // Sprint 17: semi supply chain tickery (observationOnly=true) → observation.
+    // S19-FIX-05: direction conflict (Form4 vs Options/8-K) → DB only.
     const dispatchResult = this.dispatcher
       ? await this.dispatcher.dispatch({
           ticker,
@@ -592,6 +643,7 @@ export class CorrelationService implements OnModuleDestroy {
           message,
           isObservationTicker: isTickerObservation,
           isClusterSellObservation,
+          isDirectionConflict,
         })
       : buildDispatcherUnavailableFallback({ ticker, ruleName: 'Correlated Signal' });
 
