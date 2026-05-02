@@ -6,13 +6,16 @@
 
 ---
 
-## ✅ DONE 29-30.04.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit
+## ✅ DONE 29.04-02.05.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit + correlation backdoors
 
-Trzy sesje (9 commitów = 7 fixów + 2 docs) po czterech incydentach:
+Cztery sesje (10 commitów = 8 fixów + 2 docs) po pięciu incydentach:
 UNH 27.04 21:05 correlated false CRITICAL, HUM 29.04 10:35 GPT halucynacja
 earnings miss, options-flow runCollectionCycle 11h 36min (29.04 — drugi raz
-po 17.04, mimo Sprint 16b FIX-04), oraz 4/4 alerty 29-30.04 (ABBV/CI/DXCM/AMGN)
-gpt_missing_data bo GPT widział wrapper bez liczb.
+po 17.04, mimo Sprint 16b FIX-04), 4/4 alerty 29-30.04 (ABBV/CI/DXCM/AMGN)
+gpt_missing_data bo GPT widział wrapper bez liczb, oraz **3× UNH false positive
+CRITICAL w 4 dni** (29.04 00:14 + 22:58, 30.04 23:03 — mixed signal aggregation
+maskował Form4 SELL) + GILD-class Form4 SELL "blokowany" w UI ale aktywny w
+Redis (29.04 22:05 + 01.05 00:40 → INSIDER_PLUS_OPTIONS Telegram).
 
 | FIX | Commit | Zakres | Test count |
 |---|---|---|---|
@@ -25,8 +28,9 @@ gpt_missing_data bo GPT widział wrapper bez liczb.
 | docs | `9c04729` | Aktualizacja CLAUDE.md + SPRINT-19-BACKLOG po pierwszej fali fixów | 0 |
 | FIX-04 | `05ade62` | Outer cycle budget 6h w OptionsFlowService (`AbortController` + `setTimeout`), `buildFetchSignal` łączy per-request timeout z cycle abort (Node 18+ `AbortSignal.any`), `delay(ms, signal?)` respektuje abort, cap 50 contracts/ticker — naprawia 11h+ zombie cycle z 17.04 + 29.04 | +10 |
 | FIX-10 | `13b56dd` | Fetch Exhibit 99.1 dla Item 2.02 (`fetchExhibit991()` z directory index.json, regex 10 naming variants, konkatenacja PRZED extractItemText/extractGuidanceStatus) — naprawia 4/4 false positive ABBV/CI/DXCM/AMGN gpt_missing_data | +21 |
+| FIX-05 + FIX-07 | `3dbc8c4` | **FIX-05**: pure `detectDirectionConflict(signals, threshold=0.05)` w `correlation.service.ts`, integracja w `triggerCorrelatedAlert` po dedup, AlertDispatcher priority order (slot po `gpt_missing_data`), SummaryScheduler PL label "Konflikt kierunków" — naprawia 3× UNH false positive CRITICAL. **FIX-07**: w Form4Pipeline po `dispatcher.dispatch` jeśli `suppressedBy === 'sell_no_edge' \|\| 'csuite_sell_no_edge'` → SKIP `correlation.storeSignal` + `schedulePatternCheck` — naprawia GILD-class backdoor. | +22 |
 
-**Cumulative**: 406/406 unit pass, tsc clean, 7 deploy clean, 0 prod regressions.
+**Cumulative**: 428/428 unit pass, tsc clean, 8 deploy clean, 0 prod regressions.
 
 **Earnings exhibit fetching (FIX-10):**
 - 8-K Item 2.02 to wrapper (~40KB) odsyłający do Exhibit 99.1 (200-300KB press release z liczbami)
@@ -51,17 +55,22 @@ gpt_missing_data bo GPT widział wrapper bez liczb.
 - Cap 50 contracts/ticker: worst case MRNA z 200 contracts × 12.5s = 41 min/ticker → 50 = max 11 min/ticker, 42 tickers × 11min = 7.7h theoretical upper bound (z fetch timeouts), typowo 4-5h
 - Telemetria: `cycle done: N/total tickers, elapsed=Xms` (success) / `cycle aborted: N/total tickers processed, elapsed=Xms` (budget exceeded)
 
-**Pozostałe Sprint 19 P0/P1 do zrobienia (z planu HANDOFF-2026-04-23):**
-- FIX-05 — direction conflict guard w `triggerCorrelatedAlert` (UNH 27.04 mixed signal: 1× negative form4 + 10× positive options → "positive" CRITICAL mimo opisu "Insider SELL + bullish options")
-- FIX-06 — pre-LLM EPS/Revenue/MLR numbers extraction (per filing structured input do GPT)
-- FIX-07 — Form4 sell_no_edge nie zasila `correlation.storeSignal` (UNH 27.04 backdoor: Form 4 dispatched DB-only ale signal nadal w Redis → INSIDER_PLUS_OPTIONS triggered)
+**Correlation hardening (FIX-05 + FIX-07, 02.05.2026):**
+- **FIX-05 direction conflict guard**: Pure function `detectDirectionConflict(signals, neutralThreshold=0.05)` — liczy `netByCategory: Map<source_category, sum(|conviction| × signedDirection)>`, kategoria z `|sum| < threshold` neutralna (eliminuje samo-anulujące się wewnątrz kategorii), konflikt = ≥1 positive net + ≥1 negative net w ≥2 categories. Próg 0.05 zgodny z `MIN_CONVICTION` (sygnał poniżej nie trafiłby do Redis). Wywołane w `triggerCorrelatedAlert` po dedup check, przed dispatch — `isDirectionConflict` flaga w `dispatcher.dispatch`. AlertDispatcher: priority slot po `gpt_missing_data`, przed `sell_no_edge` → `suppressedBy='direction_conflict'`. SummaryScheduler PL label "Konflikt kierunków". UNH replay (1× form4 -0.20 + 4× options +0.32..+0.53) → CONFLICT → DB only zamiast CRITICAL Telegram. Trade-off: stracimy "true mixed signal" gdzie obie strony są real (np. CFO podatki SELL + analyst upgrade options) — to feature: brak edge gdy znoszą się, lepiej DB only niż mylący CRITICAL.
+- **FIX-07 Form4 sell_no_edge correlation backdoor**: Po `dispatcher.dispatch` w `Form4Pipeline.onInsiderTrade` sprawdzamy `dispatchResult.suppressedBy === 'sell_no_edge' || === 'csuite_sell_no_edge'` → SKIP `correlation.storeSignal` + `schedulePatternCheck`. V5 backtest dowiódł zero edge dla SELL → sygnał nie powinien wpływać na pattern detection. BUY (delivered=true lub `daily_limit` suppression — Telegram throttle, nie semantyka edge'u) zostaje w Redis bez zmian (V5 C-suite BUY 7d d=+0.92 ✓✓✓). Eliminuje GILD-class niewidoczną ścieżkę: Form4 alert "blokowany" w UI, ale signal aktywny → INSIDER_PLUS_OPTIONS klaster → Correlated HIGH negative na Telegram 5-30 min później.
+
+**Pozostałe Sprint 19 P0/P1 do zrobienia (z planu 02.05.2026):**
+- FIX-06 — pre-LLM EPS/Revenue/MLR numbers extraction (per filing structured input do GPT, conditional na FIX-11 diagnozie)
 - FIX-08 — subsidiary executive detection (Conway "CEO, Optum" ≠ UNH parent CEO; conviction multiplier ×0.5)
 - FIX-09 — managed care vertical (decyzja A obs mode 30d / B per-sector prompty po 7-tickerowym klastrze UNH/HUM/MOH/CNC/ELV/CI/CVS)
+- FIX-11 — MRNA-class GPT ignoring delivered Exhibit 99.1 (logi 01.05 13:35: exhibit dołączony +18 915 znaków, GPT i tak zwrócił "1/2 facts brak danych" + "exhibit nie został udostępniony"). Diagnoza: marker `=== EXHIBIT 99.1 (PRESS RELEASE) ===` za słaby / stripHtml niszczy tabele / extractItemText 50k cap obciął exhibit. Defense in depth (FIX-01) cap'uje conviction do 0 — guard zadziałał, alert DB-only. Ale tracimy real earnings signals dla case'ów gdzie LLM się gubi.
 
-Pierwsze 6 fixów (FIX-01..04) zamknęły **HUM-class halucynacje**, **UNH-class
-brudne correlation signals dla semi**, **prompt design errors**, oraz
-**options-flow zombie cycle** który był otwarty od 17.04. Pozostałe FIX-05..09
-zostają do następnych sesji.
+Pierwsze 8 fixów (FIX-01..05/07/10) zamknęły **HUM-class halucynacje**,
+**UNH-class brudne correlation signals dla semi**, **3× UNH-class direction
+conflict mixed signal CRITICAL**, **GILD-class Form4 sell_no_edge backdoor
+do correlation**, **prompt design errors**, **8-K wrapper-only bez liczb**,
+oraz **options-flow zombie cycle** który był otwarty od 17.04. Pozostałe
+FIX-06/08/09/11 zostają do następnych sesji.
 
 ---
 
