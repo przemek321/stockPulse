@@ -49,3 +49,18 @@ NUL
 
 # Azure API (osobne repo)
 azure-api/
+
+# Backtest re-run artefakty (V4/V5 data files — generated, nie commitowane)
+scripts/backtest/data/cik_map.json
+scripts/backtest/data/form4_transactions*.csv
+scripts/backtest/data/prices/
+scripts/backtest/data/results/backtest_v2_summary.txt
+scripts/backtest/data/results/survivorship_check.json
+scripts/backtest/data/results/survivorship_v2.json
+scripts/backtest/data/survivorship_cache/
+scripts/backtest/*.log
+
+# Polymarket experimental probes (pre-Sprint 18, nie część projektu)
+polymarket-*.json
+polymarket-*.sh
+polymarket-*.txt
