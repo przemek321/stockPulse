@@ -6,9 +6,9 @@
 
 ---
 
-## ✅ DONE 29.04-02.05.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit + correlation backdoors
+## ✅ DONE 29.04-04.05.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit + correlation backdoors + extractItemText boundary bug
 
-Cztery sesje (10 commitów = 8 fixów + 2 docs) po pięciu incydentach:
+Pięć sesji (12 commitów = 9 fixów + 3 docs) po sześciu incydentach:
 UNH 27.04 21:05 correlated false CRITICAL, HUM 29.04 10:35 GPT halucynacja
 earnings miss, options-flow runCollectionCycle 11h 36min (29.04 — drugi raz
 po 17.04, mimo Sprint 16b FIX-04), 4/4 alerty 29-30.04 (ABBV/CI/DXCM/AMGN)
@@ -29,8 +29,9 @@ Redis (29.04 22:05 + 01.05 00:40 → INSIDER_PLUS_OPTIONS Telegram).
 | FIX-04 | `05ade62` | Outer cycle budget 6h w OptionsFlowService (`AbortController` + `setTimeout`), `buildFetchSignal` łączy per-request timeout z cycle abort (Node 18+ `AbortSignal.any`), `delay(ms, signal?)` respektuje abort, cap 50 contracts/ticker — naprawia 11h+ zombie cycle z 17.04 + 29.04 | +10 |
 | FIX-10 | `13b56dd` | Fetch Exhibit 99.1 dla Item 2.02 (`fetchExhibit991()` z directory index.json, regex 10 naming variants, konkatenacja PRZED extractItemText/extractGuidanceStatus) — naprawia 4/4 false positive ABBV/CI/DXCM/AMGN gpt_missing_data | +21 |
 | FIX-05 + FIX-07 | `3dbc8c4` | **FIX-05**: pure `detectDirectionConflict(signals, threshold=0.05)` w `correlation.service.ts`, integracja w `triggerCorrelatedAlert` po dedup, AlertDispatcher priority order (slot po `gpt_missing_data`), SummaryScheduler PL label "Konflikt kierunków" — naprawia 3× UNH false positive CRITICAL. **FIX-07**: w Form4Pipeline po `dispatcher.dispatch` jeśli `suppressedBy === 'sell_no_edge' \|\| 'csuite_sell_no_edge'` → SKIP `correlation.storeSignal` + `schedulePatternCheck` — naprawia GILD-class backdoor. | +22 |
+| FIX-10b | _pending_ | **extractItemText boundary bug w FIX-10**: `extractItemText(filingText, '2.02')` szuka pierwszego "Item X.XX" jako koniec sekcji — gdy wrapper ma `Item 9.01 Financial Statements and Exhibits` (typowy 2.02), exhibit dołączony do `filingText` na końcu jest **WYCIĘTY** zanim trafi do prompta. MRNA replay 04.05 (filingId=1875) potwierdził: exhibit pobrany +18915 znaków, Sonnet i tak zwracał `conviction=0, direction=neutral, "exhibit niedostępny"`. Fix: pobierz `exhibit99` osobno, `itemText = (extractItemText(filingText, mainItem) + separator + exhibit99).slice(0, MAX_TEXT_LENGTH)`; `extractGuidanceStatus(filingText + exhibit99)` żeby keyword scan widział "Reiterates guidance" z press release. Validation MRNA replay po fix: conviction `0 → 0.7`, direction `neutral → positive`, summary z `$389 mln revenue (+260% YoY) / EPS -$3.40 / guidance utrzymany`. | +4 |
 
-**Cumulative**: 428/428 unit pass, tsc clean, 8 deploy clean, 0 prod regressions.
+**Cumulative**: 432/432 unit pass, tsc clean, 9 deploy clean, 0 prod regressions.
 
 **Earnings exhibit fetching (FIX-10):**
 - 8-K Item 2.02 to wrapper (~40KB) odsyłający do Exhibit 99.1 (200-300KB press release z liczbami)
@@ -60,17 +61,18 @@ Redis (29.04 22:05 + 01.05 00:40 → INSIDER_PLUS_OPTIONS Telegram).
 - **FIX-07 Form4 sell_no_edge correlation backdoor**: Po `dispatcher.dispatch` w `Form4Pipeline.onInsiderTrade` sprawdzamy `dispatchResult.suppressedBy === 'sell_no_edge' || === 'csuite_sell_no_edge'` → SKIP `correlation.storeSignal` + `schedulePatternCheck`. V5 backtest dowiódł zero edge dla SELL → sygnał nie powinien wpływać na pattern detection. BUY (delivered=true lub `daily_limit` suppression — Telegram throttle, nie semantyka edge'u) zostaje w Redis bez zmian (V5 C-suite BUY 7d d=+0.92 ✓✓✓). Eliminuje GILD-class niewidoczną ścieżkę: Form4 alert "blokowany" w UI, ale signal aktywny → INSIDER_PLUS_OPTIONS klaster → Correlated HIGH negative na Telegram 5-30 min później.
 
 **Pozostałe Sprint 19 P0/P1 do zrobienia (z planu 02.05.2026):**
-- FIX-06 — pre-LLM EPS/Revenue/MLR numbers extraction (per filing structured input do GPT, conditional na FIX-11 diagnozie)
+- FIX-06 — pre-LLM EPS/Revenue/MLR numbers extraction (per filing structured input do GPT). **Status**: po FIX-10b już mniej krytyczne — exhibit dostarcza pełne liczby do Sonneta, post-FIX-10b MRNA validation pokazała 8/8 specific facts w analizie. Ewentualnie jako defense in depth dla edge case'ów gdzie exhibit ma format niestandardowy.
 - FIX-08 — subsidiary executive detection (Conway "CEO, Optum" ≠ UNH parent CEO; conviction multiplier ×0.5)
 - FIX-09 — managed care vertical (decyzja A obs mode 30d / B per-sector prompty po 7-tickerowym klastrze UNH/HUM/MOH/CNC/ELV/CI/CVS)
-- FIX-11 — MRNA-class GPT ignoring delivered Exhibit 99.1 (logi 01.05 13:35: exhibit dołączony +18 915 znaków, GPT i tak zwrócił "1/2 facts brak danych" + "exhibit nie został udostępniony"). Diagnoza: marker `=== EXHIBIT 99.1 (PRESS RELEASE) ===` za słaby / stripHtml niszczy tabele / extractItemText 50k cap obciął exhibit. Defense in depth (FIX-01) cap'uje conviction do 0 — guard zadziałał, alert DB-only. Ale tracimy real earnings signals dla case'ów gdzie LLM się gubi.
+- ~~FIX-11 — MRNA-class GPT ignoring delivered Exhibit 99.1~~ **MIS-DIAGNOSED, zamknięte przez FIX-10b**. Diagnostic 04.05 ujawnił że to NIE była halucynacja LLM — `extractItemText` boundary bug obcinał exhibit zanim trafiał do prompta. Sonnet zachowywał się poprawnie ("brak danych" gdy faktycznie ich nie miał). Cross-pipeline check: Form 4 GPT 0/21 halucynacji direction w 30d → eliminuje Anthropic-wide bias. Decyzja: nie ma "MRNA halucynacja bug", jest deterministic input bug naprawiony przez FIX-10b.
 
-Pierwsze 8 fixów (FIX-01..05/07/10) zamknęły **HUM-class halucynacje**,
+Dziewięć fixów (FIX-01..05/07/10/10b) zamknęło **HUM-class halucynacje**,
 **UNH-class brudne correlation signals dla semi**, **3× UNH-class direction
 conflict mixed signal CRITICAL**, **GILD-class Form4 sell_no_edge backdoor
 do correlation**, **prompt design errors**, **8-K wrapper-only bez liczb**,
-oraz **options-flow zombie cycle** który był otwarty od 17.04. Pozostałe
-FIX-06/08/09/11 zostają do następnych sesji.
+**MRNA-class extractItemText boundary bug obcinający exhibit**, oraz
+**options-flow zombie cycle** który był otwarty od 17.04. Pozostałe
+FIX-06/08/09 zostają do następnych sesji (FIX-06 deprioritized po FIX-10b).
 
 ---
 

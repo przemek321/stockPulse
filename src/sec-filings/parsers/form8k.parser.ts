@@ -22,7 +22,7 @@ import { buildForm8kOtherPrompt } from '../prompts/form8k-other.prompt';
  * Edge case: M&A 8-K z dołączonym agreement może przekroczyć 50k — wtedy
  * extractor nadal obcina ale model widzi cały merits + management discussion.
  */
-const MAX_TEXT_LENGTH = 50_000;
+export const MAX_TEXT_LENGTH = 50_000;
 
 /**
  * Wykrywa numery Item w tekście 8-K.

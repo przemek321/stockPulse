@@ -344,10 +344,13 @@ describe('Form8kPipeline — exhibit integration into onFiling (S19-FIX-10)', ()
 
   it('Items 2.02 + 9.01 (multi-item filing) → exhibit fetch wywołane', async () => {
     const wrapperText = 'Item 2.02 Results of Operations. Item 9.01 Financial Statements and Exhibits. ' + 'Lorem ipsum '.repeat(20);
-    const { pipeline, exhibitSpy } = buildMocks({
+    const exhibitText =
+      'AbbVie reports Q1 2026 EPS of $1.50, beating consensus of $1.42. ' +
+      'Net revenues totaled $13.5 billion. Full-year 2026 Adjusted EPS guidance reaffirmed at $12.10-$12.30. '.repeat(3);
+    const { pipeline, mocks, exhibitSpy } = buildMocks({
       filingText: wrapperText,
       items: ['2.02', '9.01'],
-      exhibitText: 'EPS $1.50 beat',
+      exhibitText,
     });
 
     await pipeline.onFiling({
@@ -357,6 +360,110 @@ describe('Form8kPipeline — exhibit integration into onFiling (S19-FIX-10)', ()
     });
 
     expect(exhibitSpy).toHaveBeenCalled();
+    // S19-FIX-10b: extractItemText(filingText, '2.02') obcina sekcję na pierwszym
+    // boundary "Item 9.01" — bez fix exhibit dołączony do filingText na końcu jest
+    // WYCIĘTY zanim trafi do prompta. MRNA replay 04.05 (filingId=1875) pokazał
+    // że Sonnet dostaje sam wrapper i raportuje "exhibit niedostępny" mimo że
+    // pobrany +18915 znaków. Fix: doklej exhibit do `itemText` PO extractItemText.
+    expect(mocks.lastPrompt).toBeDefined();
+    expect(mocks.lastPrompt).toContain('EXHIBIT 99.1 (PRESS RELEASE)');
+    expect(mocks.lastPrompt).toContain('EPS of $1.50');
+    expect(mocks.lastPrompt).toContain('beating consensus');
+  });
+
+  it('FIX-10b: wrapper z Item 9.01 PRZED Item 2.02 (boundary po) → exhibit content trafia do prompta', async () => {
+    // Realistyczny scenariusz: 8-K listuje items w innej kolejności w body niż header.
+    // extractItemText szuka pierwszego "Item 2.02" → znajduje, potem szuka kolejnego
+    // "Item X.XX" → znajduje "Item 9.01" → odcina. Bez FIX-10b exhibit przepada.
+    const wrapperText =
+      'United States Securities Exchange Commission Form 8-K. ' +
+      'Item 2.02 Results of Operations and Financial Condition. On May 1, 2026, ' +
+      'Moderna Inc. issued a press release announcing financial results. The press release ' +
+      'is furnished as Exhibit 99.1 hereto. ' + 'Filler text. '.repeat(50) +
+      'Item 9.01 Financial Statements and Exhibits. (d) Exhibits. 99.1 Press Release dated May 1, 2026.';
+    const exhibitText =
+      'Moderna Reports First Quarter 2026 Financial Results. ' +
+      'Reports first quarter revenue of $0.4 billion. ' +
+      'Reports first quarter GAAP EPS of $(3.40). ' +
+      'Reiterates plan to deliver up to 10% revenue growth in 2026. '.repeat(2);
+    const { pipeline, mocks } = buildMocks({
+      filingText: wrapperText,
+      items: ['2.02', '9.01'],
+      exhibitText,
+    });
+
+    await pipeline.onFiling({ filingId: 200, symbol: 'ABBV', formType: '8-K' });
+
+    expect(mocks.lastPrompt).toBeDefined();
+    // KRYTYCZNE: exhibit content w prompt mimo że extractItemText obcięłoby na "Item 9.01"
+    expect(mocks.lastPrompt).toContain('EXHIBIT 99.1 (PRESS RELEASE)');
+    expect(mocks.lastPrompt).toContain('GAAP EPS of $(3.40)');
+    expect(mocks.lastPrompt).toContain('revenue of $0.4 billion');
+    expect(mocks.lastPrompt).toContain('Reiterates plan to deliver up to 10% revenue growth');
+  });
+
+  it('FIX-10b: wrapper + bardzo duży exhibit > MAX_TEXT_LENGTH → cap zachowany, headline z wrapper preserved', async () => {
+    // wrapper ~5KB + exhibit 60KB → itemText (z exhibit appended) > 50k → slice obcina ogon
+    const wrapperText =
+      'Item 2.02 Results of Operations. Headline: Q1 2026 record revenue. ' +
+      'Filler '.repeat(800);
+    const exhibitText =
+      'EPS $5.00 beat consensus. ' + 'Revenue grew 25% to $20B. '.repeat(2500); // ~62KB
+    const { pipeline, mocks } = buildMocks({
+      filingText: wrapperText,
+      items: ['2.02'],
+      exhibitText,
+    });
+
+    await pipeline.onFiling({ filingId: 200, symbol: 'ABBV', formType: '8-K' });
+
+    expect(mocks.lastPrompt).toBeDefined();
+    // Headline z extractItemText preserved (priorytet — pierwsze 50k itemText)
+    expect(mocks.lastPrompt).toContain('Item 2.02');
+    expect(mocks.lastPrompt).toContain('Q1 2026 record revenue');
+    // Separator widoczny — exhibit przynajmniej zaczyna się
+    expect(mocks.lastPrompt).toContain('EXHIBIT 99.1 (PRESS RELEASE)');
+    expect(mocks.lastPrompt).toContain('EPS $5.00 beat consensus');
+  });
+
+  it('FIX-10b: brak exhibit → itemText = pure extractItemText (no separator, no exhibit content)', async () => {
+    const wrapperText = 'Item 2.02 Results of Operations. See Exhibit 99.1. ' + 'Lorem ipsum '.repeat(20);
+    const { pipeline, mocks } = buildMocks({
+      filingText: wrapperText,
+      items: ['2.02'],
+      exhibitText: null,
+    });
+
+    await pipeline.onFiling({ filingId: 200, symbol: 'ABBV', formType: '8-K' });
+
+    expect(mocks.lastPrompt).toBeDefined();
+    expect(mocks.lastPrompt).not.toContain('=== EXHIBIT 99.1 (PRESS RELEASE) ===');
+    expect(mocks.lastPrompt).toContain('Item 2.02');
+  });
+
+  it('FIX-10b: extractGuidanceStatus widzi "Reiterates" z exhibit (nie tylko z wrapper)', async () => {
+    // Bez fix: guidanceStatus dostawał sam filingText (bez exhibit) → headline guidance
+    // tylko z wrapper. "Reiterates plan to deliver up to 10% revenue growth" jest
+    // w press release, NIE w wrapper. Bez FIX-10b extract pominie.
+    const wrapperText =
+      'Item 2.02 Results of Operations. Press release furnished as Exhibit 99.1. ' +
+      'Item 9.01. ' + 'Lorem '.repeat(50);
+    const exhibitText =
+      'Moderna Reports Q1 2026 Results. Revenue $0.4 billion. ' +
+      'Reiterates 2026 Adjusted EPS guidance of $1.50-$1.80, reaffirming full-year outlook. '.repeat(2) +
+      'Filler '.repeat(50);
+    const { pipeline, mocks } = buildMocks({
+      filingText: wrapperText,
+      items: ['2.02'],
+      exhibitText,
+    });
+
+    await pipeline.onFiling({ filingId: 200, symbol: 'ABBV', formType: '8-K' });
+
+    expect(mocks.lastPrompt).toBeDefined();
+    // formatGuidanceFactsForPrompt pokazuje "Reaffirms" gdy hasAffirmation=true.
+    // "Reiterates" matchuje na affirmationKeywords w extract-guidance-status.ts.
+    expect(mocks.lastPrompt).toMatch(/CONFIRMED FACTS|Reaffirms|Reiterates|affirmuje/i);
   });
 
   it('Exhibit krótki (<200 znaków) → traktowany jak brak (defensive)', async () => {

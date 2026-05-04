@@ -15,6 +15,7 @@ import {
   selectPromptBuilder,
   isBankruptcyItem,
   stripHtml,
+  MAX_TEXT_LENGTH,
 } from '../parsers/form8k.parser';
 import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysis';
 import { detectMissingDataFacts } from '../utils/missing-data-detector';
@@ -132,16 +133,24 @@ export class Form8kPipeline {
       // S19-FIX-10: Dla Item 2.02 (earnings) main 8-K to wrapper odsyłający do
       // Exhibit 99.1 (press release z faktycznymi liczbami EPS/revenue/MLR/guidance).
       // 4/4 alerty 29-30.04 (ABBV/CI/DXCM/AMGN) trafiły w gpt_missing_data guard
-      // właśnie dlatego — GPT widział wrapper bez liczb. Pobieramy exhibit z directory
-      // index.json i konkatenujemy z main body PRZED extractItemText/extractGuidanceStatus.
-      // Failure path (brak exhibit, HTTP error): zostaje sam wrapper — guard FIX-01 nadal
-      // zadziała, jeden niedostarczony alert vs łapanie liczb z exhibit.
+      // właśnie dlatego — GPT widział wrapper bez liczb.
+      //
+      // S19-FIX-10b (04.05.2026): exhibit pobieramy TUTAJ ale dołączamy do `itemText`
+      // PO `extractItemText` (linia 178). Wcześniejsza wersja konkatenowała
+      // do `filingText` przed extractItemText, ale extractItemText szuka boundary
+      // "Item X.XX" i gdy wrapper ma "Item 9.01 Financial Statements and Exhibits"
+      // (typowy Item 2.02), sekcja zostaje obcięta na Item 9.01 — exhibit dołączony
+      // na końcu filingText jest WYCIĘTY zanim trafi do prompta. MRNA replay 04.05
+      // potwierdził: exhibit pobrany +18915 znaków, ale Sonnet i tak zwracał
+      // "exhibit niedostępny". Failure path (brak exhibit, HTTP error): zostaje
+      // sam wrapper — guard FIX-01 nadal zadziała.
+      let exhibit99: string | null = null;
       if (items.includes('2.02')) {
-        const exhibit = await this.fetchExhibit991(filing.documentUrl);
-        if (exhibit && exhibit.length > 200) {
-          filingText = filingText + '\n\n=== EXHIBIT 99.1 (PRESS RELEASE) ===\n\n' + exhibit;
+        const fetched = await this.fetchExhibit991(filing.documentUrl);
+        if (fetched && fetched.length > 200) {
+          exhibit99 = fetched;
           this.logger.debug(
-            `8-K Item 2.02 ${payload.symbol}: Exhibit 99.1 dołączony (+${exhibit.length} znaków)`,
+            `8-K Item 2.02 ${payload.symbol}: Exhibit 99.1 pobrany (+${fetched.length} znaków)`,
           );
         } else {
           this.logger.warn(
@@ -175,7 +184,16 @@ export class Form8kPipeline {
       const signalProfile = await this.tickerProfile?.getSignalProfile(payload.symbol) ?? null;
 
       // Wyciągnij tekst sekcji i zbuduj prompt
-      const itemText = extractItemText(filingText, mainItem);
+      let itemText = extractItemText(filingText, mainItem);
+
+      // S19-FIX-10b: doklej Exhibit 99.1 do itemText PO extractItemText, żeby
+      // ominąć boundary "Item 9.01 Financial Statements and Exhibits" w wrapper.
+      // Cap na MAX_TEXT_LENGTH (50_000) — jeśli sumaryczny rozmiar przekracza,
+      // zachowujemy headline z extractItemText (priorytet) i ucinamy ogon exhibit.
+      if (exhibit99) {
+        const separator = '\n\n=== EXHIBIT 99.1 (PRESS RELEASE) ===\n\n';
+        itemText = (itemText + separator + exhibit99).slice(0, MAX_TEXT_LENGTH);
+      }
 
       // S19-FIX-02: pre-LLM guidance keyword extraction.
       // Skanujemy CAŁY raw filingText (przed wycięciem do Item 2.02), bo
@@ -186,7 +204,10 @@ export class Form8kPipeline {
       // Financial Guidance" w cover page → niewidoczny dla GPT po
       // extractItemText. Skan całego filingText łapie headline niezależnie
       // od pozycji "Item 2.02" w dokumencie.
-      const guidanceStatus = extractGuidanceStatus(filingText);
+      // FIX-10b: dla Item 2.02 dołączamy też exhibit99 (zawiera "Reiterates 10%
+      // revenue growth" i podobne sygnały guidance które są w press release).
+      const guidanceScanText = exhibit99 ? filingText + '\n\n' + exhibit99 : filingText;
+      const guidanceStatus = extractGuidanceStatus(guidanceScanText);
       const guidanceFactsBlock = formatGuidanceFactsForPrompt(guidanceStatus);
       if (guidanceStatus.matchedFragments.length > 0) {
         this.logger.debug(
