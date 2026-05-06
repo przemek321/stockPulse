@@ -156,6 +156,79 @@ describe('AlertDispatcherService.dispatch — suppression priority', () => {
     expect(result.action).toBe('ALERT_DB_ONLY_DIRECTION_CONFLICT');
   });
 
+  // S19-FIX-12 (06.05.2026): consensus gap priority order
+  it('isConsensusGap z reason "consensus_miss" → suppressedBy=consensus_miss (S19-FIX-12)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isConsensusGap: true,
+      consensusGapReason: 'consensus_miss',
+    });
+    expect(result.suppressedBy).toBe('consensus_miss');
+    expect(result.action).toBe('ALERT_DB_ONLY_CONSENSUS_MISS');
+    expect(result.channel).toBe('db_only');
+    expect(result.delivered).toBe(false);
+  });
+
+  it('isConsensusGap z reason "consensus_in_line" → ALERT_DB_ONLY_CONSENSUS_IN_LINE', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isConsensusGap: true,
+      consensusGapReason: 'consensus_in_line',
+    });
+    expect(result.suppressedBy).toBe('consensus_in_line');
+    expect(result.action).toBe('ALERT_DB_ONLY_CONSENSUS_IN_LINE');
+  });
+
+  it('isConsensusGap bez reason → fallback "consensus_gap"', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isConsensusGap: true,
+    });
+    expect(result.suppressedBy).toBe('consensus_gap');
+    expect(result.action).toBe('ALERT_DB_ONLY_CONSENSUS_GAP');
+  });
+
+  it('observation wygrywa nad consensus_gap (priority order)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isObservationTicker: true,
+      isConsensusGap: true,
+      consensusGapReason: 'consensus_miss',
+    });
+    expect(result.suppressedBy).toBe('observation');
+  });
+
+  it('gpt_missing_data wygrywa nad consensus_gap (priority order)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isGptMissingData: true,
+      isConsensusGap: true,
+      consensusGapReason: 'consensus_miss',
+    });
+    expect(result.suppressedBy).toBe('gpt_missing_data');
+  });
+
+  it('consensus_gap wygrywa nad direction_conflict / sell_no_edge / silent / daily', async () => {
+    const { dispatcher, gate } = buildDispatcher();
+    gate.allowed = false;
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isConsensusGap: true,
+      consensusGapReason: 'consensus_in_line',
+      isDirectionConflict: true,
+      isSellNoEdge: true,
+      isCsuiteSellObservation: true,
+      isClusterSellObservation: true,
+      isSilent: true,
+    });
+    expect(result.suppressedBy).toBe('consensus_in_line');
+  });
+
   it('csuite_sell_no_edge wygrywa nad cluster/silent/daily', async () => {
     const { dispatcher } = buildDispatcher();
     const result = await dispatcher.dispatch({

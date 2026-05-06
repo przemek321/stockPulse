@@ -75,3 +75,44 @@ describe('form8k 2.02 prompt — KEY_FACTS instruction (anti-halucynacja)', () =
     expect(prompt).toMatch(/do NOT write "niedostępne"/);
   });
 });
+
+describe('form8k 2.02 prompt — consensusBlock injection (S19-FIX-12)', () => {
+  const consensusSample = `## ANALYST CONSENSUS (pre-earnings)
+- EPS estimate: $1.22 → actual $1.42 (surprise: +16.4% **STRONG BEAT**)
+- Revenue estimate: $789.3M → actual $761.7M (surprise: -3.5% miss)`;
+
+  it('consensus block wstawiony PRZED CONFIRMED FACTS', () => {
+    const prompt = buildForm8k202Prompt(
+      'PODD', 'Insulet', 'Q1 text...', '2.02', null, '- guidance: AFFIRMED', consensusSample,
+    );
+    expect(prompt).toContain('ANALYST CONSENSUS');
+    expect(prompt).toContain('STRONG BEAT');
+    expect(prompt).toContain('-3.5%');
+
+    // Order: consensus PRZED confirmed facts
+    const consensusIdx = prompt.indexOf('ANALYST CONSENSUS');
+    const factsIdx = prompt.indexOf('CONFIRMED FACTS');
+    expect(consensusIdx).toBeGreaterThan(0);
+    expect(factsIdx).toBeGreaterThan(consensusIdx);
+  });
+
+  it('bez consensus block → prompt nie zawiera ANALYST CONSENSUS (default)', () => {
+    const prompt = buildForm8k202Prompt('PODD', 'Insulet', 'Q1 text...');
+    expect(prompt).not.toContain('ANALYST CONSENSUS');
+  });
+
+  it('null consensus block → graceful (no inject)', () => {
+    const prompt = buildForm8k202Prompt(
+      'PODD', 'Insulet', 'Q1 text...', '2.02', null, null, null,
+    );
+    expect(prompt).not.toContain('ANALYST CONSENSUS');
+  });
+
+  it('consensus block + brak guidance facts → tylko consensus inject', () => {
+    const prompt = buildForm8k202Prompt(
+      'PODD', 'Insulet', 'Q1 text...', '2.02', null, null, consensusSample,
+    );
+    expect(prompt).toContain('ANALYST CONSENSUS');
+    expect(prompt).not.toContain('CONFIRMED FACTS');
+  });
+});

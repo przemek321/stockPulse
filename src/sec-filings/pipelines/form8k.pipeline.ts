@@ -32,6 +32,9 @@ import { TickerProfileService } from '../../ticker-profile/ticker-profile.servic
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
 import { Logged } from '../../common/decorators/logged.decorator';
+import { ConsensusComparisonService, formatConsensusBlock } from '../services/consensus-comparison.service';
+import { ConsensusComparison } from '../types/consensus-comparison';
+import { shouldCapForConsensusGap } from '../utils/consensus-gap-guard';
 
 /**
  * Pipeline analizy GPT dla filingów 8-K.
@@ -66,6 +69,7 @@ export class Form8kPipeline {
     @Optional() private readonly tickerProfile?: TickerProfileService,
     @Optional() private readonly deliveryGate?: AlertDeliveryGate,
     @Optional() private readonly dispatcher?: AlertDispatcherService,
+    @Optional() private readonly consensusService?: ConsensusComparisonService,
   ) {
     this.userAgent = this.config.get<string>(
       'SEC_USER_AGENT',
@@ -218,6 +222,29 @@ export class Form8kPipeline {
         );
       }
 
+      // S19-FIX-12: pre-LLM fetch analyst consensus dla Item 2.02 (earnings).
+      // Trigger PODD 06.05.2026: GPT chwalił "+33% YoY revenue" jako bullish nie
+      // wiedząc że konsensus oczekiwał wyższego (revenue surprise +1.8%, in-line).
+      // Inject explicit liczby raport vs consensus + reasoning rules → GPT widzi
+      // "in-line ≠ bullish" i nie defaultuje do conviction +1.4 na headline YoY.
+      // Tylko Item 2.02 — pozostałe prompty (1.01/5.02/other) ignorują arg.
+      let consensusComp: ConsensusComparison | null = null;
+      let consensusBlock: string | null = null;
+      if (mainItem === '2.02' && this.consensusService) {
+        try {
+          consensusComp = await this.consensusService.fetchAndCompare(payload.symbol, itemText);
+          consensusBlock = formatConsensusBlock(consensusComp);
+          if (consensusBlock) {
+            this.logger.debug(
+              `8-K Item 2.02 ${payload.symbol}: consensus comparison eps=${consensusComp.epsSurprisePct?.toFixed(1) ?? 'n/a'}% ` +
+                `rev=${consensusComp.revenueSurprisePct?.toFixed(1) ?? 'n/a'}%`,
+            );
+          }
+        } catch (err) {
+          this.logger.warn(`Consensus fetch failed dla ${payload.symbol}: ${(err as Error).message}`);
+        }
+      }
+
       const prompt = promptBuilder(
         payload.symbol,
         companyName,
@@ -225,6 +252,7 @@ export class Form8kPipeline {
         mainItem,
         signalProfile,
         guidanceFactsBlock,
+        consensusBlock,
       );
 
       // Wyślij do GPT
@@ -282,6 +310,27 @@ export class Form8kPipeline {
             `conviction ${analysis.conviction} → ${-analysis.conviction} (direction=positive)`,
         );
         analysis.conviction = -analysis.conviction;
+      }
+
+      // S19-FIX-12: post-GPT consensus gap guard. Działa PRZED missing-data guard
+      // bo missing-data ma wyższy priority w AlertDispatcher (key_facts "niedostępne"
+      // means brak liczb → guard cap'uje i tak). Tutaj sprawdzamy czy raport vs
+      // consensus pokazuje miss/in-line/single-metric mimo że GPT wystawił high
+      // conviction (PODD-class). Cap zostaje aplikowany TYLKO gdy missing-data
+      // guard NIE zadziała (else-branch poniżej linii ~365).
+      let consensusGapDecision: ReturnType<typeof shouldCapForConsensusGap> | null = null;
+      if (mainItem === '2.02' && consensusComp && !consensusComp.isEmpty) {
+        const decision = shouldCapForConsensusGap(consensusComp, analysis.conviction);
+        if (decision.cap !== null) {
+          const oldConv = analysis.conviction;
+          const cappedAbs = Math.min(Math.abs(analysis.conviction), decision.cap);
+          analysis.conviction = Math.sign(analysis.conviction) * cappedAbs;
+          consensusGapDecision = decision;
+          this.logger.warn(
+            `8-K consensus gap dla ${payload.symbol}: ${decision.details} ` +
+              `(conviction ${oldConv.toFixed(2)} → ${analysis.conviction.toFixed(2)})`,
+          );
+        }
       }
 
       // S19-FIX-01: post-GPT missing-data guard.
@@ -402,6 +451,10 @@ export class Form8kPipeline {
             message,
             // S19-FIX-03: isObservationTicker pominięte — observation tickers
             // skipowane w tickerRepo gate przed fetchFilingText (SKIP_OBSERVATION_TICKER).
+            // S19-FIX-12: jeśli consensus gap wykryty, route do DB only z dokładnym
+            // sub-reason (consensus_miss / consensus_in_line / consensus_mixed).
+            isConsensusGap: consensusGapDecision !== null,
+            consensusGapReason: consensusGapDecision?.reason ?? undefined,
           })
         : buildDispatcherUnavailableFallback({ ticker: payload.symbol, ruleName: rule.name, traceId: payload.traceId });
 
@@ -444,8 +497,12 @@ export class Form8kPipeline {
       );
 
       // Rejestruj sygnał w CorrelationService
-      // Normalizacja conviction z [-2.0, +2.0] (GPT) → [-1.0, +1.0] (CorrelationService)
-      if (this.correlation) {
+      // S19-FIX-12: consensus gap → NIE zasilaj Redis Sorted Set. Analogicznie
+      // do FIX-07 (Form4 sell_no_edge backdoor) — cap'owana conviction nie powinna
+      // budować pattern correlation. PODD-class signal: GPT chwalił beat ale
+      // raport vs consensus mówi co innego — dane do DB jako audit, ale brak
+      // downstream pattern detection (INSIDER_PLUS_8K mógłby wzmacniać złą tezę).
+      if (this.correlation && !consensusGapDecision) {
         try {
           const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {

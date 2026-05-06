@@ -89,6 +89,7 @@ export function selectPromptBuilder(
   itemNumber?: string,
   tickerProfile?: string | null,
   extractedFacts?: string | null,
+  consensusBlock?: string | null,
 ) => string) | null {
   const map: Record<string, typeof buildForm8k101Prompt | typeof buildForm8kOtherPrompt | null> = {
     '1.01': buildForm8k101Prompt,

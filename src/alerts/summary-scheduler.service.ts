@@ -145,6 +145,11 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     dispatcher_unavailable: 'Dispatcher niedostępny',
     gpt_missing_data: 'GPT brak danych',
     direction_conflict: 'Konflikt kierunków',
+    // S19-FIX-12: PODD-class consensus gap breakdown
+    consensus_miss: 'Miss vs konsensus',
+    consensus_in_line: 'Wynik in-line z konsensusem',
+    consensus_mixed: 'Mieszany sygnał (single-metric beat)',
+    consensus_gap: 'Niezgodność z konsensusem',
   };
 
   /**

@@ -1,6 +1,12 @@
 /**
  * Prompt GPT do analizy 8-K Item 2.02 — Results of Operations (wyniki kwartalne).
  * Earnings beat/miss, guidance, MLR, membership.
+ *
+ * S19-FIX-12 (06.05.2026): dodany 7-my arg `consensusBlock` — pre-LLM injection
+ * analyst consensus z Finnhub + Alpha Vantage. Bez tego GPT chwalił PODD
+ * "+33% YoY revenue" jako bullish, nie wiedząc że konsensus oczekiwał ~$789M
+ * a actual był ledwo $761.7M (revenue surprise +1.8%, in-line). Block jest
+ * structured: explicit liczby + reasoning rules → GPT widzi "in-line ≠ bullish".
  */
 export function buildForm8k202Prompt(
   ticker: string,
@@ -9,6 +15,7 @@ export function buildForm8k202Prompt(
   _itemNumber?: string,
   tickerProfile?: string | null,
   extractedFacts?: string | null,
+  consensusBlock?: string | null,
 ): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
@@ -20,7 +27,7 @@ SECTOR: Healthcare
 FILING TEXT:
 ${text.slice(0, 50_000)}
 
-${extractedFacts ? `## CONFIRMED FACTS (extracted deterministically — TRUST THESE OVER YOUR OWN INFERENCE FROM THE TEXT):\n${extractedFacts}\n\n` : ''}Focus on extracting:
+${consensusBlock ? `${consensusBlock}\n\n` : ''}${extractedFacts ? `## CONFIRMED FACTS (extracted deterministically — TRUST THESE OVER YOUR OWN INFERENCE FROM THE TEXT):\n${extractedFacts}\n\n` : ''}Focus on extracting:
 1. EPS: reported vs analyst consensus (if mentioned)
 2. Revenue: reported vs guidance/consensus
 3. Full-year guidance: raised, lowered, or maintained

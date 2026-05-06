@@ -15,6 +15,7 @@ import {
   labelSx, metricSx, panelSx,
   fmtPrice, fmtDelta, fmtTimestamp, deltaColor,
 } from '../theme/financial';
+import { nonDeliveryLabelShort } from '../utils/nonDeliveryLabel';
 
 /* ── Pomocnicze ───────────────────────────────────────── */
 
@@ -421,11 +422,7 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
                 {a.priority || '—'}
                 {a.nonDeliveryReason && (
                   <Typography component="span" sx={{ fontSize: TYPOGRAPHY.size.xs, ml: 0.5, fontWeight: 400, color: COLORS.text.secondary }}>
-                    ({a.nonDeliveryReason === 'observation' ? 'obserwacja'
-                      : a.nonDeliveryReason === 'csuite_sell_no_edge' ? 'C-suite SELL'
-                      : a.nonDeliveryReason === 'cluster_sell_no_edge' ? 'cluster SELL'
-                      : a.nonDeliveryReason === 'sell_no_edge' ? 'SELL zero edge'
-                      : a.nonDeliveryReason})
+                    ({nonDeliveryLabelShort(a.nonDeliveryReason)})
                   </Typography>
                 )}
               </Typography>

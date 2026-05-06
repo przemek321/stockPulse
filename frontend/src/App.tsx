@@ -93,28 +93,10 @@ const fmtDateShort = (v: string | null) =>
 const stripMd = (v: string) =>
   v?.replace(/\\([_*\[\]()~`>#+\-=|{}.!\\$])/g, '$1') || '';
 
-/** Etykieta dla nonDeliveryReason → user-friendly label obok priority */
-const nonDeliveryLabel = (reason: string | null | undefined): string | null => {
-  if (!reason) return null;
-  switch (reason) {
-    case 'observation':
-      return 'obserwacja';
-    case 'csuite_sell_no_edge':
-      return 'C-suite SELL (zero edge)';
-    case 'cluster_sell_no_edge':
-      return 'cluster SELL (zero edge)';
-    case 'sell_no_edge':
-      return 'SELL (zero edge)';
-    case 'silent_hour':
-      return 'cicha godzina';
-    case 'daily_limit':
-      return 'daily limit';
-    case 'telegram_failed':
-      return 'Telegram błąd';
-    default:
-      return reason;
-  }
-};
+// S19-FIX-12 (06.05.2026): label mapping wyciągnięty do shared util — wcześniej
+// duplikat w SignalTimeline.tsx z drift'em (brak gpt_missing_data/direction_conflict).
+// Centralizuje 15 reason values (10 dispatcher + 4 consensus_* FIX-12 + legacy silent_hour).
+import { nonDeliveryLabel } from './utils/nonDeliveryLabel';
 
 /** Chip z kolorem wg priorytetu.
  *  TASK-05 (22.04.2026): gdy alert ma nonDeliveryReason, wizualnie wyciszamy —

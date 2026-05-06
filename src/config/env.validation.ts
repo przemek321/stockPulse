@@ -57,4 +57,8 @@ export const envValidationSchema = Joi.object({
   // Azure Analysis Service (legacy — VM z gpt-4o-mini, standby po migracji do Anthropic Sprint 12)
   AZURE_ANALYSIS_URL: Joi.string().uri().allow('').default(''),
   AZURE_ANALYSIS_TIMEOUT_MS: Joi.number().default(30000),
+
+  // Alpha Vantage (S19-FIX-12 — forward EPS + Revenue analyst consensus)
+  ALPHA_VANTAGE_API_KEY: Joi.string().allow('').default(''),
+  CONSENSUS_TIMEOUT_MS: Joi.number().default(5000),
 });

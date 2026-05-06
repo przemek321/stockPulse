@@ -136,7 +136,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
 
   it('wszystkie znane suppressed reasons mapują się na PL etykiety', async () => {
     const { scheduler, telegram } = buildScheduler({
-      alertsByRule: [{ rule: 'R', count: '10', delivered: '0' }],
+      alertsByRule: [{ rule: 'R', count: '14', delivered: '0' }],
       reasons: [
         { reason: 'observation', count: '1' },
         { reason: 'sell_no_edge', count: '1' },
@@ -148,6 +148,11 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
         { reason: 'dispatcher_unavailable', count: '1' },
         { reason: 'gpt_missing_data', count: '1' },
         { reason: 'direction_conflict', count: '1' },
+        // S19-FIX-12: consensus gap reasons
+        { reason: 'consensus_miss', count: '1' },
+        { reason: 'consensus_in_line', count: '1' },
+        { reason: 'consensus_mixed', count: '1' },
+        { reason: 'consensus_gap', count: '1' },
       ],
       trades: [],
     });
@@ -167,5 +172,10 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
     expect(plain).toContain('Dispatcher niedostępny');
     expect(plain).toContain('GPT brak danych');
     expect(plain).toContain('Konflikt kierunków');
+    // S19-FIX-12 PL labels
+    expect(plain).toContain('Miss vs konsensus');
+    expect(plain).toContain('in-line z konsensusem');
+    expect(plain).toContain('Mieszany sygnał');
+    expect(plain).toContain('Niezgodność z konsensusem');
   });
 });

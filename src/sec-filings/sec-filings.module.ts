@@ -12,6 +12,7 @@ import { TickerProfileModule } from '../ticker-profile/ticker-profile.module';
 import { Form4Pipeline } from './pipelines/form4.pipeline';
 import { Form8kPipeline } from './pipelines/form8k.pipeline';
 import { DailyCapService, SEC_FILINGS_REDIS } from './services/daily-cap.service';
+import { ConsensusComparisonService } from './services/consensus-comparison.service';
 import { SecFilingsController } from './sec-filings.controller';
 
 /**
@@ -47,6 +48,7 @@ import { SecFilingsController } from './sec-filings.controller';
     Form4Pipeline,
     Form8kPipeline,
     DailyCapService,
+    ConsensusComparisonService,
   ],
 })
 export class SecFilingsModule {}

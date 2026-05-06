@@ -10,12 +10,13 @@ import { Logged } from '../common/decorators/logged.decorator';
  * Priorytet suppression (najbardziej-specific wygrywa):
  *   1. isObservationTicker   — semi supply chain / healthcare observation mode
  *   2. isGptMissingData      — S19-FIX-01: GPT zadeklarował brak danych w key_facts (HUM 29.04 case)
- *   3. isDirectionConflict   — S19-FIX-05: Correlated pattern z konfliktem kierunków Form4 vs Options/8-K (UNH 29-30.04 case)
- *   4. isSellNoEdge          — Sprint 17 Form4 SELL (V4 backtest: zero edge)
- *   5. isCsuiteSellObservation — Sprint 16b Form4 C-suite SELL
- *   6. isClusterSellObservation — Sprint 15 Correlation INSIDER_CLUSTER SELL
- *   7. isSilent              — silent rule (reserved, po cleanup SILENT_RULES brak)
- *   8. dailyLimitHit         — AlertDeliveryGate shared limit (chyba że bypassDailyLimit)
+ *   3. isConsensusGap        — S19-FIX-12: raport vs analyst consensus mismatch (PODD 06.05 case)
+ *   4. isDirectionConflict   — S19-FIX-05: Correlated pattern z konfliktem kierunków Form4 vs Options/8-K (UNH 29-30.04 case)
+ *   5. isSellNoEdge          — Sprint 17 Form4 SELL (V4 backtest: zero edge)
+ *   6. isCsuiteSellObservation — Sprint 16b Form4 C-suite SELL
+ *   7. isClusterSellObservation — Sprint 15 Correlation INSIDER_CLUSTER SELL
+ *   8. isSilent              — silent rule (reserved, po cleanup SILENT_RULES brak)
+ *   9. dailyLimitHit         — AlertDeliveryGate shared limit (chyba że bypassDailyLimit)
  */
 export interface DispatchParams {
   ticker: string;
@@ -26,6 +27,8 @@ export interface DispatchParams {
 
   isObservationTicker?: boolean;
   isGptMissingData?: boolean;
+  isConsensusGap?: boolean;
+  consensusGapReason?: string;
   isDirectionConflict?: boolean;
   isSellNoEdge?: boolean;
   isCsuiteSellObservation?: boolean;
@@ -109,6 +112,12 @@ export class AlertDispatcherService {
       suppressedBy = 'observation';
     } else if (params.isGptMissingData) {
       suppressedBy = 'gpt_missing_data';
+    } else if (params.isConsensusGap) {
+      // S19-FIX-12: PODD-class — raport vs analyst consensus mismatch.
+      // consensusGapReason daje dokładny sub-reason (consensus_miss /
+      // consensus_in_line / consensus_mixed) — używamy go jako suppressedBy
+      // żeby raport 8h pokazywał breakdown granularnie.
+      suppressedBy = params.consensusGapReason || 'consensus_gap';
     } else if (params.isDirectionConflict) {
       suppressedBy = 'direction_conflict';
     } else if (params.isSellNoEdge) {
