@@ -6,9 +6,9 @@
 
 ---
 
-## ✅ DONE 29.04-04.05.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit + correlation backdoors + extractItemText boundary bug
+## ✅ DONE 29.04-06.05.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit + correlation backdoors + extractItemText boundary bug + OptionsFlow obs leak
 
-Pięć sesji (12 commitów = 9 fixów + 3 docs) po sześciu incydentach:
+Sześć sesji (13 commitów = 10 fixów + 3 docs) po siedmiu incydentach:
 UNH 27.04 21:05 correlated false CRITICAL, HUM 29.04 10:35 GPT halucynacja
 earnings miss, options-flow runCollectionCycle 11h 36min (29.04 — drugi raz
 po 17.04, mimo Sprint 16b FIX-04), 4/4 alerty 29-30.04 (ABBV/CI/DXCM/AMGN)
@@ -29,9 +29,10 @@ Redis (29.04 22:05 + 01.05 00:40 → INSIDER_PLUS_OPTIONS Telegram).
 | FIX-04 | `05ade62` | Outer cycle budget 6h w OptionsFlowService (`AbortController` + `setTimeout`), `buildFetchSignal` łączy per-request timeout z cycle abort (Node 18+ `AbortSignal.any`), `delay(ms, signal?)` respektuje abort, cap 50 contracts/ticker — naprawia 11h+ zombie cycle z 17.04 + 29.04 | +10 |
 | FIX-10 | `13b56dd` | Fetch Exhibit 99.1 dla Item 2.02 (`fetchExhibit991()` z directory index.json, regex 10 naming variants, konkatenacja PRZED extractItemText/extractGuidanceStatus) — naprawia 4/4 false positive ABBV/CI/DXCM/AMGN gpt_missing_data | +21 |
 | FIX-05 + FIX-07 | `3dbc8c4` | **FIX-05**: pure `detectDirectionConflict(signals, threshold=0.05)` w `correlation.service.ts`, integracja w `triggerCorrelatedAlert` po dedup, AlertDispatcher priority order (slot po `gpt_missing_data`), SummaryScheduler PL label "Konflikt kierunków" — naprawia 3× UNH false positive CRITICAL. **FIX-07**: w Form4Pipeline po `dispatcher.dispatch` jeśli `suppressedBy === 'sell_no_edge' \|\| 'csuite_sell_no_edge'` → SKIP `correlation.storeSignal` + `schedulePatternCheck` — naprawia GILD-class backdoor. | +22 |
-| FIX-10b | _pending_ | **extractItemText boundary bug w FIX-10**: `extractItemText(filingText, '2.02')` szuka pierwszego "Item X.XX" jako koniec sekcji — gdy wrapper ma `Item 9.01 Financial Statements and Exhibits` (typowy 2.02), exhibit dołączony do `filingText` na końcu jest **WYCIĘTY** zanim trafi do prompta. MRNA replay 04.05 (filingId=1875) potwierdził: exhibit pobrany +18915 znaków, Sonnet i tak zwracał `conviction=0, direction=neutral, "exhibit niedostępny"`. Fix: pobierz `exhibit99` osobno, `itemText = (extractItemText(filingText, mainItem) + separator + exhibit99).slice(0, MAX_TEXT_LENGTH)`; `extractGuidanceStatus(filingText + exhibit99)` żeby keyword scan widział "Reiterates guidance" z press release. Validation MRNA replay po fix: conviction `0 → 0.7`, direction `neutral → positive`, summary z `$389 mln revenue (+260% YoY) / EPS -$3.40 / guidance utrzymany`. | +4 |
+| FIX-03b | _pending_ | **OptionsFlow observation gate w correlation path**: FIX-03 (29.04, b7ca9aa) commit message i scope obejmował tylko Form4 + Form8k. `OptionsFlowAlertService.processOptionsFlow:79-91` wywoływało `correlation.storeSignal` bezwarunkowo gdy `absConv >= MIN_CONVICTION_CORRELATION (0.25)`, pomijając `observationOnly` flag. Logi 24h 05.05-06.05 ujawniły 5/14 semi tickers (ONTO 9, AMKR 2, DELL 1, KLIC 1, ASX 1) → 14 storeSignal w Redis. ASX conviction 0.72 (CRITICAL range), KLIC 0.57. CLAUDE.md System totals "Semi tickers: zero footprint w Redis" było fałszywe. Materialnie 24h: low (3 wzorce wymagają form4 component, FIX-03 Form4 path blokuje obs). Długoterminowo: high (FIX-09 backtest semi vertical skażony baseline + przyszłe options-only patterns leak). Fix: lookup `tickerRepo.findOne` przed `correlation.storeSignal`, guard `if (!isObservationTicker)`. | +6 |
+| FIX-10b | `77770fb` | **extractItemText boundary bug w FIX-10**: `extractItemText(filingText, '2.02')` szuka pierwszego "Item X.XX" jako koniec sekcji — gdy wrapper ma `Item 9.01 Financial Statements and Exhibits` (typowy 2.02), exhibit dołączony do `filingText` na końcu jest **WYCIĘTY** zanim trafi do prompta. MRNA replay 04.05 (filingId=1875) potwierdził: exhibit pobrany +18915 znaków, Sonnet i tak zwracał `conviction=0, direction=neutral, "exhibit niedostępny"`. Fix: pobierz `exhibit99` osobno, `itemText = (extractItemText(filingText, mainItem) + separator + exhibit99).slice(0, MAX_TEXT_LENGTH)`; `extractGuidanceStatus(filingText + exhibit99)` żeby keyword scan widział "Reiterates guidance" z press release. Validation MRNA replay po fix: conviction `0 → 0.7`, direction `neutral → positive`, summary z `$389 mln revenue (+260% YoY) / EPS -$3.40 / guidance utrzymany`. | +4 |
 
-**Cumulative**: 432/432 unit pass, tsc clean, 9 deploy clean, 0 prod regressions.
+**Cumulative**: 438/438 unit pass, tsc clean, 10 deploy clean, 0 prod regressions.
 
 **Earnings exhibit fetching (FIX-10):**
 - 8-K Item 2.02 to wrapper (~40KB) odsyłający do Exhibit 99.1 (200-300KB press release z liczbami)

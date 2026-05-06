@@ -75,8 +75,23 @@ export class OptionsFlowAlertService {
 
     const absConv = Math.abs(result.conviction);
 
-    // Rejestruj w CorrelationService
-    if (absConv >= MIN_CONVICTION_CORRELATION && this.correlation) {
+    // S19-FIX-03b (06.05.2026): observation gate dla options-flow correlation path.
+    // FIX-03 (29.04, b7ca9aa) dodał gate w Form4Pipeline + Form8kPipeline ale
+    // pominął OptionsFlowAlertService — semi tickers (ONTO/AMKR/DELL/KLIC/ASX
+    // potwierdzone w logach 24h 05.05-06.05: 14 contracts → 14 storeSignal
+    // w Redis Sorted Set) leakowały do correlation mimo observationOnly=true.
+    // CLAUDE.md ("Semi tickers: zero footprint w Redis") było fałszywe.
+    // Materialnie 24h: low — 3 aktywne wzorce wymagają form4 component
+    // (FIX-03 blokuje), żaden pattern nie fired. Długoterminowo: backtest
+    // semi vertical (FIX-09) miałby skażony baseline + każdy nowy options-only
+    // pattern w przyszłości natychmiastowy obs leak. Lookup tickerRepo był
+    // już w sendAlert path (Telegram dispatch); podnosimy wyżej żeby Redis
+    // też respektował obs flag.
+    const ticker = await this.tickerRepo.findOne({ where: { symbol: flow.symbol } });
+    const isObservationTicker = ticker?.observationOnly === true;
+
+    // Rejestruj w CorrelationService — tylko dla non-observation tickerów
+    if (absConv >= MIN_CONVICTION_CORRELATION && this.correlation && !isObservationTicker) {
       await this.correlation.storeSignal({
         id: `options-${flow.id}`,
         ticker: flow.symbol,
@@ -89,6 +104,11 @@ export class OptionsFlowAlertService {
         timestamp: Date.now(),
       });
       this.correlation.schedulePatternCheck(flow.symbol);
+    } else if (absConv >= MIN_CONVICTION_CORRELATION && isObservationTicker) {
+      this.logger.debug(
+        `OptionsFlow ${flow.symbol}: pomijam correlation.storeSignal ` +
+          `(observation ticker — backtest semi vertical baseline preservation)`,
+      );
     }
 
     // Sprint 11: Standalone alert TYLKO gdy pdufaBoosted=true
