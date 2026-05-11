@@ -41,6 +41,24 @@ export interface ConsensusComparison {
 
   /** True gdy nie udało się pobrać żadnych danych (oba źródła zawiodły) */
   isEmpty: boolean;
+
+  /**
+   * S19-FIX-13 Faza 1: skąd wzięto revenueEstimate.
+   *   'matched' — Alpha Vantage miał estimate dla raportowanego Q (preferowane,
+   *     porównanie apples-to-apples)
+   *   'forward' — fallback do next forward Q (mniej reliable, surprise % ma QoQ
+   *     growth bias)
+   *   undefined — brak revenueEstimate (oba źródła zawiodły lub Alpha Vantage off)
+   */
+  revenueSource?: 'matched' | 'forward';
+
+  /**
+   * S19-FIX-13 Faza 1: EPS estimate z Alpha Vantage (alternative source vs Finnhub).
+   * Używane do cross-source diff log w Faza 1 (14d obserwacji) — które źródło
+   * preferować jako primary EPS w przyszłości. Aktualnie pipeline używa Finnhub
+   * jako primary (epsEstimate field).
+   */
+  epsEstimateAlphaVantage?: number | null;
 }
 
 /**

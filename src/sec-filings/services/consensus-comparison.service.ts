@@ -43,17 +43,30 @@ export class ConsensusComparisonService {
   /**
    * Pobiera consensus dla raportowanego quarter i porównuje z reported numbers.
    * Zwraca null gdy oba źródła zawiodą (caller traktuje to jak "consensus unavailable" — pipeline kontynuuje).
+   *
+   * S19-FIX-13 Faza 1: parallel fetch (Finnhub + Alpha Vantage raw), potem
+   * post-process Alpha Vantage estimates z Finnhub.period — preferuj estimate
+   * dla raportowanego Q (`matched`), fallback do forward proxy. Brak re-fetch
+   * (Blef #3 critique: Alpha Vantage zwraca pełen archive jednym callem, period
+   * filtering to local code).
    */
   async fetchAndCompare(symbol: string, reportText: string): Promise<ConsensusComparison> {
     const fetchedAt = new Date();
 
-    const [finnhubResult, alphaResult] = await Promise.allSettled([
+    const [finnhubResult, alphaRawResult] = await Promise.allSettled([
       this.fetchFinnhubEarnings(symbol),
-      this.fetchAlphaVantageEstimates(symbol),
+      this.fetchAlphaVantageEstimatesRaw(symbol),
     ]);
 
     const finnhub = finnhubResult.status === 'fulfilled' ? finnhubResult.value : null;
-    const alpha = alphaResult.status === 'fulfilled' ? alphaResult.value : null;
+    const alphaRaw = alphaRawResult.status === 'fulfilled' ? alphaRawResult.value : null;
+
+    // FIX-13: selection logic na local data — bez 2nd HTTP call. Jeśli mamy
+    // period z Finnhub i Alpha Vantage zawiera estimate dla tej daty → matched.
+    // Inaczej forward proxy (najbliższy fiscal quarter >= today).
+    const alpha = alphaRaw
+      ? selectAlphaEstimate(alphaRaw, finnhub?.period ?? null, this.logger, symbol)
+      : null;
 
     if (!finnhub && !alpha) {
       this.logger.warn(`Consensus fetch ${symbol}: oba źródła zawiodły (Finnhub + AlphaVantage)`);
@@ -71,6 +84,27 @@ export class ConsensusComparisonService {
     const period = finnhub?.period ?? alpha?.period ?? null;
     const analystCount = alpha?.analystCount ?? null;
 
+    // FIX-13 Faza 1: log diff Finnhub vs Alpha Vantage EPS estimate (obserwacja 14d
+    // — które źródło preferować jako primary EPS po Q2 earnings season). Drift
+    // raport z weekend: GILD Finnhub +0.7% → +3.97% w 1h, AV stabilne. Dane do
+    // decyzji architektonicznej w Faza 3, bez aktywnego użycia w Faza 1.
+    if (
+      finnhub?.epsEstimate !== null &&
+      finnhub?.epsEstimate !== undefined &&
+      alpha?.epsEstimate !== null &&
+      alpha?.epsEstimate !== undefined &&
+      alpha.epsEstimate !== 0
+    ) {
+      const diffPct =
+        ((finnhub.epsEstimate - alpha.epsEstimate) / Math.abs(alpha.epsEstimate)) * 100;
+      this.logger.debug(
+        `consensus source diff ${symbol} period=${period}: ` +
+          `Finnhub eps=${finnhub.epsEstimate.toFixed(4)}, ` +
+          `AlphaVantage eps=${alpha.epsEstimate.toFixed(4)} ` +
+          `(diff ${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%)`,
+      );
+    }
+
     return {
       epsActual,
       epsEstimate,
@@ -82,6 +116,8 @@ export class ConsensusComparisonService {
       period,
       fetchedAt,
       isEmpty: false,
+      revenueSource: alpha?.source,
+      epsEstimateAlphaVantage: alpha?.epsEstimate ?? null,
     };
   }
 
@@ -134,11 +170,18 @@ export class ConsensusComparisonService {
     };
   }
 
-  private async fetchAlphaVantageEstimates(symbol: string): Promise<{
-    revenueEstimate: number | null;
-    analystCount: number | null;
-    period: string | null;
-  } | null> {
+  /**
+   * S19-FIX-13 Faza 1: HTTP fetch tylko — zwraca raw quarterly estimates (lub null
+   * przy errorze/braku klucza). Selection logic (matched vs forward) jest w
+   * `selectAlphaEstimate` (pure function), żeby `fetchAndCompare` mógł re-select
+   * po otrzymaniu Finnhub.period bez 2nd HTTP call.
+   *
+   * Empirical finding (research 2026-05-11): Alpha Vantage zachowuje per-quarter
+   * estimates w pełnej historii (≥2017), W TYM dla just-reported Q (estimate przed
+   * raportem nie jest zastąpiony przez actual). Czyli matched-period estimate dla
+   * raportowanego Q to prawdziwa pre-report consensus value.
+   */
+  private async fetchAlphaVantageEstimatesRaw(symbol: string): Promise<AlphaVantageEstimateRow[] | null> {
     if (!this.alphaVantageKey) return null;
 
     const url = `https://www.alphavantage.co/query?function=EARNINGS_ESTIMATES&symbol=${encodeURIComponent(symbol)}&apikey=${this.alphaVantageKey}`;
@@ -153,6 +196,7 @@ export class ConsensusComparisonService {
       estimates?: Array<{
         date: string;
         horizon: string;
+        eps_estimate_average?: string;
         revenue_estimate_average?: string;
         revenue_estimate_analyst_count?: string;
       }>;
@@ -168,40 +212,100 @@ export class ConsensusComparisonService {
 
     if (!json.estimates || json.estimates.length === 0) return null;
 
-    // Alpha Vantage zwraca PEŁNĄ historię fiscal quarters (od ~2017 dla większości
-    // tickerów) + forward estimates dla najbliższych 1-4 Q. Dla świeżo raportowanego
-    // Q estimate jest już zastąpiony actual (Alpha Vantage nie zachowuje pre-report
-    // estimate dla just-reported Q — to ograniczenie free tier vs Bloomberg/Zacks).
-    //
-    // Strategy: filtrujemy `date >= today` → bierzemy najbliższy forward fiscal
-    // quarter. To jest estimate dla NEXT Q (ten dla którego company właśnie podała
-    // guidance w 8-K). GPT widzi w prompcie "next Q estimate $X" — porównanie z
-    // company guidance pokazuje czy guidance jest above/below consensus.
-    //
-    // Primary signal "raport vs konsensus" pozostaje Finnhub (actual+estimate dla
-    // just-reported Q EPS); revenue surprise dla just-reported Q wymaga paid data
-    // i jest accepted limitation w free tier. revenueEstimate w ConsensusComparison
-    // reprezentuje NEXT Q forward (kontekst dla guidance assessment).
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const forward = json.estimates
-      .filter(e => e.horizon === 'fiscal quarter' && (e.date || '') >= todayIso);
-    if (forward.length === 0) return null;
+    return json.estimates
+      .filter(e => e.horizon === 'fiscal quarter')
+      .map(e => ({
+        date: e.date ?? null,
+        epsEstimate: e.eps_estimate_average ? parseFloat(e.eps_estimate_average) : null,
+        revenueEstimate: e.revenue_estimate_average ? parseFloat(e.revenue_estimate_average) : null,
+        analystCount: e.revenue_estimate_analyst_count
+          ? parseInt(e.revenue_estimate_analyst_count, 10)
+          : null,
+      }));
+  }
+}
 
-    const sorted = [...forward].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const target = sorted[0];
+/** S19-FIX-13: parsed Alpha Vantage row (jeden fiscal quarter estimate). */
+export interface AlphaVantageEstimateRow {
+  date: string | null;
+  epsEstimate: number | null;
+  revenueEstimate: number | null;
+  analystCount: number | null;
+}
 
-    const revenueEstimate = target.revenue_estimate_average
-      ? parseFloat(target.revenue_estimate_average)
-      : null;
-    const analystCount = target.revenue_estimate_analyst_count
-      ? parseInt(target.revenue_estimate_analyst_count, 10)
-      : null;
+/**
+ * S19-FIX-13 Faza 1: wybiera estimate dla raportowanego Q (matched) lub fallback
+ * do najbliższego forward Q (proxy). Pure function — testowalna w izolacji.
+ *
+ * Anomaly guard (Blef #6 critique): rev<1M lub |eps|>50 → log WARN ale pass-through
+ * value (NIE reject). Reject działał silent — caller dostawał null bez context;
+ * pass-through pozwala downstream guard'om (consensus-gap-guard) zobaczyć liczby
+ * + my mamy log audytowy.
+ */
+export function selectAlphaEstimate(
+  rows: AlphaVantageEstimateRow[],
+  reportedPeriod: string | null,
+  logger: Logger,
+  symbol: string,
+): {
+  revenueEstimate: number | null;
+  epsEstimate: number | null;
+  analystCount: number | null;
+  period: string | null;
+  source: 'matched' | 'forward';
+} | null {
+  if (rows.length === 0) return null;
 
-    return {
-      revenueEstimate: revenueEstimate && isFinite(revenueEstimate) ? revenueEstimate : null,
-      analystCount: analystCount && isFinite(analystCount) ? analystCount : null,
-      period: target.date ?? null,
-    };
+  // Próba matched period
+  if (reportedPeriod) {
+    const matched = rows.find(r => r.date === reportedPeriod);
+    if (matched) {
+      maybeWarnAnomaly(matched, logger, symbol);
+      return {
+        revenueEstimate: validNumber(matched.revenueEstimate),
+        epsEstimate: validNumber(matched.epsEstimate),
+        analystCount: validNumber(matched.analystCount),
+        period: matched.date,
+        source: 'matched',
+      };
+    }
+  }
+
+  // Fallback forward proxy (najbliższy fiscal quarter >= today)
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const forward = rows
+    .filter(r => (r.date || '') >= todayIso)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (forward.length === 0) return null;
+
+  const target = forward[0];
+  maybeWarnAnomaly(target, logger, symbol);
+  return {
+    revenueEstimate: validNumber(target.revenueEstimate),
+    epsEstimate: validNumber(target.epsEstimate),
+    analystCount: validNumber(target.analystCount),
+    period: target.date,
+    source: 'forward',
+  };
+}
+
+function validNumber(n: number | null): number | null {
+  if (n === null) return null;
+  return isFinite(n) ? n : null;
+}
+
+function maybeWarnAnomaly(row: AlphaVantageEstimateRow, logger: Logger, symbol: string): void {
+  if (row.revenueEstimate !== null && isFinite(row.revenueEstimate) && row.revenueEstimate < 1_000_000) {
+    logger.warn(
+      `AlphaVantage suspect revenue ${symbol} ${row.date}: ` +
+        `${row.revenueEstimate} (likely thousands not dollars; passing through)`,
+    );
+  }
+  if (row.epsEstimate !== null && isFinite(row.epsEstimate) && Math.abs(row.epsEstimate) > 50) {
+    logger.warn(
+      `AlphaVantage suspect EPS ${symbol} ${row.date}: ` +
+        `${row.epsEstimate} (likely one-time charge or data issue; passing through)`,
+    );
   }
 }
 

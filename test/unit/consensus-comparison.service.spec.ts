@@ -10,10 +10,13 @@
  */
 
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import {
   ConsensusComparisonService,
   computeSurprisePct,
   formatConsensusBlock,
+  selectAlphaEstimate,
+  AlphaVantageEstimateRow,
 } from '../../src/sec-filings/services/consensus-comparison.service';
 import { ConsensusComparison } from '../../src/sec-filings/types/consensus-comparison';
 
@@ -374,5 +377,309 @@ describe('formatConsensusBlock', () => {
       epsActual: 1.0, epsEstimate: 1.0, epsSurprisePct: 0,
     }));
     expect(block).toContain('IN-LINE');
+  });
+});
+
+/**
+ * S19-FIX-13 Faza 1: testy `selectAlphaEstimate` (pure function — matched vs forward,
+ * anomaly guard pass-through). Pure function testowalna w izolacji bez fetch mock.
+ */
+describe('selectAlphaEstimate — FIX-13 period match', () => {
+  const silentLogger = { warn: jest.fn(), debug: jest.fn(), log: jest.fn(), error: jest.fn() } as unknown as Logger;
+
+  beforeEach(() => {
+    (silentLogger.warn as jest.Mock).mockClear();
+  });
+
+  it('matched period: bierze estimate dla raportowanego Q (PODD 2026-03-31)', () => {
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: '2026-03-31', epsEstimate: 1.1907, revenueEstimate: 730_100_840, analystCount: 21 },
+      { date: '2026-06-30', epsEstimate: 1.4392, revenueEstimate: 789_330_720, analystCount: 23 },
+    ];
+    const result = selectAlphaEstimate(rows, '2026-03-31', silentLogger, 'PODD');
+
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe('matched');
+    expect(result!.period).toBe('2026-03-31');
+    expect(result!.revenueEstimate).toBe(730_100_840);
+    expect(result!.epsEstimate).toBe(1.1907);
+    expect(result!.analystCount).toBe(21);
+  });
+
+  it('forward fallback: brak match → najbliższy fiscal quarter >= today', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const futureDate1 = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    const futureDate2 = new Date(Date.now() + 90 * 86400_000).toISOString().slice(0, 10);
+
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: '2017-06-30', epsEstimate: 0.1, revenueEstimate: 106_170_000, analystCount: 5 },
+      { date: futureDate1, epsEstimate: 1.5, revenueEstimate: 800_000_000, analystCount: 20 },
+      { date: futureDate2, epsEstimate: 1.6, revenueEstimate: 850_000_000, analystCount: 22 },
+    ];
+    // Brak match dla "2025-12-31" w danych
+    const result = selectAlphaEstimate(rows, '2025-12-31', silentLogger, 'TEST');
+
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe('forward');
+    expect(result!.period).toBe(futureDate1);
+    expect(result!.revenueEstimate).toBe(800_000_000);
+  });
+
+  it('brak reportedPeriod → zawsze forward proxy', () => {
+    const futureDate = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: '2026-03-31', epsEstimate: 1.0, revenueEstimate: 700_000_000, analystCount: 20 },
+      { date: futureDate, epsEstimate: 1.5, revenueEstimate: 800_000_000, analystCount: 21 },
+    ];
+    const result = selectAlphaEstimate(rows, null, silentLogger, 'TEST');
+
+    expect(result!.source).toBe('forward');
+    expect(result!.period).toBe(futureDate);
+  });
+
+  it('brak forward Q i brak match → null (no fiscal quarter date >= today)', () => {
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: '2025-06-30', epsEstimate: 1.0, revenueEstimate: 700_000_000, analystCount: 20 },
+      { date: '2025-09-30', epsEstimate: 1.1, revenueEstimate: 720_000_000, analystCount: 21 },
+    ];
+    const result = selectAlphaEstimate(rows, '2025-12-31', silentLogger, 'TEST');
+
+    expect(result).toBeNull();
+  });
+
+  it('puste rows → null', () => {
+    const result = selectAlphaEstimate([], '2026-03-31', silentLogger, 'TEST');
+    expect(result).toBeNull();
+  });
+
+  it('anomaly guard: rev<1M → log WARN ale value pass-through (NIE reject)', () => {
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: '2026-03-31', epsEstimate: 1.0, revenueEstimate: 500_000, analystCount: 5 },
+    ];
+    const result = selectAlphaEstimate(rows, '2026-03-31', silentLogger, 'TEST');
+
+    expect(result).not.toBeNull();
+    expect(result!.revenueEstimate).toBe(500_000); // PASS-THROUGH (Blef #6 critique)
+    expect(result!.source).toBe('matched');
+    expect(silentLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('suspect revenue'),
+    );
+  });
+
+  it('anomaly guard: |eps|>50 → log WARN ale value pass-through (GILD Q2 case)', () => {
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: '2026-06-30', epsEstimate: -6.90, revenueEstimate: 7_000_000_000, analystCount: 25 },
+    ];
+    const futureDate = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    rows[0].date = futureDate;
+
+    const result = selectAlphaEstimate(rows, null, silentLogger, 'GILD');
+
+    expect(result).not.toBeNull();
+    expect(result!.epsEstimate).toBe(-6.90); // PASS-THROUGH
+    expect(silentLogger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('suspect EPS'),
+    ); // -6.90 nie przekracza |eps|>50
+  });
+
+  it('anomaly guard: |eps|>50 PRAWDZIWY case → warn emitted, pass-through', () => {
+    const futureDate = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: futureDate, epsEstimate: 75, revenueEstimate: 1_000_000_000, analystCount: 5 },
+    ];
+    const result = selectAlphaEstimate(rows, null, silentLogger, 'TEST');
+
+    expect(result!.epsEstimate).toBe(75); // PASS-THROUGH
+    expect(silentLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('suspect EPS'),
+    );
+  });
+
+  it('Infinity/NaN → null (validNumber sanitization)', () => {
+    const rows: AlphaVantageEstimateRow[] = [
+      { date: '2026-03-31', epsEstimate: Infinity, revenueEstimate: NaN, analystCount: 21 },
+    ];
+    const result = selectAlphaEstimate(rows, '2026-03-31', silentLogger, 'TEST');
+
+    expect(result!.revenueEstimate).toBeNull();
+    expect(result!.epsEstimate).toBeNull();
+    expect(result!.analystCount).toBe(21); // valid
+  });
+});
+
+describe('ConsensusComparisonService — FIX-13 integration (matched + forward + diff log)', () => {
+  beforeEach(() => {
+    (global as any).originalFetch = global.fetch;
+  });
+  afterEach(() => {
+    global.fetch = (global as any).originalFetch;
+  });
+
+  it('PODD matched: AV ma estimate dla 2026-03-31 → revenueSource=matched, surprise +4.3%', async () => {
+    global.fetch = jest.fn().mockImplementation(async (url: string) => {
+      if (url.includes('finnhub.io')) {
+        return {
+          ok: true,
+          json: async () => [
+            { actual: 1.42, estimate: 1.2221, period: '2026-03-31', surprisePercent: 16.19 },
+          ],
+        };
+      }
+      if (url.includes('alphavantage.co')) {
+        return {
+          ok: true,
+          json: async () => ({
+            symbol: 'PODD',
+            estimates: [
+              {
+                date: '2026-03-31',
+                horizon: 'fiscal quarter',
+                eps_estimate_average: '1.1907',
+                revenue_estimate_average: '730100840.00',
+                revenue_estimate_analyst_count: '21.00',
+              },
+              {
+                date: '2026-06-30',
+                horizon: 'fiscal quarter',
+                eps_estimate_average: '1.4392',
+                revenue_estimate_average: '789330720.00',
+                revenue_estimate_analyst_count: '23.00',
+              },
+            ],
+          }),
+        };
+      }
+      throw new Error('unexpected URL');
+    });
+
+    const svc = new ConsensusComparisonService(
+      buildConfig({ FINNHUB_API_KEY: 'fkey', ALPHA_VANTAGE_API_KEY: 'akey' }),
+    );
+    const result = await svc.fetchAndCompare('PODD', PODD_REPORT_TEXT);
+
+    expect(result.isEmpty).toBe(false);
+    expect(result.revenueSource).toBe('matched');
+    expect(result.revenueEstimate).toBe(730_100_840);
+    expect(result.revenueActual).toBeCloseTo(761_700_000, -3);
+    // Surprise: (761.7 - 730.1) / 730.1 = +4.33%
+    expect(result.revenueSurprisePct).toBeCloseTo(4.33, 1);
+    expect(result.epsEstimateAlphaVantage).toBe(1.1907);
+    expect(result.analystCount).toBe(21);
+    expect(result.period).toBe('2026-03-31'); // z Finnhub
+  });
+
+  it('PODD forward fallback: brak match w AV → revenueSource=forward, znany pre-FIX-13 behaviour', async () => {
+    global.fetch = jest.fn().mockImplementation(async (url: string) => {
+      if (url.includes('finnhub.io')) {
+        return {
+          ok: true,
+          json: async () => [{ actual: 1.42, estimate: 1.2221, period: '2026-03-31' }],
+        };
+      }
+      const futureDate = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+      return {
+        ok: true,
+        json: async () => ({
+          symbol: 'PODD',
+          estimates: [
+            {
+              date: futureDate,
+              horizon: 'fiscal quarter',
+              eps_estimate_average: '1.4392',
+              revenue_estimate_average: '789330720.00',
+              revenue_estimate_analyst_count: '23.00',
+            },
+          ],
+        }),
+      };
+    });
+
+    const svc = new ConsensusComparisonService(
+      buildConfig({ FINNHUB_API_KEY: 'fkey', ALPHA_VANTAGE_API_KEY: 'akey' }),
+    );
+    const result = await svc.fetchAndCompare('PODD', PODD_REPORT_TEXT);
+
+    expect(result.revenueSource).toBe('forward');
+    expect(result.revenueEstimate).toBe(789_330_720);
+    expect(result.revenueSurprisePct).toBeLessThan(0); // forward bias: $761.7M vs $789M = miss
+  });
+
+  it('diff log: emituje debug gdy oba EPS estimate dostępne (Finnhub vs AV)', async () => {
+    const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+
+    global.fetch = jest.fn().mockImplementation(async (url: string) => {
+      if (url.includes('finnhub.io')) {
+        return {
+          ok: true,
+          json: async () => [{ actual: 1.42, estimate: 1.30, period: '2026-03-31' }],
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          symbol: 'TEST',
+          estimates: [
+            {
+              date: '2026-03-31',
+              horizon: 'fiscal quarter',
+              eps_estimate_average: '1.25',
+              revenue_estimate_average: '500000000',
+            },
+          ],
+        }),
+      };
+    });
+
+    const svc = new ConsensusComparisonService(
+      buildConfig({ FINNHUB_API_KEY: 'fkey', ALPHA_VANTAGE_API_KEY: 'akey' }),
+    );
+    await svc.fetchAndCompare('TEST', PODD_REPORT_TEXT);
+
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('consensus source diff TEST'),
+    );
+    // diff = (1.30 - 1.25) / 1.25 * 100 = +4.00%
+    expect(debugSpy).toHaveBeenCalledWith(expect.stringMatching(/diff \+4\.00%/));
+
+    debugSpy.mockRestore();
+  });
+
+  it('diff log: NIE emituje gdy tylko Finnhub ma EPS (AV brak eps_estimate_average)', async () => {
+    const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+
+    global.fetch = jest.fn().mockImplementation(async (url: string) => {
+      if (url.includes('finnhub.io')) {
+        return {
+          ok: true,
+          json: async () => [{ actual: 1.0, estimate: 0.9, period: '2026-03-31' }],
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          symbol: 'TEST',
+          estimates: [
+            {
+              date: '2026-03-31',
+              horizon: 'fiscal quarter',
+              revenue_estimate_average: '500000000',
+              // brak eps_estimate_average
+            },
+          ],
+        }),
+      };
+    });
+
+    const svc = new ConsensusComparisonService(
+      buildConfig({ FINNHUB_API_KEY: 'fkey', ALPHA_VANTAGE_API_KEY: 'akey' }),
+    );
+    await svc.fetchAndCompare('TEST', PODD_REPORT_TEXT);
+
+    const diffCalls = debugSpy.mock.calls.filter(c =>
+      typeof c[0] === 'string' && c[0].includes('consensus source diff'),
+    );
+    expect(diffCalls).toHaveLength(0);
+
+    debugSpy.mockRestore();
   });
 });
