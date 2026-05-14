@@ -1,8 +1,21 @@
 /**
  * Prompt GPT do analizy 8-K Item 5.02 — Departure/Appointment of Officers.
  * Zmiana CEO, CFO, dyrektorów.
+ *
+ * Code review 14.05.2026 #28: dodany 7-arg signature (zgodny z form8k-2-02).
+ * `extractedFacts` rzadko relevantne dla 5.02 (officer change), ale złożone 8-K
+ * mogą łączyć item 5.02 z guidance reaffirmation (np. "CFO ustępuje, guidance
+ * podtrzymane") — wstrzykujemy gdy obecne. `_consensusBlock` unused (tylko 2.02).
  */
-export function buildForm8k502Prompt(ticker: string, companyName: string, text: string, _itemNumber?: string, tickerProfile?: string | null): string {
+export function buildForm8k502Prompt(
+  ticker: string,
+  companyName: string,
+  text: string,
+  _itemNumber?: string,
+  tickerProfile?: string | null,
+  extractedFacts?: string | null,
+  _consensusBlock?: string | null,
+): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
 Analyze this SEC 8-K Item 5.02 (Departure/Appointment of Officers) filing.
@@ -13,7 +26,7 @@ SECTOR: Healthcare
 FILING TEXT:
 ${text.slice(0, 50_000)}
 
-Focus on:
+${extractedFacts ? `## CONFIRMED FACTS (extracted deterministically — TRUST THESE OVER YOUR OWN INFERENCE FROM THE TEXT):\n${extractedFacts}\n\n` : ''}Focus on:
 1. Who is departing and who is arriving (CEO, CFO, or other)
 2. Reason for departure: resignation, retirement, termination, or not stated
 3. Is the departure effective immediately or with transition period?

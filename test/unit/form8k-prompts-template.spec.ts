@@ -76,6 +76,69 @@ describe('form8k 2.02 prompt — KEY_FACTS instruction (anti-halucynacja)', () =
   });
 });
 
+describe('form8k 1.01/5.02/other — extractedFacts injection (Code review #28, 14.05.2026)', () => {
+  // Code review #28: pre-fix, buildery 1-01/5-02/other miały 5-arg signature
+  // ale parser wysyłał 7 args → guidance facts silently ignored dla 3/4 Item types.
+  // Real impact: 8-K Item 1.01 acquisition + reaffirm guidance → FIX-02 detected
+  // ale builder nie wstrzykiwał. Po fix: wszystkie 4 buildery przyjmują 7 args.
+
+  const guidanceFacts = '- guidance_status: AFFIRMED_ADJUSTED\n  → Constraint: conviction must NOT be more negative than -0.3.';
+
+  it('Item 1.01 (contract): wstrzykuje extractedFacts gdy obecne', () => {
+    const prompt = buildForm8k101Prompt(
+      'AMGN', 'Amgen', 'acquisition + reaffirm guidance...',
+      '1.01', null, guidanceFacts, null,
+    );
+    expect(prompt).toMatch(/CONFIRMED FACTS/);
+    expect(prompt).toMatch(/AFFIRMED_ADJUSTED/);
+  });
+
+  it('Item 1.01: bez extractedFacts → brak sekcji (default)', () => {
+    const prompt = buildForm8k101Prompt('AMGN', 'Amgen', 'plain agreement');
+    expect(prompt).not.toMatch(/CONFIRMED FACTS/);
+  });
+
+  it('Item 5.02 (leadership): wstrzykuje extractedFacts gdy obecne', () => {
+    const prompt = buildForm8k502Prompt(
+      'PFE', 'Pfizer', 'CFO change + guidance affirmed...',
+      '5.02', null, guidanceFacts, null,
+    );
+    expect(prompt).toMatch(/CONFIRMED FACTS/);
+    expect(prompt).toMatch(/AFFIRMED_ADJUSTED/);
+  });
+
+  it('Item 5.02: bez extractedFacts → brak sekcji', () => {
+    const prompt = buildForm8k502Prompt('PFE', 'Pfizer', 'CEO departure');
+    expect(prompt).not.toMatch(/CONFIRMED FACTS/);
+  });
+
+  it('Item other (7.01/8.01): wstrzykuje extractedFacts gdy obecne', () => {
+    const prompt = buildForm8kOtherPrompt(
+      'JNJ', 'Johnson & Johnson', 'mid-quarter Reg FD update + lowered guidance...',
+      '7.01', null, '- guidance_status: LOWERED', null,
+    );
+    expect(prompt).toMatch(/CONFIRMED FACTS/);
+    expect(prompt).toMatch(/LOWERED/);
+  });
+
+  it('Item other: bez extractedFacts → brak sekcji', () => {
+    const prompt = buildForm8kOtherPrompt('JNJ', 'Johnson & Johnson', 'FDA approval', '7.01');
+    expect(prompt).not.toMatch(/CONFIRMED FACTS/);
+  });
+
+  it('Wszystkie 3 buildery: ignorują _consensusBlock arg (consensus tylko dla 2.02)', () => {
+    const consensus = '## ANALYST CONSENSUS (pre-earnings)\n- EPS estimate: $1.22';
+    // Buildery 1.01/5.02/other dostają consensusBlock 7-mym arg ale go IGNORUJĄ
+    // (semantyka: consensus ma sens tylko dla earnings 2.02).
+    const p1 = buildForm8k101Prompt('A', 'B', 't', '1.01', null, null, consensus);
+    const p2 = buildForm8k502Prompt('A', 'B', 't', '5.02', null, null, consensus);
+    const p3 = buildForm8kOtherPrompt('A', 'B', 't', '7.01', null, null, consensus);
+    expect(p1).not.toContain('ANALYST CONSENSUS');
+    expect(p2).not.toContain('ANALYST CONSENSUS');
+    expect(p3).not.toContain('ANALYST CONSENSUS');
+  });
+});
+
 describe('form8k 2.02 prompt — consensusBlock injection (S19-FIX-12)', () => {
   const consensusSample = `## ANALYST CONSENSUS (pre-earnings)
 - EPS estimate: $1.22 → actual $1.42 (surprise: +16.4% **STRONG BEAT**)

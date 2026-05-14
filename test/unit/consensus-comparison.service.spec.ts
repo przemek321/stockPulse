@@ -604,8 +604,10 @@ describe('ConsensusComparisonService — FIX-13 integration (matched + forward +
     expect(result.revenueSurprisePct).toBeLessThan(0); // forward bias: $761.7M vs $789M = miss
   });
 
-  it('diff log: emituje debug gdy oba EPS estimate dostępne (Finnhub vs AV)', async () => {
-    const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+  it('diff log: emituje info (log) gdy oba EPS estimate dostępne (Finnhub vs AV)', async () => {
+    // Code review #10 (14.05.2026): zmiana z debug → log (info level, 7d retention)
+    // zamiast 2d retention dla debug. Faza 2 obserwacji 14d wymaga dłuższego window.
+    const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
     global.fetch = jest.fn().mockImplementation(async (url: string) => {
       if (url.includes('finnhub.io')) {
@@ -635,17 +637,17 @@ describe('ConsensusComparisonService — FIX-13 integration (matched + forward +
     );
     await svc.fetchAndCompare('TEST', PODD_REPORT_TEXT);
 
-    expect(debugSpy).toHaveBeenCalledWith(
+    expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining('consensus source diff TEST'),
     );
     // diff = (1.30 - 1.25) / 1.25 * 100 = +4.00%
-    expect(debugSpy).toHaveBeenCalledWith(expect.stringMatching(/diff \+4\.00%/));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringMatching(/diff \+4\.00%/));
 
-    debugSpy.mockRestore();
+    logSpy.mockRestore();
   });
 
   it('diff log: NIE emituje gdy tylko Finnhub ma EPS (AV brak eps_estimate_average)', async () => {
-    const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+    const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
     global.fetch = jest.fn().mockImplementation(async (url: string) => {
       if (url.includes('finnhub.io')) {
@@ -675,11 +677,11 @@ describe('ConsensusComparisonService — FIX-13 integration (matched + forward +
     );
     await svc.fetchAndCompare('TEST', PODD_REPORT_TEXT);
 
-    const diffCalls = debugSpy.mock.calls.filter(c =>
+    const diffCalls = logSpy.mock.calls.filter(c =>
       typeof c[0] === 'string' && c[0].includes('consensus source diff'),
     );
     expect(diffCalls).toHaveLength(0);
 
-    debugSpy.mockRestore();
+    logSpy.mockRestore();
   });
 });

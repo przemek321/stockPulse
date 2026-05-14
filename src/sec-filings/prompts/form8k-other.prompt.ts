@@ -1,6 +1,11 @@
 /**
  * Prompt GPT do analizy 8-K dla ogólnych Itemów (7.01, 8.01 i inne).
  * FDA, CMS, DOJ/FTC, M&A, clinical trials, restatements.
+ *
+ * Code review 14.05.2026 #28: dodany 7-arg signature (zgodny z form8k-2-02).
+ * `extractedFacts` (FIX-02 guidance keyword scan) ważne dla 7.01 (Reg FD) i 8.01
+ * (Other Events) — typowo używane przez emitentów do mid-quarter guidance updates,
+ * affirmation, lowering. `_consensusBlock` unused (consensus tylko dla earnings 2.02).
  */
 export function buildForm8kOtherPrompt(
   ticker: string,
@@ -8,6 +13,8 @@ export function buildForm8kOtherPrompt(
   text: string,
   itemNumber?: string,
   tickerProfile?: string | null,
+  extractedFacts?: string | null,
+  _consensusBlock?: string | null,
 ): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
@@ -19,7 +26,7 @@ SECTOR: Healthcare
 FILING TEXT:
 ${text.slice(0, 50_000)}
 
-This is an open-ended material event. Assess it freely.
+${extractedFacts ? `## CONFIRMED FACTS (extracted deterministically — TRUST THESE OVER YOUR OWN INFERENCE FROM THE TEXT):\n${extractedFacts}\n\n` : ''}This is an open-ended material event. Assess it freely.
 
 Healthcare-specific events to watch for:
 - FDA approval/rejection/CRL (Complete Response Letter)

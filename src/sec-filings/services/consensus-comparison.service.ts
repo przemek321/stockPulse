@@ -88,6 +88,12 @@ export class ConsensusComparisonService {
     // — które źródło preferować jako primary EPS po Q2 earnings season). Drift
     // raport z weekend: GILD Finnhub +0.7% → +3.97% w 1h, AV stabilne. Dane do
     // decyzji architektonicznej w Faza 3, bez aktywnego użycia w Faza 1.
+    //
+    // Code review 14.05.2026 #10: log na info level (7d retention) zamiast debug (2d).
+    // Faza 2 obserwacji jest 14d, debug retention zbyt krótkie żeby zebrać meaningful
+    // sample. Info ma 7d — wystarczy do dwu-tygodniowego okna gdy łączymy z DB query
+    // pre-cleanup. Q2 earnings season (lipiec) prawdziwa walidacja decision Finnhub
+    // vs AV primary EPS source — wtedy raise to warn jeśli decyzja będzie odłożona.
     if (
       finnhub?.epsEstimate !== null &&
       finnhub?.epsEstimate !== undefined &&
@@ -97,7 +103,7 @@ export class ConsensusComparisonService {
     ) {
       const diffPct =
         ((finnhub.epsEstimate - alpha.epsEstimate) / Math.abs(alpha.epsEstimate)) * 100;
-      this.logger.debug(
+      this.logger.log(
         `consensus source diff ${symbol} period=${period}: ` +
           `Finnhub eps=${finnhub.epsEstimate.toFixed(4)}, ` +
           `AlphaVantage eps=${alpha.epsEstimate.toFixed(4)} ` +

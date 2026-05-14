@@ -1,8 +1,21 @@
 /**
  * Prompt GPT do analizy 8-K Item 1.01 — Material Definitive Agreement.
  * Kontrakty, umowy, partnerstwa, licencje.
+ *
+ * Code review 14.05.2026 #28: dodany 7-arg signature (zgodny z form8k-2-02).
+ * `extractedFacts` (FIX-02 guidance keyword scan) wstrzykiwany jeśli obecny —
+ * acquisition + reaffirm/raise guidance jest realnym scenariuszem dla Item 1.01.
+ * `_consensusBlock` jako unused — consensus injection tylko dla earnings (2.02).
  */
-export function buildForm8k101Prompt(ticker: string, companyName: string, text: string, _itemNumber?: string, tickerProfile?: string | null): string {
+export function buildForm8k101Prompt(
+  ticker: string,
+  companyName: string,
+  text: string,
+  _itemNumber?: string,
+  tickerProfile?: string | null,
+  extractedFacts?: string | null,
+  _consensusBlock?: string | null,
+): string {
   return `You are a financial analyst specializing in US healthcare stocks.
 
 Analyze this SEC 8-K Item 1.01 (Material Definitive Agreement) filing.
@@ -13,7 +26,7 @@ SECTOR: Healthcare
 FILING TEXT:
 ${text.slice(0, 50_000)}
 
-Focus on extracting:
+${extractedFacts ? `## CONFIRMED FACTS (extracted deterministically — TRUST THESE OVER YOUR OWN INFERENCE FROM THE TEXT):\n${extractedFacts}\n\n` : ''}Focus on extracting:
 1. Contract value (total, annual, or milestone-based)
 2. Counterparty (who is the other party)
 3. Contract duration and renewal terms
