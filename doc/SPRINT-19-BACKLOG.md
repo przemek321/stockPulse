@@ -77,6 +77,58 @@ FIX-06/08/09 zostają do następnych sesji (FIX-06 deprioritized po FIX-10b).
 
 ---
 
+## FAZA 3 KALIBRACJA — consensus thresholds (decyzja deadline 25.05.2026)
+
+> Empiryczne case'y z Faza 2 obserwacji (14d od FIX-13 deploy 11.05) ujawniające
+> overcap/undercap FIX-12 R1/R2/R3 thresholds. Plan v3 framework:
+> incremental over bundle, decyzja architektoniczna na bazie ≥3 case'ów.
+
+### FIX-16 — Asymmetric R1 cap (extreme miss exemption)
+
+**Trigger case (N=1)**: HIMS 11.05.2026 20:35 alert id 2402, 8-K Earnings
+Miss CRITICAL, suppressed z `nonDeliveryReason='consensus_miss'`.
+
+GPT analysis (post-cap):
+- conviction: **-0.3** (cap z FIX-12 R1: "ANY metric miss + \|conv\|>0.3 → cap 0.3")
+- direction: negative, magnitude: **high**, confidence: 0.72
+- key_facts: "EPS -0,18 USD vs +0,04 konsensus (**-507,2% chybienie**)",
+  "92% bear consistency w historii HIMS"
+
+Price outcome (verified):
+
+| Slot | Cena | Delta vs $29.14 |
+|---|---|---|
+| priceAtAlert | $29.14 | — (after-hours close +35min) |
+| price1h | $25.69 | **-11.84%** |
+| price4h | $25.29 | -13.19% |
+| **price1d** | **$23.39** | **-19.73%** ← target short już w 1 dzień |
+| price3d | $23.97 | -17.74% (stabilny dół) |
+| priceOutcomeDone | true | — |
+
+**Diagnoza**: FIX-12 R1 była zaprojektowana dla PODD case (headline BEAT
++33.9% YoY revenue, ale rynek przecenił → cap chroni przed FOMO long).
+HIMS to **odwrotna sytuacja semantycznie**: headline MISS extreme (-507% EPS) +
+rynek **nie wycenił w pełni** przed earnings → real short opportunity stracony,
+bo Telegram nie dostarczył CRITICAL alertu.
+
+**Propozycja R1 asymetrycznego**:
+- Headline BEAT (EPS actual > 0) + ANY consensus miss → cap 0.3 (PODD ✓)
+- Headline MISS (EPS actual < 0) + STRONG miss (|surprise| > 30%) → **NO cap** (HIMS would qualify, -507% >> 30%)
+- Headline MISS + LIGHT miss (|surprise| < 10%) → cap 0.3 (mild bear, accept)
+- Headline MISS + MEDIUM miss (10-30%) → cap 0.5 (medium confidence)
+- Próg 30% TBD — kalibracja na Q2 sample (lipiec 2026)
+
+**Decision deadline**: 25.05.2026 (Faza 2 framework — obs window 11.05-25.05).
+
+**N=1 sample warning**: HIMS to single case. Konieczne **≥3 HIMS-class**
+(headline EPS miss + |surprise|>30% + drop ≥10% 1d) przed cementowaniem
+nowego progu. Plan v3: incremental over bundle, nie deploy z N=1.
+
+**Out of scope dla Fazy 3 obecnie**: R2 (in-line ±3%) i R3 (single-metric
+beat) — brak triggerów w Faza 2 window dotąd. Kalibracja po Q2 sample (lipiec).
+
+---
+
 ## Kategorie
 
 - **DEFERRED** — odłożone z poprzedniego sprintu (decyzja świadoma, Opcja B)
