@@ -152,18 +152,19 @@ export default function TopStatusBar({ activeTab, onTabChange }: Props) {
       else if (overview?.alerts?.total24h != null) alerts24h = overview.alerts.total24h;
       else if (stats?.alerts?.last24h != null) alerts24h = stats.alerts.last24h;
 
-      // Claude / AI status
+      // Claude / AI status — backend kontrakt:
+      //   /api/health → { status: 'healthy' | 'degraded', ... } (zdrowie kolektorów)
+      //   /api/health/system-overview → { overall: 'HEALTHY' | 'WARNING' | 'CRITICAL', ... }
+      // overview ma pierwszeństwo (bogatszy sygnał: błędy 24h + kolektory + pipeline).
       let claudeStatus: StatusData['claudeStatus'] = 'OFF';
-      if (health) {
-        const aiOk =
-          health.ai?.status === 'ok' ||
-          health.anthropic?.status === 'ok' ||
-          health.services?.anthropic === 'ok' ||
-          health.status === 'ok';
-        claudeStatus = aiOk ? 'OK' : health.status === 'degraded' ? 'OFF' : 'ERR';
-      }
-      if (overview?.pipeline?.status) {
-        claudeStatus = overview.pipeline.status === 'ok' ? 'OK' : 'ERR';
+      if (health?.status === 'healthy') claudeStatus = 'OK';
+      else if (health?.status === 'degraded') claudeStatus = 'OFF';
+      else if (health) claudeStatus = 'ERR';
+      if (overview?.overall) {
+        claudeStatus =
+          overview.overall === 'HEALTHY' ? 'OK'
+            : overview.overall === 'CRITICAL' ? 'ERR'
+            : 'OFF';
       }
 
       setData({
