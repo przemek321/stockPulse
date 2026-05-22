@@ -84,6 +84,30 @@ export class Alert {
   @Column({ type: 'boolean', default: false })
   priceOutcomeDone: boolean;
 
+  // ── Sector benchmark snapshots (XBI/IBB) ───────────────
+  // Patrz `doc/FOLLOWUP-XBI-ADJUSTMENT.md` (trigger: BIIB 14.05.2026 outcome
+  // interpretation ambiguity). XBI = SPDR S&P Biotech (equal-weight, mid-cap fit),
+  // IBB = iShares Biotechnology (market-cap weighted, large-cap fit).
+  // Skip price1h/4h dla sectora — niski signal-to-noise intraday.
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xbiAtAlert: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xbi1d: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xbi3d: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  ibbAtAlert: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  ibb1d: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  ibb3d: number | null;
+
   /**
    * Soft delete flag — alert ukryty z dashboardu/API ale zachowany w DB.
    * Używaj zamiast DELETE — historia outcomes jest kluczowa do walidacji forward.

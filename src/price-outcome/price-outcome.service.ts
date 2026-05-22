@@ -21,13 +21,27 @@ import { isNyseOpen, getEffectiveStartTime } from '../common/utils/market-hours.
 export class PriceOutcomeService {
   private readonly logger = new Logger(PriceOutcomeService.name);
 
-  /** Sloty czasowe do uzupełnienia */
+  /** Sloty czasowe do uzupełnienia ticker price */
   private readonly SLOTS = [
     { field: 'price1h' as const, delayMs: 1 * 60 * 60 * 1000, label: '1h' },
     { field: 'price4h' as const, delayMs: 4 * 60 * 60 * 1000, label: '4h' },
     { field: 'price1d' as const, delayMs: 24 * 60 * 60 * 1000, label: '1d' },
     { field: 'price3d' as const, delayMs: 72 * 60 * 60 * 1000, label: '3d' },
   ];
+
+  /**
+   * Sloty sektorowego benchmark (XBI/IBB) — tylko 1d i 3d.
+   * Skip 1h/4h: sektor benchmark intraday ma niski signal-to-noise dla outcome
+   * interpretation. Patrz `doc/FOLLOWUP-XBI-ADJUSTMENT.md`.
+   */
+  private readonly SECTOR_SLOTS = [
+    { tickerField: 'price1d' as const, xbiField: 'xbi1d' as const, ibbField: 'ibb1d' as const },
+    { tickerField: 'price3d' as const, xbiField: 'xbi3d' as const, ibbField: 'ibb3d' as const },
+  ];
+
+  /** Symbole sektorowe — biotech ETF benchmark (XBI mid-cap, IBB large-cap weighted) */
+  private readonly XBI_SYMBOL = 'XBI';
+  private readonly IBB_SYMBOL = 'IBB';
 
   /** Max zapytań Finnhub na cykl CRON (free tier = 60/min) */
   private readonly MAX_QUOTES_PER_CYCLE = 30;
@@ -40,6 +54,12 @@ export class PriceOutcomeService {
     private readonly alertRepo: Repository<Alert>,
     private readonly finnhub: FinnhubService,
   ) {}
+
+  /** Zwraca delayMs dla danego ticker-slot field. Używane przy sektor snapshot. */
+  private slotDelayFor(field: 'price1h' | 'price4h' | 'price1d' | 'price3d'): number {
+    const slot = this.SLOTS.find((s) => s.field === field);
+    return slot?.delayMs ?? Number.MAX_SAFE_INTEGER;
+  }
 
   /**
    * CRON co godzinę — uzupełnia ceny dla alertów oczekujących na outcome.
@@ -71,6 +91,27 @@ export class PriceOutcomeService {
     const now = Date.now();
     let quotesUsed = 0;
     let updated = 0;
+
+    // Pobierz XBI/IBB raz na cykl (1 zapytanie each) — używamy do wszystkich
+    // alertów których 1d/3d slot wpadł do tego cyklu. Sektor benchmark "current"
+    // jest valid jako "close NYSE w okno alert+1d/+3d" gdy CRON odpala w sesji.
+    let xbiQuote: number | null = null;
+    let ibbQuote: number | null = null;
+    const needsSectorAnyAlert = alerts.some((alert) => {
+      const effectiveStart = getEffectiveStartTime(new Date(alert.sentAt)).getTime();
+      return this.SECTOR_SLOTS.some(
+        (slot) =>
+          effectiveStart + this.slotDelayFor(slot.tickerField) <= now &&
+          (alert as any)[slot.xbiField] == null,
+      );
+    });
+    if (needsSectorAnyAlert) {
+      [xbiQuote, ibbQuote] = await Promise.all([
+        this.finnhub.getQuote(this.XBI_SYMBOL),
+        this.finnhub.getQuote(this.IBB_SYMBOL),
+      ]);
+      quotesUsed += 2;
+    }
 
     // Grupuj alerty per symbol — 1 zapytanie API per symbol zamiast per alert
     const bySymbol = new Map<string, Alert[]>();
@@ -124,6 +165,23 @@ export class PriceOutcomeService {
             this.logger.debug(
               `PriceOutcome: ${symbol} ${slot.label}=$${price} (alert #${alert.id})`,
             );
+          }
+        }
+
+        // Zapisz sektor benchmark (XBI/IBB) dla due slotów 1d/3d.
+        // Sytuacja race-free: snapshot per cykl, ten sam quote dla wszystkich
+        // alertów które trafiły w to okno (lokalnie OK — w praktyce <60s drift
+        // między alertami w tej samej godzinie, sektor benchmark wewnątrz
+        // jednej sesji prawie nieruchomy).
+        for (const sslot of this.SECTOR_SLOTS) {
+          if (effectiveStart + this.slotDelayFor(sslot.tickerField) > now) continue;
+          if ((alert as any)[sslot.xbiField] == null && xbiQuote != null) {
+            (alert as any)[sslot.xbiField] = xbiQuote;
+            changed = true;
+          }
+          if ((alert as any)[sslot.ibbField] == null && ibbQuote != null) {
+            (alert as any)[sslot.ibbField] = ibbQuote;
+            changed = true;
           }
         }
 
