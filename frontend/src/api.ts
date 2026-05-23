@@ -330,9 +330,18 @@ export interface AlertOutcome {
   delta4h: number | null;
   delta1d: number | null;
   delta3d: number | null;
+  // FOLLOWUP-XBI: sector-adjusted alpha vs XBI + IBB benchmarks
+  xbiAtAlert: number | null;
+  ibbAtAlert: number | null;
+  xbiAlpha1d: number | null;
+  xbiAlpha3d: number | null;
+  ibbAlpha1d: number | null;
+  ibbAlpha3d: number | null;
   directionCorrect: boolean | null;
   priceOutcomeDone: boolean;
   sentAt: string;
+  delivered?: boolean;
+  nonDeliveryReason?: string | null;
 }
 
 export const fetchAlertOutcomes = (limit = 100, symbol?: string) => {

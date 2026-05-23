@@ -5,6 +5,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Alert, AlertRule, SecFiling } from '../../entities';
 import { EventType } from '../../events/event-types';
 import { PriceOutcomeService } from '../../price-outcome/price-outcome.service';
+import { computeAlphaForSlot } from '../../price-outcome/sector-alpha';
 
 /**
  * GET /api/alerts — historia alertów, reguły, timeline sygnałów.
@@ -135,12 +136,39 @@ export class AlertsController {
         price != null && p > 0 ? +((Number(price) - p) / p * 100).toFixed(2) : null;
 
       const delta1d = delta(a.price1d);
+      const delta3d = delta(a.price3d);
 
-      // Trafność: kierunek alertu zgadza się ze zmianą ceny
+      // FOLLOWUP-XBI-ADJUSTMENT: sector-adjusted alpha (raw delta - benchmark delta × beta).
+      // Reuse `computeAlphaForSlot` z sector-alpha.ts (already tested, 17 cases).
+      // Beta=1.0 default (consensus dla biotech ETF members, ±20% acceptable).
+      // null gdy brak XBI/IBB snapshot (legacy alerty pre-FOLLOWUP) lub brak
+      // priceLater (slot jeszcze nie wypełniony).
+      const alpha1d = computeAlphaForSlot({
+        priceAtAlert: a.priceAtAlert != null ? Number(a.priceAtAlert) : null,
+        priceLater: a.price1d != null ? Number(a.price1d) : null,
+        xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
+        xbiLater: a.xbi1d != null ? Number(a.xbi1d) : null,
+        ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
+        ibbLater: a.ibb1d != null ? Number(a.ibb1d) : null,
+      });
+      const alpha3d = computeAlphaForSlot({
+        priceAtAlert: a.priceAtAlert != null ? Number(a.priceAtAlert) : null,
+        priceLater: a.price3d != null ? Number(a.price3d) : null,
+        xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
+        xbiLater: a.xbi3d != null ? Number(a.xbi3d) : null,
+        ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
+        ibbLater: a.ibb3d != null ? Number(a.ibb3d) : null,
+      });
+      const round2 = (v: number | null) => v != null ? +v.toFixed(2) : null;
+
+      // Trafność: kierunek alertu zgadza się ze zmianą ceny.
+      // Używamy sector-adjusted alpha gdy dostępne (lepszy noise-free signal),
+      // fallback do raw delta1d dla legacy alertów bez XBI snapshot.
+      const referenceDelta = alpha1d.xbiAlphaPct ?? delta1d;
       let directionCorrect: boolean | null = null;
-      if (delta1d != null && a.alertDirection) {
-        if (a.alertDirection === 'positive') directionCorrect = delta1d > 0;
-        else if (a.alertDirection === 'negative') directionCorrect = delta1d < 0;
+      if (referenceDelta != null && a.alertDirection) {
+        if (a.alertDirection === 'positive') directionCorrect = referenceDelta > 0;
+        else if (a.alertDirection === 'negative') directionCorrect = referenceDelta < 0;
       }
 
       return {
@@ -158,7 +186,14 @@ export class AlertsController {
         delta1h: delta(a.price1h),
         delta4h: delta(a.price4h),
         delta1d,
-        delta3d: delta(a.price3d),
+        delta3d,
+        // FOLLOWUP-XBI: sektor-adjusted alpha (XBI + IBB benchmarks)
+        xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
+        ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
+        xbiAlpha1d: round2(alpha1d.xbiAlphaPct),
+        xbiAlpha3d: round2(alpha3d.xbiAlphaPct),
+        ibbAlpha1d: round2(alpha1d.ibbAlphaPct),
+        ibbAlpha3d: round2(alpha3d.ibbAlphaPct),
         directionCorrect,
         priceOutcomeDone: a.priceOutcomeDone,
         sentAt: a.sentAt,
