@@ -10,6 +10,7 @@ import { CorrelationService } from '../correlation/correlation.service';
 import { SourceCategory, StoredSignal } from '../correlation/types/correlation.types';
 import { Logged } from '../common/decorators/logged.decorator';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
+import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
 import { AlertDeliveryGate } from './alert-delivery-gate.service';
 import { AlertDispatcherService } from './alert-dispatcher.service';
 
@@ -130,15 +131,10 @@ export class AlertEvaluatorService {
     const delivered = dispatchResult.delivered;
     const nonDeliveryReason = dispatchResult.suppressedBy;
 
-    // Price Outcome Tracker — pobierz cenę PRZED zapisem (1 zapis zamiast 2)
-    let priceAtAlert: number | null = null;
-    try {
-      priceAtAlert = await this.finnhub.getQuote(symbol);
-      if (priceAtAlert) {
-        this.logger.debug(`PriceOutcome: ${symbol} priceAtAlert=$${priceAtAlert}`);
-      }
-    } catch (err) {
-      this.logger.warn(`PriceOutcome getQuote error: ${err.message}`);
+    // Price Outcome Tracker — ticker + XBI/IBB snapshot równolegle (FOLLOWUP-XBI-ADJUSTMENT)
+    const snapshot = await captureAlertSnapshot(this.finnhub, symbol);
+    if (snapshot.priceAtAlert) {
+      this.logger.debug(`PriceOutcome: ${symbol} priceAtAlert=$${snapshot.priceAtAlert}`);
     }
 
     const alert = this.alertRepo.create({
@@ -151,7 +147,9 @@ export class AlertEvaluatorService {
       nonDeliveryReason,
       catalystType: catalystType ?? null,
       alertDirection: correlationData?.direction === 'neutral' ? null : (correlationData?.direction ?? null),
-      priceAtAlert,
+      priceAtAlert: snapshot.priceAtAlert,
+      xbiAtAlert: snapshot.xbiAtAlert,
+      ibbAtAlert: snapshot.ibbAtAlert,
     });
 
     await this.alertRepo.save(alert);

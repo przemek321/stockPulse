@@ -9,6 +9,7 @@ import { CorrelationService } from '../correlation/correlation.service';
 import { TelegramService } from '../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
+import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
 import { Logged } from '../common/decorators/logged.decorator';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
 
@@ -211,13 +212,8 @@ export class OptionsFlowAlertService {
     const delivered = dispatchResult.delivered;
     const nonDeliveryReason = dispatchResult.suppressedBy;
 
-    // Price at alert
-    let priceAtAlert: number | undefined;
-    try {
-      if (this.finnhub) {
-        priceAtAlert = (await this.finnhub.getQuote(flow.symbol)) ?? undefined;
-      }
-    } catch { /* noop */ }
+    // FOLLOWUP-XBI-ADJUSTMENT: ticker + XBI/IBB snapshot równolegle
+    const snapshot = await captureAlertSnapshot(this.finnhub, flow.symbol);
 
     // Zapisz alert
     try {
@@ -232,7 +228,9 @@ export class OptionsFlowAlertService {
           nonDeliveryReason,
           catalystType: 'unusual_options',
           alertDirection: scoring.conviction > 0 ? 'positive' : 'negative',
-          priceAtAlert,
+          priceAtAlert: snapshot.priceAtAlert,
+          xbiAtAlert: snapshot.xbiAtAlert,
+          ibbAtAlert: snapshot.ibbAtAlert,
         }),
       );
     } catch (err) {

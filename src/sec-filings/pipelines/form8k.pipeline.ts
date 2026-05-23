@@ -28,6 +28,7 @@ import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.sco
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
+import { captureAlertSnapshot } from '../../price-outcome/sector-snapshot.helper';
 import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
@@ -378,12 +379,8 @@ export class Form8kPipeline {
               traceId: payload.traceId,
             });
 
-        let priceAtAlert: number | undefined;
-        try {
-          if (this.finnhub) {
-            priceAtAlert = (await this.finnhub.getQuote(payload.symbol)) ?? undefined;
-          }
-        } catch { /* noop */ }
+        // FOLLOWUP-XBI-ADJUSTMENT: ticker + XBI + IBB equity snapshot równolegle
+        const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
 
         try {
           await this.alertRepo.save(
@@ -399,7 +396,9 @@ export class Form8kPipeline {
               alertDirection: analysis.price_impact.direction === 'neutral'
                 ? (analysis.conviction >= 0 ? 'positive' : 'negative')
                 : analysis.price_impact.direction,
-              priceAtAlert,
+              priceAtAlert: snapshot.priceAtAlert,
+              xbiAtAlert: snapshot.xbiAtAlert,
+              ibbAtAlert: snapshot.ibbAtAlert,
             }),
           );
         } catch (err) {
@@ -461,13 +460,8 @@ export class Form8kPipeline {
       const delivered = dispatchResult.delivered;
       const nonDeliveryReason = dispatchResult.suppressedBy;
 
-      // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
-      let priceAtAlert: number | undefined;
-      try {
-        if (this.finnhub) {
-          priceAtAlert = (await this.finnhub.getQuote(payload.symbol)) ?? undefined;
-        }
-      } catch { /* noop */ }
+      // Sprint 11 + FOLLOWUP-XBI-ADJUSTMENT: cena ticker + XBI/IBB w jednym snapshot
+      const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
 
       try {
         await this.alertRepo.save(
@@ -483,7 +477,9 @@ export class Form8kPipeline {
             alertDirection: analysis.price_impact.direction === 'neutral'
               ? (analysis.conviction >= 0 ? 'positive' : 'negative')
               : analysis.price_impact.direction,
-            priceAtAlert,
+            priceAtAlert: snapshot.priceAtAlert,
+            xbiAtAlert: snapshot.xbiAtAlert,
+            ibbAtAlert: snapshot.ibbAtAlert,
           }),
         );
       } catch (err) {
@@ -561,13 +557,8 @@ export class Form8kPipeline {
     const delivered = dispatchResult.delivered;
     const nonDeliveryReason = dispatchResult.suppressedBy;
 
-    // Sprint 11: pobierz cenę dla bankruptcy alertu
-    let priceAtAlert: number | undefined;
-    try {
-      if (this.finnhub) {
-        priceAtAlert = (await this.finnhub.getQuote(symbol)) ?? undefined;
-      }
-    } catch { /* noop */ }
+    // Sprint 11 + FOLLOWUP-XBI-ADJUSTMENT: cena ticker + XBI/IBB
+    const snapshot = await captureAlertSnapshot(this.finnhub, symbol);
 
     try {
       await this.alertRepo.save(
@@ -581,7 +572,9 @@ export class Form8kPipeline {
           nonDeliveryReason,
           catalystType: 'bankruptcy',
           alertDirection: 'negative',
-          priceAtAlert,
+          priceAtAlert: snapshot.priceAtAlert,
+          xbiAtAlert: snapshot.xbiAtAlert,
+          ibbAtAlert: snapshot.ibbAtAlert,
         }),
       );
     } catch (err) {

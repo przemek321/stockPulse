@@ -7,6 +7,7 @@ import { CORRELATION_REDIS } from './redis.provider';
 import { TelegramService } from '../alerts/telegram/telegram.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
+import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
 import { Alert, AlertRule, Ticker } from '../entities';
 import {
   StoredSignal,
@@ -650,13 +651,8 @@ export class CorrelationService implements OnModuleDestroy {
     const delivered = dispatchResult.delivered;
     const nonDeliveryReason = dispatchResult.suppressedBy;
 
-    // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
-    let priceAtAlert: number | undefined;
-    try {
-      if (this.finnhub) {
-        priceAtAlert = (await this.finnhub.getQuote(ticker)) ?? undefined;
-      }
-    } catch { /* noop — cena niedostępna po sesji */ }
+    // Sprint 11 + FOLLOWUP-XBI-ADJUSTMENT: ticker + XBI/IBB snapshot równolegle
+    const snapshot = await captureAlertSnapshot(this.finnhub, ticker);
 
     // Zapisz throttle do Redis
     const throttleSec = PATTERN_THROTTLE[pattern.type];
@@ -674,7 +670,9 @@ export class CorrelationService implements OnModuleDestroy {
         nonDeliveryReason,
         catalystType: pattern.type,
         alertDirection: pattern.direction,
-        priceAtAlert,
+        priceAtAlert: snapshot.priceAtAlert,
+        xbiAtAlert: snapshot.xbiAtAlert,
+        ibbAtAlert: snapshot.ibbAtAlert,
       }),
     );
 

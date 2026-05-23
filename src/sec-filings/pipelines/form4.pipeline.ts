@@ -14,6 +14,7 @@ import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.sco
 import { CorrelationService } from '../../correlation/correlation.service';
 import { StoredSignal } from '../../correlation/types/correlation.types';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
+import { captureAlertSnapshot } from '../../price-outcome/sector-snapshot.helper';
 import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
@@ -433,12 +434,8 @@ export class Form4Pipeline {
       const nonDeliveryReason = dispatchResult.suppressedBy;
 
       // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
-      let priceAtAlert: number | undefined;
-      try {
-        if (this.finnhub) {
-          priceAtAlert = (await this.finnhub.getQuote(payload.symbol)) ?? undefined;
-        }
-      } catch { /* noop — cena niedostępna po sesji */ }
+      // FOLLOWUP-XBI-ADJUSTMENT: równolegle XBI/IBB dla sector-adjusted alpha
+      const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
 
       try {
         await this.alertRepo.save(
@@ -454,7 +451,9 @@ export class Form4Pipeline {
             alertDirection: analysis.price_impact.direction === 'neutral'
               ? (analysis.conviction >= 0 ? 'positive' : 'negative')
               : analysis.price_impact.direction,
-            priceAtAlert,
+            priceAtAlert: snapshot.priceAtAlert,
+            xbiAtAlert: snapshot.xbiAtAlert,
+            ibbAtAlert: snapshot.ibbAtAlert,
           }),
         );
       } catch (err) {
