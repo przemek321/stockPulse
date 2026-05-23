@@ -6,6 +6,45 @@
 
 ---
 
+## ✅ DONE 23.05.2026 — APLS Faza 1+2 (biotech universe expansion) + XBI MVP (sector-adjusted alpha) + FIX-18 deferred
+
+Sesja 23.05.2026: dwa równoległe trackery (APLS biotech universe expansion +
+XBI sector-adjusted alpha MVP) + decyzja deferred dla FIX-18 (8-K temporal
+awareness) z explicit revisit threshold.
+
+| Commit | Zakres | Test count |
+|---|---|---|
+| `687c3d0` | **APLS Faza 1+2**: 4-fazowy plan biotech universe expansion. Backtest replikuje V5 (BUY $500K+ 7d **d=+0.75**, p<0.01). Per-ticker driver analysis (ARDX 1d **d=+1.19** ✓✓✓, MNKD 7d d=+0.41, URGN/CRSP statistical noise N<5). C-suite N=3 insufficient dla Bonferroni — exclude z hard rule, accept jako secondary boost ×1.1. 6 viable tickerów: **URGN/ARDX/MNKD/CRSP strict** + **AXSM/RCKT stretch**. Faza 3 seed obs CONSERVATIVE GO decision. | +0 (analysis only) |
+| `7ed4be6` | **XBI MVP schema**: dodanie 6 kolumn do `alerts` entity (`xbiAtAlert`, `ibbAtAlert`, `xbiPrice1d/3d`, `ibbPrice1d/3d`). TypeORM `synchronize: true` auto-migracja. | 0 |
+| `a280dc7` | **XBI capture helper**: pure function `captureAlertSnapshot(symbol, finnhub)` zwraca `{priceAtAlert, xbiAtAlert, ibbAtAlert}` z 3 parallel `getQuote` calls (graceful nullable fallback). Helper podpięty w 6 sites: Form4Pipeline, Form8kPipeline (2× main + bankruptcy), CorrelationService, AlertEvaluator.sendAlert, OptionsFlowAlertService. | +12 |
+| `86ead4f` | **XBI alpha API**: `/api/alerts/outcomes` zwraca 4 nowe pola `xbiAlpha1d/3d, ibbAlpha1d/3d` (post-process pure function `computeAlphaForSlot(rawPct, xbiPct, ibbPct)` — relative outperformance vs sector benchmark). 26 unit testów `computeSectorAlpha` (edge cases: null snapshot, null slot, both benchmarks null, partial null). | +14 |
+
+**Cumulative**: 557/557 unit pass (+52 new), tsc clean, 3 deploy clean.
+
+**APLS wyniki kluczowe** (źródło: `doc/PLAN-APLS-BIOTECH-UNIVERSE-2026-05-23.md`):
+- BUY $500K+ 7d window: **d=+0.75, p=0.003** (replikuje V5 healthcare core BUY d=+0.83)
+- Per-ticker driver: ARDX dominates (N=4, 1d d=+1.19 ✓✓✓) — single ticker not whole universe edge
+- C-suite tier insufficient sample (N=3) — Bonferroni fails, downgrade do secondary boost ×1.1
+- Healthcare boost (×1.2) zastosować — sector=biotech to subset healthcare
+- Recommendation: 6 tickerów seed obs (4 strict + 2 stretch), Faza 3 PRO GO
+
+**XBI MVP architecture flow**:
+```
+alert created → captureAlertSnapshot(symbol)
+              ↓ (3 parallel Finnhub /quote)
+              { priceAtAlert, xbiAtAlert, ibbAtAlert }
+              ↓ (persist w alerts row)
+PriceOutcomeTracker → fills price1d/3d at horizon
+              ↓
+/api/alerts/outcomes → post-process computeAlphaForSlot
+              ↓ relative outperformance vs sector
+              { xbiAlpha1d: +2.1%, ibbAlpha1d: +1.8% }
+```
+
+Forward: backfill historic XBI/IBB at sentAt (Finnhub /candle, ~33min run), API timeline endpoint update, frontend toggle Raw/Alpha, weekly raport SQL replacement, Python backtest analyzer dual-track integration.
+
+---
+
 ## ✅ DONE 29.04-06.05.2026 — P0 fixes po HUM/UNH false positives + options-flow zombie cycle + missing exhibit + correlation backdoors + extractItemText boundary bug + OptionsFlow obs leak
 
 Sześć sesji (13 commitów = 10 fixów + 3 docs) po siedmiu incydentach:
@@ -74,6 +113,125 @@ do correlation**, **prompt design errors**, **8-K wrapper-only bez liczb**,
 **MRNA-class extractItemText boundary bug obcinający exhibit**, oraz
 **options-flow zombie cycle** który był otwarty od 17.04. Pozostałe
 FIX-06/08/09 zostają do następnych sesji (FIX-06 deprioritized po FIX-10b).
+
+---
+
+## 🔜 NEXT SESSION — APLS Faza 3 (~3-4h)
+
+> Źródło: `doc/PLAN-APLS-BIOTECH-UNIVERSE-2026-05-23.md` (4-fazowy plan, sesja 23.05.2026).
+> Faza 1+2 DONE (commit 687c3d0). Faza 3 = seed obs production rollout.
+
+### Zakres prac
+
+1. **DB seed 6 tickerów w `src/seed/seed.service.ts`**:
+   - Strict tier: **URGN, ARDX, MNKD, CRSP** (sample replikuje V5 BUY $500K+ d=+0.75 7d)
+   - Stretch tier: **AXSM, RCKT** (per-ticker driver weaker, treat as hypothesis test)
+   - Pola: `sector='biotech_apls'`, `observationOnly=true`, `isActive=true`
+   - Audit query: `SELECT symbol, sector, observation_only FROM tickers WHERE sector='biotech_apls'` po seed
+
+2. **Form4Pipeline threshold rule** (`src/sec-filings/pipelines/form4.pipeline.ts`):
+   - Stała `MIN_BUY_VALUE_BIOTECH_APLS = 500_000` (vs core healthcare `100_000`)
+   - Sector branch: `if (ticker.sector === 'biotech_apls' && totalValue < 500_000) → SKIP_BELOW_THRESHOLD`
+   - Logika PRZED isCsuiteRole / isDirectorRole check (efektywność: ~80% biotech BUY $<500K → no GPT call)
+   - Healthcare boost ×1.2: stosuje się dla `biotech_apls` (subset healthcare semantycznie)
+   - C-suite ×1.3 boost zachowany (kumulatywne dla biotech: ×1.2 × ×1.3 = ×1.56)
+   - Strict tier ×1.1 lekka preferencja vs stretch tier (URGN/ARDX/MNKD/CRSP boost vs AXSM/RCKT base)
+
+3. **30-day calendar reminder** (manual): 2026-06-22 → Faza 4 decision review.
+
+4. **Decision gate Faza 4** (akceptowalne kryteria do unlock Telegram):
+   - ≥6 BUY events $500K+ w obs window (per-ticker N>=1 minimum)
+   - Hit rate 7d ≥60% (priceChange1d > 0 lub priceChange3d > 0)
+   - Median alpha 7d ≥+2% raw LUB ≥+1% sector-adjusted (XBI/IBB benchmark — FIX-18 XBI MVP path)
+   - **0 MRNA-class halucynacji** (defense in depth: missing_data guard + extractItemText boundary fix wszystkie deployed)
+
+5. **Test integracyjny**: `test/integration/form4-biotech-apls.spec.ts`:
+   - Mock Form4 ARDX BUY $600K (Insider role: CEO)
+   - Assert: observation alert created z `nonDeliveryReason='observation'`, `correlation.storeSignal` SKIP (FIX-03 path)
+   - Assert: `priceAtAlert` + `xbiAtAlert` + `ibbAtAlert` zachowane (captureAlertSnapshot helper podpięty)
+   - Assert: alert.priority ≥ HIGH (C-suite ×1.3 × healthcare ×1.2 × strict tier ×1.1 = ×1.72 boost)
+
+**Estimate**: 3-4h (seed + threshold rule + integration test + 30d reminder).
+
+---
+
+## 🔜 XBI Faza 2 follow-up (~5h, parallel z APLS Faza 3)
+
+> Źródło: sesja 23.05.2026 XBI MVP shipped (commits 7ed4be6/a280dc7/86ead4f).
+> Faza 1 = schema + capture helper + outcomes API DONE. Faza 2 = backfill +
+> frontend toggle + analyzer integration.
+
+### Zakres prac
+
+1. **Backfill historic XBI/IBB at sentAt** (~33 min run):
+   - Skrypt `scripts/backfill/backfill-xbi-ibb-snapshots.ts`
+   - Iteruje `alerts WHERE xbi_at_alert IS NULL ORDER BY sent_at DESC LIMIT 2000`
+   - Finnhub `/candle` endpoint per alert (resolution D, from=sentAt-1d, to=sentAt+1d) → wyciągnij close price w dzień sentAt
+   - Rate limit Finnhub: 60 req/min → ~33 min dla 2000 alertów (2 calls per alert: XBI + IBB)
+   - Persistence: `alertRepo.update(id, { xbiAtAlert, ibbAtAlert })` (zachować priceAtAlert intact)
+
+2. **API timeline endpoint update** (`/api/alerts/timeline` raw SQL):
+   - Dodać `xbi_at_alert, ibb_at_alert, xbi_price1d, xbi_price3d, ibb_price1d, ibb_price3d` w SELECT
+   - Post-process pure function `computeAlphaForSlot` per row (analogicznie do `/outcomes`)
+   - Response: dodać `xbiAlpha1d, xbiAlpha3d, ibbAlpha1d, ibbAlpha3d`
+
+3. **Frontend toggle Raw/Alpha** (`frontend/src/App.tsx`):
+   - State `viewMode: 'raw' | 'alpha'` (default `'alpha'` gdy `xbiAlpha1d !== null`)
+   - DataPanel column renderer: if mode='alpha' → render `xbiAlpha1d` + chip "vs XBI"; else raw `priceChange1d`
+   - Fallback do Raw gdy `xbiAlpha1d === null` (pre-backfill alerts)
+
+4. **Weekly raport SQL** (`scripts/reports/weekly-report.sql`):
+   - Zamienić raw `priceChange1d / 3d` na sector-adjusted alpha w outcome distribution section
+   - Median alpha per rule (Form 4 Insider BUY, 8-K Earnings, INSIDER_PLUS_OPTIONS, etc.)
+   - Sekcja "Sector context": XBI/IBB performance w okresie raportu
+
+5. **Python backtest analyzer integration** (`scripts/backtest/analyzer.py`):
+   - Dual-track: raw d (V5 baseline) + alpha d (new dimension)
+   - Yahoo Finance XBI/IBB bulk fetch 3 lata (yfinance lub manual CSV)
+   - `compute_alpha(price_at, price_horizon, xbi_at, xbi_horizon)` per event
+   - Cohen's d alpha vs raw d — czy hypothesis test edge survives sector normalization
+
+**Estimate**: 5h (backfill 33min run + timeline endpoint 1h + frontend toggle 1.5h + weekly SQL 0.5h + Python integration 2h).
+
+---
+
+## ⏸ FIX-18 DEFERRED — temporal awareness 8-K follow-up (revisit threshold)
+
+> Źródło: `doc/PLAN-FIX-18-2026-05-22.md` (plan zachowany jako audit trail).
+> Decyzja sesja 23.05.2026: deferred z explicit revisit threshold.
+
+### Co to było
+
+FIX-18 = post-GPT guard dla 8-K Item 1.01 (Material Definitive Agreement)
+gdy emitent miał prior 8-K Item 1.01 lub Item 2.02 z conviction `|c|>0.7` w
+ostatnich 90d. Założenie: drugi 8-K w krótkim okresie może być
+fundamentalnym follow-up (M&A close po prior LOI) lub niezwiązanym
+event'em — GPT bez temporal context może duplikować bull/bear thesis.
+
+### Dlaczego deferred
+
+1. **N=1 sample dotąd** (wymagane ≥5 cases żeby justify scope). Logi
+   30d od FIX-13 deploy: 1 case (filing replay nie produkcja).
+2. **XBI MVP shipped czesciowe** (schema + capture + outcomes) — backfill
+   + frontend toggle + analyzer integration NIE deployed. Bez sector-adjusted
+   alpha numbers FIX-18 false positive identification jest noisy.
+3. **Median sector-adjusted alpha tych 5+ cases** musi być `<|1.5%| 3d`
+   (czyli noise zone, prior conviction nie predicted real outcome) zanim
+   guard jest mierzalnie useful.
+
+### Revisit threshold (3 warunki, AND)
+
+- [ ] ≥5 cases 8-K Item 1.01 follow-up po prior conviction `|c|>0.7` w 90d (zebrane z system_logs)
+- [ ] XBI pipeline FULL shipped (backfill + frontend toggle + Python analyzer) — czyli XBI Faza 2 follow-up DONE
+- [ ] Median sector-adjusted alpha tych 5+ cases `<|1.5%| 3d` (noise zone potwierdzenie)
+
+### Decision deadline
+
+**2027-05-23** (12 mies. cushion) **LUB** Sprint w którym warunki 1-3 spełnione.
+Plan v3 framework: incremental over bundle, nie deploy z N=1.
+
+**Estimate (jeśli revisit aktywuje)**: 4-5h (guard logic + 90d window
+SQL aggregate + 26 testów + integration replay 5+ cases).
 
 ---
 

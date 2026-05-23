@@ -2,7 +2,66 @@
 
 > **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
 
-> Ostatnia aktualizacja: 2026-04-23
+> Ostatnia aktualizacja: 2026-05-23
+
+## 23.05.2026 — APLS Faza 1+2 done + XBI MVP shipped
+
+> 🚀 **23.05.2026 sesja podwójna — APLS-class universe expansion (Faza 1+2 zakończone, Faza 3 GO CONSERVATIVE) + XBI/IBB sector-adjusted alpha MVP shipped do produkcji**. 4 commity total (1 APLS + 3 XBI MVP). 557/557 unit pass w 29 suites (+33 od baseline 524). FIX-18 (forward EPS estimate dla just-reported Q via paid source) DEFERRED z explicit revisit threshold — APLS wyższy ROI, BIIB N=1 nie uzasadnia paid feed.
+
+| Commit  | Zakres                                                | Files changed | Testy nowe |
+|---------|-------------------------------------------------------|---------------|------------|
+| 687c3d0 | APLS Faza 1+2 — universe scan + 24mies backtest       | 4 doc + analyzer | 0 (research) |
+| 7ed4be6 | XBI MVP #1 — Alert entity +6 kolumn xbi/ibb snapshot  | entity + migration | 0 |
+| a280dc7 | XBI MVP #2 — capture helper + 6 dispatch sites refactor | 6 pipeline sites | 9 (sector-snapshot) |
+| 86ead4f | XBI MVP #3 — pure function computeSectorAlpha + API + frontend type | utils + controller + frontend | 17 (sector-alpha) |
+
+### APLS-class universe expansion (Faza 1+2)
+
+**Trigger**: po V5 backtest C-suite BUY d=+0.92 (7d) i All BUY d=+0.75 (7d), pytanie: czy 28 healthcare core uniwersum to plateau czy można dosypać tickerów replikujących APLS signal pattern (mid-cap biotech, insider buying na pre-PDUFA, $500K+ events)?
+
+**Faza 1.A — Universe scan** (`doc/APLS-FAZA-1-RESULTS-2026-05-23.md`): 10 kandydatów przeszlo screen, 6 viable do Faza 2:
+- Strict pattern match (4): **URGN** (Urogen Pharma), **ARDX** (Ardelyx), **MNKD** (MannKind), **CRSP** (CRISPR Therapeutics)
+- Stretch criteria (2): **AXSM** (Axsome Therapeutics), **RCKT** (Rocket Pharmaceuticals)
+- REJECT pre-revenue (4): BEAM (Beam Therapeutics), EDIT (Editas Medicine), NTLA (Intellia), RXRX (Recursion Pharma) — zero commercial product, FDA timeline >2026, brak meaningful insider buying baseline
+
+**Faza 1.B — M&A base rate** (partial w `doc/APLS-FAZA-1-RESULTS-2026-05-23.md` Sekcja 4): healthcare mid-cap acquisition rate curated z dostępnych public sources ~**1.25-3 deals/rok** (10-year window 2015-2025). Real base rate prawdopodobnie wyższy (curated list miss long-tail bolt-on), ale rząd wielkości pasuje do APLS thesis (Alnylam, Cerevel, Karuna, Pliant w 2023-2025).
+
+**Faza 2 — Backtest 24 miesiące** (`doc/APLS-FAZA-2-RESULTS-2026-05-23.md`): 1087 transakcji insider Form 4 dla 6 viable tickers, **19 BUY events** (high quality discretionary). Best line: **BUY $500K+ 7d d=+0.75 p=0.041** (replikuje V5 core), H_APLS_ALL 7d d=+0.62 p=0.027. Wynik solidny **przy N=19** — power borderline ale efekt size matches V5 healthcare core.
+
+**Decyzja Faza 3**: **GO seed obs CONSERVATIVE** — 6 tickerów dodane do `observationOnly=true` (jak Sprint 17 semi supply chain), brak Telegram dispatch dopóki forward N≥30 BUY events nie potwierdzi edge na production-data. Plan szczegółowy: [doc/PLAN-APLS-UNIVERSE-EXPANSION-2026-05-23.md](PLAN-APLS-UNIVERSE-EXPANSION-2026-05-23.md). Faza 3 (seed obs) + Faza 4 (forward validation 60d) zaplanowane na czerwiec.
+
+### XBI/IBB sector-adjusted alpha (MVP shipped)
+
+**Trigger**: BIIB 14.05.2026 alert outcome interpretation ambiguity — alert delivered "bear" conviction -0.6, post-1d stock -2.3%. Pytanie: czy to real edge czy beta sector? XBI -2.8% same day, IBB -1.9%. **Sector-adjusted alpha = +0.5% to +0.6%** — alert kierunek poprawny ale magnitude zerujący się z sector beta. Bez snapshotu XBI/IBB w momencie alertu nie można retrospektywnie odróżnić alpha od sector beta. Plan: [doc/FOLLOWUP-XBI-ADJUSTMENT.md](FOLLOWUP-XBI-ADJUSTMENT.md).
+
+**Architektura (3-warstwowa schema → capture → API)**:
+1. **Schema** (commit 7ed4be6): `Alert` entity +6 kolumn: `xbiAtAlert`, `xbiAt1d`, `xbiAt3d`, `ibbAtAlert`, `ibbAt1d`, `ibbAt3d` (decimal nullable). TypeORM `synchronize: true` auto-add przy restarcie.
+2. **Capture helper** (commit a280dc7): nowy `captureAlertSnapshot(symbol, finnhubService)` helper w `src/alerts/utils/alert-snapshot.ts` — równoległy fetch quote ticker + XBI + IBB, write priceAtAlert + xbiAtAlert + ibbAtAlert. Refactored **6 dispatch sites**: Form4Pipeline, Form8kPipeline (main + bankruptcy path), CorrelationService, OptionsFlowAlertService, AlertEvaluator. PriceOutcomeService dodaje capture 1d/3d w istniejącym CRON.
+3. **Pure function + API** (commit 86ead4f): `computeSectorAlpha(rawReturn, sectorReturn)` + `computeAlphaForSlot(alert, slot)` w `src/alerts/utils/sector-alpha.ts` — pure, no side effects. `/api/alerts/outcomes` zwraca `xbiAlpha` + `ibbAlpha` (1d/3d slot). `frontend/src/api.ts AlertOutcome` interface extended.
+
+**26 nowych testów**: 17 `sector-alpha.spec.ts` (pure function: zero sector / negative sector / nulls / 1d+3d slots / null fallback) + 9 `sector-snapshot.spec.ts` (helper integration: 3 services parallel call / partial fetch failure graceful / XBI down IBB up).
+
+**Out of scope (świadomie odłożone)**:
+- Backfill snapshot dla historycznych alertów (Finnhub /quote nie ma historycznego intraday; backfill XBI close requires Polygon paid)
+- Frontend toggle "show raw return / show alpha" w portalu (visual tab — Faza 2 po 30 days forward data)
+- Weekly report SQL z alpha breakdown per rule
+- Python backtest dual-track (raw return vs alpha) — czeka aż produkcja zbierze N≥50 alertów z full snapshot
+
+### FIX-18 DEFERRED
+
+**Plan**: [doc/PLAN-FIX-18-2026-05-22.md](PLAN-FIX-18-2026-05-22.md) — paid source (Bloomberg / Zacks / Refinitiv) dla forward EPS estimate **just-reported Q** (eliminuje forward proxy bias FIX-13 Faza 1).
+
+**Powód deferral**:
+1. **BIIB outcome raw not alpha** — N=1 trigger (HIMS 11.05) + N=1 ambiguity (BIIB 14.05) nie wystarczy żeby cementować $500/miesiąc paid feed
+2. **APLS wyższy ROI** — universe expansion +6 tickerów × N=19 BUY events vs paid EPS feed dla ~5-15 8-K Item 2.02/dzień
+3. **FIX-13 Faza 1 matched estimates wystarczają jako baseline** — Alpha Vantage matched period już rozwiązuje 80% PODD-class cases
+
+**3 warunki revisit** (deadline **2027-05-23**):
+1. ≥3 false positive Q2 earnings season (lipiec-sierpień 2026) gdzie matched estimate jest stale/missing
+2. APLS Faza 4 forward validation potwierdza edge → świadczy że universe ma realny edge i warto chronić Telegram delivery przez lepsze EPS estimates
+3. XBI alpha analysis (90 dni post-deploy) pokaże że N≥50 alertów ma alpha sygnał statystycznie różny od raw return → uzasadnia kolejny precision boost
+
+---
 
 > 🎯 **Sprint 18 zamknięty kompletnie (23.04.2026)**: 12/12 tasków (TASK-01..12) + 5 follow-upów z post-Sprint audytu (FOLLOW-1, 2, 3, 6, 8). 326 unit testów TS (z 296 baseline) + 28 Python (15 analyzer TASK-11 + 13 report_generator TASK-12). 12 aktywnych tabel DB (z 14 przed FOLLOW-8 — orphan `sentiment_scores` + `ai_pipeline_logs` dropnięte). Code reduction: ~2400 LoC FinBERT/sentiment + DRY helper dispatcher_unavailable. Type safety: zero `as any` w gptAnalysis persistence + frontend nonDeliveryReason. Backtest V5 (f69cfa8): 128 testów, 19 Bonferroni ✓, healthcare SELL zero edge, cluster vs solo BUY p>0.37 — `backtest_report.md` renderuje wszystkie sub_groups w tym direct-comparison. **Sprint 19 backlog**: [doc/SPRINT-19-BACKLOG.md](SPRINT-19-BACKLOG.md) — FOLLOW-9 (weekly report decision breakdown), Opcja B hybrid boost (TASK-09), V5 research items #10-13.
 
