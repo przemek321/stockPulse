@@ -33,11 +33,14 @@ export class PriceOutcomeService {
    * Sloty sektorowego benchmark (XBI/IBB) — tylko 1d i 3d.
    * Skip 1h/4h: sektor benchmark intraday ma niski signal-to-noise dla outcome
    * interpretation. Patrz `doc/FOLLOWUP-XBI-ADJUSTMENT.md`.
+   *
+   * Code review P1 #4 (28.05.2026): explicit `xbi1d/xbi3d/ibb1d/ibb3d` field
+   * assignments zamiast dynamic `as any` indexing — type-safe na compile,
+   * zero runtime surprise przy rename column. 2 sloty × 2 benchmarki = 4 lines
+   * (acceptable duplication vs `as any` cast w 5 miejscach).
    */
-  private readonly SECTOR_SLOTS = [
-    { tickerField: 'price1d' as const, xbiField: 'xbi1d' as const, ibbField: 'ibb1d' as const },
-    { tickerField: 'price3d' as const, xbiField: 'xbi3d' as const, ibbField: 'ibb3d' as const },
-  ];
+  private readonly SLOT_1D_DELAY_MS = 24 * 60 * 60 * 1000;
+  private readonly SLOT_3D_DELAY_MS = 72 * 60 * 60 * 1000;
 
   /** Symbole sektorowe — biotech ETF benchmark (XBI mid-cap, IBB large-cap weighted) */
   private readonly XBI_SYMBOL = 'XBI';
@@ -54,12 +57,6 @@ export class PriceOutcomeService {
     private readonly alertRepo: Repository<Alert>,
     private readonly finnhub: FinnhubService,
   ) {}
-
-  /** Zwraca delayMs dla danego ticker-slot field. Używane przy sektor snapshot. */
-  private slotDelayFor(field: 'price1h' | 'price4h' | 'price1d' | 'price3d'): number {
-    const slot = this.SLOTS.find((s) => s.field === field);
-    return slot?.delayMs ?? Number.MAX_SAFE_INTEGER;
-  }
 
   /**
    * CRON co godzinę — uzupełnia ceny dla alertów oczekujących na outcome.
@@ -95,20 +92,21 @@ export class PriceOutcomeService {
     // Pobierz XBI/IBB raz na cykl (1 zapytanie each) — używamy do wszystkich
     // alertów których 1d/3d slot wpadł do tego cyklu. Sektor benchmark "current"
     // jest valid jako "close NYSE w okno alert+1d/+3d" gdy CRON odpala w sesji.
+    // Code review P1 #3 (28.05.2026): per-leg `.catch(() => null)` — jeśli XBI
+    // throw nie blokuje IBB (inconsistent z `captureAlertSnapshot` helper pre-fix).
     let xbiQuote: number | null = null;
     let ibbQuote: number | null = null;
     const needsSectorAnyAlert = alerts.some((alert) => {
       const effectiveStart = getEffectiveStartTime(new Date(alert.sentAt)).getTime();
-      return this.SECTOR_SLOTS.some(
-        (slot) =>
-          effectiveStart + this.slotDelayFor(slot.tickerField) <= now &&
-          (alert as any)[slot.xbiField] == null,
+      return (
+        (now >= effectiveStart + this.SLOT_1D_DELAY_MS && alert.xbi1d == null) ||
+        (now >= effectiveStart + this.SLOT_3D_DELAY_MS && alert.xbi3d == null)
       );
     });
     if (needsSectorAnyAlert) {
       [xbiQuote, ibbQuote] = await Promise.all([
-        this.finnhub.getQuote(this.XBI_SYMBOL),
-        this.finnhub.getQuote(this.IBB_SYMBOL),
+        this.finnhub.getQuote(this.XBI_SYMBOL).catch(() => null),
+        this.finnhub.getQuote(this.IBB_SYMBOL).catch(() => null),
       ]);
       quotesUsed += 2;
     }
@@ -168,19 +166,28 @@ export class PriceOutcomeService {
           }
         }
 
-        // Zapisz sektor benchmark (XBI/IBB) dla due slotów 1d/3d.
-        // Sytuacja race-free: snapshot per cykl, ten sam quote dla wszystkich
-        // alertów które trafiły w to okno (lokalnie OK — w praktyce <60s drift
-        // między alertami w tej samej godzinie, sektor benchmark wewnątrz
-        // jednej sesji prawie nieruchomy).
-        for (const sslot of this.SECTOR_SLOTS) {
-          if (effectiveStart + this.slotDelayFor(sslot.tickerField) > now) continue;
-          if ((alert as any)[sslot.xbiField] == null && xbiQuote != null) {
-            (alert as any)[sslot.xbiField] = xbiQuote;
+        // Zapisz sektor benchmark (XBI/IBB) dla due slotów 1d/3d — typed explicit
+        // assignment. Snapshot per cykl, ten sam quote dla wszystkich alertów które
+        // trafiły w to okno (race-free lokalnie — w praktyce <60s drift między
+        // alertami w tej samej godzinie, sektor benchmark wewnątrz sesji prawie
+        // nieruchomy). P1 #4: replaces dynamic `as any` [field] indexing.
+        if (now >= effectiveStart + this.SLOT_1D_DELAY_MS) {
+          if (alert.xbi1d == null && xbiQuote != null) {
+            alert.xbi1d = xbiQuote;
             changed = true;
           }
-          if ((alert as any)[sslot.ibbField] == null && ibbQuote != null) {
-            (alert as any)[sslot.ibbField] = ibbQuote;
+          if (alert.ibb1d == null && ibbQuote != null) {
+            alert.ibb1d = ibbQuote;
+            changed = true;
+          }
+        }
+        if (now >= effectiveStart + this.SLOT_3D_DELAY_MS) {
+          if (alert.xbi3d == null && xbiQuote != null) {
+            alert.xbi3d = xbiQuote;
+            changed = true;
+          }
+          if (alert.ibb3d == null && ibbQuote != null) {
+            alert.ibb3d = ibbQuote;
             changed = true;
           }
         }

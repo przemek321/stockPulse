@@ -6,6 +6,48 @@
 
 ---
 
+## ✅ DONE 28.05.2026 — Code review XBI MVP (P0 + P1 fixes), P0 #2 wycofany jako false positive
+
+Sesja 28.05.2026: pełny code review 5 commitów z sesji 23.05 (APLS + XBI MVP,
++2792 LoC, 14 production files). 9 issues zidentyfikowanych (1 P0, 5 P1, 3 P2).
+P0 #2 wycofany jako false positive po re-trace (lekcja zapisana w
+`feedback_review_verify_before_p0.md`).
+
+| Commit | Zakres | Test count |
+|---|---|---|
+| `1a1dccd` | **P0 #1**: `directionCorrect` revert na raw delta1d (backwards compat) + nowe pole `directionCorrectAlpha` (XBI alpha preferred, IBB fallback, null dla legacy) — opt-in dla konsumentów sector-adjusted. Pure helper `dirCheck(ref)` współdzielony. Frontend `AlertOutcome.directionCorrectAlpha?` extension. | 0 (refactor + new field) |
+| (pending) | **P1 #3 + #4 + #5**: per-leg `.catch(() => null)` w `Promise.all` XBI/IBB fetch (inconsistent z `captureAlertSnapshot` pre-fix); usunięcie `SECTOR_SLOTS` array + `slotDelayFor()` method + dynamic `as any` access — replaced przez `SLOT_1D_DELAY_MS` / `SLOT_3D_DELAY_MS` constants + 2 explicit typed if blocks; ekstrakcja `mapAlertToOutcome(a: Alert)` jako exported pure function z controller dla testowalności | +11 (mapper integration tests) |
+
+**Cumulative**: 568/568 unit pass (+11 nowych mapper), tsc clean.
+
+**Code review issues — verdict**:
+
+- ✅ **P0 #1 directionCorrect semantic shift** (1a1dccd) — `directionCorrect` w `/api/alerts/outcomes` cichu zmienił semantykę z raw `delta1d` na `xbiAlphaPct` fallback (FOLLOWUP-XBI), breaking change dla `PriceOutcomePanel.directionCorrect != null` filter i weekly report SQL. Fix: revert na raw + nowe pole `directionCorrectAlpha` opt-in.
+
+- ❌ **P0 #2 methodological asymmetry NYSE open vs dispatch anchor** — **WYCOFANE jako false positive**. Re-trace pokazał że `captureAlertSnapshot` parallel w T0 dispatch + `runCycle` live quotes w identycznym CRON cyklu = symmetric time anchor dla ticker i sektor (oba liczone nad identical time window). Lekcja: re-trace code paths explicit przed P0 claim z high confidence phrasing (`feedback_review_verify_before_p0.md`).
+
+- ✅ **P1 #3 Promise.all bez per-leg .catch()** — fixed. `.catch(() => null)` per fetch w `price-outcome.service.ts` consistent z `captureAlertSnapshot` helper. XBI throw nie blokuje IBB, runCycle nie crashe.
+
+- ✅ **P1 #4 dynamic `as any` field access** — fixed. Usunięto `SECTOR_SLOTS` array (`{tickerField, xbiField, ibbField}`) + `slotDelayFor()` method, replaced przez `SLOT_1D_DELAY_MS` / `SLOT_3D_DELAY_MS` class constants + 2 explicit if blocks (`if (now >= effectiveStart + SLOT_1D_DELAY_MS) { if (alert.xbi1d == null && xbiQuote != null) { alert.xbi1d = xbiQuote; changed = true } }`). 4 lines duplication acceptable vs `as any` cast w 5 miejscach (type-safe na compile).
+
+- ✅ **P1 #5 brak integration testu dla /outcomes** — fixed. Ekstrakcja `mapAlertToOutcome(a: Alert)` jako exported pure function z `alerts.controller.ts` (pre-fix inline w `alerts.map(a => {...})`). Test bez NestJS TestingModule overhead. 11 nowych testów w `test/unit/alerts-outcomes-mapper.spec.ts`: legacy alert bez XBI snapshot (directionCorrect=raw, alpha=null), alpha zgodna z raw, HIMS-style alpha sprzeczna z raw (directionCorrect=true, directionCorrectAlpha=false), negative direction conflict, IBB fallback gdy XBI brakuje, slot price1d not filled (oba null), brak alertDirection, shape contract (wszystkie wymagane pola), delivered=false + nonDeliveryReason propagation (TASK-05), priceOutcomeDone propagacja.
+
+**Pozostałe issues (P2, low priority)**:
+
+- **P2 #6** `referenceDelta = alpha1d.xbiAlphaPct ?? delta1d` arbitrarnie preferuje XBI nad IBB — komentarz docstring mówi "XBI mid-cap fit, IBB large-cap" ale LLY/AMGN/GILD large-cap → IBB byłoby lepsze. Per-ticker logic (market cap lookup) lub explicit `referenceBenchmark: 'XBI'|'IBB'` per alert.
+
+- **P2 #7** `needsSectorAnyAlert` nie sprawdza `priceAtAlert IS NOT NULL` (price-outcome.service.ts:107) — legacy alerty pre-FOLLOWUP bez priceAtAlert też trigger'ują XBI/IBB fetch. 2 quotes/cykl wasted. Minor wp.
+
+- **P2 #8** docstring inconsistency: `sector-snapshot.helper.ts:18` mówi "7 sites", commit message "6 sites" — faktycznie 7 (form8k.pipeline ma 3 dispatch paths: main + secondary + bankruptcy). Update CLAUDE.md + backlog.
+
+- **P2 #9** backfill historic XBI/IBB at sentAt (Finnhub /candle) — status unknown, planowane w FOLLOWUP-XBI Faza 2. Bez backfillu historyczne alerty (80+ w DB) nie mają alpha computable, weekly report nie pokaże spójnego trendu.
+
+- **P2 #10** test coverage gap dla `price-outcome.service.ts` XBI/IBB logic — pure functions OK, ale integration test pełnego runCycle z mockowanym Finnhub byłby useful.
+
+**Decision deadline**: P2 issues nie blokują Q2 earnings (lipiec). Można zostawić do następnej sesji review lub jako follow-up po pierwszej real Faza 2 obserwacji.
+
+---
+
 ## ✅ DONE 23.05.2026 — APLS Faza 1+2 (biotech universe expansion) + XBI MVP (sector-adjusted alpha) + FIX-18 deferred
 
 Sesja 23.05.2026: dwa równoległe trackery (APLS biotech universe expansion +

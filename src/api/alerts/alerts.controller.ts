@@ -8,6 +8,91 @@ import { PriceOutcomeService } from '../../price-outcome/price-outcome.service';
 import { computeAlphaForSlot } from '../../price-outcome/sector-alpha';
 
 /**
+ * Pure function — transformuje Alert entity na outcome DTO dla `/api/alerts/outcomes`.
+ *
+ * Eksportowana dla testowalności (P1 #5 code review 28.05.2026) — integration
+ * test mapper bez NestJS TestingModule overhead.
+ *
+ * Pola wyjściowe:
+ * - raw price delta % (delta1h/4h/1d/3d) — historyczna semantyka
+ * - sektor-adjusted alpha % (xbiAlpha1d/3d, ibbAlpha1d/3d) — FOLLOWUP-XBI
+ * - `directionCorrect` — RAW (backwards compat, `PriceOutcomePanel` filter)
+ * - `directionCorrectAlpha` — XBI alpha preferred, IBB fallback, null dla legacy
+ */
+export function mapAlertToOutcome(a: Alert) {
+  const p = Number(a.priceAtAlert);
+  const delta = (price: number | null) =>
+    price != null && p > 0 ? +((Number(price) - p) / p * 100).toFixed(2) : null;
+
+  const delta1d = delta(a.price1d);
+  const delta3d = delta(a.price3d);
+
+  // FOLLOWUP-XBI-ADJUSTMENT: sector-adjusted alpha (raw delta - benchmark delta × beta).
+  // Beta=1.0 default (consensus dla biotech ETF members, ±20% acceptable).
+  // null gdy brak XBI/IBB snapshot (legacy alerty pre-FOLLOWUP) lub brak priceLater.
+  const alpha1d = computeAlphaForSlot({
+    priceAtAlert: a.priceAtAlert != null ? Number(a.priceAtAlert) : null,
+    priceLater: a.price1d != null ? Number(a.price1d) : null,
+    xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
+    xbiLater: a.xbi1d != null ? Number(a.xbi1d) : null,
+    ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
+    ibbLater: a.ibb1d != null ? Number(a.ibb1d) : null,
+  });
+  const alpha3d = computeAlphaForSlot({
+    priceAtAlert: a.priceAtAlert != null ? Number(a.priceAtAlert) : null,
+    priceLater: a.price3d != null ? Number(a.price3d) : null,
+    xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
+    xbiLater: a.xbi3d != null ? Number(a.xbi3d) : null,
+    ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
+    ibbLater: a.ibb3d != null ? Number(a.ibb3d) : null,
+  });
+  const round2 = (v: number | null) => v != null ? +v.toFixed(2) : null;
+
+  // Trafność: `directionCorrect` zachowuje HISTORYCZNĄ semantykę (raw delta1d)
+  // dla backwards compat. `directionCorrectAlpha` preferuje XBI, IBB fallback,
+  // null dla legacy alertów bez snapshot.
+  const dirCheck = (ref: number | null): boolean | null => {
+    if (ref == null || !a.alertDirection) return null;
+    if (a.alertDirection === 'positive') return ref > 0;
+    if (a.alertDirection === 'negative') return ref < 0;
+    return null;
+  };
+  const directionCorrect = dirCheck(delta1d);
+  const alphaForDir = alpha1d.xbiAlphaPct ?? alpha1d.ibbAlphaPct;
+  const directionCorrectAlpha = dirCheck(alphaForDir);
+
+  return {
+    id: a.id,
+    symbol: a.symbol,
+    ruleName: a.ruleName,
+    priority: a.priority,
+    alertDirection: a.alertDirection,
+    catalystType: a.catalystType,
+    priceAtAlert: p,
+    price1h: a.price1h != null ? Number(a.price1h) : null,
+    price4h: a.price4h != null ? Number(a.price4h) : null,
+    price1d: a.price1d != null ? Number(a.price1d) : null,
+    price3d: a.price3d != null ? Number(a.price3d) : null,
+    delta1h: delta(a.price1h),
+    delta4h: delta(a.price4h),
+    delta1d,
+    delta3d,
+    xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
+    ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
+    xbiAlpha1d: round2(alpha1d.xbiAlphaPct),
+    xbiAlpha3d: round2(alpha3d.xbiAlphaPct),
+    ibbAlpha1d: round2(alpha1d.ibbAlphaPct),
+    ibbAlpha3d: round2(alpha3d.ibbAlphaPct),
+    directionCorrect,
+    directionCorrectAlpha,
+    priceOutcomeDone: a.priceOutcomeDone,
+    sentAt: a.sentAt,
+    delivered: a.delivered,
+    nonDeliveryReason: a.nonDeliveryReason,
+  };
+}
+
+/**
  * GET /api/alerts — historia alertów, reguły, timeline sygnałów.
  */
 @Controller('alerts')
@@ -130,85 +215,7 @@ export class AlertsController {
       take,
     });
 
-    const outcomes = alerts.map((a) => {
-      const p = Number(a.priceAtAlert);
-      const delta = (price: number | null) =>
-        price != null && p > 0 ? +((Number(price) - p) / p * 100).toFixed(2) : null;
-
-      const delta1d = delta(a.price1d);
-      const delta3d = delta(a.price3d);
-
-      // FOLLOWUP-XBI-ADJUSTMENT: sector-adjusted alpha (raw delta - benchmark delta × beta).
-      // Reuse `computeAlphaForSlot` z sector-alpha.ts (already tested, 17 cases).
-      // Beta=1.0 default (consensus dla biotech ETF members, ±20% acceptable).
-      // null gdy brak XBI/IBB snapshot (legacy alerty pre-FOLLOWUP) lub brak
-      // priceLater (slot jeszcze nie wypełniony).
-      const alpha1d = computeAlphaForSlot({
-        priceAtAlert: a.priceAtAlert != null ? Number(a.priceAtAlert) : null,
-        priceLater: a.price1d != null ? Number(a.price1d) : null,
-        xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
-        xbiLater: a.xbi1d != null ? Number(a.xbi1d) : null,
-        ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
-        ibbLater: a.ibb1d != null ? Number(a.ibb1d) : null,
-      });
-      const alpha3d = computeAlphaForSlot({
-        priceAtAlert: a.priceAtAlert != null ? Number(a.priceAtAlert) : null,
-        priceLater: a.price3d != null ? Number(a.price3d) : null,
-        xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
-        xbiLater: a.xbi3d != null ? Number(a.xbi3d) : null,
-        ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
-        ibbLater: a.ibb3d != null ? Number(a.ibb3d) : null,
-      });
-      const round2 = (v: number | null) => v != null ? +v.toFixed(2) : null;
-
-      // Trafność: kierunek alertu zgadza się ze zmianą ceny.
-      // `directionCorrect` zachowuje HISTORYCZNĄ semantykę (raw delta1d) dla
-      // backwards compat z weekly report SQL i frontend tabelami. Konsumenci
-      // którzy chcą sector-adjusted signal używają `directionCorrectAlpha`
-      // (preferuje XBI alpha, IBB fallback, null dla legacy alertów bez snapshot).
-      const dirCheck = (ref: number | null): boolean | null => {
-        if (ref == null || !a.alertDirection) return null;
-        if (a.alertDirection === 'positive') return ref > 0;
-        if (a.alertDirection === 'negative') return ref < 0;
-        return null;
-      };
-      const directionCorrect = dirCheck(delta1d);
-      const alphaForDir = alpha1d.xbiAlphaPct ?? alpha1d.ibbAlphaPct;
-      const directionCorrectAlpha = dirCheck(alphaForDir);
-
-      return {
-        id: a.id,
-        symbol: a.symbol,
-        ruleName: a.ruleName,
-        priority: a.priority,
-        alertDirection: a.alertDirection,
-        catalystType: a.catalystType,
-        priceAtAlert: p,
-        price1h: a.price1h != null ? Number(a.price1h) : null,
-        price4h: a.price4h != null ? Number(a.price4h) : null,
-        price1d: a.price1d != null ? Number(a.price1d) : null,
-        price3d: a.price3d != null ? Number(a.price3d) : null,
-        delta1h: delta(a.price1h),
-        delta4h: delta(a.price4h),
-        delta1d,
-        delta3d,
-        // FOLLOWUP-XBI: sektor-adjusted alpha (XBI + IBB benchmarks)
-        xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
-        ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
-        xbiAlpha1d: round2(alpha1d.xbiAlphaPct),
-        xbiAlpha3d: round2(alpha3d.xbiAlphaPct),
-        ibbAlpha1d: round2(alpha1d.ibbAlphaPct),
-        ibbAlpha3d: round2(alpha3d.ibbAlphaPct),
-        directionCorrect,
-        directionCorrectAlpha,
-        priceOutcomeDone: a.priceOutcomeDone,
-        sentAt: a.sentAt,
-        // TASK-05: frontend używa nonDeliveryReason do visual distinction
-        // (observation mode → chip bez CRITICAL styling)
-        delivered: a.delivered,
-        nonDeliveryReason: a.nonDeliveryReason,
-      };
-    });
+    const outcomes = alerts.map(mapAlertToOutcome);
 
     return { count: outcomes.length, outcomes };
   }
