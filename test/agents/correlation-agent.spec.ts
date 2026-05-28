@@ -738,10 +738,13 @@ describe('Agent: Correlation — MIN_CORRELATED_CONVICTION (0.20)', () => {
 // ── Testy: Throttle / Deduplikacja ──
 
 describe('Agent: Correlation — Throttle / Deduplikacja', () => {
-  it('wzorzec już alertowany → redis.get zwraca wartość → skip', async () => {
+  it('wzorzec już alertowany (NX claim zwraca null) → skip', async () => {
+    // S20-T02: zmiana mechanizmu dedup z get-then-set na atomowy SET NX.
+    // Pre-T02: redis.get('1') wymuszał skip. Post-T02: redis.set(...,NX) zwraca null
+    // gdy klucz już istnieje. Test asercjonuje że telegram NIE poszedł — zarówno
+    // pre- jak post-T02 efekt taki sam, mechanizm inny.
     const redis = createMockRedis();
-    // fired:UNH:INSIDER_PLUS_8K istnieje → skip
-    redis.get.mockResolvedValue('1');
+    redis.set.mockResolvedValueOnce(null); // NX failed → claim NULL
 
     const { service, telegram } = createService({ redis });
     const now = Date.now();
@@ -758,7 +761,46 @@ describe('Agent: Correlation — Throttle / Deduplikacja', () => {
     expect(telegram.sendMarkdown).not.toHaveBeenCalled();
   });
 
-  it('po wysłaniu alertu → redis.set z EX = PATTERN_THROTTLE', async () => {
+  it('pattern stłumiony (direction conflict) → SET NX (15min), EXPIRE NIE wywołany', async () => {
+    // S20-T02 drugi bug: pre-fix stłumiony pattern ustawiał pełen throttle
+    // (2h dla OPTIONS) i blokował realny niekonfliktowy pattern w oknie 2h.
+    // Post-fix: suppressed (db_only) zostaje na 15min — 15min audit dedup +
+    // następny real Telegram nie jest blokowany przez stłumiony szum.
+    // Setup: 1× Form4 SELL + 2× Options BUY (UNH 29.04 case S19-FIX-05).
+    // getDominantDirection wymaga 66% przewagi: 2 pos / 3 total = 66% → positive.
+    // detectDirectionConflict: form4 net negative + options net positive → conflict.
+    // Dispatcher (mock T01) z isDirectionConflict=true → delivered=false, suppressedBy='direction_conflict'.
+    const { service, redis } = createService();
+    const now = Date.now();
+
+    setupRedisSignals(redis, 'UNH', [
+      makeSignal({ source_category: 'options', direction: 'positive', conviction: 0.5, timestamp: now - h }),
+      makeSignal({ source_category: 'options', direction: 'positive', conviction: 0.4, timestamp: now - 2 * h }),
+    ], [
+      makeSignal({ source_category: 'form4', direction: 'negative', conviction: 0.6, timestamp: now - 3 * h }),
+    ]);
+
+    await service.runPatternDetection('UNH');
+
+    // Claim 15min zaplikowany
+    expect(redis.set).toHaveBeenCalledWith(
+      expect.stringMatching(/^fired:UNH:/),
+      '1', 'EX', 900, 'NX',
+    );
+    // EXPIRE NIE wywołany dla klucza fired: (delivered=false → 15min zostaje;
+    // storeSignal nie jest w tej ścieżce, więc expire na 'signals:*' też 0).
+    const expireCalls = (redis.expire as jest.Mock).mock.calls.filter(
+      (call: any[]) => typeof call[0] === 'string' && call[0].startsWith('fired:'),
+    );
+    expect(expireCalls).toHaveLength(0);
+  });
+
+  it('po wysłaniu alertu → atomowy SET NX (15min) + EXPIRE do pełnego PATTERN_THROTTLE', async () => {
+    // S20-T02: pre-fix był jeden SET z pełnym throttle. Post-fix to 2 calls:
+    // 1) SET NX EX 900 (15min) PRZED dispatchem — atomowy claim, zamyka race
+    // 2) EXPIRE do PATTERN_THROTTLE[type] PO dispatchu — TYLKO jeśli delivered
+    //    (suppressed zostaje na 15min żeby nie blokować realnego niekonfliktowego
+    //    patternu na 2h).
     const { service, redis } = createService();
     const now = Date.now();
 
@@ -770,10 +812,18 @@ describe('Agent: Correlation — Throttle / Deduplikacja', () => {
 
     await service.runPatternDetection('UNH');
 
+    // Claim: SET NX EX 900 (PATTERN_HASH_WINDOW_MS / 1000)
     expect(redis.set).toHaveBeenCalledWith(
       'fired:UNH:INSIDER_PLUS_8K',
       '1',
       'EX',
+      900,
+      'NX',
+    );
+    // Extend: EXPIRE do pełnego throttle (delivered=true bo mock dispatcher
+    // happy path zwraca delivered=true gdy brak suppression flag)
+    expect(redis.expire).toHaveBeenCalledWith(
+      'fired:UNH:INSIDER_PLUS_8K',
       PATTERN_THROTTLE.INSIDER_PLUS_8K,
     );
   });

@@ -609,10 +609,28 @@ export class CorrelationService implements OnModuleDestroy {
     // Net direction Form4 jest negative, options positive → konflikt.
     const isDirectionConflict = detectDirectionConflict(pattern.signals);
 
-    // Deduplikacja: sprawdź czy ten wzorzec nie był już alertowany
+    // S20-T02 (28.05.2026): atomowy claim NX zamiast get-then-set.
+    // Pre-fix: redis.get → (gdy null) dispatch + captureAlertSnapshot (HTTP do Finnhuba,
+    // ~hundreds ms) → redis.set. Race window obejmował 2 HTTP calls, dwa współbieżne
+    // runPatternDetection na ten sam ticker mogły oba przejść GET → oba dispatch →
+    // zdublowany alert Telegram.
+    //
+    // Drugi bug: stłumiony pattern (direction_conflict / observation / cluster_sell)
+    // ustawiał pełen PATTERN_THROTTLE (np. 2h dla OPTIONS) na fired: → blokował
+    // realny niekonfliktowy pattern w oknie 2h. Stłumiony szum NIE powinien
+    // blokować Telegrama.
+    //
+    // Fix: SET NX EX 900 (15min) PRZED dispatchem zamyka race atomowo i daje
+    // krótki TTL pokrywający się z PATTERN_HASH_WINDOW_MS dedupem z runPatternDetection.
+    // Po dispatchu: jeśli delivered → EXPIRE do pełnego PATTERN_THROTTLE.
+    // Suppressed → zostaje 15min (15min dedup audit + nie blokuje real Telegram
+    // na 2h). Expire MUSI być przed alertRepo.save — jeśli save throwi, throttle
+    // jest już pełen → kolejny runPatternDetection w oknie pełnego throttle =
+    // DEDUP_SKIP, brak duplikatu Telegram.
     const dedupKey = `fired:${ticker}:${pattern.type}`;
-    const alreadyFired = await this.redis.get(dedupKey);
-    if (alreadyFired) return { action: 'DEDUP_SKIP', ticker, patternType: pattern.type };
+    const shortTtlSec = Math.ceil(PATTERN_HASH_WINDOW_MS / 1000);
+    const claim = await this.redis.set(dedupKey, '1', 'EX', shortTtlSec, 'NX');
+    if (claim === null) return { action: 'DEDUP_SKIP', ticker, patternType: pattern.type };
 
     const priority = Math.abs(pattern.correlated_conviction) >= 0.6
       ? 'CRITICAL'
@@ -651,12 +669,16 @@ export class CorrelationService implements OnModuleDestroy {
     const delivered = dispatchResult.delivered;
     const nonDeliveryReason = dispatchResult.suppressedBy;
 
+    // T02: przedłuż TTL do pełnego throttle TYLKO jeśli alert poszedł na Telegram.
+    // Suppressed (db_only) zostaje na 15min — chroni przed kaskadą duplikatów
+    // w oknie content-hash dedup z runPatternDetection (TASK-04), ale nie
+    // blokuje realnego niekonfliktowego patternu na 2h.
+    if (delivered) {
+      await this.redis.expire(dedupKey, PATTERN_THROTTLE[pattern.type]);
+    }
+
     // Sprint 11 + FOLLOWUP-XBI-ADJUSTMENT: ticker + XBI/IBB snapshot równolegle
     const snapshot = await captureAlertSnapshot(this.finnhub, ticker);
-
-    // Zapisz throttle do Redis
-    const throttleSec = PATTERN_THROTTLE[pattern.type];
-    await this.redis.set(dedupKey, '1', 'EX', throttleSec);
 
     // Zapisz do tabeli alerts
     await this.alertRepo.save(
