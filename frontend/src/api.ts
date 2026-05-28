@@ -338,6 +338,8 @@ export interface AlertOutcome {
   ibbAlpha1d: number | null;
   ibbAlpha3d: number | null;
   directionCorrect: boolean | null;
+  /** Sector-adjusted dyrekcja (XBI alpha, IBB fallback). Null dla legacy alertów bez XBI snapshot. */
+  directionCorrectAlpha?: boolean | null;
   priceOutcomeDone: boolean;
   sentAt: string;
   delivered?: boolean;

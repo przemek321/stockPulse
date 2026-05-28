@@ -162,14 +162,19 @@ export class AlertsController {
       const round2 = (v: number | null) => v != null ? +v.toFixed(2) : null;
 
       // Trafność: kierunek alertu zgadza się ze zmianą ceny.
-      // Używamy sector-adjusted alpha gdy dostępne (lepszy noise-free signal),
-      // fallback do raw delta1d dla legacy alertów bez XBI snapshot.
-      const referenceDelta = alpha1d.xbiAlphaPct ?? delta1d;
-      let directionCorrect: boolean | null = null;
-      if (referenceDelta != null && a.alertDirection) {
-        if (a.alertDirection === 'positive') directionCorrect = referenceDelta > 0;
-        else if (a.alertDirection === 'negative') directionCorrect = referenceDelta < 0;
-      }
+      // `directionCorrect` zachowuje HISTORYCZNĄ semantykę (raw delta1d) dla
+      // backwards compat z weekly report SQL i frontend tabelami. Konsumenci
+      // którzy chcą sector-adjusted signal używają `directionCorrectAlpha`
+      // (preferuje XBI alpha, IBB fallback, null dla legacy alertów bez snapshot).
+      const dirCheck = (ref: number | null): boolean | null => {
+        if (ref == null || !a.alertDirection) return null;
+        if (a.alertDirection === 'positive') return ref > 0;
+        if (a.alertDirection === 'negative') return ref < 0;
+        return null;
+      };
+      const directionCorrect = dirCheck(delta1d);
+      const alphaForDir = alpha1d.xbiAlphaPct ?? alpha1d.ibbAlphaPct;
+      const directionCorrectAlpha = dirCheck(alphaForDir);
 
       return {
         id: a.id,
@@ -195,6 +200,7 @@ export class AlertsController {
         ibbAlpha1d: round2(alpha1d.ibbAlphaPct),
         ibbAlpha3d: round2(alpha3d.ibbAlphaPct),
         directionCorrect,
+        directionCorrectAlpha,
         priceOutcomeDone: a.priceOutcomeDone,
         sentAt: a.sentAt,
         // TASK-05: frontend używa nonDeliveryReason do visual distinction
