@@ -36,20 +36,21 @@ export class OptionsFlowScheduler implements OnModuleInit {
       await this.queue.removeRepeatableByKey(job.key);
     }
 
-    // CRON: 20:30 UTC (22:30 CEST / 22:30 polskiego), pon-pt
-    // NYSE zamyka 22:00 polskiego (20:00 UTC), +30 min bufor na EOD dane Polygon
+    // CRON: 16:30 America/New_York (30 min po zamknięciu NYSE 16:00 ET), pon-pt
+    // Użycie IANA timezone zamiast hardcoded UTC — automatycznie obsługuje DST
+    // (20:30 UTC w EDT / 21:30 UTC w EST)
     await this.queue.add(
       'collect-options-flow',
       {},
       {
-        repeat: { pattern: '30 20 * * 1-5', tz: 'UTC' },
+        repeat: { pattern: '30 16 * * 1-5', tz: 'America/New_York' },
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       },
     );
 
     this.logger.log(
-      'Zaplanowano zbieranie options flow: CRON 20:30 UTC / 22:30 CEST (pon-pt, 30 min po zamknięciu NYSE)',
+      'Zaplanowano zbieranie options flow: CRON 16:30 America/New_York (pon-pt, 30 min po zamknięciu NYSE, DST-aware)',
     );
   }
 }
