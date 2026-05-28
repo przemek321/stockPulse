@@ -1,0 +1,6 @@
+# Sprint 20 T01e (28.05.2026): blokuje push gdy testy jednostkowe pa­dają.
+# Trigger: code review z 28.05 ujawnił 4 zgniłe suity w test/agents/ (suite fail)
+# które build NIE łapie bo tsconfig.build.json excludes test/. Bez tego hook'a
+# regresje przechodzą do remote i odsłaniają się dopiero w cudzej sesji.
+# --bail = stop na pierwszym failu (szybkie feedback, nie pełen run 17s).
+npx jest --bail

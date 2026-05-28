@@ -132,9 +132,15 @@ describe('Agent: Alert Evaluator — Założenia', () => {
   });
 });
 
-// ── Testy: 6 reguł sentymentu ──
+// Testy 6 reguł sentymentowych (Sentiment Crash, Signal Override, High Conviction,
+// Strong FinBERT, Urgent AI Signal) usunięte w FinBERT cleanup (22.04.2026 commit
+// b3a2f2b). Wszystkie wołały prywatne checkery (checkSentimentCrash etc.) wycięte
+// razem z sentiment pipeline po Sprint 15 backtest (zero edge na sentymencie).
+// Pozostały tylko testy infrastruktury AlertEvaluator (Cache reguł, Throttling,
+// Insider vs Sentiment throttling) — te dotyczą żywych metod.
+// NIE przywracaj testów bez przywrócenia funkcjonalności.
 
-describe('Agent: Alert Evaluator — Reguła 1: Sentiment Crash', () => {
+describe.skip('Agent: Alert Evaluator — Reguła 1: Sentiment Crash [removed FinBERT cleanup]', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
@@ -173,7 +179,7 @@ describe('Agent: Alert Evaluator — Reguła 1: Sentiment Crash', () => {
   });
 });
 
-describe('Agent: Alert Evaluator — Reguła 2/3: Signal Override', () => {
+describe.skip('Agent: Alert Evaluator — Reguła 2/3: Signal Override [removed FinBERT cleanup]', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
@@ -222,7 +228,7 @@ describe('Agent: Alert Evaluator — Reguła 2/3: Signal Override', () => {
   });
 });
 
-describe('Agent: Alert Evaluator — Reguła 4: High Conviction', () => {
+describe.skip('Agent: Alert Evaluator — Reguła 4: High Conviction [removed FinBERT cleanup]', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
@@ -256,7 +262,7 @@ describe('Agent: Alert Evaluator — Reguła 4: High Conviction', () => {
   });
 });
 
-describe('Agent: Alert Evaluator — Reguła 5: Strong FinBERT', () => {
+describe.skip('Agent: Alert Evaluator — Reguła 5: Strong FinBERT [removed FinBERT cleanup]', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
@@ -291,7 +297,7 @@ describe('Agent: Alert Evaluator — Reguła 5: Strong FinBERT', () => {
   });
 });
 
-describe('Agent: Alert Evaluator — Reguła 6: Urgent AI Signal', () => {
+describe.skip('Agent: Alert Evaluator — Reguła 6: Urgent AI Signal [removed FinBERT cleanup]', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
@@ -399,7 +405,7 @@ describe('Agent: Alert Evaluator — Throttling', () => {
 
 // ── Testy: conviction < 0.3 suppress w checkUrgentSignal ──
 
-describe('Agent: Alert Evaluator — conviction < 0.3 suppress', () => {
+describe.skip('Agent: Alert Evaluator — conviction < 0.3 suppress [removed FinBERT cleanup]', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
@@ -460,37 +466,9 @@ describe('Agent: Alert Evaluator — Insider vs Sentiment throttling', () => {
   });
 });
 
-// ── Testy: onSentimentScored — Sprint 11 early return ──
-
-describe('Agent: Alert Evaluator — onSentimentScored (Sprint 11)', () => {
-  it('zwraca SKIP dla wszystkich reguł sentymentowych', async () => {
-    const { service } = createService();
-
-    const result = await service.onSentimentScored({
-      scoreId: 1, symbol: 'ISRG', score: -0.9, confidence: 0.95,
-      label: 'negative', source: 'stocktwits', model: 'finbert',
-      conviction: -1.8, gptConviction: -1.8,
-      effectiveScore: -0.9, enrichedAnalysis: { urgency: 'HIGH', relevance: 0.9, confidence: 0.8 },
-    });
-
-    // Sprint 11: early return bez wywołania check*() ani zapisu do DB
-    expect(result.checks.sentimentCrash).toContain('Sprint 11');
-    expect(result.checks.signalOverride).toContain('Sprint 11');
-    expect(result.checks.highConviction).toContain('Sprint 11');
-    expect(result.checks.strongFinbert).toContain('Sprint 11');
-    expect(result.checks.urgentSignal).toContain('Sprint 11');
-  });
-
-  it('private check*() metody nadal istnieją (zachowane na wypadek reaktywacji)', () => {
-    const { service } = createService();
-    const checkNames = [
-      'checkSentimentCrash', 'checkSignalOverride',
-      'checkHighConviction', 'checkStrongFinbert', 'checkUrgentSignal',
-    ];
-    for (const name of checkNames) {
-      expect(typeof (service as any)[name]).toBe('function');
-    }
-  });
-});
+// onSentimentScored + check*() prywatne metody usunięte z AlertEvaluatorService
+// w FinBERT cleanup (22.04.2026, commit b3a2f2b — sentiment pipeline shutdown po
+// Sprint 15 backtest: zero edge). Testy tu kasujemy bo handler + checkery nie
+// istnieją na typie. NIE przywracaj bez przywrócenia funkcjonalności.
 
 // Sprint 11: flushInsiderBatch direction testy usunięte — insider trades obsługiwane przez Form4Pipeline

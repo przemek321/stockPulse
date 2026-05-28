@@ -206,9 +206,9 @@ describe('Agent: Collectors — EventType spójność', () => {
     expect(EventType.NEW_PDUFA_EVENT).toBeDefined();
   });
 
-  it('EventType.SENTIMENT_SCORED istnieje', () => {
-    expect(EventType.SENTIMENT_SCORED).toBeDefined();
-  });
+  // SENTIMENT_SCORED usunięte w Sprint 11 (FinBERT cleanup 22.04.2026, commit b3a2f2b).
+  // Backtest Sprint 15 potwierdził zero edge na sentymencie → enum + handler + sidecar
+  // wycięte z kodu. NIE przywracaj testu bez przywrócenia funkcjonalności.
 });
 
 // ── Testy: Rate limit compliance ──

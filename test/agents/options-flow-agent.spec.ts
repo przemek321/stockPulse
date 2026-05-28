@@ -93,6 +93,44 @@ function createMockTickerRepo(overrides: any = {}) {
   };
 }
 
+// AlertDispatcherService (TASK-01, 22.04.2026) — centralny punkt dispatch.
+// Mock honoruje priority order: observation → suppressed, default → telegram path.
+// Dispatcher woła telegram.sendMarkdown WEWNĄTRZ siebie (alert-dispatcher.service.ts:147),
+// więc w testach jednostkowych options-flow-alert.service asercje sprawdzają
+// `dispatcher.dispatch`, NIE bezpośrednio `telegram.sendMarkdown` (wzorzec spójny
+// z test/unit/options-flow-obs-gate.spec.ts).
+function createMockDispatcher() {
+  return {
+    dispatch: jest.fn().mockImplementation(async (params: any) => {
+      const suppressed = params.isObservationTicker
+        ? 'observation'
+        : params.isGptMissingData
+          ? 'gpt_missing_data'
+          : params.isSellNoEdge
+            ? 'sell_no_edge'
+            : null;
+      if (suppressed) {
+        return {
+          action: `ALERT_DB_ONLY_${suppressed.toUpperCase()}`,
+          ticker: params.ticker,
+          ruleName: params.ruleName,
+          channel: 'db_only',
+          delivered: false,
+          suppressedBy: suppressed,
+        };
+      }
+      return {
+        action: 'ALERT_SENT_TELEGRAM',
+        ticker: params.ticker,
+        ruleName: params.ruleName,
+        channel: 'telegram',
+        delivered: true,
+        suppressedBy: null,
+      };
+    }),
+  };
+}
+
 function createAlertService(overrides: any = {}) {
   const flowRepo = overrides.flowRepo ?? createMockFlowRepo();
   const alertRepo = overrides.alertRepo ?? createMockAlertRepo();
@@ -103,6 +141,7 @@ function createAlertService(overrides: any = {}) {
   const telegram = overrides.telegram ?? createMockTelegram();
   const formatter = overrides.formatter ?? createMockFormatter();
   const finnhub = overrides.finnhub ?? createMockFinnhub();
+  const dispatcher = overrides.dispatcher ?? createMockDispatcher();
 
   const service = new OptionsFlowAlertService(
     flowRepo as any,
@@ -114,8 +153,9 @@ function createAlertService(overrides: any = {}) {
     telegram as any,
     formatter as any,
     finnhub as any,
+    dispatcher as any,
   );
-  return { service, flowRepo, alertRepo, ruleRepo, scoring, correlation, telegram, formatter, finnhub };
+  return { service, flowRepo, alertRepo, ruleRepo, scoring, correlation, telegram, formatter, finnhub, dispatcher };
 }
 
 // ── Testy flow ──
@@ -129,14 +169,16 @@ describe('Options Flow Alert — routing', () => {
     expect(result.action).toBe('SKIP_NOT_FOUND');
   });
 
-  it('ALERT_SENT gdy conviction ≥ 0.50 i pdufaBoosted', async () => {
-    const { service, correlation, telegram } = createAlertService({
+  it('ALERT_SENT_TELEGRAM gdy conviction ≥ 0.50 i pdufaBoosted', async () => {
+    const { service, correlation, dispatcher } = createAlertService({
       scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.80 }),
     });
     const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
-    expect(result.action).toBe('ALERT_SENT');
+    // Dispatcher zwraca ALERT_SENT_TELEGRAM dla happy path (alert-dispatcher.service.ts:150);
+    // telegram.sendMarkdown jest wołany WEWNĄTRZ dispatchera, więc asercja na dispatcher.dispatch.
+    expect(result.action).toBe('ALERT_SENT_TELEGRAM');
     expect(correlation.storeSignal).toHaveBeenCalled();
-    expect(telegram.sendMarkdown).toHaveBeenCalled();
+    expect(dispatcher.dispatch).toHaveBeenCalled();
   });
 
   it('CORRELATION_STORED gdy conviction ≥ 0.50 ale BEZ pdufaBoosted (Sprint 11)', async () => {
@@ -221,20 +263,20 @@ describe('Options Flow Alert — throttling', () => {
     expect(telegram.sendMarkdown).not.toHaveBeenCalled();
   });
 
-  it('ALERT_SENT gdy ostatni alert > throttle window', async () => {
+  it('ALERT_SENT_TELEGRAM gdy ostatni alert > throttle window', async () => {
     const oldAlert = {
       sentAt: new Date(Date.now() - 180 * 60_000), // 3h temu (throttle = 120 min)
     };
     const alertRepo = createMockAlertRepo();
     alertRepo.findOne.mockResolvedValue(oldAlert as any);
 
-    const { service, telegram } = createAlertService({
+    const { service, dispatcher } = createAlertService({
       alertRepo,
       scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.80 }),
     });
     const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
-    expect(result.action).toBe('ALERT_SENT');
-    expect(telegram.sendMarkdown).toHaveBeenCalled();
+    expect(result.action).toBe('ALERT_SENT_TELEGRAM');
+    expect(dispatcher.dispatch).toHaveBeenCalled();
   });
 });
 
@@ -267,14 +309,17 @@ describe('Options Flow Alert — priority', () => {
 // ── Test reguła nieaktywna ──
 
 describe('Options Flow Alert — reguła', () => {
-  it('THROTTLED gdy reguła nie istnieje (conviction ≥ 0.50 + pdufaBoosted ale brak reguły)', async () => {
-    const { service, telegram } = createAlertService({
+  it('SKIP_NO_RULE gdy reguła nie istnieje (conviction ≥ 0.50 + pdufaBoosted ale brak reguły)', async () => {
+    const { service, telegram, dispatcher } = createAlertService({
       ruleRepo: { findOne: jest.fn(async () => null) },
       scoring: createMockScoring({ conviction: 0.65, direction: 'positive', pdufaBoosted: true, callPutRatio: 0.80 }),
     });
     const result = await service.onOptionsFlow({ flowId: 1, symbol: 'MRNA' });
-    // Brak reguły → sendAlert zwraca false → THROTTLED
-    expect(result.action).toBe('THROTTLED');
+    // sendAlert wraca SKIP_NO_RULE (options-flow-alert.service.ts:144) PRZED
+    // dispatcherem — stary komentarz "zwraca false → THROTTLED" był stale
+    // (kod zwraca string action, nie boolean).
+    expect(result.action).toBe('SKIP_NO_RULE');
     expect(telegram.sendMarkdown).not.toHaveBeenCalled();
+    expect(dispatcher.dispatch).not.toHaveBeenCalled();
   });
 });

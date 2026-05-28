@@ -61,6 +61,45 @@ function createMockTickerRepo() {
   };
 }
 
+// AlertDispatcherService (TASK-01, 22.04.2026) — centralny dispatch.
+// Mock woła telegram.sendMarkdown WEWNĄTRZ implementation (mirror produkcji:
+// alert-dispatcher.service.ts:147), żeby istniejące asercje `telegram.sendMarkdown`
+// w testach Detektor 1 / observation gates / cluster SELL nadal działały.
+// Suppressed cases (observation/cluster_sell/direction_conflict) zwracają
+// delivered=false i NIE wołają telegram — spójne z alert-dispatcher priority order.
+function createMockDispatcher(telegram: { sendMarkdown: jest.Mock }) {
+  return {
+    dispatch: jest.fn().mockImplementation(async (params: any) => {
+      const suppressed = params.isObservationTicker
+        ? 'observation'
+        : params.isDirectionConflict
+          ? 'direction_conflict'
+          : params.isClusterSellObservation
+            ? 'cluster_sell_no_edge'
+            : null;
+      if (suppressed) {
+        return {
+          action: `ALERT_DB_ONLY_${suppressed.toUpperCase()}`,
+          ticker: params.ticker,
+          ruleName: params.ruleName,
+          channel: 'db_only',
+          delivered: false,
+          suppressedBy: suppressed,
+        };
+      }
+      const delivered = await telegram.sendMarkdown(params.message);
+      return {
+        action: delivered ? 'ALERT_SENT_TELEGRAM' : 'ALERT_TELEGRAM_FAILED',
+        ticker: params.ticker,
+        ruleName: params.ruleName,
+        channel: delivered ? 'telegram' : 'db_only',
+        delivered,
+        suppressedBy: delivered ? null : 'telegram_failed',
+      };
+    }),
+  };
+}
+
 function createService(overrides: ServiceDeps = {}) {
   const redis = overrides.redis ?? createMockRedis();
   const telegram = overrides.telegram ?? createMockTelegram();
@@ -68,6 +107,7 @@ function createService(overrides: ServiceDeps = {}) {
   const alertRepo = overrides.alertRepo ?? createMockRepo();
   const ruleRepo = overrides.ruleRepo ?? createMockRepo();
   const tickerRepo = createMockTickerRepo();
+  const dispatcher = createMockDispatcher(telegram);
 
   const service = new CorrelationService(
     redis as any,
@@ -76,9 +116,12 @@ function createService(overrides: ServiceDeps = {}) {
     alertRepo as any,
     ruleRepo as any,
     tickerRepo as any,
+    undefined, // finnhub @Optional
+    undefined, // deliveryGate @Optional
+    dispatcher as any,
   );
 
-  return { service, redis, telegram, formatter, alertRepo, ruleRepo, tickerRepo };
+  return { service, redis, telegram, formatter, alertRepo, ruleRepo, tickerRepo, dispatcher };
 }
 
 // ── Helpery ──
@@ -458,13 +501,19 @@ describe.skip('Agent: Correlation — Detektor 3: Multi-Source Convergence (24h)
 // ── Testy: Detektor 4 — Insider Cluster (7d) ──
 
 describe('Agent: Correlation — Detektor 4: Insider Cluster (7d)', () => {
-  it('wykrywa gdy 2+ insider trades w 7 dni, ten sam kierunek', async () => {
+  it('wykrywa gdy 2+ insider trades w 7 dni, ten sam kierunek (SELL — BUY disabled w TASK-09)', async () => {
+    // TASK-09 (23.04.2026): BUY cluster wyłączony (detectInsiderCluster zwraca null
+    // dla positive direction po V5 backtest cluster_buy_vs_single_buy p>0.37 wszystkie
+    // horyzonty). Tylko SELL cluster trafia do triggerCorrelatedAlert → flag
+    // isClusterSellObservation=true → dispatcher rzuca ALERT_DB_ONLY_CLUSTER_SELL_NO_EDGE.
+    // Formatter jest wołany PRZED dispatcherem (correlation.service.ts:621) więc
+    // asercja `patternType: 'INSIDER_CLUSTER'` przechodzi mimo suppression Telegram.
     const { service, redis, formatter } = createService();
     const now = Date.now();
 
     setupRedisSignals(redis, 'UNH', [], [
-      makeSignal({ source_category: 'form4', direction: 'positive', conviction: 0.3, timestamp: now - 48 * h }),
-      makeSignal({ source_category: 'form4', direction: 'positive', conviction: 0.4, timestamp: now - 24 * h }),
+      makeSignal({ source_category: 'form4', direction: 'negative', conviction: 0.3, timestamp: now - 48 * h }),
+      makeSignal({ source_category: 'form4', direction: 'negative', conviction: 0.4, timestamp: now - 24 * h }),
     ]);
 
     await service.runPatternDetection('UNH');
@@ -752,13 +801,15 @@ describe('Agent: Correlation — Priority', () => {
   });
 
   it('|conviction| < 0.6 → HIGH', async () => {
+    // TASK-09: BUY cluster disabled → używamy SELL żeby pattern przeszedł detekcję.
+    // Formatter wołany przed dispatcherem (correlation.service.ts:621) — asercja
+    // `priority: 'HIGH'` waliduje obliczenia conviction niezależnie od kanału dispatch.
     const { service, redis, formatter } = createService();
     const now = Date.now();
 
-    // Insider Cluster: 2 form4 conviction 0.25 → aggregate = 0.25 (1 kategoria, no boost)
     setupRedisSignals(redis, 'UNH', [], [
-      makeSignal({ source_category: 'form4', direction: 'positive', conviction: 0.25, timestamp: now - 24 * h }),
-      makeSignal({ source_category: 'form4', direction: 'positive', conviction: 0.22, timestamp: now - 48 * h }),
+      makeSignal({ source_category: 'form4', direction: 'negative', conviction: 0.25, timestamp: now - 24 * h }),
+      makeSignal({ source_category: 'form4', direction: 'negative', conviction: 0.22, timestamp: now - 48 * h }),
     ]);
 
     await service.runPatternDetection('UNH');
@@ -805,7 +856,7 @@ describe('Agent: Correlation — Debounce (schedulePatternCheck)', () => {
   it('schedulePatternCheck odpala runPatternDetection po 10s', () => {
     const { service, redis } = createService();
     // Mock runPatternDetection żeby nie wykonywać pełnej detekcji
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0, action: 'NO_OP' });
 
     service.schedulePatternCheck('UNH');
     expect(spy).not.toHaveBeenCalled();
@@ -818,7 +869,7 @@ describe('Agent: Correlation — Debounce (schedulePatternCheck)', () => {
 
   it('2 sygnały w 5s → drugi skipowany (already scheduled), runPatternDetection raz', () => {
     const { service } = createService();
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0, action: 'NO_OP' });
 
     service.schedulePatternCheck('UNH');
     jest.advanceTimersByTime(5_000);
@@ -831,7 +882,7 @@ describe('Agent: Correlation — Debounce (schedulePatternCheck)', () => {
 
   it('2 różne tickery → 2 niezależne detekcje', () => {
     const { service } = createService();
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0, action: 'NO_OP' });
 
     service.schedulePatternCheck('UNH');
     service.schedulePatternCheck('ISRG');
@@ -852,7 +903,7 @@ describe('Agent: Correlation — onModuleDestroy', () => {
 
   it('czyści pending timery', () => {
     const { service } = createService();
-    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0 });
+    const spy = jest.spyOn(service, 'runPatternDetection').mockResolvedValue({ ticker: 'UNH', signals: 0, patterns: 0, action: 'NO_OP' });
 
     service.schedulePatternCheck('UNH');
     service.schedulePatternCheck('ISRG');
