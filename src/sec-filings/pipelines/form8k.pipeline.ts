@@ -260,24 +260,22 @@ export class Form8kPipeline {
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
       if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
 
-      // Waliduj JSON z GPT (Zod) — retry 1x
+      // Waliduj JSON z GPT (Zod)
+      // S20-T03 (28.05.2026): usunięty retry analogicznie do form4.pipeline.ts —
+      // `parseGptResponse(JSON.stringify(rawResponse))` po 1st fail dawał gwarantowany
+      // ten sam błąd (raw=obiekt) albo fail Zoda (raw=string w cudzysłowach po
+      // re-stringify). Nie ratował żadnego case'a. NIE re-prompt GPT bez decyzji
+      // kosztowej (osobny task).
       let analysis: SecFilingAnalysis;
       try {
         analysis = parseGptResponse(
           typeof rawResponse === 'string' ? rawResponse : JSON.stringify(rawResponse),
         );
       } catch (err) {
-        this.logger.warn(
-          `8-K GPT invalid JSON (1st attempt) for ${payload.symbol}: ${err.message}`,
+        this.logger.error(
+          `8-K GPT invalid JSON for ${payload.symbol}: ${err.message} — pomijam`,
         );
-        try {
-          analysis = parseGptResponse(JSON.stringify(rawResponse));
-        } catch {
-          this.logger.error(
-            `8-K GPT invalid JSON (2nd attempt) for ${payload.symbol} — pomijam`,
-          );
-          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
-        }
+        return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // S19-FIX-02: post-GPT conviction floor enforcement gdy filing zawiera

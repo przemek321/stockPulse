@@ -296,25 +296,23 @@ export class Form4Pipeline {
       const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
       if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
 
-      // Waliduj JSON z GPT (Zod) — retry 1x przy błędzie
+      // Waliduj JSON z GPT (Zod)
+      // S20-T03 (28.05.2026): usunięty retry `parseGptResponse(JSON.stringify(rawResponse))`
+      // po 1st-attempt fail. Retry był no-op: gdy raw=obiekt → 2nd attempt to identyczne
+      // wywołanie co 1st (bo 1st już robił JSON.stringify obiektu), zwracał ten sam błąd.
+      // Gdy raw=string → 2nd robił JSON.stringify(string) = string w cudzysłowach, prawie
+      // pewny fail Zoda. Nie ratował żadnego przypadku. NIE dodawaj re-promptu GPT —
+      // to decyzja kosztowa (osobny task).
       let analysis: SecFilingAnalysis;
       try {
         analysis = parseGptResponse(
           typeof rawResponse === 'string' ? rawResponse : JSON.stringify(rawResponse),
         );
       } catch (err) {
-        this.logger.warn(
-          `Form4 GPT invalid JSON (1st attempt) for ${payload.symbol}: ${err.message}`,
+        this.logger.error(
+          `Form4 GPT invalid JSON for ${payload.symbol}: ${err.message} — pomijam`,
         );
-        // Retry: jeśli rawResponse jest obiektem, może jest poprawny ale nie przeszedł strict validation
-        try {
-          analysis = parseGptResponse(JSON.stringify(rawResponse));
-        } catch {
-          this.logger.error(
-            `Form4 GPT invalid JSON (2nd attempt) for ${payload.symbol} — pomijam`,
-          );
-          return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
-        }
+        return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
       }
 
       // Safety net: jeśli GPT zwrócił conviction z odwróconym znakiem (np. SELL +0.90),
