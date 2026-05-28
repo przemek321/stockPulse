@@ -24,9 +24,17 @@ function parseET(date: Date): { weekday: string; hour: number; minute: number } 
   const parts = etFormatter.formatToParts(date);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
 
+  // S20-T04 (28.05.2026): Intl.DateTimeFormat z hour12:false zwraca "24" dla
+  // północy ET zamiast "00" (znany quirk en-US locale). To powodowało że
+  // getEffectiveStartTime zimą (EST: setUTCHours(5) → 00:00 ET) dostawało
+  // timeMinutes=1440 zamiast 0, wpadało w "po zamknięciu" branch i pętla
+  // nigdy nie zwracała 9:30 ET. Wszystkie pre-market alerty listopad-marzec
+  // trafiały do fallback `return alertSentAt`. Lato (EDT UTC-4) nie odsłaniało
+  // bug bo setUTCHours(5) daje 01:00 ET. Defensywny mod 24 normalizuje.
+  const hourRaw = parseInt(get('hour'), 10);
   return {
     weekday: get('weekday'),       // Mon, Tue, Wed, Thu, Fri, Sat, Sun
-    hour: parseInt(get('hour'), 10),
+    hour: hourRaw % 24,            // 24 → 0 (midnight quirk fix)
     minute: parseInt(get('minute'), 10),
   };
 }
@@ -73,10 +81,16 @@ export function getEffectiveStartTime(alertSentAt: Date): Date {
   const d = new Date(alertSentAt);
 
   // Sprawdzaj po dniu aż znajdziesz dzień roboczy
-  for (let attempt = 0; attempt < 5; attempt++) {
+  // S20-T04 (28.05.2026): pętla musi pomijać NYSE holidays — wcześniej kotwiczyła
+  // sloty na 9:30 ET w święto (giełda zamknięta), zanieczyszczając ~9 dni/rok
+  // pomiarów outcome. isNyseOpen ma guard isNyseHoliday, ale getEffectiveStartTime
+  // używa własnej pętli TRADING_DAYS-only → ten sam warunek tutaj. Pętla rozszerzona
+  // do 10 prób — Christmas Eve (24.12) + Christmas (25.12) + weekend pod rząd potrafią
+  // wymagać 4-5 skipów; 5 było ciasne, 10 daje margines bez ryzyka infinite loop.
+  for (let attempt = 0; attempt < 10; attempt++) {
     const { weekday, hour, minute } = parseET(d);
 
-    if (TRADING_DAYS.has(weekday)) {
+    if (TRADING_DAYS.has(weekday) && !isNyseHoliday(d)) {
       const timeMinutes = hour * 60 + minute;
       const openMinutes = OPEN_HOUR * 60 + OPEN_MINUTE;
 
@@ -87,7 +101,7 @@ export function getEffectiveStartTime(alertSentAt: Date): Date {
       }
     }
 
-    // Po zamknięciu lub weekend — przejdź do następnego dnia 0:00 ET
+    // Po zamknięciu / weekend / święto — przejdź do następnego dnia 0:00 ET
     // Ustawiamy na następny dzień rano (5:00 UTC ~ 0:00-1:00 ET)
     d.setUTCDate(d.getUTCDate() + 1);
     d.setUTCHours(5, 0, 0, 0);
