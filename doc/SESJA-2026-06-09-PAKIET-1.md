@@ -59,13 +59,12 @@ przez plany; po fixie do GPT trafi ~5× mniej SELL. (3) Pilność re-run V5 spad
 wartość głównie dla H3 (w V5 grupa plan miała n=0 przez ten sam bug!).
 Szczegóły: [AUDIT-10B51-2026-06-09.md](AUDIT-10B51-2026-06-09.md).
 
-**⏳ DECYZJA DLA PRZEMKA — backfill DB**: UPDATE 752 historycznych wierszy
-(`is10b51Plan` false→true wg audytu) przygotowany w
-`scripts/db/backfill-10b51-2026-06-09.sql` (idempotentny, odwracalny w 1 zapytaniu).
-**NIE wykonany** — klasyfikator uprawnień zablokował masową modyfikację produkcyjnej
-bazy bez wyraźnej zgody. Bez backfillu 30-dniowa historia w promptach GPT przez
-~30 dni miesza źle oznaczone stare wiersze z poprawnymi nowymi. Wykonanie:
-`docker compose exec -T postgres psql -U stockpulse -d stockpulse < scripts/db/backfill-10b51-2026-06-09.sql`
+**✅ Backfill DB — wykonany 10.06.2026 po zgodzie Przemka ("rob backfill")**:
+pierwsze wykonanie skryptu złapało tylko 488/752 (warunek `= false` pomijał 1512
+wierszy z NULL — stare kolekcje sprzed defaulta kolumny); dograne `IS DISTINCT FROM
+true` (+264) + normalizacja NULL→false dla audytowanych filingów discretionary (1246).
+Stan końcowy: **plan 758** (552 SELL / 0 BUY), NULL tylko 2 artefakty `Aggregate MSPR`.
+Szczegóły: log w `scripts/db/backfill-10b51-2026-06-09.sql` + [AUDIT-10B51-2026-06-09.md](AUDIT-10B51-2026-06-09.md).
 
 ## Fix #1 — GPT nie wetuje już backtest-backed BUY
 

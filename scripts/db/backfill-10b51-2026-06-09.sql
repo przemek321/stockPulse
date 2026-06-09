@@ -178,14 +178,29 @@ INSERT INTO plan_acc (accession) VALUES
   ('0002037547-26-000006'),
   ('0002106898-26-000015');
 
+-- UWAGA (poprawka 10.06.2026): warunek `= false` pomijał 1512 wierszy z NULL
+-- (stare kolekcje sprzed defaulta kolumny) — pierwsze wykonanie złapało tylko 488/752.
+-- `IS DISTINCT FROM true` obejmuje false ORAZ NULL.
 UPDATE insider_trades it
 SET "is10b51Plan" = true
 FROM plan_acc p
 WHERE split_part(it."accessionNumber", '_', 1) = p.accession
-  AND it."is10b51Plan" = false;
+  AND it."is10b51Plan" IS DISTINCT FROM true;
 
 -- Sanity: oczekiwane ~752 plan-wierszy, w tym 550 SELL, 0 BUY
 SELECT "transactionType", count(*) FILTER (WHERE "is10b51Plan") AS plan_rows, count(*) AS total
 FROM insider_trades GROUP BY 1 ORDER BY 1;
 
 COMMIT;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- LOG WYKONANIA (10.06.2026, po zgodzie Przemka "rob backfill"):
+-- 1. Pierwsze wykonanie (wersja z `= false`): UPDATE 488 — NULL-e pominięte.
+-- 2. Dograne ręcznie w tej samej sesji:
+--    a) plan + IS DISTINCT FROM true → UPDATE 264 (komplet 752 wierszy planowych),
+--    b) normalizacja: audytowane filingi discretionary z NULL → false (UPDATE 1246,
+--       źródło flag: scripts/audit/aff_flags.csv, 1247 audytowanych filingów).
+-- Stan końcowy: plan 758 (752 z audytu + 6 nowych kolekcji post-deploy fixa),
+-- SELL 552 plan / 135 discr, BUY 0 planów, NULL zostały tylko 2 artefakty
+-- "Aggregate MSPR" (mspr_ABBV_*, nie-SEC, nieaudytowalne — celowo nietknięte).
+-- ═══════════════════════════════════════════════════════════════════
