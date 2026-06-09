@@ -80,16 +80,39 @@ Z PLAN-APLS:
 - **FOLLOWUP-XBI-ADJUSTMENT** — niezależny task wyższego priority dla cross-cutting outcome interpretation
 - **Backtest comparison APLS vs core healthcare** — direct Welch's t-test (analog H6) wymagałby fetch dla core healthcare BUY events w tym samym 24mies. window; planowane przy XBI pipeline ship
 
-## Faza 3 implementation checklist (next session)
+## Faza 3 implementation checklist — DONE 09.06.2026 (2,5 tyg. po planie)
 
-1. [ ] DB seed: dodać URGN/ARDX/MNKD/CRSP/AXSM/RCKT do `tickers` z `sector='biotech_apls'`, `observationOnly=true`
-2. [ ] `src/seed/seed.service.ts` update — `APLS_TICKERS` config + sector tagging
-3. [ ] Form4Pipeline rules:
-   - Nowy threshold check: jeśli `sector === 'biotech_apls'` → `MIN_BUY_VALUE = 500_000` (vs core 100_000)
-   - Healthcare boost (×1.2) zastosować też dla `biotech_apls`
-4. [ ] Test integracyjny: Form4 ARDX BUY $600K → observation alert + storeSignal SKIP (observation mode gate)
-5. [ ] Monitoring SQL: weekly summary new tickers vs core baseline
-6. [ ] 30-day calendar reminder: 2026-06-22 → Faza 4 review
+1. [x] DB seed: URGN/ARDX/MNKD/CRSP/AXSM/RCKT w `tickers` z `sector='biotech_apls'`, `observationOnly=true` — config `doc/stockpulse-biotech-apls.json`, seed przez `src/database/seeds/seed.ts` (nie `seed.service.ts` — taka ścieżka nie istnieje), zweryfikowane w produkcyjnej DB (57 tickerów, 20 obs)
+2. [x] `src/database/seeds/seed.ts` — `apls_strict`/`apls_stretch` groups + GROUP_PRIORITY (strict MEDIUM, stretch LOW)
+3. [x] Form4Pipeline (`form4.pipeline.ts`):
+   - `APLS_MIN_BUY_VALUE = 500_000` + **BUY-only** (SELL → `SKIP_APLS_NON_BUY` bez GPT; zero edge w V5 i Faza 2)
+   - Sector boost ×1.2 dla `biotech_apls` (jak healthcare) + strict tier ×1.1 (`APLS_STRICT_TIER`)
+   - **Wyjątek od S19-FIX-03**: biotech_apls NIE jest skipowany przed GPT (healthcare prompt semantycznie OK; okno obs wymaga conviction+priceAtAlert w DB) — dispatch z `isObservationTicker=true` → DB-only `nonDeliveryReason='observation'`
+   - storeSignal SKIP dla `suppressedBy='observation'` (czysty correlation baseline, analog FIX-03b)
+4. [x] Testy: 8 w `test/unit/form4-apls-faza3.spec.ts` (ARDX BUY $600K obs flow + zero storeSignal, boosty strict/stretch, próg $500K, SELL skip, regresja FIX-03 semi, healthcare core bez zmian). 588/588 unit pass.
+5. [x] Monitoring SQL: sekcja "Faza 4 obs window monitoring" niżej
+6. [x] Faza 4 review: **2026-07-09** (30d od seedu 09.06, nie 22.06 — seed opóźniony 2,5 tyg.)
+
+### Faza 4 obs window monitoring (uruchamiaj co tydzień)
+
+```sql
+-- APLS observation alerts vs core baseline (signed return + hit rate, 3d proxy)
+WITH o AS (
+  SELECT a.symbol, t.sector, a."alertDirection" AS dir, a."sentAt",
+    (a."price3d"-a."priceAtAlert")/a."priceAtAlert"*100 AS r3d
+  FROM alerts a JOIN tickers t ON t.symbol = a.symbol
+  WHERE a."sentAt" >= '2026-06-09' AND a."ruleName" = 'Form 4 Insider BUY'
+    AND a."price3d" IS NOT NULL
+)
+SELECT sector, count(*) AS n,
+  round(avg(CASE WHEN dir='positive' THEN r3d ELSE -r3d END),2) AS signed_r3d,
+  round(100.0*avg(CASE WHEN (dir='positive' AND r3d>0) OR (dir='negative' AND r3d<0)
+        THEN 1 ELSE 0 END),0) AS hit3d
+FROM o GROUP BY sector;
+```
+
+Gate Faza 4 (z sekcji wyżej): ≥6 BUY events, hit rate ≥60%, median alpha 7d ≥ +2% raw
+(XBI-alpha dostępna — kolumny xbi/ibb wypełniane od 23.05), zero halucynacji GPT direction.
 
 ---
 

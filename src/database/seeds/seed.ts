@@ -28,6 +28,9 @@ const GROUP_PRIORITY: Record<string, string> = {
   memory_producers: 'MEDIUM',
   equipment_packaging: 'MEDIUM',
   oem_anti_signal: 'LOW',
+  // APLS-class biotech (Faza 3 seed observation, 09.06.2026)
+  apls_strict: 'MEDIUM',
+  apls_stretch: 'LOW',
 };
 
 interface CompanyJson {
@@ -77,6 +80,9 @@ async function seed() {
 
   const semiPath = path.resolve(docDir, 'stockpulse-semi-supply-chain.json');
   const semi = JSON.parse(fs.readFileSync(semiPath, 'utf-8'));
+
+  const aplsPath = path.resolve(docDir, 'stockpulse-biotech-apls.json');
+  const apls = JSON.parse(fs.readFileSync(aplsPath, 'utf-8'));
 
   // ── SEED: Tickery ────────────────────────────────────────
   const tickerRepo = dataSource.getRepository(Ticker);
@@ -144,7 +150,13 @@ async function seed() {
   const semiCount = await seedTickers(semi.tickers, 'semi_supply_chain', true);
   console.log(`✓ Zaimportowano ${semiCount} tickerów semi supply chain (observation mode)`);
 
-  tickerCount = healthcareCount + semiCount;
+  // APLS-class biotech: sector='biotech_apls', observationOnly=true (Faza 3, 09.06.2026).
+  // W odróżnieniu od semi: Form4Pipeline NIE skipuje ich przed GPT (prompt healthcare
+  // semantycznie poprawny dla biotechu) — alerty BUY >= $500K lądują w DB jako observation.
+  const aplsCount = await seedTickers(apls.tickers, 'biotech_apls', true);
+  console.log(`✓ Zaimportowano ${aplsCount} tickerów APLS biotech (observation mode, BUY >= $500K)`);
+
+  tickerCount = healthcareCount + semiCount + aplsCount;
 
   // ── SEED: Reguły alertów (tylko z healthcare — semi używa tych samych reguł) ──
   const ruleRepo = dataSource.getRepository(AlertRule);

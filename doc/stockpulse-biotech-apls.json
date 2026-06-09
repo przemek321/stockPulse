@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "version": "1.0",
+    "created": "2026-06-09",
+    "description": "APLS-class universe expansion — Faza 3 seed observation CONSERVATIVE. 6 commercial-stage mid-cap biotech (FDA-approved drug + wysoka aktywność Form 4). Backtest Faza 2 (24 mies.): BUY $500K+ 7d d=+0.75 p=0.041 — replikuje V5 core. Threshold alertów: BUY >= $500K (vs core $100K). Observation 30d, Faza 4 review: 2026-07-09.",
+    "source_docs": [
+      "doc/APLS-FAZA-1-RESULTS-2026-05-23.md",
+      "doc/APLS-FAZA-2-RESULTS-2026-05-23.md",
+      "doc/PLAN-APLS-UNIVERSE-EXPANSION-2026-05-23.md"
+    ]
+  },
+  "tickers": {
+    "apls_strict": {
+      "companies": [
+        {
+          "ticker": "URGN",
+          "name": "UroGen Pharma",
+          "cik": "0001668243",
+          "subsector": "Biotech — uro-oncology (commercial)",
+          "market_cap_tier": "mid",
+          "aliases": ["UroGen", "URGN"],
+          "key_metrics": ["Zusduri_launch", "Jelmyto_revenue", "cash_runway"],
+          "ceo": "Liz Barrett",
+          "cfo": "",
+          "notes": "FDA-approved Zusduri + Jelmyto (bladder cancer). Cap ~$1.4B. Form 4: 27/365d. APLS strict tier (Faza 1.A PASS)."
+        },
+        {
+          "ticker": "ARDX",
+          "name": "Ardelyx",
+          "cik": "0001437402",
+          "subsector": "Biotech — GI/renal (commercial)",
+          "market_cap_tier": "mid",
+          "aliases": ["Ardelyx", "ARDX"],
+          "key_metrics": ["IBSRELA_revenue", "XPHOZAH_revenue", "cash_runway"],
+          "ceo": "Mike Raab",
+          "cfo": "",
+          "notes": "FDA-approved IBSRELA + XPHOZAH. Cap ~$1.5B. Form 4: 52/365d. Główny driver edge'u w backteście Faza 2 (1d d=+1.19 p=0.028). APLS strict tier."
+        },
+        {
+          "ticker": "MNKD",
+          "name": "MannKind",
+          "cik": "0000899460",
+          "subsector": "Biotech — endokrynologia/inhalacje (commercial)",
+          "market_cap_tier": "mid",
+          "aliases": ["MannKind", "MNKD"],
+          "key_metrics": ["Afrezza_revenue", "Tyvaso_DPI_royalty", "cash_runway"],
+          "ceo": "Michael Castagna",
+          "cfo": "",
+          "notes": "FDA-approved Afrezza (insulina wziewna) + royalty Tyvaso DPI. Cap ~$1.0B. Form 4: 41/365d. APLS strict tier."
+        },
+        {
+          "ticker": "CRSP",
+          "name": "CRISPR Therapeutics",
+          "cik": "0001674416",
+          "subsector": "Biotech — edycja genów (commercial)",
+          "market_cap_tier": "mid",
+          "aliases": ["CRISPR Therapeutics", "CRSP"],
+          "key_metrics": ["Casgevy_launch", "pipeline_in_vivo", "cash_runway"],
+          "ceo": "Samarth Kulkarni",
+          "cfo": "",
+          "notes": "FDA-approved Casgevy (sickle cell, 2023, partner Vertex). Cap ~$4.9B. Form 4: 42/365d. APLS strict tier — jedyny commercial-stage gene editing (BEAM/EDIT/NTLA odrzucone jako pre-revenue)."
+        }
+      ]
+    },
+    "apls_stretch": {
+      "companies": [
+        {
+          "ticker": "AXSM",
+          "name": "Axsome Therapeutics",
+          "cik": "0001579428",
+          "subsector": "Biotech — CNS (commercial)",
+          "market_cap_tier": "large",
+          "aliases": ["Axsome", "AXSM"],
+          "key_metrics": ["Auvelity_revenue", "Sunosi_revenue", "pipeline_CNS"],
+          "ceo": "Herriot Tabuteau",
+          "cfo": "",
+          "notes": "FDA-approved Auvelity + Sunosi. Cap ~$12B (stretch: powyżej progu $10B). Form 4: 42/365d. APLS stretch tier — backtest nie wykazał różnicy vs strict (p>0.66, N małe)."
+        },
+        {
+          "ticker": "RCKT",
+          "name": "Rocket Pharmaceuticals",
+          "cik": "0001281895",
+          "subsector": "Biotech — terapie genowe (commercial)",
+          "market_cap_tier": "small",
+          "aliases": ["Rocket Pharmaceuticals", "Rocket Pharma", "RCKT"],
+          "key_metrics": ["KRESLADI_launch", "pipeline_AAV", "cash_runway"],
+          "ceo": "Gaurav Shah",
+          "cfo": "",
+          "notes": "FDA-approved KRESLADI (03.2026). Cap ~$0.3B (stretch: poniżej progu $1B). Form 4: 51/365d. Backtest: extreme avg returns (+7 do +13%) ale szerokie CI (N=4). APLS stretch tier."
+        }
+      ]
+    }
+  }
+}

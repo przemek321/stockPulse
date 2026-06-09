@@ -70,6 +70,17 @@ export function isDirectorRole(role: string | null | undefined): boolean {
 }
 
 /**
+ * APLS Faza 3 (09.06.2026, doc/APLS-FAZA-2-RESULTS-2026-05-23.md):
+ * 6 commercial-stage biotech w observation mode z konserwatywnym progiem.
+ * Backtest 24 mies.: BUY $500K+ 7d d=+0.75 p=0.041 (replikuje V5 core d=+0.83),
+ * strict tier 7d d=+0.52 p=0.038. SELL nie testowany pozytywnie nigdzie (V5 +
+ * APLS) → biotech_apls przetwarza WYŁĄCZNIE BUY >= $500K (oszczędza GPT,
+ * utrzymuje czysty obs baseline).
+ */
+export const APLS_MIN_BUY_VALUE = 500_000;
+export const APLS_STRICT_TIER: readonly string[] = ['URGN', 'ARDX', 'MNKD', 'CRSP'];
+
+/**
  * Pipeline analizy GPT dla transakcji insiderskich (Form 4).
  *
  * Nasłuchuje event NEW_INSIDER_TRADE (jedyny listener po Sprint 16b #3 — AlertEvaluator.onInsiderTrade usunięty).
@@ -146,11 +157,19 @@ export class Form4Pipeline {
     //                                                              → INSIDER_PLUS_OPTIONS fałszywy
     //                                                              CRITICAL w portalu).
     //   5. Daily cap (max 20 GPT/ticker/day)?                    → SKIP_DAILY_CAP
+    //   5b. Observation gate (S19-FIX-03): semi obs ticker        → SKIP_OBSERVATION_TICKER
+    //       (PRZED GPT; wyjątek biotech_apls — healthcare prompt OK, obs window
+    //        Fazy 4 wymaga danych GPT w DB)
+    //   5c. APLS Faza 3 (09.06.2026): biotech_apls               → SKIP_APLS_NON_BUY
+    //       tylko BUY >= $500K                                    → SKIP_APLS_BELOW_THRESHOLD
     //   6. GPT analysis + priority scoring
-    //   7. Rule boosts (C-suite BUY ×1.3, Dir BUY ×1.15, healthcare BUY ×1.2)
+    //   7. Rule boosts (C-suite BUY ×1.3, Dir BUY ×1.15, healthcare/biotech_apls BUY ×1.2,
+    //      APLS strict tier ×1.1)
     //   8. AlertDispatcherService.dispatch() (TASK-01):
     //        observation > sell_no_edge > csuite_sell > cluster_sell > silent > daily_limit
+    //        (biotech_apls → isObservationTicker=true → DB-only 'observation')
     //   9. CorrelationService.storeSignal() + schedulePatternCheck()
+    //      (skip gdy suppressedBy: sell_no_edge / csuite_sell_no_edge / observation)
 
     // Filtruj: tylko BUY/SELL > $100K
     if (!payload.totalValue || payload.totalValue < 100_000) {
@@ -226,12 +245,39 @@ export class Form4Pipeline {
       // INSIDER_PLUS_OPTIONS / INSIDER_PLUS_8K mogłyby zbudować pattern
       // na brudnym signal. Skip oszczędza GPT cost + zapobiega zanieczyszczeniu
       // korelacji.
-      if (ticker?.observationOnly === true) {
+      //
+      // APLS Faza 3 (09.06.2026): wyjątek dla sector='biotech_apls' — to biotech,
+      // więc healthcare prompt jest semantycznie poprawny, a okno obserwacyjne
+      // Fazy 4 WYMAGA alertów w DB (conviction + priceAtAlert) do oceny gate'u
+      // (>=6 BUY events, hit rate 7d >=60%, median alpha). Telegram dalej
+      // zablokowany przez isObservationTicker w AlertDispatcher, a storeSignal
+      // skipowany po dispatch (suppressedBy='observation') — czysty correlation
+      // baseline zachowany.
+      const isAplsTicker = ticker?.sector === 'biotech_apls';
+      if (ticker?.observationOnly === true && !isAplsTicker) {
         this.logger.debug(
           `Form4 observation skip: ${payload.symbol} (sector=${ticker.sector ?? 'unknown'}) — ` +
             `bez GPT, bez correlation signal`,
         );
         return { action: 'SKIP_OBSERVATION_TICKER', symbol: payload.symbol, traceId: payload.traceId };
+      }
+
+      // APLS Faza 3: konserwatywny filtr — wyłącznie BUY >= $500K (vs core $100K).
+      // SELL: zero edge w V5 i w backteście APLS Faza 2 → skip bez GPT.
+      if (isAplsTicker) {
+        if (payload.transactionType !== 'BUY') {
+          this.logger.debug(
+            `Form4 APLS skip: ${payload.symbol} ${payload.transactionType} — biotech_apls przetwarza tylko BUY`,
+          );
+          return { action: 'SKIP_APLS_NON_BUY', symbol: payload.symbol, traceId: payload.traceId };
+        }
+        if ((payload.totalValue ?? 0) < APLS_MIN_BUY_VALUE) {
+          this.logger.debug(
+            `Form4 APLS skip: ${payload.symbol} BUY $${Math.round(payload.totalValue ?? 0)} ` +
+              `< próg $${APLS_MIN_BUY_VALUE} (conservative threshold Faza 3)`,
+          );
+          return { action: 'SKIP_APLS_BELOW_THRESHOLD', symbol: payload.symbol, traceId: payload.traceId };
+        }
       }
 
       const companyName = ticker?.name ?? payload.symbol;
@@ -364,10 +410,17 @@ export class Form4Pipeline {
           analysis.conviction *= 1.15;
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} Director ×1.15 → conviction=${analysis.conviction.toFixed(2)}`);
         }
-        // Healthcare boost: tylko dla sektora healthcare (nie semi supply chain)
-        if (ticker?.sector === 'healthcare') {
+        // Sector boost ×1.2: healthcare (V4 d=0.58) + biotech_apls (APLS Faza 3 —
+        // biotech to podklasa healthcare, backtest Faza 2 replikuje edge). Semi bez boostu.
+        if (ticker?.sector === 'healthcare' || isAplsTicker) {
           analysis.conviction *= 1.2;
-          this.logger.debug(`Form4 BUY boost: ${payload.symbol} healthcare ×1.2 → conviction=${analysis.conviction.toFixed(2)}`);
+          this.logger.debug(`Form4 BUY boost: ${payload.symbol} ${ticker?.sector} ×1.2 → conviction=${analysis.conviction.toFixed(2)}`);
+        }
+        // APLS strict tier ×1.1 (URGN/ARDX/MNKD/CRSP): Faza 2 strict 7d d=+0.52 p=0.038 ✓,
+        // stretch bez samodzielnej istotności (N=5) — lekka preferencja strict.
+        if (isAplsTicker && APLS_STRICT_TIER.includes(payload.symbol)) {
+          analysis.conviction *= 1.1;
+          this.logger.debug(`Form4 BUY boost: ${payload.symbol} APLS strict tier ×1.1 → conviction=${analysis.conviction.toFixed(2)}`);
         }
       }
 
@@ -422,8 +475,11 @@ export class Form4Pipeline {
             traceId: payload.traceId,
             parentTraceId: payload.parentTraceId,
             message,
-            // S19-FIX-03: isObservationTicker pominięte — observation tickers
-            // skipowane w tickerRepo gate na początku onInsiderTrade (return SKIP_OBSERVATION_TICKER).
+            // S19-FIX-03: semi observation tickers skipowane wcześniej w tickerRepo gate
+            // (return SKIP_OBSERVATION_TICKER). APLS Faza 3 (09.06.2026): biotech_apls
+            // przechodzi przez GPT, więc flaga tu jest aktywna — AlertDispatcher route'uje
+            // DB-only z nonDeliveryReason='observation' (priority order: observation first).
+            isObservationTicker: ticker?.observationOnly === true,
             isSellNoEdge: !isBuy,
           })
         : buildDispatcherUnavailableFallback({ ticker: payload.symbol, ruleName: rule.name, traceId: payload.traceId });
@@ -475,9 +531,14 @@ export class Form4Pipeline {
         dispatchResult.suppressedBy === 'sell_no_edge' ||
         dispatchResult.suppressedBy === 'csuite_sell_no_edge';
 
+      // APLS Faza 3 (09.06.2026): observation alert (biotech_apls) NIE zasila Redis —
+      // analog S19-FIX-03b (options-flow). Backtest/forward baseline correlation
+      // pozostaje czysty dopóki Faza 4 nie potwierdzi edge'u.
+      const isObservationSuppressed = dispatchResult.suppressedBy === 'observation';
+
       // Rejestruj sygnał w CorrelationService
       // Normalizacja conviction z [-2.0, +2.0] (GPT) → [-1.0, +1.0] (CorrelationService)
-      if (this.correlation && !isSellNoEdgeSuppressed) {
+      if (this.correlation && !isSellNoEdgeSuppressed && !isObservationSuppressed) {
         try {
           const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {
@@ -498,6 +559,11 @@ export class Form4Pipeline {
         this.logger.debug(
           `Form4 ${payload.symbol} ${dispatchResult.suppressedBy}: pomijam correlation.storeSignal ` +
             `(V5 backtest zero edge dla SELL — nie zasilamy Redis żeby uniknąć INSIDER_PLUS_OPTIONS backdoor)`,
+        );
+      } else if (this.correlation && isObservationSuppressed) {
+        this.logger.debug(
+          `Form4 ${payload.symbol} observation: pomijam correlation.storeSignal ` +
+            `(APLS Faza 3 — czysty correlation baseline do decyzji Faza 4)`,
         );
       }
 
