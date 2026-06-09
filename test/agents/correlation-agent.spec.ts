@@ -868,6 +868,37 @@ describe('Agent: Correlation — Priority', () => {
       expect.objectContaining({ priority: 'HIGH' }),
     );
   });
+
+  it('S20-T05: direction conflict + |conviction|>=0.6 → HIGH (nie CRITICAL)', async () => {
+    // Wariant A: rekord DB nie udaje CRITICAL gdy źródła w konflikcie.
+    // UNH 29.04 case (S19-FIX-05): 1× Form4 SELL 0.6 + 2× Options BUY 0.5/0.4.
+    // aggregateConviction zwraca -0.6 (strongest=form4 neg, boost=1.0 bo
+    // sameDirection=1, sign=-1). |abs|=0.6 → pre-T05 priority=CRITICAL.
+    // getDominantDirection: 2pos/3=66% → positive. detectDirectionConflict:
+    // form4 net -0.6 + options net +0.9 → conflict TRUE.
+    // Post-T05: isDirectionConflict=true → priority=HIGH.
+    const { service, redis, formatter } = createService();
+    const now = Date.now();
+
+    setupRedisSignals(redis, 'UNH', [
+      makeSignal({ source_category: 'options', direction: 'positive', conviction: 0.5, timestamp: now - h }),
+      makeSignal({ source_category: 'options', direction: 'positive', conviction: 0.4, timestamp: now - 2 * h }),
+    ], [
+      makeSignal({ source_category: 'form4', direction: 'negative', conviction: 0.6, timestamp: now - 3 * h }),
+    ]);
+
+    await service.runPatternDetection('UNH');
+
+    // Pre-T05 asercja byłaby CRITICAL — po fix musi być HIGH.
+    expect(formatter.formatCorrelatedAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ priority: 'HIGH' }),
+    );
+    // Sanity: NIE ma żadnego call z CRITICAL (gdyby było — regresja).
+    const criticalCalls = (formatter.formatCorrelatedAlert as jest.Mock).mock.calls.filter(
+      (call: any[]) => call[0]?.priority === 'CRITICAL',
+    );
+    expect(criticalCalls).toHaveLength(0);
+  });
 });
 
 // ── Testy: Alert zapis do bazy ──

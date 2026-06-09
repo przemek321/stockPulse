@@ -632,9 +632,26 @@ export class CorrelationService implements OnModuleDestroy {
     const claim = await this.redis.set(dedupKey, '1', 'EX', shortTtlSec, 'NX');
     if (claim === null) return { action: 'DEDUP_SKIP', ticker, patternType: pattern.type };
 
-    const priority = Math.abs(pattern.correlated_conviction) >= 0.6
-      ? 'CRITICAL'
-      : 'HIGH';
+    // S20-T05 wariant A (28.05.2026): direction conflict downgrade z CRITICAL na HIGH.
+    // Pre-T05: rekord DB miał priority=CRITICAL dla UNH-class (1× Form4 SELL +
+    // 4× options positive → aggregateConviction zwraca +0.7 jako positive dominantę,
+    // bo strongest signal × boost(4 same direction) = 0.53 × 1.6 ≈ 0.7).
+    // S19-FIX-05 nonDeliveryReason='direction_conflict' zapobiegał Telegramowi,
+    // ale frontend portal renderował alert jako CRITICAL positive — mylący
+    // semantically (sugeruje insider BUY zamiast prawdziwego SELL).
+    //
+    // Wariant A NIE rusza aggregateConviction (porównywalność backtestów
+    // zachowana, semantyka conviction bez zmian), tylko override priority na
+    // HIGH gdy konflikt. nonDeliveryReason zostaje jako filtr. PriorityChip
+    // (TASK-05) renderuje HIGH przytłumione + suffix "(Konflikt kierunków)".
+    //
+    // Wariant B (przebudowa aggregateConviction na net-per-kategoria) wymagałby
+    // re-bacltestu wszystkich progów — to nie fix, to zmiana modelu, osobny task.
+    const priority = isDirectionConflict
+      ? 'HIGH'
+      : Math.abs(pattern.correlated_conviction) >= 0.6
+        ? 'CRITICAL'
+        : 'HIGH';
 
     const message = this.formatter.formatCorrelatedAlert({
       symbol: ticker,
