@@ -81,6 +81,19 @@ export const APLS_MIN_BUY_VALUE = 500_000;
 export const APLS_STRICT_TIER: readonly string[] = ['URGN', 'ARDX', 'MNKD', 'CRSP'];
 
 /**
+ * Pakiet 1 fix #1 (09.06.2026): deterministyczny floor priority dla backtest-backed BUY.
+ * Discretionary BUY >= $100K od C-suite/Director nie może być zawetowany przez
+ * subiektywną ocenę GPT (magnitude/confidence). Case: PODD Weatherman 03.06 Director
+ * BUY $497K → GPT magnitude='low'/confidence=0.3 → scoreToAlertPriority null →
+ * SKIP_LOW_PRIORITY, brak alertu; bliźniaczy Stonesifer $400K dzień później delivered
+ * +4.3% 3d. LLM zjadł 25% deliverable BUY (4. z 4 post-rule). Reguła Form 4 Insider
+ * BUY jest backtest-backed (V5 C-suite d=+0.92, Director V4 d=+0.59) — GPT zostaje
+ * jako enrichment (conviction, treść), nie bramkarz. Analogia w drugą stronę:
+ * Director SELL hard skip też jest deterministyczny.
+ */
+export const BUY_PRIORITY_FLOOR_MIN_VALUE = 100_000;
+
+/**
  * Pipeline analizy GPT dla transakcji insiderskich (Form 4).
  *
  * Nasłuchuje event NEW_INSIDER_TRADE (jedyny listener po Sprint 16b #3 — AlertEvaluator.onInsiderTrade usunięty).
@@ -430,6 +443,26 @@ export class Form4Pipeline {
       // C-suite boost: podnieś priorytet jeśli discretionary C-suite
       if (isCsuite && priority === 'MEDIUM') priority = 'HIGH';
       if (isCsuite && !priority) priority = 'HIGH';
+
+      // Pakiet 1 fix #1 (09.06.2026): floor MEDIUM dla Director BUY >= $100K —
+      // GPT nie wetuje backtest-backed reguły (PODD Weatherman case, zob. komentarz
+      // przy BUY_PRIORITY_FLOOR_MIN_VALUE). Plany 10b5-1 odpadły w kroku 2 decision
+      // tree, więc wszystko tutaj jest discretionary. C-suite BUY ma już mocniejszy
+      // floor (HIGH) dwie linie wyżej — ta gałąź domyka lukę dla pure Director.
+      if (
+        isBuy &&
+        !priority &&
+        isDirector &&
+        parsed.totalValue >= BUY_PRIORITY_FLOOR_MIN_VALUE
+      ) {
+        priority = 'MEDIUM';
+        this.logger.log(
+          `Form4 BUY priority floor: ${payload.symbol} Director BUY ` +
+            `$${parsed.totalValue.toLocaleString()} — GPT dał null ` +
+            `(magnitude=${analysis.price_impact.magnitude}, confidence=${analysis.price_impact.confidence}), ` +
+            `floor → MEDIUM (backtest-backed, GPT nie wetuje)`,
+        );
+      }
 
       if (!priority) {
         this.logger.debug(`Form4 GPT: ${payload.symbol} — brak alertu (low priority, non-C-suite)`);
