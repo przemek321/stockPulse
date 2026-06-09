@@ -134,11 +134,14 @@ API `/outcomes`: `delta7d`, `xbiAlpha7d`, `ibbAlpha7d`. Legacy alerty: null grac
   `tsc --noEmit` czysty.
 - **GitHub**: 7 commitów wypchniętych (`682b13d..09f958e`), pre-push hook za każdym razem.
 
-## Co dalej (z planu, nie zaczęte)
+## Co dalej (z planu)
 
-1. **Decyzja Przemka: backfill 752 wierszy** (skrypt gotowy, patrz Fix #0).
-2. **Options flow CRON off** (plan §P4) — wymaga 1 zapytania do Polygon o retencję
-   historii options aggregates; celowo NIE zrobione w tej sesji.
+1. ~~Backfill 752 wierszy~~ ✅ **wykonany 10.06** (patrz Fix #0).
+2. ~~Options flow CRON off~~ ✅ **wykonany 10.06** (commit `03a784e`): retencja
+   Polygon zweryfikowana na żywym kluczu (dzienne agregaty wstecz także dla
+   wygasłych kontraktów — test O:CVS260320C00075000, 34 bary) → spike detection
+   rekonstruowalny retroaktywnie, wyłączenie nic nie traci. Scheduler cleanup-only
+   (wzorzec Sprint 11), kod/dane/API/frontend zostają, re-enable z git history.
 3. **Pakiet 2: pivot discovery sector-wide** (M, 3-5 dni) — prerequisite (fix parsera) ✅.
 4. Kalendarz walidacji bez zmian: APLS Faza 4 **09.07**, FIX-16 review **25.08**,
    bullish-8K gate revisit **~07.09** (90d), werdykt edge **~01.09**.
