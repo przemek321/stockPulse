@@ -40,6 +40,7 @@ import {
   isDocumentedBeat,
   hasFullConsensusData,
 } from '../utils/consensus-gap-guard';
+import { buildFix16Shadow } from '../utils/fix16-shadow';
 
 /**
  * Pipeline analizy GPT dla filingów 8-K.
@@ -333,6 +334,23 @@ export class Form8kPipeline {
             `8-K consensus gap dla ${payload.symbol}: ${decision.details} ` +
               `(conviction ${oldConv.toFixed(2)} → ${analysis.conviction.toFixed(2)})`,
           );
+
+          // Pakiet 1 fix #4 (09.06.2026): FIX-16 SHADOW MODE — cap zostaje bez
+          // zmian, ale liczymy proponowane asymetryczne progi (HIMS case: extreme
+          // miss + GPT bearish → FIX-16 by NIE cap'ował) i persystujemy w
+          // gptAnalysis (trwałe — sec_filings bez cleanup). Review 25.08.2026
+          // przy N>=3: SELECT "gptAnalysis"->'fix16_shadow' FROM sec_filings
+          // WHERE "gptAnalysis" ? 'fix16_shadow'.
+          const shadow = buildFix16Shadow(consensusComp, oldConv, decision);
+          if (shadow) {
+            analysis.fix16_shadow = shadow;
+            this.logger.log(
+              `FIX-16 shadow dla ${payload.symbol}: would_uncap=${shadow.would_uncap} ` +
+                `(extreme=${shadow.is_extreme_miss}, sign_gate=${shadow.sign_gate_pass}, ` +
+                `anomaly=${shadow.anomaly_excluded}, precap=${shadow.conviction_precap.toFixed(2)}, ` +
+                `proposed_cap=${shadow.proposed_cap ?? 'none'})`,
+            );
+          }
         }
       }
 

@@ -22,6 +22,14 @@ export interface SecFilingAnalysis {
   catalyst_type: string;
   /** true → pomija throttling (np. bankruptcy, nagły CEO departure) */
   requires_immediate_attention: boolean;
+  /**
+   * Pakiet 1 fix #4 (09.06.2026): FIX-16 shadow mode — NIE pochodzi z GPT
+   * (Zod schema celowo bez tego pola), doklejane post-cap w Form8kPipeline
+   * przy każdym consensus gap cap. Persystowane w sec_filings.gptAnalysis
+   * (trwałe, przeżyje do review 25.08.2026 — system_logs z retencją 7-30d nie).
+   * Definicja pól: src/sec-filings/utils/fix16-shadow.ts.
+   */
+  fix16_shadow?: import('../utils/fix16-shadow').Fix16Shadow;
 }
 
 /**

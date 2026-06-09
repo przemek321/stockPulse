@@ -327,3 +327,66 @@ describe('Form8k bullish gate — integracja onFiling (Pakiet 1 fix #2)', () => 
     );
   });
 });
+
+describe('FIX-16 shadow — integracja z pipeline (Pakiet 1 fix #4)', () => {
+  const payload = { filingId: 300, symbol: 'HIMS', formType: '8-K' } as any;
+
+  it('HIMS-class: bearish extreme miss z capem → fix16_shadow.would_uncap=true w gptAnalysis', async () => {
+    const { pipeline, mocks } = buildMocks({
+      filingText: ITEM_202_TEXT,
+      gpt: gptResponse({ direction: 'negative', conviction: -1.6 }),
+      consensus: fullConsensus({
+        epsActual: -0.18,
+        epsEstimate: 0.04,
+        epsSurprisePct: -507.2,
+        revenueSurprisePct: -2.5,
+      }),
+    });
+
+    await pipeline.onFiling(payload);
+
+    const savedFiling = (mocks.filingRepo.save as jest.Mock).mock.calls.at(-1)?.[0];
+    expect(savedFiling.gptAnalysis.fix16_shadow).toMatchObject({
+      conviction_precap: -1.6,
+      cap_applied: 0.3,
+      cap_reason: 'consensus_miss',
+      is_extreme_miss: true,
+      sign_gate_pass: true,
+      would_uncap: true,
+      proposed_cap: null,
+    });
+    // Cap FIX-12 NADAL działa (shadow nie zmienia zachowania)
+    expect(savedFiling.gptAnalysis.conviction).toBe(-0.3);
+    expect(mocks.correlation.storeSignal).not.toHaveBeenCalled();
+  });
+
+  it('PODD-class: bullish miss z capem → shadow zapisany z would_uncap=false', async () => {
+    const { pipeline, mocks } = buildMocks({
+      filingText: ITEM_202_TEXT,
+      gpt: gptResponse({ direction: 'positive', conviction: 1.4 }),
+      consensus: fullConsensus({ epsSurprisePct: 16.2, revenueSurprisePct: -3.5 }),
+    });
+
+    await pipeline.onFiling(payload);
+
+    const savedFiling = (mocks.filingRepo.save as jest.Mock).mock.calls.at(-1)?.[0];
+    expect(savedFiling.gptAnalysis.fix16_shadow).toMatchObject({
+      conviction_precap: 1.4,
+      would_uncap: false,
+      proposed_cap: 0.3,
+    });
+  });
+
+  it('R4 documented beat (bez capu) → BRAK fix16_shadow w gptAnalysis', async () => {
+    const { pipeline, mocks } = buildMocks({
+      filingText: ITEM_202_TEXT,
+      gpt: gptResponse({ direction: 'positive', conviction: 1.2 }),
+      consensus: fullConsensus(), // oba >= +5%, R4 no cap
+    });
+
+    await pipeline.onFiling(payload);
+
+    const savedFiling = (mocks.filingRepo.save as jest.Mock).mock.calls.at(-1)?.[0];
+    expect(savedFiling.gptAnalysis.fix16_shadow).toBeUndefined();
+  });
+});
