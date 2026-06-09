@@ -49,12 +49,20 @@ export const PATTERN_LABELS: Record<PatternType, string> = {
   INSIDER_PLUS_OPTIONS: 'Insider + Unusual Options',
 };
 
-/** Throttling per pattern type (sekundy) */
+/** Throttling per pattern type (sekundy).
+ *
+ * Pakiet 1 fix #3 (09.06.2026): INSIDER_PLUS_8K + INSIDER_PLUS_OPTIONS 2h → 72h.
+ * Forward 09.04-08.06: jedyne post-fixowe (02.05) redundancje to HIMS re-broadcasty
+ * tego samego kierunku w 2-3 dni (3/11 delivered); 72h tnie 2/3 z nich kosztem zero
+ * utraconych winnerów w 50d sample (cuts to duplikaty albo losery; first-wins
+ * zachowuje 100% Form 4 BUY które i tak mają standalone alert). Wariant 1-liner
+ * zamiast pełnego cross-rule throttle (M, 7 plików) — pełny cross-rule dopiero
+ * gdy forward pokaże powtórzenia między regułami, nie wewnątrz patternu. */
 export const PATTERN_THROTTLE: Record<PatternType, number> = {
-  INSIDER_PLUS_8K: 7200,           // 2h
+  INSIDER_PLUS_8K: 259200,         // 72h (Pakiet 1 fix #3; było 2h)
   FILING_CONFIRMS_NEWS: 14400,     // 4h
   MULTI_SOURCE_CONVERGENCE: 7200,  // 2h
   INSIDER_CLUSTER: 86400,          // 24h
   ESCALATING_SIGNAL: 21600,        // 6h
-  INSIDER_PLUS_OPTIONS: 7200,      // 2h
+  INSIDER_PLUS_OPTIONS: 259200,    // 72h (Pakiet 1 fix #3; było 2h)
 };

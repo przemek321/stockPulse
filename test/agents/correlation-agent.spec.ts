@@ -161,7 +161,10 @@ const h = 3600_000; // 1 godzina w ms
 
 describe('Agent: Correlation — Założenia (stałe)', () => {
   it('PATTERN_THROTTLE z types pasuje do oczekiwań', () => {
-    expect(PATTERN_THROTTLE.INSIDER_PLUS_8K).toBe(7200);       // 2h
+    // Pakiet 1 fix #3 (09.06.2026): 8K + OPTIONS 2h → 72h (HIMS re-broadcasty,
+    // 3/11 post-fixowych delivered to duplikaty kierunku w 2-3 dni)
+    expect(PATTERN_THROTTLE.INSIDER_PLUS_8K).toBe(259200);     // 72h
+    expect(PATTERN_THROTTLE.INSIDER_PLUS_OPTIONS).toBe(259200); // 72h
     expect(PATTERN_THROTTLE.FILING_CONFIRMS_NEWS).toBe(14400); // 4h
     expect(PATTERN_THROTTLE.MULTI_SOURCE_CONVERGENCE).toBe(7200); // 2h
     expect(PATTERN_THROTTLE.INSIDER_CLUSTER).toBe(86400);      // 24h

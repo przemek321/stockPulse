@@ -53,8 +53,8 @@ const MIN_ESCALATING_LAST_CONVICTION = 0.25;
  *  15 min — jeśli przez 15 min skład signals się nie zmienił, to powtórzone
  *  runPatternDetection wywołane przez debounce to szum (logi + CPU).
  *  Po 15 min świeży start (np. po restart / po cleanup TTL Redis).
- *  Per-ticker throttling już istnieje (PATTERN_THROTTLE, 2h dla OPTIONS / 24h dla CLUSTER)
- *  jako ostateczna bariera dla alert dispatch. */
+ *  Per-ticker throttling już istnieje (PATTERN_THROTTLE, 72h dla OPTIONS/8K od
+ *  Pakiet 1 fix #3 / 24h dla CLUSTER) jako ostateczna bariera dla alert dispatch. */
 const PATTERN_HASH_WINDOW_MS = 15 * 60_000;
 
 /**
@@ -616,15 +616,15 @@ export class CorrelationService implements OnModuleDestroy {
     // zdublowany alert Telegram.
     //
     // Drugi bug: stłumiony pattern (direction_conflict / observation / cluster_sell)
-    // ustawiał pełen PATTERN_THROTTLE (np. 2h dla OPTIONS) na fired: → blokował
-    // realny niekonfliktowy pattern w oknie 2h. Stłumiony szum NIE powinien
-    // blokować Telegrama.
+    // ustawiał pełen PATTERN_THROTTLE (od Pakiet 1 fix #3: 72h dla OPTIONS/8K) na
+    // fired: → blokował realny niekonfliktowy pattern w całym oknie throttle.
+    // Stłumiony szum NIE powinien blokować Telegrama.
     //
     // Fix: SET NX EX 900 (15min) PRZED dispatchem zamyka race atomowo i daje
     // krótki TTL pokrywający się z PATTERN_HASH_WINDOW_MS dedupem z runPatternDetection.
     // Po dispatchu: jeśli delivered → EXPIRE do pełnego PATTERN_THROTTLE.
     // Suppressed → zostaje 15min (15min dedup audit + nie blokuje real Telegram
-    // na 2h). Expire MUSI być przed alertRepo.save — jeśli save throwi, throttle
+    // na pełne okno). Expire MUSI być przed alertRepo.save — jeśli save throwi, throttle
     // jest już pełen → kolejny runPatternDetection w oknie pełnego throttle =
     // DEDUP_SKIP, brak duplikatu Telegram.
     const dedupKey = `fired:${ticker}:${pattern.type}`;
