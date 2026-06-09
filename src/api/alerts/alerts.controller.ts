@@ -26,6 +26,8 @@ export function mapAlertToOutcome(a: Alert) {
 
   const delta1d = delta(a.price1d);
   const delta3d = delta(a.price3d);
+  // Pakiet 1 fix #6 (09.06.2026): slot 7d — horyzont, na którym backtest mierzy edge
+  const delta7d = delta(a.price7d);
 
   // FOLLOWUP-XBI-ADJUSTMENT: sector-adjusted alpha (raw delta - benchmark delta × beta).
   // Beta=1.0 default (consensus dla biotech ETF members, ±20% acceptable).
@@ -45,6 +47,14 @@ export function mapAlertToOutcome(a: Alert) {
     xbiLater: a.xbi3d != null ? Number(a.xbi3d) : null,
     ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
     ibbLater: a.ibb3d != null ? Number(a.ibb3d) : null,
+  });
+  const alpha7d = computeAlphaForSlot({
+    priceAtAlert: a.priceAtAlert != null ? Number(a.priceAtAlert) : null,
+    priceLater: a.price7d != null ? Number(a.price7d) : null,
+    xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
+    xbiLater: a.xbi7d != null ? Number(a.xbi7d) : null,
+    ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
+    ibbLater: a.ibb7d != null ? Number(a.ibb7d) : null,
   });
   const round2 = (v: number | null) => v != null ? +v.toFixed(2) : null;
 
@@ -73,16 +83,20 @@ export function mapAlertToOutcome(a: Alert) {
     price4h: a.price4h != null ? Number(a.price4h) : null,
     price1d: a.price1d != null ? Number(a.price1d) : null,
     price3d: a.price3d != null ? Number(a.price3d) : null,
+    price7d: a.price7d != null ? Number(a.price7d) : null,
     delta1h: delta(a.price1h),
     delta4h: delta(a.price4h),
     delta1d,
     delta3d,
+    delta7d,
     xbiAtAlert: a.xbiAtAlert != null ? Number(a.xbiAtAlert) : null,
     ibbAtAlert: a.ibbAtAlert != null ? Number(a.ibbAtAlert) : null,
     xbiAlpha1d: round2(alpha1d.xbiAlphaPct),
     xbiAlpha3d: round2(alpha3d.xbiAlphaPct),
+    xbiAlpha7d: round2(alpha7d.xbiAlphaPct),
     ibbAlpha1d: round2(alpha1d.ibbAlphaPct),
     ibbAlpha3d: round2(alpha3d.ibbAlphaPct),
+    ibbAlpha7d: round2(alpha7d.ibbAlphaPct),
     directionCorrect,
     directionCorrectAlpha,
     priceOutcomeDone: a.priceOutcomeDone,

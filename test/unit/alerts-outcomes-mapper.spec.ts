@@ -25,13 +25,16 @@ function makeAlert(overrides: Partial<Alert>): Alert {
     price4h: null,
     price1d: null,
     price3d: null,
+    price7d: null,
     priceOutcomeDone: false,
     xbiAtAlert: null,
     xbi1d: null,
     xbi3d: null,
+    xbi7d: null,
     ibbAtAlert: null,
     ibb1d: null,
     ibb3d: null,
+    ibb7d: null,
     archived: false,
     sentAt: new Date('2026-05-19T20:35:00Z'),
   };
@@ -193,13 +196,37 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
     expect(Object.keys(out).sort()).toEqual(
       [
         'alertDirection', 'catalystType', 'delivered', 'delta1d', 'delta1h',
-        'delta3d', 'delta4h', 'directionCorrect', 'directionCorrectAlpha',
-        'ibbAlpha1d', 'ibbAlpha3d', 'ibbAtAlert', 'id', 'nonDeliveryReason',
-        'price1d', 'price1h', 'price3d', 'price4h', 'priceAtAlert',
+        'delta3d', 'delta4h', 'delta7d', 'directionCorrect', 'directionCorrectAlpha',
+        'ibbAlpha1d', 'ibbAlpha3d', 'ibbAlpha7d', 'ibbAtAlert', 'id', 'nonDeliveryReason',
+        'price1d', 'price1h', 'price3d', 'price4h', 'price7d', 'priceAtAlert',
         'priceOutcomeDone', 'priority', 'ruleName', 'sentAt', 'symbol',
-        'xbiAlpha1d', 'xbiAlpha3d', 'xbiAtAlert',
+        'xbiAlpha1d', 'xbiAlpha3d', 'xbiAlpha7d', 'xbiAtAlert',
       ].sort(),
     );
+  });
+
+  // ── Pakiet 1 fix #6 (09.06.2026): slot 7d ──────────────────────────
+
+  it('slot 7d wypełniony: delta7d + xbiAlpha7d liczone', () => {
+    const alert = makeAlert({
+      priceAtAlert: 100 as any,
+      price7d: 112 as any, // +12% raw na horyzoncie edge'u
+      xbiAtAlert: 90 as any,
+      xbi7d: 94.5 as any, // sektor +5% → alpha ~+7%
+    });
+    const out = mapAlertToOutcome(alert);
+
+    expect(out.price7d).toBe(112);
+    expect(out.delta7d).toBeCloseTo(12, 1);
+    expect(out.xbiAlpha7d).toBeCloseTo(7, 0);
+  });
+
+  it('legacy alert (pre-09.06): price7d=null → delta7d i alpha7d null', () => {
+    const out = mapAlertToOutcome(makeAlert({ price1d: 110 as any }));
+    expect(out.price7d).toBeNull();
+    expect(out.delta7d).toBeNull();
+    expect(out.xbiAlpha7d).toBeNull();
+    expect(out.ibbAlpha7d).toBeNull();
   });
 
   it('delivered=false z nonDeliveryReason: pola propagowane (TASK-05)', () => {

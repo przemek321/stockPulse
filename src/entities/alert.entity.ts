@@ -80,7 +80,18 @@ export class Alert {
   @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
   price3d: number | null;
 
-  /** Czy CRON zakończył zbieranie cen (po 3d) */
+  /**
+   * Cena po 7 dniach (Pakiet 1 fix #6, 09.06.2026).
+   * Backtest mierzy edge na 7d (V5 C-suite BUY d=+0.92 to horyzont 7d), a
+   * PriceOutcome kończył na 3d — walidacja forward (APLS Faza 4, pivot
+   * discovery) nie widziała horyzontu, na którym edge faktycznie istnieje.
+   * Literatura (JMZ 2003): ~25% abnormal return w pierwszych 5 dniach —
+   * pomiar 3d systematycznie zaniżał. Alerty sprzed 09.06: price7d=null.
+   */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  price7d: number | null;
+
+  /** Czy CRON zakończył zbieranie cen (wszystkie sloty do 7d lub hard timeout) */
   @Column({ type: 'boolean', default: false })
   priceOutcomeDone: boolean;
 
@@ -99,6 +110,10 @@ export class Alert {
   @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
   xbi3d: number | null;
 
+  /** XBI po 7 dniach (Pakiet 1 fix #6 — sector alpha na horyzoncie edge'u) */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xbi7d: number | null;
+
   @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
   ibbAtAlert: number | null;
 
@@ -107,6 +122,10 @@ export class Alert {
 
   @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
   ibb3d: number | null;
+
+  /** IBB po 7 dniach (Pakiet 1 fix #6) */
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  ibb7d: number | null;
 
   /**
    * Soft delete flag — alert ukryty z dashboardu/API ale zachowany w DB.

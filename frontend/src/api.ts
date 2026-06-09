@@ -326,17 +326,22 @@ export interface AlertOutcome {
   price4h: number | null;
   price1d: number | null;
   price3d: number | null;
+  /** Pakiet 1 fix #6 (09.06.2026): slot 7d — horyzont edge'u z backtestu. Legacy alerty: null. */
+  price7d?: number | null;
   delta1h: number | null;
   delta4h: number | null;
   delta1d: number | null;
   delta3d: number | null;
+  delta7d?: number | null;
   // FOLLOWUP-XBI: sector-adjusted alpha vs XBI + IBB benchmarks
   xbiAtAlert: number | null;
   ibbAtAlert: number | null;
   xbiAlpha1d: number | null;
   xbiAlpha3d: number | null;
+  xbiAlpha7d?: number | null;
   ibbAlpha1d: number | null;
   ibbAlpha3d: number | null;
+  ibbAlpha7d?: number | null;
   directionCorrect: boolean | null;
   /** Sector-adjusted dyrekcja (XBI alpha, IBB fallback). Null dla legacy alertów bez XBI snapshot. */
   directionCorrectAlpha?: boolean | null;

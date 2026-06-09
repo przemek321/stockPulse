@@ -21,12 +21,18 @@ import { isNyseOpen, getEffectiveStartTime } from '../common/utils/market-hours.
 export class PriceOutcomeService {
   private readonly logger = new Logger(PriceOutcomeService.name);
 
-  /** Sloty czasowe do uzupełnienia ticker price */
+  /** Sloty czasowe do uzupełnienia ticker price.
+   *  Pakiet 1 fix #6 (09.06.2026): slot 7d — backtest mierzy edge na 7d
+   *  (V5 C-suite BUY d=+0.92), pomiar 3d systematycznie zaniżał (JMZ 2003:
+   *  ~25% abnormal return w pierwszych 5 dniach). Bez 7d nie zwalidujemy
+   *  ani APLS Fazy 4, ani pivotu discovery na horyzoncie, na którym edge
+   *  faktycznie istnieje. */
   private readonly SLOTS = [
     { field: 'price1h' as const, delayMs: 1 * 60 * 60 * 1000, label: '1h' },
     { field: 'price4h' as const, delayMs: 4 * 60 * 60 * 1000, label: '4h' },
     { field: 'price1d' as const, delayMs: 24 * 60 * 60 * 1000, label: '1d' },
     { field: 'price3d' as const, delayMs: 72 * 60 * 60 * 1000, label: '3d' },
+    { field: 'price7d' as const, delayMs: 168 * 60 * 60 * 1000, label: '7d' },
   ];
 
   /**
@@ -41,6 +47,8 @@ export class PriceOutcomeService {
    */
   private readonly SLOT_1D_DELAY_MS = 24 * 60 * 60 * 1000;
   private readonly SLOT_3D_DELAY_MS = 72 * 60 * 60 * 1000;
+  /** Pakiet 1 fix #6: sector benchmark też na 7d (alpha na horyzoncie edge'u) */
+  private readonly SLOT_7D_DELAY_MS = 168 * 60 * 60 * 1000;
 
   /** Symbole sektorowe — biotech ETF benchmark (XBI mid-cap, IBB large-cap weighted) */
   private readonly XBI_SYMBOL = 'XBI';
@@ -49,8 +57,11 @@ export class PriceOutcomeService {
   /** Max zapytań Finnhub na cykl CRON (free tier = 60/min) */
   private readonly MAX_QUOTES_PER_CYCLE = 30;
 
-  /** Hard timeout — po 7d oznacz alert jako done nawet jeśli brak slotów (np. długi weekend + święto) */
-  private readonly HARD_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
+  /** Hard timeout — oznacz alert jako done nawet jeśli brak slotów.
+   *  Pakiet 1 fix #6: 7d → 11d. Slot 7d wypada dokładnie na starym timeoucie;
+   *  weekend + święto przesuwa wypełnienie do dnia 8-10 (CRON tylko w sesji NYSE).
+   *  11d daje bufor na długi weekend bez trzymania zombie alertów. */
+  private readonly HARD_TIMEOUT_MS = 11 * 24 * 60 * 60 * 1000;
 
   constructor(
     @InjectRepository(Alert)
@@ -100,7 +111,8 @@ export class PriceOutcomeService {
       const effectiveStart = getEffectiveStartTime(new Date(alert.sentAt)).getTime();
       return (
         (now >= effectiveStart + this.SLOT_1D_DELAY_MS && alert.xbi1d == null) ||
-        (now >= effectiveStart + this.SLOT_3D_DELAY_MS && alert.xbi3d == null)
+        (now >= effectiveStart + this.SLOT_3D_DELAY_MS && alert.xbi3d == null) ||
+        (now >= effectiveStart + this.SLOT_7D_DELAY_MS && alert.xbi7d == null)
       );
     });
     if (needsSectorAnyAlert) {
@@ -188,6 +200,16 @@ export class PriceOutcomeService {
           }
           if (alert.ibb3d == null && ibbQuote != null) {
             alert.ibb3d = ibbQuote;
+            changed = true;
+          }
+        }
+        if (now >= effectiveStart + this.SLOT_7D_DELAY_MS) {
+          if (alert.xbi7d == null && xbiQuote != null) {
+            alert.xbi7d = xbiQuote;
+            changed = true;
+          }
+          if (alert.ibb7d == null && ibbQuote != null) {
+            alert.ibb7d = ibbQuote;
             changed = true;
           }
         }
