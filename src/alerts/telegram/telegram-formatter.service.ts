@@ -186,6 +186,43 @@ export class TelegramFormatterService {
   }
 
   /**
+   * Pakiet 1 fix #5 (09.06.2026): actionable line — akcja LONG/SHORT + horyzont
+   * + cena wejścia. Forward-ocena 09.06 pokazała, że alerty komunikują analizę,
+   * ale nie decyzję (czytelnik sam tłumaczył conviction na akcję).
+   *
+   * Horyzonty: STATYCZNA mapa per (kind, kierunek) — bez LLM. Backtest-backed
+   * (scripts/backtest/data/results/backtest_report.md + REPORT-2026-06-09-EDGE-ASSESSMENT):
+   *   - form4 BUY → 3-7d (V5 C-suite d=+0.92 na 7d; na 30d edge >=500K ZNIKA —
+   *     front-loading zwrotu, p=0.126)
+   *   - 8-K bearish → 1-3d (PEAD front-loaded; HIMS -19.7% 1d)
+   *   - correlated → 3-7d (dominanta nogi form4)
+   *   - reszta → 3d (standard PriceOutcome)
+   * Zastrzeżenie JMZ 2003 (~50% abnormal return po 1. miesiącu): slot 7d w
+   * PriceOutcome (Pakiet 1 fix #6) zweryfikuje czy "wyjdź po 7d" zostawia zysk.
+   */
+  resolveHorizon(kind: 'form4' | '8k' | 'correlated', direction: string): string {
+    if (kind === 'form4' && direction === 'positive') return '3-7d';
+    if (kind === '8k' && direction === 'negative') return '1-3d';
+    if (kind === 'correlated') return '3-7d';
+    return '3d';
+  }
+
+  /** Linia akcji (MarkdownV2-escaped). entryPrice null → bez segmentu Wejście. */
+  formatActionLine(opts: {
+    kind: 'form4' | '8k' | 'correlated';
+    direction: string;
+    entryPrice?: number | null;
+  }): string {
+    const action = opts.direction === 'negative' ? 'SHORT' : 'LONG';
+    const horizon = this.escapeMarkdown(this.resolveHorizon(opts.kind, opts.direction));
+    const entry =
+      opts.entryPrice != null
+        ? ` \\| Wejście: ${this.escapeMarkdown(`$${opts.entryPrice.toFixed(2)}`)}`
+        : '';
+    return `📌 *Akcja: ${action}* \\| Horyzont: ${horizon}${entry}`;
+  }
+
+  /**
    * Formatuje alert Form 4 z analizą GPT — insider info + wniosek AI.
    */
   formatForm4GptAlert(data: {
@@ -205,6 +242,8 @@ export class TelegramFormatterService {
       key_facts: string[];
     };
     priority: string;
+    /** Pakiet 1 fix #5: cena w momencie alertu (captureAlertSnapshot PRZED dispatch) */
+    entryPrice?: number | null;
   }): string {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.analysis.conviction > 0 ? '🟢' : '🔴';
@@ -238,6 +277,14 @@ export class TelegramFormatterService {
       `• Conviction: ${this.escapeMarkdown(data.analysis.conviction.toFixed(2))} \\| ` +
         `Wpływ: ${this.escapeMarkdown(data.analysis.price_impact.direction)} / ${this.escapeMarkdown(data.analysis.price_impact.magnitude)}`,
     );
+    // Pakiet 1 fix #5: akcja/horyzont/wejście — kierunek z conviction (spójny z dirIcon)
+    lines.push(
+      this.formatActionLine({
+        kind: 'form4',
+        direction: data.analysis.conviction > 0 ? 'positive' : 'negative',
+        entryPrice: data.entryPrice,
+      }),
+    );
     lines.push(`⏰ ${timestamp}`);
 
     return lines.join('\n');
@@ -259,6 +306,8 @@ export class TelegramFormatterService {
       catalyst_type: string;
     };
     priority: string;
+    /** Pakiet 1 fix #5: cena w momencie alertu (captureAlertSnapshot PRZED dispatch) */
+    entryPrice?: number | null;
   }): string {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.analysis.conviction > 0 ? '🟢' : '🔴';
@@ -284,6 +333,14 @@ export class TelegramFormatterService {
     lines.push(
       `• Conviction: ${this.escapeMarkdown(data.analysis.conviction.toFixed(2))} \\| ` +
         `Wpływ: ${this.escapeMarkdown(data.analysis.price_impact.direction)} / ${this.escapeMarkdown(data.analysis.price_impact.magnitude)}`,
+    );
+    // Pakiet 1 fix #5: akcja/horyzont/wejście
+    lines.push(
+      this.formatActionLine({
+        kind: '8k',
+        direction: data.analysis.conviction > 0 ? 'positive' : 'negative',
+        entryPrice: data.entryPrice,
+      }),
     );
     lines.push(`⏰ ${timestamp}`);
 
@@ -324,8 +381,11 @@ export class TelegramFormatterService {
     direction: string;
     correlatedConviction: number;
     description: string;
-    signals: { sourceCategory: string; catalystType: string; conviction: number }[];
+    /** label (Pakiet 1 fix #5): np. "O'Day Daniel (CEO) SELL $1,290,000" dla nogi form4 */
+    signals: { sourceCategory: string; catalystType: string; conviction: number; label?: string }[];
     priority: string;
+    /** Pakiet 1 fix #5: cena w momencie alertu (captureAlertSnapshot PRZED dispatch) */
+    entryPrice?: number | null;
   }): string {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.direction === 'positive' ? '🟢' : '🔴';
@@ -339,8 +399,13 @@ export class TelegramFormatterService {
     ];
 
     for (const sig of data.signals.slice(0, 5)) {
+      // Pakiet 1 fix #5: label nogi (kto/ile dla form4) zamiast samego catalyst_type —
+      // czytelnik widzi "O'Day Daniel (CEO) SELL $1.29M" zamiast "insider_sell"
+      const what = sig.label
+        ? `${this.escapeMarkdown(sig.label)} \\(${this.escapeMarkdown(sig.catalystType)}\\)`
+        : this.escapeMarkdown(sig.catalystType);
       lines.push(
-        `• ${this.escapeMarkdown(sig.sourceCategory.toUpperCase())}: ${this.escapeMarkdown(sig.catalystType)} — conviction ${this.escapeMarkdown(sig.conviction.toFixed(2))}`,
+        `• ${this.escapeMarkdown(sig.sourceCategory.toUpperCase())}: ${what} — conviction ${this.escapeMarkdown(sig.conviction.toFixed(2))}`,
       );
     }
 
@@ -349,6 +414,10 @@ export class TelegramFormatterService {
       `${dirIcon} Zagregowana conviction: ${this.escapeMarkdown(data.correlatedConviction.toFixed(2))} \\| ${this.escapeMarkdown(data.direction)}`,
     );
     lines.push(`ℹ️ ${this.escapeMarkdown(data.description.substring(0, 200))}`);
+    // Pakiet 1 fix #5: akcja/horyzont/wejście
+    lines.push(
+      this.formatActionLine({ kind: 'correlated', direction: data.direction, entryPrice: data.entryPrice }),
+    );
     lines.push(`⏰ ${timestamp}`);
 
     return lines.join('\n');

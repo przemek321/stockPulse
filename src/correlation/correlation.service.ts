@@ -653,6 +653,10 @@ export class CorrelationService implements OnModuleDestroy {
         ? 'CRITICAL'
         : 'HIGH';
 
+    // Pakiet 1 fix #5: snapshot PRZED budową wiadomości — cena wejścia w linii
+    // "📌 Akcja". Reużyty przy alertRepo.save niżej.
+    const snapshot = await captureAlertSnapshot(this.finnhub, ticker);
+
     const message = this.formatter.formatCorrelatedAlert({
       symbol: ticker,
       patternType: pattern.type,
@@ -664,8 +668,11 @@ export class CorrelationService implements OnModuleDestroy {
         sourceCategory: s.source_category,
         catalystType: s.catalyst_type,
         conviction: s.conviction,
+        // Pakiet 1 fix #5: nazwisko+kwota nogi form4 (stare sygnały bez label → fallback)
+        label: s.label,
       })),
       priority,
+      entryPrice: snapshot.priceAtAlert,
     });
 
     // TASK-01: centralized dispatch via AlertDispatcherService.
@@ -694,8 +701,8 @@ export class CorrelationService implements OnModuleDestroy {
       await this.redis.expire(dedupKey, PATTERN_THROTTLE[pattern.type]);
     }
 
-    // Sprint 11 + FOLLOWUP-XBI-ADJUSTMENT: ticker + XBI/IBB snapshot równolegle
-    const snapshot = await captureAlertSnapshot(this.finnhub, ticker);
+    // Sprint 11 + FOLLOWUP-XBI: snapshot pobrany wyżej, PRZED wiadomością
+    // (Pakiet 1 fix #5) — tu reużycie do save.
 
     // Zapisz do tabeli alerts
     await this.alertRepo.save(

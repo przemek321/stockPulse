@@ -27,6 +27,10 @@ export interface StoredSignal {
   direction: Direction | 'neutral';
   catalyst_type: string;
   timestamp: number; // unix ms
+  /** Pakiet 1 fix #5 (09.06.2026): etykieta źródła do Telegram Correlated —
+   *  form4: "Nazwisko (rola) BUY $497,000". Opcjonalna (stare sygnały w Redis
+   *  bez pola — formatter ma fallback na catalyst_type). */
+  label?: string;
 }
 
 /** Wzorzec wykryty przez detektor */

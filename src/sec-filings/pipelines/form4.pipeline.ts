@@ -481,6 +481,11 @@ export class Form4Pipeline {
       );
       if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol, traceId: payload.traceId };
 
+      // Pakiet 1 fix #5: snapshot PRZED budową wiadomości — cena wejścia trafia
+      // do linii "📌 Akcja" w Telegramie (wcześniej snapshot był po dispatch,
+      // priceAtAlert istniał tylko w DB). Reużyty przy alertRepo.save niżej.
+      const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
+
       // Wyślij alert Telegram
       const message = this.formatter.formatForm4GptAlert({
         symbol: payload.symbol,
@@ -494,6 +499,7 @@ export class Form4Pipeline {
         sharesOwnedAfter: parsed.sharesOwnedAfter,
         analysis,
         priority,
+        entryPrice: snapshot.priceAtAlert,
       });
 
       // TASK-01: centralized dispatch via AlertDispatcherService.
@@ -520,10 +526,8 @@ export class Form4Pipeline {
       const delivered = dispatchResult.delivered;
       const nonDeliveryReason = dispatchResult.suppressedBy;
 
-      // Sprint 11: pobierz cenę w momencie alertu (fix priceAtAlert=NULL)
-      // FOLLOWUP-XBI-ADJUSTMENT: równolegle XBI/IBB dla sector-adjusted alpha
-      const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
-
+      // Sprint 11 + FOLLOWUP-XBI: snapshot (ticker + XBI/IBB) pobrany wyżej,
+      // PRZED budową wiadomości (Pakiet 1 fix #5) — tu tylko reużycie do save.
       try {
         await this.alertRepo.save(
           this.alertRepo.create({
@@ -582,6 +586,9 @@ export class Form4Pipeline {
             direction: analysis.conviction >= 0 ? 'positive' : 'negative',
             catalyst_type: analysis.catalyst_type,
             timestamp: Date.now(),
+            // Pakiet 1 fix #5: kto/ile — renderowane w Telegram Correlated
+            label: `${parsed.insiderName} (${parsed.insiderRole ?? '?'}) ${parsed.transactionType} ` +
+              `$${Math.round(parsed.totalValue).toLocaleString('en-US')}`,
           };
           await this.correlation.storeSignal(signal);
           this.correlation.schedulePatternCheck(payload.symbol);

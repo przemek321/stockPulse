@@ -488,6 +488,10 @@ export class Form8kPipeline {
         }
       }
 
+      // Pakiet 1 fix #5: snapshot PRZED budową wiadomości — cena wejścia w linii
+      // "📌 Akcja" (wcześniej snapshot po dispatch). Reużyty przy alertRepo.save.
+      const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
+
       // Wyślij alert Telegram
       const message = this.formatter.formatForm8kGptAlert({
         symbol: payload.symbol,
@@ -495,6 +499,7 @@ export class Form8kPipeline {
         itemNumber: mainItem,
         analysis,
         priority,
+        entryPrice: snapshot.priceAtAlert,
       });
 
       // TASK-01: centralized dispatch via AlertDispatcherService.
@@ -519,9 +524,8 @@ export class Form8kPipeline {
       const delivered = dispatchResult.delivered;
       const nonDeliveryReason = dispatchResult.suppressedBy;
 
-      // Sprint 11 + FOLLOWUP-XBI-ADJUSTMENT: cena ticker + XBI/IBB w jednym snapshot
-      const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
-
+      // Sprint 11 + FOLLOWUP-XBI: snapshot pobrany wyżej, PRZED wiadomością
+      // (Pakiet 1 fix #5) — tu reużycie do save.
       try {
         await this.alertRepo.save(
           this.alertRepo.create({
