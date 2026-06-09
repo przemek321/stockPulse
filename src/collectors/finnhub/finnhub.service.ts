@@ -209,4 +209,42 @@ export class FinnhubService extends BaseCollectorService {
       return null;
     }
   }
+
+  /**
+   * Pakiet 2 (10.06.2026): profil spółki dla discovery pre-filtra mcap/exchange.
+   * marketCapitalization z Finnhub jest w MILIONACH USD.
+   */
+  async getCompanyProfile(symbol: string): Promise<{
+    marketCapMln: number | null;
+    exchange: string | null;
+    name: string | null;
+  } | null> {
+    try {
+      const data = await this.fetchApi('/stock/profile2', { symbol });
+      if (!data || Object.keys(data).length === 0) return null;
+      return {
+        marketCapMln: typeof data.marketCapitalization === 'number' ? data.marketCapitalization : null,
+        exchange: data.exchange ?? null,
+        name: data.name ?? null,
+      };
+    } catch (err) {
+      this.logger.warn(`getCompanyProfile(${symbol}) error: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Pakiet 2 (10.06.2026): 10-dniowy średni wolumen (w MILIONACH sztuk) z /stock/metric.
+   * Używany do filtra ADV: vol(mln szt) × cena >= $1M.
+   */
+  async get10DayAvgVolumeMlnShares(symbol: string): Promise<number | null> {
+    try {
+      const data = await this.fetchApi('/stock/metric', { symbol, metric: 'all' });
+      const v = data?.metric?.['10DayAverageTradingVolume'];
+      return typeof v === 'number' && v > 0 ? v : null;
+    } catch (err) {
+      this.logger.warn(`get10DayAvgVolumeMlnShares(${symbol}) error: ${err.message}`);
+      return null;
+    }
+  }
 }

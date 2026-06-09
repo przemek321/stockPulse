@@ -23,6 +23,9 @@ export const QUEUE_NAMES = {
 
   /** Options flow z Polygon.io (EOD volume spike detection) */
   OPTIONS_FLOW: 'options-flow-collector',
+
+  /** Pakiet 2 (10.06.2026): event-driven discovery Form 4 sector-wide (getcurrent atom) */
+  FORM4_DISCOVERY: 'form4-discovery-collector',
 } as const;
 
 /** Typ z nazwami kolejek */

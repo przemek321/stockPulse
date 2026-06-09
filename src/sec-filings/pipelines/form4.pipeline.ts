@@ -266,8 +266,15 @@ export class Form4Pipeline {
       // zablokowany przez isObservationTicker w AlertDispatcher, a storeSignal
       // skipowany po dispatch (suppressedBy='observation') — czysty correlation
       // baseline zachowany.
+      //
+      // Pakiet 2 (10.06.2026): identyczny wyjątek dla sector='healthcare_discovery' —
+      // tickery auto-zarejestrowane przez Form4DiscoveryService (SIC healthcare/biotech,
+      // pre-filter: discretionary BUY >= $500K C-suite/Director, mcap >= $250M).
+      // Healthcare prompt semantycznie poprawny (scope sector-wide). Okno obs 30-60d
+      // wymaga conviction + priceAtAlert w DB do przyszłego top-N delivery.
       const isAplsTicker = ticker?.sector === 'biotech_apls';
-      if (ticker?.observationOnly === true && !isAplsTicker) {
+      const isDiscoveryTicker = ticker?.sector === 'healthcare_discovery';
+      if (ticker?.observationOnly === true && !isAplsTicker && !isDiscoveryTicker) {
         this.logger.debug(
           `Form4 observation skip: ${payload.symbol} (sector=${ticker.sector ?? 'unknown'}) — ` +
             `bez GPT, bez correlation signal`,
@@ -275,21 +282,33 @@ export class Form4Pipeline {
         return { action: 'SKIP_OBSERVATION_TICKER', symbol: payload.symbol, traceId: payload.traceId };
       }
 
-      // APLS Faza 3: konserwatywny filtr — wyłącznie BUY >= $500K (vs core $100K).
-      // SELL: zero edge w V5 i w backteście APLS Faza 2 → skip bez GPT.
-      if (isAplsTicker) {
+      // APLS Faza 3 + Pakiet 2 discovery: konserwatywny filtr — wyłącznie BUY >= $500K
+      // (vs core $100K). SELL: zero edge w V5 i w backteście APLS Faza 2 → skip bez GPT.
+      // Dla discovery to defense in depth — collector pre-filtruje to samo przed
+      // rejestracją, ale KOLEJNE filingi już zarejestrowanego tickera lecą przez
+      // standardowy event flow i muszą trafić w ten sam próg.
+      if (isAplsTicker || isDiscoveryTicker) {
+        const tierLabel = isAplsTicker ? 'APLS' : 'DISCOVERY';
         if (payload.transactionType !== 'BUY') {
           this.logger.debug(
-            `Form4 APLS skip: ${payload.symbol} ${payload.transactionType} — biotech_apls przetwarza tylko BUY`,
+            `Form4 ${tierLabel} skip: ${payload.symbol} ${payload.transactionType} — obs vertical przetwarza tylko BUY`,
           );
-          return { action: 'SKIP_APLS_NON_BUY', symbol: payload.symbol, traceId: payload.traceId };
+          return {
+            action: isAplsTicker ? 'SKIP_APLS_NON_BUY' : 'SKIP_DISCOVERY_NON_BUY',
+            symbol: payload.symbol,
+            traceId: payload.traceId,
+          };
         }
         if ((payload.totalValue ?? 0) < APLS_MIN_BUY_VALUE) {
           this.logger.debug(
-            `Form4 APLS skip: ${payload.symbol} BUY $${Math.round(payload.totalValue ?? 0)} ` +
-              `< próg $${APLS_MIN_BUY_VALUE} (conservative threshold Faza 3)`,
+            `Form4 ${tierLabel} skip: ${payload.symbol} BUY $${Math.round(payload.totalValue ?? 0)} ` +
+              `< próg $${APLS_MIN_BUY_VALUE} (conservative threshold)`,
           );
-          return { action: 'SKIP_APLS_BELOW_THRESHOLD', symbol: payload.symbol, traceId: payload.traceId };
+          return {
+            action: isAplsTicker ? 'SKIP_APLS_BELOW_THRESHOLD' : 'SKIP_DISCOVERY_BELOW_THRESHOLD',
+            symbol: payload.symbol,
+            traceId: payload.traceId,
+          };
         }
       }
 
@@ -424,8 +443,10 @@ export class Form4Pipeline {
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} Director ×1.15 → conviction=${analysis.conviction.toFixed(2)}`);
         }
         // Sector boost ×1.2: healthcare (V4 d=0.58) + biotech_apls (APLS Faza 3 —
-        // biotech to podklasa healthcare, backtest Faza 2 replikuje edge). Semi bez boostu.
-        if (ticker?.sector === 'healthcare' || isAplsTicker) {
+        // biotech to podklasa healthcare, backtest Faza 2 replikuje edge) +
+        // healthcare_discovery (Pakiet 2 — SIC healthcare/biotech z definicji).
+        // Semi bez boostu.
+        if (ticker?.sector === 'healthcare' || isAplsTicker || isDiscoveryTicker) {
           analysis.conviction *= 1.2;
           this.logger.debug(`Form4 BUY boost: ${payload.symbol} ${ticker?.sector} ×1.2 → conviction=${analysis.conviction.toFixed(2)}`);
         }
@@ -575,7 +596,11 @@ export class Form4Pipeline {
 
       // Rejestruj sygnał w CorrelationService
       // Normalizacja conviction z [-2.0, +2.0] (GPT) → [-1.0, +1.0] (CorrelationService)
-      if (this.correlation && !isSellNoEdgeSuppressed && !isObservationSuppressed) {
+      // Pakiet 2: discovery skip kluczowany na SEKTORZE, nie na suppressedBy —
+      // plan §2.P2 "bez nóg korelacji dla odkrytych tickerów (standalone Form4-BUY)"
+      // ma obowiązywać także PO ewentualnej promocji do delivery (observationOnly=false),
+      // inaczej promocja cicho przywróciłaby INSIDER_PLUS_8K dla discovery.
+      if (this.correlation && !isSellNoEdgeSuppressed && !isObservationSuppressed && !isDiscoveryTicker) {
         try {
           const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {

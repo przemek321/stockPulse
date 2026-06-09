@@ -183,19 +183,28 @@ export class SecEdgarService extends BaseCollectorService {
    * semantykę "1 filing = 1 decision point". Split executions across filings (rzadkie)
    * dalej są osobnymi eventami.
    */
-  private async parseAndSaveForm4(
+  // Pakiet 2 (10.06.2026): public — Form4DiscoveryService reużywa tę metodę jako
+  // kanoniczną ścieżkę persist (InsiderTrade rows + agregacja TASK-03 + eventy
+  // NEW_INSIDER_TRADE). Jedna implementacja = zero driftu między core collector
+  // a discovery. `preloadedXml`: discovery ma już XML z pre-filtra — podanie go
+  // eliminuje drugi fetch (transient błąd w re-fetchu gubiłby trigger trade po
+  // tym jak filing został zapisany — weryfikacja adwersarialna 10.06.2026).
+  // Zwraca liczbę zapisanych trades (0 = nic nowego/błąd) — core caller ignoruje,
+  // discovery używa do decyzji markSeen.
+  async parseAndSaveForm4(
     symbol: string,
     accessionNumber: string,
     xmlUrl: string,
     parentTraceId?: string,
-  ): Promise<void> {
+    preloadedXml?: string,
+  ): Promise<number> {
     try {
-      const xml = await this.fetchText(xmlUrl);
+      const xml = preloadedXml ?? (await this.fetchText(xmlUrl));
       const transactions = parseForm4Xml(xml);
 
       if (transactions.length === 0) {
         this.logger.debug(`Form 4 ${symbol} ${accessionNumber}: brak transakcji`);
-        return;
+        return 0;
       }
 
       // Save all rows (history preserved, dedupe by accessionNumber_N)
@@ -231,7 +240,7 @@ export class SecEdgarService extends BaseCollectorService {
         );
       }
 
-      if (savedTrades.length === 0) return;
+      if (savedTrades.length === 0) return 0;
 
       // Group by (insiderName, transactionType). "BUY"+"SELL" od tego samego insidera
       // (np. exercise option + sell) to osobne grupy (różny sygnał ekonomiczny).
@@ -283,10 +292,12 @@ export class SecEdgarService extends BaseCollectorService {
           );
         }
       }
+      return savedTrades.length;
     } catch (error) {
       this.logger.warn(
         `Błąd parsowania Form 4 XML ${symbol} ${accessionNumber}: ${error instanceof Error ? error.message : error}`,
       );
+      return 0;
     }
   }
 
