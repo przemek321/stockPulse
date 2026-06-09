@@ -535,9 +535,11 @@ export default function App() {
         }}
       />
 
-      {/* ── Options Flow — Volume Spike Detection ─── */}
+      {/* ── Options Flow — Volume Spike Detection ───
+          Kolektor WYŁĄCZONY 10.06.2026 (plan P4) — panel pokazuje dane
+          historyczne; retencja Polygon zweryfikowana (rekonstruowalne wstecz). */}
       <DataPanel
-        title="Options Flow — Nietypowa Aktywność Opcyjna"
+        title="Options Flow — Nietypowa Aktywność Opcyjna (kolektor OFF 10.06.2026 — dane historyczne)"
         icon={<TrendingUpIcon sx={{ color: '#29b6f6' }} />}
         badgeColor="info"
         defaultSortKey="conviction"

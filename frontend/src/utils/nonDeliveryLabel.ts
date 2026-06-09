@@ -42,6 +42,11 @@ export function nonDeliveryLabel(reason: string | null | undefined): string | nu
       return 'mieszany sygnał (single-metric beat)';
     case 'consensus_gap':
       return 'niezgodność z konsensusem';
+    // Pakiet 1 fix #2 (09.06.2026): bullish 8-K gate
+    case 'bullish_8k_no_edge':
+      return 'byczy 8-K (zero edge)';
+    case 'bullish_no_consensus_data':
+      return 'byczy 8-K (brak danych konsensusu)';
     default:
       return reason;
   }
@@ -74,6 +79,11 @@ export function nonDeliveryLabelShort(reason: string | null | undefined): string
       return 'mixed beat';
     case 'consensus_gap':
       return 'gap konsensus';
+    // Pakiet 1 fix #2 (09.06.2026): bullish 8-K gate
+    case 'bullish_8k_no_edge':
+      return 'byczy 8-K';
+    case 'bullish_no_consensus_data':
+      return 'byczy 8-K (brak kons.)';
     default:
       return reason;
   }

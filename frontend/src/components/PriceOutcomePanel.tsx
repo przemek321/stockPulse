@@ -53,6 +53,15 @@ const renderCorrect = (v: boolean | null) => {
   );
 };
 
+/**
+ * Pakiet 1 fix #6 (09.06.2026): alpha sektorowa na 7d — horyzont, na którym
+ * backtest mierzy edge (V5 d=+0.92) i na którym walidujemy APLS Fazę 4
+ * (gate: median alpha ≥ +2%). XBI preferowane, IBB fallback; legacy alerty
+ * (pre-09.06) mają null → „—".
+ */
+const alpha7d = (a: AlertOutcome): number | null =>
+  a.xbiAlpha7d ?? a.ibbAlpha7d ?? null;
+
 /** Grupa alertów per ticker */
 interface TickerGroup {
   symbol: string;
@@ -356,6 +365,12 @@ export default function PriceOutcomePanel() {
                       +3d
                     </Box>
                     <Box component="th" sx={thSx(null, false)}>
+                      +7d
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)} title="Sector-adjusted alpha 7d vs XBI (fallback IBB) — horyzont walidacji edge'u">
+                      α7d
+                    </Box>
+                    <Box component="th" sx={thSx(null, false)}>
                       Trafny
                     </Box>
                     <Box component="th" onClick={() => handleSort('sentAt')} sx={thSx('sentAt', true)}>
@@ -434,6 +449,12 @@ export default function PriceOutcomePanel() {
                             {renderDelta(lt.delta3d)}
                           </Box>
                           <Box component="td" sx={tdNumSx}>
+                            {renderDelta(lt.delta7d ?? null)}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
+                            {renderDelta(alpha7d(lt))}
+                          </Box>
+                          <Box component="td" sx={tdNumSx}>
                             {accuracyLabel ? (
                               <span
                                 style={{
@@ -488,6 +509,12 @@ export default function PriceOutcomePanel() {
                         </Box>
                         <Box component="td" sx={tdNumSx}>
                           {renderDelta(a.delta3d)}
+                        </Box>
+                        <Box component="td" sx={tdNumSx}>
+                          {renderDelta(a.delta7d ?? null)}
+                        </Box>
+                        <Box component="td" sx={tdNumSx}>
+                          {renderDelta(alpha7d(a))}
                         </Box>
                         <Box component="td" sx={tdSx}>
                           {renderCorrect(a.directionCorrect)}
