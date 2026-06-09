@@ -153,6 +153,9 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
         { reason: 'consensus_in_line', count: '1' },
         { reason: 'consensus_mixed', count: '1' },
         { reason: 'consensus_gap', count: '1' },
+        // Pakiet 1 fix #2: bullish 8-K gate reasons
+        { reason: 'bullish_8k_no_edge', count: '1' },
+        { reason: 'bullish_no_consensus_data', count: '1' },
       ],
       trades: [],
     });
@@ -177,5 +180,8 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
     expect(plain).toContain('in-line z konsensusem');
     expect(plain).toContain('Mieszany sygnał');
     expect(plain).toContain('Niezgodność z konsensusem');
+    // Pakiet 1 fix #2 PL labels
+    expect(plain).toContain('Byczy 8-K (zero edge)');
+    expect(plain).toContain('Byczy 8-K (brak danych konsensusu)');
   });
 });

@@ -100,6 +100,31 @@ export function shouldCapForConsensusGap(
   return NO_CAP;
 }
 
+/**
+ * Pakiet 1 fix #2 (09.06.2026): udokumentowany beat = warunek R4 (oba surprise
+ * ZNANE i >= +5%). Używany przez bullish 8-K gate w Form8kPipeline — bullish
+ * Item 2.02 jest deliverowany TYLKO przy udokumentowanym beacie. Eksport stąd
+ * (a nie duplikat w pipeline) zapobiega dryfowi z regułą R4 powyżej.
+ * Partial data (jedna metryka null) → false: nie da się udokumentować pełnego
+ * beatu, gate route'uje do observation z reason 'bullish_no_consensus_data'.
+ */
+export function isDocumentedBeat(comp: ConsensusComparison | null): boolean {
+  if (!comp || comp.isEmpty) return false;
+  const eps = comp.epsSurprisePct;
+  const rev = comp.revenueSurprisePct;
+  return eps !== null && rev !== null && eps >= 5 && rev >= 5;
+}
+
+/**
+ * Pakiet 1 fix #2: czy consensus data wystarcza do oceny beat/miss (obie metryki znane).
+ * false → bullish gate używa reason 'bullish_no_consensus_data' (forward analysis
+ * odróżnia "nie mogliśmy sprawdzić" od "sprawdziliśmy, to nie beat").
+ */
+export function hasFullConsensusData(comp: ConsensusComparison | null): boolean {
+  if (!comp || comp.isEmpty) return false;
+  return comp.epsSurprisePct !== null && comp.revenueSurprisePct !== null;
+}
+
 function formatPctOrNull(pct: number | null): string {
   if (pct === null) return 'n/a';
   const sign = pct >= 0 ? '+' : '';

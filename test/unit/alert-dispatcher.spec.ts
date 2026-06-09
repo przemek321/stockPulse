@@ -229,6 +229,82 @@ describe('AlertDispatcherService.dispatch — suppression priority', () => {
     expect(result.suppressedBy).toBe('consensus_in_line');
   });
 
+  // Pakiet 1 fix #2 (09.06.2026): bullish 8-K gate priority order
+  it('isBullish8kGate z reason bullish_8k_no_edge → ALERT_DB_ONLY_BULLISH_8K_NO_EDGE', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isBullish8kGate: true,
+      bullish8kReason: 'bullish_8k_no_edge',
+    });
+    expect(result.suppressedBy).toBe('bullish_8k_no_edge');
+    expect(result.action).toBe('ALERT_DB_ONLY_BULLISH_8K_NO_EDGE');
+    expect(result.delivered).toBe(false);
+  });
+
+  it('isBullish8kGate z reason bullish_no_consensus_data → osobny sub-reason', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isBullish8kGate: true,
+      bullish8kReason: 'bullish_no_consensus_data',
+    });
+    expect(result.suppressedBy).toBe('bullish_no_consensus_data');
+    expect(result.action).toBe('ALERT_DB_ONLY_BULLISH_NO_CONSENSUS_DATA');
+  });
+
+  it('isBullish8kGate bez reason → fallback bullish_8k_no_edge', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isBullish8kGate: true,
+    });
+    expect(result.suppressedBy).toBe('bullish_8k_no_edge');
+  });
+
+  it('consensus_gap wygrywa nad bullish_8k_gate (bardziej specyficzny reason)', async () => {
+    const { dispatcher } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isConsensusGap: true,
+      consensusGapReason: 'consensus_miss',
+      isBullish8kGate: true,
+      bullish8kReason: 'bullish_8k_no_edge',
+    });
+    expect(result.suppressedBy).toBe('consensus_miss');
+  });
+
+  it('bullish_8k_gate wygrywa nad direction_conflict/sell_no_edge/silent/daily', async () => {
+    const { dispatcher, gate } = buildDispatcher();
+    gate.allowed = false;
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      isBullish8kGate: true,
+      bullish8kReason: 'bullish_8k_no_edge',
+      isDirectionConflict: true,
+      isSellNoEdge: true,
+      isSilent: true,
+    });
+    expect(result.suppressedBy).toBe('bullish_8k_no_edge');
+  });
+
+  it('observation i gpt_missing_data wygrywają nad bullish_8k_gate', async () => {
+    const { dispatcher } = buildDispatcher();
+    const obs = await dispatcher.dispatch({
+      ...baseParams,
+      isObservationTicker: true,
+      isBullish8kGate: true,
+    });
+    expect(obs.suppressedBy).toBe('observation');
+
+    const missing = await dispatcher.dispatch({
+      ...baseParams,
+      isGptMissingData: true,
+      isBullish8kGate: true,
+    });
+    expect(missing.suppressedBy).toBe('gpt_missing_data');
+  });
+
   it('csuite_sell_no_edge wygrywa nad cluster/silent/daily', async () => {
     const { dispatcher } = buildDispatcher();
     const result = await dispatcher.dispatch({

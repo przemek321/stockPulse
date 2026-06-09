@@ -151,6 +151,9 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     consensus_in_line: 'Wynik in-line z konsensusem',
     consensus_mixed: 'Mieszany sygnał (single-metric beat)',
     consensus_gap: 'Niezgodność z konsensusem',
+    // Pakiet 1 fix #2 (09.06.2026): bullish 8-K gate
+    bullish_8k_no_edge: 'Byczy 8-K (zero edge)',
+    bullish_no_consensus_data: 'Byczy 8-K (brak danych konsensusu)',
   };
 
   /**

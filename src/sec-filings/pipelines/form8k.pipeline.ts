@@ -35,7 +35,11 @@ import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../.
 import { Logged } from '../../common/decorators/logged.decorator';
 import { ConsensusComparisonService, formatConsensusBlock } from '../services/consensus-comparison.service';
 import { ConsensusComparison } from '../types/consensus-comparison';
-import { shouldCapForConsensusGap } from '../utils/consensus-gap-guard';
+import {
+  shouldCapForConsensusGap,
+  isDocumentedBeat,
+  hasFullConsensusData,
+} from '../utils/consensus-gap-guard';
 
 /**
  * Pipeline analizy GPT dla filingów 8-K.
@@ -430,6 +434,42 @@ export class Form8kPipeline {
       );
       if (isThrottled) return { action: 'THROTTLED', symbol: payload.symbol, traceId: payload.traceId };
 
+      // Pakiet 1 fix #2 (09.06.2026): bullish 8-K gate → observation.
+      // Forward 09.04-08.06: delivered bullish 8-K 0/4 trafień, śr. -4.4% 3d
+      // (PODD/MOH/HUM), a SUPPRESSED bullish-z-liczbami 6/9 trafień +2.1% —
+      // problem to narrative bez liczb, nie kierunek bullish. Gate kluczowany na
+      // mainItem z detectItems(), NIE catalystType (MOH Item 7.01 dostał etykietę
+      // 'earnings' — catalystType przecieka). Wyjątek 2.02: deliver tylko
+      // udokumentowany beat (isDocumentedBeat = warunek R4, oba surprise >= +5%);
+      // brak/partial danych konsensusu → osobny reason 'bullish_no_consensus_data'
+      // (forward analysis odróżnia "nie mogliśmy sprawdzić" od "to nie beat").
+      // Bearish nietknięty (FIX-16 shadow osobno). Item 1.03 bankruptcy bypass
+      // nietknięty (handleBankruptcy, osobna ścieżka bez GPT). Cap'y FIX-12
+      // (consensusGapDecision) mają pierwszeństwo — bardziej specyficzny reason.
+      // Revisit gate: 90d od deploy LUB N>=10 suppressed — jeśli hit >55% i śr.
+      // dodatnia, zawęzić (np. tylko 1.01/7.01-contract). W pełni odwracalne
+      // (observation = dane płyną do DB + price outcome).
+      const effectiveDirection = analysis.price_impact.direction === 'neutral'
+        ? (analysis.conviction >= 0 ? 'positive' : 'negative')
+        : analysis.price_impact.direction;
+      let bullish8kReason: 'bullish_8k_no_edge' | 'bullish_no_consensus_data' | null = null;
+      if (effectiveDirection === 'positive' && consensusGapDecision === null) {
+        if (mainItem !== '2.02') {
+          bullish8kReason = 'bullish_8k_no_edge';
+        } else if (!hasFullConsensusData(consensusComp)) {
+          bullish8kReason = 'bullish_no_consensus_data';
+        } else if (!isDocumentedBeat(consensusComp)) {
+          bullish8kReason = 'bullish_8k_no_edge';
+        }
+        // 2.02 + udokumentowany beat (R4) → deliver (jedyna bullish ścieżka na Telegram)
+        if (bullish8kReason) {
+          this.logger.log(
+            `8-K bullish gate dla ${payload.symbol} Item ${mainItem}: ` +
+              `${bullish8kReason} (conviction=${analysis.conviction.toFixed(2)}) → DB only`,
+          );
+        }
+      }
+
       // Wyślij alert Telegram
       const message = this.formatter.formatForm8kGptAlert({
         symbol: payload.symbol,
@@ -452,6 +492,9 @@ export class Form8kPipeline {
             // sub-reason (consensus_miss / consensus_in_line / consensus_mixed).
             isConsensusGap: consensusGapDecision !== null,
             consensusGapReason: consensusGapDecision?.reason ?? undefined,
+            // Pakiet 1 fix #2: bullish 8-K poza udokumentowanym beatem → DB only.
+            isBullish8kGate: bullish8kReason !== null,
+            bullish8kReason: bullish8kReason ?? undefined,
           })
         : buildDispatcherUnavailableFallback({ ticker: payload.symbol, ruleName: rule.name, traceId: payload.traceId });
 
@@ -496,7 +539,9 @@ export class Form8kPipeline {
       // budować pattern correlation. PODD-class signal: GPT chwalił beat ale
       // raport vs consensus mówi co innego — dane do DB jako audit, ale brak
       // downstream pattern detection (INSIDER_PLUS_8K mógłby wzmacniać złą tezę).
-      if (this.correlation && !consensusGapDecision) {
+      // Pakiet 1 fix #2: gated bullish też NIE zasila Redis — inaczej bullish
+      // narrative budowałby INSIDER_PLUS_8K (powtórka backdooru FIX-07).
+      if (this.correlation && !consensusGapDecision && !bullish8kReason) {
         try {
           const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {

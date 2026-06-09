@@ -11,12 +11,14 @@ import { Logged } from '../common/decorators/logged.decorator';
  *   1. isObservationTicker   — semi supply chain / healthcare observation mode
  *   2. isGptMissingData      — S19-FIX-01: GPT zadeklarował brak danych w key_facts (HUM 29.04 case)
  *   3. isConsensusGap        — S19-FIX-12: raport vs analyst consensus mismatch (PODD 06.05 case)
- *   4. isDirectionConflict   — S19-FIX-05: Correlated pattern z konfliktem kierunków Form4 vs Options/8-K (UNH 29-30.04 case)
- *   5. isSellNoEdge          — Sprint 17 Form4 SELL (V4 backtest: zero edge)
- *   6. isCsuiteSellObservation — Sprint 16b Form4 C-suite SELL
- *   7. isClusterSellObservation — Sprint 15 Correlation INSIDER_CLUSTER SELL
- *   8. isSilent              — silent rule (reserved, po cleanup SILENT_RULES brak)
- *   9. dailyLimitHit         — AlertDeliveryGate shared limit (chyba że bypassDailyLimit)
+ *   4. isBullish8kGate       — Pakiet 1 fix #2 (09.06.2026): bullish 8-K poza udokumentowanym
+ *                              beatem 2.02-R4 → observation (delivered bullish 0/4, śr. −4.4% 3d)
+ *   5. isDirectionConflict   — S19-FIX-05: Correlated pattern z konfliktem kierunków Form4 vs Options/8-K (UNH 29-30.04 case)
+ *   6. isSellNoEdge          — Sprint 17 Form4 SELL (V4 backtest: zero edge)
+ *   7. isCsuiteSellObservation — Sprint 16b Form4 C-suite SELL
+ *   8. isClusterSellObservation — Sprint 15 Correlation INSIDER_CLUSTER SELL
+ *   9. isSilent              — silent rule (reserved, po cleanup SILENT_RULES brak)
+ *  10. dailyLimitHit         — AlertDeliveryGate shared limit (chyba że bypassDailyLimit)
  */
 export interface DispatchParams {
   ticker: string;
@@ -29,6 +31,10 @@ export interface DispatchParams {
   isGptMissingData?: boolean;
   isConsensusGap?: boolean;
   consensusGapReason?: string;
+  /** Pakiet 1 fix #2: bullish 8-K gate. bullish8kReason rozróżnia narrative
+   *  ('bullish_8k_no_edge') od braku danych konsensusu ('bullish_no_consensus_data'). */
+  isBullish8kGate?: boolean;
+  bullish8kReason?: string;
   isDirectionConflict?: boolean;
   isSellNoEdge?: boolean;
   isCsuiteSellObservation?: boolean;
@@ -118,6 +124,10 @@ export class AlertDispatcherService {
       // consensus_in_line / consensus_mixed) — używamy go jako suppressedBy
       // żeby raport 8h pokazywał breakdown granularnie.
       suppressedBy = params.consensusGapReason || 'consensus_gap';
+    } else if (params.isBullish8kGate) {
+      // Pakiet 1 fix #2: bullish 8-K bez udokumentowanego beatu → DB only.
+      // Sub-reason rozróżnia narrative od braku danych (forward analysis).
+      suppressedBy = params.bullish8kReason || 'bullish_8k_no_edge';
     } else if (params.isDirectionConflict) {
       suppressedBy = 'direction_conflict';
     } else if (params.isSellNoEdge) {
