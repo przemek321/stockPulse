@@ -55,7 +55,7 @@ RECENT INSIDER ACTIVITY (last 30 days, same company):
 ${recentFilings.length === 0
     ? 'No other insider transactions in past 30 days.'
     : recentFilings.map(f =>
-        `- ${f.insiderName} (${f.insiderRole ?? '?'}): ${f.transactionType} ${f.shares.toLocaleString()} shares ($${f.totalValue.toLocaleString()})`,
+        `- ${f.insiderName} (${f.insiderRole ?? '?'}): ${f.transactionType} ${f.shares.toLocaleString()} shares ($${f.totalValue.toLocaleString()})${f.is10b51Plan ? ' [10b5-1 plan — pre-scheduled, low signal]' : ''}`,
       ).join('\n')
 }
 

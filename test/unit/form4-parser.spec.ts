@@ -10,6 +10,7 @@ describe('Form4 Parser', () => {
     price?: number;
     rule10b51?: string;
     sharesAfter?: string;
+    aff10b5One?: string;
   } = {}): string => {
     const code = overrides.code ?? 'P';
     const shares = overrides.shares ?? 1000;
@@ -18,6 +19,11 @@ describe('Form4 Parser', () => {
     const sharesAfterTag = overrides.sharesAfter != null
       ? `<postTransactionAmounts><sharesOwnedFollowingTransaction><value>${overrides.sharesAfter}</value></sharesOwnedFollowingTransaction></postTransactionAmounts>`
       : '';
+    // Doc-level checkbox 10b5-1 — realne filingi mają go między reportingOwner
+    // a nonDerivativeTable (Pakiet 1 fix #0)
+    const affTag = overrides.aff10b5One != null
+      ? `<aff10b5One>${overrides.aff10b5One}</aff10b5One>`
+      : '';
 
     return `<?xml version="1.0"?>
     <ownershipDocument>
@@ -25,6 +31,7 @@ describe('Form4 Parser', () => {
         <reportingOwnerId><rptOwnerName>John Smith</rptOwnerName></reportingOwnerId>
         <reportingOwnerRelationship><officerTitle>CEO</officerTitle></reportingOwnerRelationship>
       </reportingOwner>
+      ${affTag}
       <nonDerivativeTable>
         <nonDerivativeTransaction>
           <transactionDate><value>2026-03-01</value></transactionDate>
@@ -101,6 +108,82 @@ describe('Form4 Parser', () => {
   it('mapuje kod M na EXERCISE', () => {
     const result = parseForm4Xml(makeXml({ code: 'M' }));
     expect(result[0].transactionType).toBe('EXERCISE');
+  });
+
+  // ── Pakiet 1 fix #0 (09.06.2026): doc-level <aff10b5One> ──────────────
+  // Realne filingi EDGAR oznaczają plan 10b5-1 WYŁĄCZNIE doc-level checkboxem
+  // (per-transaction Rule10b5-1Transaction nie występuje — 0/3384 w produkcji).
+
+  describe('Doc-level aff10b5One (Pakiet 1 fix #0)', () => {
+    it('GILD O\'Day replay: aff10b5One=1 + kod S bez per-transaction tagu → plan', () => {
+      const result = parseForm4Xml(makeXml({ code: 'S', aff10b5One: '1' }));
+      expect(result[0].transactionType).toBe('SELL');
+      expect(result[0].is10b51Plan).toBe(true);
+    });
+
+    it('URGN replay: aff10b5One=0 → discretionary', () => {
+      const result = parseForm4Xml(makeXml({ code: 'M', aff10b5One: '0' }));
+      expect(result[0].is10b51Plan).toBe(false);
+    });
+
+    it('wariant boolean: aff10b5One=true → plan', () => {
+      const result = parseForm4Xml(makeXml({ aff10b5One: 'true' }));
+      expect(result[0].is10b51Plan).toBe(true);
+    });
+
+    it('wariant boolean: aff10b5One=false → discretionary', () => {
+      const result = parseForm4Xml(makeXml({ aff10b5One: 'false' }));
+      expect(result[0].is10b51Plan).toBe(false);
+    });
+
+    it('wariant defensywny: aff10b5One=Y → plan (spójnie z per-transaction fallbackiem)', () => {
+      const result = parseForm4Xml(makeXml({ aff10b5One: 'Y' }));
+      expect(result[0].is10b51Plan).toBe(true);
+    });
+
+    it('brak tagu (filing pre-2023) → discretionary (bez zmiany zachowania)', () => {
+      const result = parseForm4Xml(makeXml());
+      expect(result[0].is10b51Plan).toBe(false);
+    });
+
+    it('fallback per-transaction zachowany: aff=0 ale Rule10b5-1Transaction=1 → plan', () => {
+      const result = parseForm4Xml(makeXml({ aff10b5One: '0', rule10b51: '1' }));
+      expect(result[0].is10b51Plan).toBe(true);
+    });
+
+    it('aff10b5One=1 flaguje WSZYSTKIE transakcje w filingu (non-deriv + deriv)', () => {
+      const xml = `<?xml version="1.0"?>
+      <ownershipDocument>
+        <reportingOwner>
+          <reportingOwnerId><rptOwnerName>John Smith</rptOwnerName></reportingOwnerId>
+          <reportingOwnerRelationship><officerTitle>CEO</officerTitle></reportingOwnerRelationship>
+        </reportingOwner>
+        <aff10b5One>1</aff10b5One>
+        <nonDerivativeTable>
+          <nonDerivativeTransaction>
+            <transactionDate><value>2026-03-01</value></transactionDate>
+            <transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+            <transactionAmounts>
+              <transactionShares><value>1000</value></transactionShares>
+              <transactionPricePerShare><value>50</value></transactionPricePerShare>
+            </transactionAmounts>
+          </nonDerivativeTransaction>
+        </nonDerivativeTable>
+        <derivativeTable>
+          <derivativeTransaction>
+            <transactionDate><value>2026-03-01</value></transactionDate>
+            <transactionCoding><transactionCode>M</transactionCode></transactionCoding>
+            <transactionAmounts>
+              <transactionShares><value>500</value></transactionShares>
+              <transactionPricePerShare><value>10</value></transactionPricePerShare>
+            </transactionAmounts>
+          </derivativeTransaction>
+        </derivativeTable>
+      </ownershipDocument>`;
+      const result = parseForm4Xml(xml);
+      expect(result).toHaveLength(2);
+      expect(result.every(t => t.is10b51Plan)).toBe(true);
+    });
   });
 
   // ── FLAG #30 fix: multi-reportingOwner ──────────────────────

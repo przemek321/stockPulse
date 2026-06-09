@@ -65,3 +65,4 @@ scripts/backtest/*.log
 polymarket-*.json
 polymarket-*.sh
 polymarket-*.txt
+scripts/audit/trades_export.csv

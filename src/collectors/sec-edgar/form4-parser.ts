@@ -78,13 +78,26 @@ export function parseForm4Xml(xml: string): Form4Transaction[] {
   const ownersList = Array.isArray(ownersRaw) ? ownersRaw : [ownersRaw];
   const { name: insiderName, role: insiderRole } = mergeOwnerRoles(ownersList);
 
+  // Doc-level checkbox 10b5-1 (Pakiet 1 fix #0, 09.06.2026): <aff10b5One>1</aff10b5One>.
+  // Obowiązkowy element od amendmentu SEC z kwietnia 2023 — to JEDYNY znacznik planu
+  // w realnych filingach (per-transaction Rule10b5-1Transaction praktycznie nie występuje:
+  // 0/3394 wierszy w produkcji miało flagę przed tym fixem). Doc-level = "co najmniej
+  // jedna transakcja w filingu z planu" — mieszany filing (plan SELL + discretionary BUY)
+  // zostanie w całości oflagowany. Świadomy trade-off: przy celu "precyzja nad wolumenem"
+  // wolimy stracić rzadki mieszany BUY niż alertować planowe SELL jako discretionary
+  // (case GILD O'Day 29.04.2026: aff10b5One=1, system potraktował jako discretionary).
+  // Akceptowane wartości spójne z edgar_fetcher.py: '1' / 'true' / 'y' (xs:boolean
+  // dopuszcza tylko 1/0/true/false; 'Y' to defensywa zgodna z per-transaction fallbackiem).
+  const aff10b5Raw = String(ownership.aff10b5One ?? '').trim().toLowerCase();
+  const docLevel10b51 = aff10b5Raw === '1' || aff10b5Raw === 'true' || aff10b5Raw === 'y';
+
   const transactions: Form4Transaction[] = [];
 
   // Transakcje na akcjach zwykłych (non-derivative)
   const nonDerivTxns =
     ownership.nonDerivativeTable?.nonDerivativeTransaction || [];
   for (const txn of nonDerivTxns) {
-    const parsed = parseTransaction(txn, insiderName, insiderRole);
+    const parsed = parseTransaction(txn, insiderName, insiderRole, docLevel10b51);
     if (parsed) transactions.push(parsed);
   }
 
@@ -92,7 +105,7 @@ export function parseForm4Xml(xml: string): Form4Transaction[] {
   const derivTxns =
     ownership.derivativeTable?.derivativeTransaction || [];
   for (const txn of derivTxns) {
-    const parsed = parseTransaction(txn, insiderName, insiderRole);
+    const parsed = parseTransaction(txn, insiderName, insiderRole, docLevel10b51);
     if (parsed) transactions.push(parsed);
   }
 
@@ -107,6 +120,7 @@ function parseTransaction(
   txn: any,
   insiderName: string,
   insiderRole: string | null,
+  docLevel10b51: boolean,
 ): Form4Transaction | null {
   try {
     // Kod transakcji (P, S, M, A, F, G itd.)
@@ -144,12 +158,18 @@ function parseTransaction(
     if (!dateRaw) return null; // Brak daty transakcji — pomijamy (zamiast wstawiać dzisiejszą)
     const transactionDate = new Date(dateRaw);
 
-    // Plan 10b5-1 — zaplanowana transakcja (niższy priorytet sygnału)
+    // Plan 10b5-1 — zaplanowana transakcja (niższy priorytet sygnału).
+    // Źródło prawdy: doc-level <aff10b5One> (docLevel10b51, parsowany w parseForm4Xml).
+    // Per-transaction tag zachowany jako fallback dla nietypowych filerów — w realnych
+    // filingach EDGAR nie występuje (Pakiet 1 fix #0).
     const rule10b5Raw =
       txn.transactionCoding?.['Rule10b5-1Transaction'] ??
       txn.transactionCoding?.rule10b51Transaction ??
       '';
-    const is10b51Plan = String(rule10b5Raw) === '1' || String(rule10b5Raw).toUpperCase() === 'Y';
+    const is10b51Plan =
+      docLevel10b51 ||
+      String(rule10b5Raw) === '1' ||
+      String(rule10b5Raw).toUpperCase() === 'Y';
 
     // Akcje po transakcji (z postTransactionAmounts)
     const sharesAfterRaw =

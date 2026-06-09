@@ -1,5 +1,6 @@
 """
-Testy dla edgar_fetcher — multi-reportingOwner (FLAG #34) + 10b5-1 per-tx (FLAG #35).
+Testy dla edgar_fetcher — multi-reportingOwner (FLAG #34) + 10b5-1 per-tx (FLAG #35)
++ doc-level aff10b5One (Pakiet 1 fix #0, 09.06.2026).
 """
 from __future__ import annotations
 
@@ -11,7 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from edgar_fetcher import _merge_reporting_owners, _parse_form4_xml
 
 
-def _make_xml(owners: list, tx_code: str = "P", coding_extra: str = "") -> str:
+def _make_xml(owners: list, tx_code: str = "P", coding_extra: str = "",
+              doc_extra: str = "") -> str:
     owners_xml = ""
     for o in owners:
         rel_parts = []
@@ -32,6 +34,7 @@ def _make_xml(owners: list, tx_code: str = "P", coding_extra: str = "") -> str:
     return f"""<?xml version="1.0"?>
     <ownershipDocument>
         {owners_xml}
+        {doc_extra}
         <nonDerivativeTable>
             <nonDerivativeTransaction>
                 <transactionDate><value>2026-03-01</value></transactionDate>
@@ -157,3 +160,58 @@ class Test10b51PerTransaction:
         </ownershipDocument>"""
         txns = _parse_form4_xml(xml, "TEST", "2026-03-01", "001")
         assert txns[0]["is_10b51_plan"] is False
+
+
+class TestDocLevelAff10b5One:
+    """Pakiet 1 fix #0 (09.06.2026): doc-level <aff10b5One> — jedyny realny znacznik."""
+
+    def test_gild_oday_replay_aff_1_sell_is_plan(self):
+        # GILD O'Day 29.04.2026: aff10b5One=1, kod S, ZERO per-transaction tagów
+        xml = _make_xml(
+            [{"name": "O'Day Daniel Patrick", "officer_title": "CEO", "is_officer": True}],
+            tx_code="S",
+            doc_extra="<aff10b5One>1</aff10b5One>",
+        )
+        txns = _parse_form4_xml(xml, "GILD", "2026-04-29", "001")
+        assert txns[0]["is_10b51_plan"] is True
+
+    def test_aff_0_is_discretionary(self):
+        xml = _make_xml(
+            [{"name": "Test", "is_officer": True}],
+            tx_code="S",
+            doc_extra="<aff10b5One>0</aff10b5One>",
+        )
+        txns = _parse_form4_xml(xml, "TEST", "2026-03-01", "001")
+        assert txns[0]["is_10b51_plan"] is False
+
+    def test_aff_true_variant(self):
+        xml = _make_xml(
+            [{"name": "Test", "is_officer": True}],
+            doc_extra="<aff10b5One>true</aff10b5One>",
+        )
+        txns = _parse_form4_xml(xml, "TEST", "2026-03-01", "001")
+        assert txns[0]["is_10b51_plan"] is True
+
+    def test_aff_uppercase_TRUE_variant(self):
+        # Spójność zbioru wartości z form4-parser.ts (strip().lower())
+        xml = _make_xml(
+            [{"name": "Test", "is_officer": True}],
+            doc_extra="<aff10b5One>TRUE</aff10b5One>",
+        )
+        txns = _parse_form4_xml(xml, "TEST", "2026-03-01", "001")
+        assert txns[0]["is_10b51_plan"] is True
+
+    def test_missing_tag_pre_2023_filing(self):
+        xml = _make_xml([{"name": "Test", "is_officer": True}], tx_code="S")
+        txns = _parse_form4_xml(xml, "TEST", "2026-03-01", "001")
+        assert txns[0]["is_10b51_plan"] is False
+
+    def test_per_transaction_fallback_preserved(self):
+        xml = _make_xml(
+            [{"name": "Test", "is_officer": True}],
+            tx_code="S",
+            coding_extra="<isRule10b5-1Transaction>1</isRule10b5-1Transaction>",
+            doc_extra="<aff10b5One>0</aff10b5One>",
+        )
+        txns = _parse_form4_xml(xml, "TEST", "2026-03-01", "001")
+        assert txns[0]["is_10b51_plan"] is True

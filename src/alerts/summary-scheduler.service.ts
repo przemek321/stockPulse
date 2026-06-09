@@ -87,7 +87,8 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .groupBy('a.nonDeliveryReason')
         .getRawMany();
 
-      // Insider trades (discretionary BUY/SELL, non-10b5-1)
+      // Insider trades BUY/SELL — celowo BEZ filtra is10b51Plan (raport pokazuje cały
+      // wolumen; od fixu aff10b5One 09.06.2026 plany są realnie flagowane w DB)
       const trades = await this.tradeRepo
         .createQueryBuilder('t')
         .select('t.transactionType', 'type')

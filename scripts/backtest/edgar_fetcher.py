@@ -172,8 +172,10 @@ def _safe_float(element, path: str) -> float:
 
 def _parse_10b51_per_transaction(tx_element) -> bool:
     """
-    Sprint 16b FLAG #35 fix: Sprawdza flagę 10b5-1 na poziomie transakcji
-    (nie całego filingu). Form 4 XML: <transactionCoding><isRule10b5-1Transaction>1</...>
+    Fallback per-transaction (Sprint 16b FLAG #35). UWAGA (fix 09.06.2026): te tagi
+    praktycznie NIE występują w realnych filingach EDGAR — źródłem prawdy jest
+    doc-level <aff10b5One> (zob. _parse_doc_level_10b51). Zostaje jako defense
+    dla nietypowych filerów.
     """
     coding = tx_element.find(".//transactionCoding")
     if coding is None:
@@ -192,6 +194,22 @@ def _parse_10b51_per_transaction(tx_element) -> bool:
         if val_el is not None and val_el.text:
             return val_el.text.strip() in ("1", "true", "True", "Y", "y")
 
+    return False
+
+
+def _parse_doc_level_10b51(root) -> bool:
+    """
+    Pakiet 1 fix #0 (09.06.2026): doc-level checkbox <aff10b5One>1</aff10b5One> —
+    obowiązkowy element od amendmentu SEC kwiecień 2023 i JEDYNY znacznik planu
+    10b5-1 w realnych filingach (0/40874 wierszy V5 CSV miało flagę przed fixem;
+    GILD O'Day 29.04.2026 aff10b5One=1 liczony jako discretionary).
+    Doc-level = "co najmniej jedna transakcja z planu" → mieszany filing zostanie
+    w całości oflagowany (trade-off: precyzja nad wolumenem).
+    """
+    el = root.find(".//aff10b5One")
+    if el is not None and el.text:
+        # Zbiór wartości spójny z form4-parser.ts: '1' / 'true' / 'y' (case-insensitive)
+        return el.text.strip().lower() in ("1", "true", "y")
     return False
 
 
@@ -307,6 +325,9 @@ def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
     is_ten_pct = owner_data["is_ten_pct"]
     csuite = owner_data["is_csuite"]
 
+    # Pakiet 1 fix #0: doc-level <aff10b5One> to źródło prawdy dla 10b5-1
+    doc_level_10b51 = _parse_doc_level_10b51(root)
+
     # Parsowanie transakcji (nonDerivative + derivative)
     transactions = []
     for tx_path in [".//nonDerivativeTransaction", ".//derivativeTransaction"]:
@@ -321,8 +342,8 @@ def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
             if not tx_code:
                 continue
 
-            # Sprint 16b FLAG #35 fix: 10b5-1 per transakcja (nie file-level)
-            is_10b51 = _parse_10b51_per_transaction(tx)
+            # Pakiet 1 fix #0: doc-level <aff10b5One> OR per-transaction fallback
+            is_10b51 = doc_level_10b51 or _parse_10b51_per_transaction(tx)
 
             # Mapowanie kodów SEC → typ
             code_map = {"P": "BUY", "S": "SELL", "M": "EXERCISE",
