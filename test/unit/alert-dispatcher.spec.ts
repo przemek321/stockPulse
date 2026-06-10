@@ -17,7 +17,9 @@ import {
 
 class FakeTelegramService {
   sendResult = true;
-  async sendMarkdown(_message: string): Promise<boolean> {
+  sent: string[] = [];
+  async sendMarkdown(message: string): Promise<boolean> {
+    this.sent.push(message);
     return this.sendResult;
   }
 }
@@ -433,5 +435,39 @@ describe('buildDispatcherUnavailableFallback (FOLLOW-1, 23.04.2026)', () => {
       traceId: 'trace-abc-123',
     });
     expect(result.traceId).toBe('trace-abc-123');
+  });
+});
+
+describe('dispatch — ping obserwacyjny na Telegram (10.06.2026)', () => {
+  it('observation → krótki ping 🔭 wysłany, alert pozostaje DB-only', async () => {
+    const { dispatcher, telegram } = buildDispatcher();
+    const result = await dispatcher.dispatch({
+      ...baseParams,
+      ticker: 'EYE',
+      ruleName: 'Form 4 Insider BUY',
+      isObservationTicker: true,
+    });
+    expect(result.delivered).toBe(false);
+    expect(result.suppressedBy).toBe('observation');
+    expect(telegram.sent).toHaveLength(1);
+    expect(telegram.sent[0]).toContain('Obserwacja');
+    expect(telegram.sent[0]).toContain('EYE');
+    expect(telegram.sent[0]).toContain('NIE jest sygnał');
+  });
+
+  it('inne suppression (sell_no_edge, daily_limit) → ZERO pinga', async () => {
+    const { dispatcher, telegram, gate } = buildDispatcher();
+    await dispatcher.dispatch({ ...baseParams, isSellNoEdge: true });
+    gate.allowed = false;
+    await dispatcher.dispatch({ ...baseParams });
+    expect(telegram.sent).toHaveLength(0);
+  });
+
+  it('błąd Telegrama przy pingu → wynik dispatch bez zmian (nie telegram_failed)', async () => {
+    const { dispatcher, telegram } = buildDispatcher();
+    telegram.sendMarkdown = async () => { throw new Error('boom'); };
+    const result = await dispatcher.dispatch({ ...baseParams, isObservationTicker: true });
+    expect(result.suppressedBy).toBe('observation');
+    expect(result.action).toBe('ALERT_DB_ONLY_OBSERVATION');
   });
 });

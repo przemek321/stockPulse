@@ -358,6 +358,10 @@ describe('FIX-16 shadow — integracja z pipeline (Pakiet 1 fix #4)', () => {
     // Cap FIX-12 NADAL działa (shadow nie zmienia zachowania)
     expect(savedFiling.gptAnalysis.conviction).toBe(-0.3);
     expect(mocks.correlation.storeSignal).not.toHaveBeenCalled();
+    // 10.06: ping shadow na Telegram (would_uncap=TAK dla HIMS-class)
+    expect(mocks.telegram.sendMarkdown).toHaveBeenCalledWith(
+      expect.stringContaining('FIX\\-16 shadow'),
+    );
   });
 
   it('PODD-class: bullish miss z capem → shadow zapisany z would_uncap=false', async () => {

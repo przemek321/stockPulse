@@ -5,6 +5,7 @@ import { SecFiling, Ticker } from '../../entities';
 import { QUEUE_NAMES } from '../../queues/queue-names.const';
 import { SecEdgarModule } from '../sec-edgar/sec-edgar.module';
 import { FinnhubModule } from '../finnhub/finnhub.module';
+import { TelegramModule } from '../../alerts/telegram/telegram.module';
 import { Form4DiscoveryService } from './form4-discovery.service';
 import { Form4DiscoveryProcessor } from './form4-discovery.processor';
 import { Form4DiscoveryScheduler } from './form4-discovery.scheduler';
@@ -21,6 +22,7 @@ import { discoveryRedisProvider } from './redis.provider';
     BullModule.registerQueue({ name: QUEUE_NAMES.FORM4_DISCOVERY }),
     SecEdgarModule,
     FinnhubModule,
+    TelegramModule,
   ],
   providers: [
     discoveryRedisProvider,

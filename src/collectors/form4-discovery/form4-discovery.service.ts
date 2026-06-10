@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { SecFiling, Ticker } from '../../entities';
 import { SecEdgarService } from '../sec-edgar/sec-edgar.service';
+import { TelegramService } from '../../alerts/telegram/telegram.service';
 import { FinnhubService } from '../finnhub/finnhub.service';
 import { parseForm4Xml, Form4Transaction } from '../sec-edgar/form4-parser';
 import { isCsuiteRole, isDirectorRole } from '../../sec-filings/pipelines/form4.pipeline';
@@ -234,6 +235,7 @@ export class Form4DiscoveryService {
     private readonly config: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(DISCOVERY_REDIS) private readonly redis: Redis,
+    @Optional() private readonly telegram?: TelegramService,
   ) {
     this.userAgent = this.config.get<string>(
       'SEC_USER_AGENT',
@@ -525,6 +527,24 @@ export class Form4DiscoveryService {
         `Discovery ZAREJESTROWANY: ${meta.ticker} (${meta.name}) — observation mode, ` +
           `przegląd okna obs ~25.07.2026`,
       );
+
+      // 10.06.2026: ping na Telegram z metadanymi kandydata (prośba Przemka).
+      // Fire-and-forget — failure nie psuje rejestracji.
+      if (this.telegram) {
+        const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+        try {
+          await this.telegram.sendMarkdown(
+            `🔭 *Discovery* — nowy ticker w obserwacji: \\$${esc(meta.ticker)}\n` +
+              `${esc(meta.name ?? '')} \\(SIC ${esc(meta.sic ?? '?')}\\)\n` +
+              `Trigger: ${esc(pre.insiderName ?? '?')} \\(${esc(pre.insiderRole ?? '?')}\\) ` +
+              `BUY $${esc(Math.round(pre.buyValue).toLocaleString('en-US'))}\n` +
+              `mcap $${esc(String(Math.round(mcap)))}M \\| ADV $${esc(Math.round(advUsd).toLocaleString('en-US'))}\n` +
+              `_Observation mode — alerty DB\\-only, przegląd 25\\.07\\._`,
+          );
+        } catch (err) {
+          this.logger.warn(`Discovery ping Telegram failed: ${(err as Error).message}`);
+        }
+      }
       return true;
     } catch (err) {
       // Błąd → bez markSeen, accession wróci w następnym cyklu / reconciliation

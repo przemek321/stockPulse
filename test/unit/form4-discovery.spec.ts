@@ -298,6 +298,7 @@ function buildService(opts: {
       expire: jest.fn(async () => 1),
     },
     redisStore,
+    telegram: { sendMarkdown: jest.fn().mockResolvedValue(true) },
   };
 
   const submissionsJson = JSON.stringify({
@@ -327,6 +328,7 @@ function buildService(opts: {
     mocks.config as any,
     mocks.eventEmitter as any,
     mocks.redis as any,
+    mocks.telegram as any,
   );
   return { svc, mocks };
 }
@@ -355,6 +357,11 @@ describe('Form4DiscoveryService.processAccession (Pakiet 2)', () => {
     );
     expect(mocks.eventEmitter.emit).toHaveBeenCalled(); // NEW_FILING
     expect(mocks.redisStore.has(`seen:${ACC}`)).toBe(true);
+    // 10.06: ping rejestracji na Telegram z metadanymi kandydata
+    expect(mocks.telegram.sendMarkdown).toHaveBeenCalledWith(
+      expect.stringContaining('Discovery'),
+    );
+    expect((mocks.telegram.sendMarkdown as jest.Mock).mock.calls[0][0]).toContain('TSTX');
   });
 
   it('non-healthcare SIC (semis 3674) → skip PRZED fetchem XML', async () => {

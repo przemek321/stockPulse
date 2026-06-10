@@ -153,6 +153,24 @@ export class AlertDispatcherService {
       delivered = false;
       channel = 'db_only';
       action = `ALERT_DB_ONLY_${suppressedBy.toUpperCase()}`;
+
+      // 10.06.2026 (prośba Przemka „wysyłaj mi to na Telegrama"): observation
+      // events dostają KRÓTKI ping informacyjny — pełny alert zostaje DB-only
+      // (semantyka observation mode nietknięta: delivered=false, brak treści
+      // sygnału). Wolumen bezpieczny: 'observation' osiągają dziś tylko Form4
+      // APLS/discovery (semi skipowane przed GPT od S19-FIX-03) = kilka/tydzień.
+      // Failure pinga nie wpływa na wynik dispatch.
+      if (suppressedBy === 'observation') {
+        const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+        try {
+          await this.telegram.sendMarkdown(
+            `🔭 *Obserwacja* — \\$${esc(ticker)} ${esc(ruleName)}\n` +
+              `_Zapisany do DB \\(okno obserwacyjne\\) — to NIE jest sygnał do handlu\\._`,
+          );
+        } catch (err) {
+          this.logger.warn(`Observation ping Telegram failed dla ${ticker}: ${(err as Error).message}`);
+        }
+      }
     } else {
       delivered = await this.telegram.sendMarkdown(message);
       if (delivered) {
