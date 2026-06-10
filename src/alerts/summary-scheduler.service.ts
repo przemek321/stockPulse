@@ -11,6 +11,41 @@ import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
  * Agreguje: alerty, insider trades, options flow, nadchodzące PDUFA.
  * Sprint 15: usunięto sentyment (wyłączony od Sprint 11, zero danych).
  */
+
+/**
+ * Kalendarz walidacji (10.06.2026, prośba Przemka o przypomnienia) — daty
+ * decyzyjne z planu doc/PLAN-EDGE-IMPROVEMENTS-2026-06-09.md. Raport 8h
+ * pokazuje zdarzenie od 7 dni PRZED terminem do 3 dni PO (z flagą ZALEGŁY).
+ * Szczegóły kryteriów per data: doc/KALENDARZ-WALIDACJI-2026.md.
+ * Po wykonaniu przeglądu — usuń wpis z tej tablicy.
+ */
+export const VALIDATION_CALENDAR: ReadonlyArray<{ date: string; label: string }> = [
+  { date: '2026-07-09', label: 'APLS Faza 4 review (≥6 BUY, hit 7d ≥60%, alpha ≥+2%)' },
+  { date: '2026-07-25', label: 'Przegląd okna obs discovery → decyzja delivery top-N' },
+  { date: '2026-08-25', label: 'FIX-16 shadow review (N≥3 would_uncap) → decyzja deploy' },
+  { date: '2026-09-01', label: 'Werdykt "czy system ma edge" (forward 7d, ~20-30 alertów)' },
+  { date: '2026-09-07', label: 'Bullish-8K gate revisit (90d; hit suppressed >55% → zawęzić)' },
+];
+
+/**
+ * Zdarzenia do pokazania w raporcie 8h: due za <=7 dni LUB zaległe <=3 dni.
+ * Pure function — testowalna bez NestJS.
+ */
+export function upcomingValidationEvents(
+  now: Date,
+  calendar: ReadonlyArray<{ date: string; label: string }> = VALIDATION_CALENDAR,
+): Array<{ date: string; label: string; daysLeft: number }> {
+  const DAY = 24 * 3600_000;
+  const today = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z').getTime();
+  return calendar
+    .map((e) => ({
+      ...e,
+      daysLeft: Math.round((new Date(e.date + 'T00:00:00Z').getTime() - today) / DAY),
+    }))
+    .filter((e) => e.daysLeft <= 7 && e.daysLeft >= -3)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
 @Injectable()
 export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SummarySchedulerService.name);
@@ -208,6 +243,21 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       for (const t of trades) {
         const val = parseFloat(t.totalValue || '0');
         lines.push(`  • ${esc(t.type)}: ${esc(t.count)} transakcji \\(${esc(fmtValue(val))}\\)`);
+      }
+    }
+
+    // Kalendarz walidacji — przypomnienia o nadchodzących przeglądach decyzyjnych
+    const events = upcomingValidationEvents(new Date());
+    if (events.length > 0) {
+      lines.push('');
+      lines.push('📅 *Kalendarz walidacji:*');
+      for (const e of events) {
+        const when = e.daysLeft < 0
+          ? `⚠️ ZALEGŁY ${esc(String(-e.daysLeft))}d`
+          : e.daysLeft === 0
+            ? '🔴 DZIŚ'
+            : `za ${esc(String(e.daysLeft))}d`;
+        lines.push(`  • ${esc(e.date)} \(${when}\): ${esc(e.label)}`);
       }
     }
 

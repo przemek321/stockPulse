@@ -185,3 +185,47 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
     expect(plain).toContain('Byczy 8-K (brak danych konsensusu)');
   });
 });
+
+// ── Kalendarz walidacji (10.06.2026) ──────────────────────────────
+
+import {
+  upcomingValidationEvents,
+  VALIDATION_CALENDAR,
+} from '../../src/alerts/summary-scheduler.service';
+
+describe('upcomingValidationEvents — kalendarz walidacji', () => {
+  const CAL = [
+    { date: '2026-07-09', label: 'APLS Faza 4' },
+    { date: '2026-07-25', label: 'Discovery obs review' },
+  ];
+
+  it('zdarzenie za 7 dni → widoczne, za 8 dni → nie', () => {
+    expect(upcomingValidationEvents(new Date('2026-07-02T12:00:00Z'), CAL)).toHaveLength(1);
+    expect(upcomingValidationEvents(new Date('2026-07-01T12:00:00Z'), CAL)).toHaveLength(0);
+  });
+
+  it('dzień D → daysLeft=0', () => {
+    const ev = upcomingValidationEvents(new Date('2026-07-09T15:00:00Z'), CAL);
+    expect(ev[0]).toMatchObject({ date: '2026-07-09', daysLeft: 0 });
+  });
+
+  it('zaległe do 3 dni → widoczne z ujemnym daysLeft, 4 dni → znika', () => {
+    const ev = upcomingValidationEvents(new Date('2026-07-12T12:00:00Z'), CAL);
+    expect(ev[0]).toMatchObject({ date: '2026-07-09', daysLeft: -3 });
+    const gone = upcomingValidationEvents(new Date('2026-07-13T12:00:00Z'), CAL);
+    expect(gone.find((e) => e.date === '2026-07-09')).toBeUndefined();
+  });
+
+  it('sortowanie po daysLeft (najpilniejsze pierwsze)', () => {
+    const ev = upcomingValidationEvents(new Date('2026-07-20T12:00:00Z'), CAL);
+    // 09.07 zaległy -11d → poza oknem; 25.07 za 5d → widoczny
+    expect(ev).toHaveLength(1);
+    expect(ev[0].date).toBe('2026-07-25');
+  });
+
+  it('produkcyjny kalendarz ma 5 dat decyzyjnych z planu 09.06', () => {
+    expect(VALIDATION_CALENDAR.map((e) => e.date)).toEqual([
+      '2026-07-09', '2026-07-25', '2026-08-25', '2026-09-01', '2026-09-07',
+    ]);
+  });
+});
