@@ -41,6 +41,12 @@ export class OptionsFlowScheduler implements OnModuleInit {
       await this.queue.removeRepeatableByKey(job.key);
     }
 
+    // Health-check 10.06.2026 wieczór: removeRepeatableByKey usuwa KONFIG repeatu,
+    // ale NIE już-zmaterializowane delayed instancje jobów — jedna z nich odpaliła
+    // pełny cykl po reboocie (05:04 UTC, 30 kontraktów), kolejne czekały w Redis.
+    // drain(true) czyści też delayed — kolejka faktycznie martwa.
+    await this.queue.drain(true);
+
     this.logger.warn(
       'Options Flow collector WYŁĄCZONY (10.06.2026, plan P4 — 6h zombie cycle/dzień, ' +
         '22/48 tickerów bez danych, noga korelacyjna redundantna; retencja Polygon zweryfikowana)',
