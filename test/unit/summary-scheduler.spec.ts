@@ -17,6 +17,8 @@ function makeQb(result: any[]) {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     groupBy: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
     getRawMany: jest.fn().mockResolvedValue(result),
   };
 }
@@ -25,13 +27,15 @@ function buildScheduler(opts: {
   alertsByRule: any[];
   reasons: any[];
   trades: any[];
+  obsAlerts?: any[];
   telegramSendResult?: boolean;
 }) {
   const alertRepo = {
     createQueryBuilder: jest
       .fn()
       .mockImplementationOnce(() => makeQb(opts.alertsByRule))
-      .mockImplementationOnce(() => makeQb(opts.reasons)),
+      .mockImplementationOnce(() => makeQb(opts.reasons))
+      .mockImplementationOnce(() => makeQb(opts.obsAlerts ?? [])),
   };
   const tradeRepo = {
     createQueryBuilder: jest.fn().mockImplementation(() => makeQb(opts.trades)),
@@ -227,5 +231,64 @@ describe('upcomingValidationEvents — kalendarz walidacji', () => {
     expect(VALIDATION_CALENDAR.map((e) => e.date)).toEqual([
       '2026-07-09', '2026-07-25', '2026-08-25', '2026-09-01', '2026-09-07',
     ]);
+  });
+});
+
+describe('sendSummary — sekcja Nowe obserwacje (10.06.2026)', () => {
+  it('alert obserwacyjny w oknie → sekcja z tickerem, sektorem i ceną', async () => {
+    const { scheduler, telegram } = buildScheduler({
+      alertsByRule: [{ rule: 'Form 4 Insider BUY', count: '1', delivered: '0' }],
+      reasons: [{ reason: 'observation', count: '1' }],
+      trades: [],
+      obsAlerts: [{
+        symbol: 'EYE',
+        rule: 'Form 4 Insider BUY',
+        priority: 'CRITICAL',
+        price: '16.46',
+        sector: 'healthcare_discovery',
+      }],
+    });
+
+    await scheduler.sendSummary();
+
+    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const plain = msg.replace(/\\([_*\[\]()~`>#+\-=|{}.!\\])/g, '$1');
+    expect(plain).toContain('Nowe obserwacje');
+    expect(plain).toContain('EYE');
+    expect(plain).toContain('healthcare_discovery');
+    expect(plain).toContain('$16.46');
+  });
+
+  it('brak obserwacji w oknie → brak sekcji', async () => {
+    const { scheduler, telegram } = buildScheduler({
+      alertsByRule: [{ rule: 'X', count: '1', delivered: '1' }],
+      reasons: [],
+      trades: [],
+      obsAlerts: [],
+    });
+
+    await scheduler.sendSummary();
+
+    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    expect(msg).not.toContain('Nowe obserwacje');
+  });
+
+  it('>6 obserwacji → cap z dopiskiem "i N więcej"', async () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({
+      symbol: `TK${i}`, rule: 'Form 4 Insider BUY', priority: 'HIGH', price: null, sector: 'biotech_apls',
+    }));
+    const { scheduler, telegram } = buildScheduler({
+      alertsByRule: [{ rule: 'Form 4 Insider BUY', count: '9', delivered: '0' }],
+      reasons: [{ reason: 'observation', count: '9' }],
+      trades: [],
+      obsAlerts: many,
+    });
+
+    await scheduler.sendSummary();
+
+    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    expect(msg).toContain('TK5');
+    expect(msg).not.toContain('TK6');
+    expect(msg).toContain('3 więcej');
   });
 });

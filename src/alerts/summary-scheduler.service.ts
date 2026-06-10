@@ -134,6 +134,22 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .groupBy('t.transactionType')
         .getRawMany();
 
+      // Nowe obserwacje (10.06.2026, prośba Przemka „daj znać jak coś wpadnie"):
+      // konkretne alerty obserwacyjne z okna 8h (nie tylko licznik w breakdownie).
+      // LEFT JOIN tickers → sektor (apls/discovery/semi) bez nowego DI.
+      const obsAlerts = await this.alertRepo
+        .createQueryBuilder('a')
+        .leftJoin('tickers', 't', 't.symbol = a.symbol')
+        .select('a.symbol', 'symbol')
+        .addSelect('a.ruleName', 'rule')
+        .addSelect('a.priority', 'priority')
+        .addSelect('a.priceAtAlert', 'price')
+        .addSelect('t.sector', 'sector')
+        .where('a.sentAt > :since', { since })
+        .andWhere("a.nonDeliveryReason = 'observation'")
+        .orderBy('a.sentAt', 'DESC')
+        .getRawMany();
+
       // Nadchodzące katalizatory PDUFA (7 dni)
       let pdufaSection = '';
       try {
@@ -145,7 +161,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         // Brak danych PDUFA nie blokuje raportu
       }
 
-      const message = this.formatSummary(alerts, totalAlerts, totalDelivered, reasons, trades) + pdufaSection;
+      const message = this.formatSummary(alerts, totalAlerts, totalDelivered, reasons, trades, obsAlerts) + pdufaSection;
       const sent = await this.telegram.sendMarkdown(message);
 
       if (sent) {
@@ -200,6 +216,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     totalDelivered: number,
     reasonBreakdown: { reason: string; count: string }[],
     trades: { type: string; count: string; totalValue: string }[],
+    obsAlerts: { symbol: string; rule: string; priority: string; price: string | null; sector: string | null }[] = [],
   ): string {
     const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
@@ -243,6 +260,21 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       for (const t of trades) {
         const val = parseFloat(t.totalValue || '0');
         lines.push(`  • ${esc(t.type)}: ${esc(t.count)} transakcji \\(${esc(fmtValue(val))}\\)`);
+      }
+    }
+
+    // Nowe obserwacje — konkrety (ticker/reguła/sektor/cena), nie tylko licznik.
+    // To jest sygnał „coś wpadło w okno obserwacyjne APLS/discovery" dla Przemka.
+    if (obsAlerts.length > 0) {
+      lines.push('');
+      lines.push('🔭 *Nowe obserwacje:*');
+      for (const o of obsAlerts.slice(0, 6)) {
+        const price = o.price != null ? ` @ $${esc(Number(o.price).toFixed(2))}` : '';
+        const sector = o.sector ? ` \[${esc(o.sector)}\]` : '';
+        lines.push(`  • ${esc(o.symbol)}${sector} ${esc(o.rule)} ${esc(o.priority)}${price}`);
+      }
+      if (obsAlerts.length > 6) {
+        lines.push(`  … i ${esc(String(obsAlerts.length - 6))} więcej`);
       }
     }
 
