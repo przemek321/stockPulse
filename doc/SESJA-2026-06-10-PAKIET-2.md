@@ -90,3 +90,28 @@ Po wykonaniu przeglądu: usuń wpis z `VALIDATION_CALENDAR` (summary-scheduler).
 - **System czeka teraz na dane**: APLS (6 tickerów) + discovery (auto-rejestracje)
   budują próbkę obserwacyjną; FIX-16 shadow zbiera przypadki przez Q2 earnings;
   pierwsze decyzje w lipcu wg kalendarza.
+
+## Health-check po 24h (10.06 wieczór, na prośbę Przemka)
+
+**Działa:**
+- Kontenery up, app healthy, **zero ERROR-level logów w 16h**; autostart po reboocie
+  Jetsona (~05:00 UTC) wstał z najnowszym obrazem.
+- Core SEC EDGAR: 48 cykli SUCCESS, PDUFA 15 cykli.
+- Discovery: **182 cykle poll** (4830 wpisów atomu, 636 fresh) + reconciliation 02:44
+  (1574 wiersze idx, 930 fresh). PARSER_EMPTY ×4 (11:47-12:02 UTC — EDGAR przejściowo
+  pusty 15 min, samo się odbudowało, warn-y zadziałały).
+- **Pierwszy auto-odkryty ticker: EYE** (National Vision Holdings, SIC 3851) — złapany
+  przez RECONCILIATION, nie poll (dokładnie scenariusz, dla którego istnieje — i który
+  działa tylko dzięki dual-row fixowi z weryfikacji). Pełen łańcuch: rejestracja →
+  kanoniczny persist → Form4Pipeline → GPT → alert id 2432 CRITICAL observation
+  (Director Nicholson BUY, priceAtAlert $16.46, DB-only). Uwaga do przeglądu 25.07:
+  National Vision to retail optyczny — czy SIC 3851 nie jest za szeroki.
+- **Bullish-8K gate (P1-02) złapał żywy case**: MOH 10.06 20:35, bullish 8-K →
+  `bullish_8k_no_edge` DB-only (dokładnie klasa 0/4 śr. −4.4% z forward-oceny).
+
+**Znalezione i naprawione (3c8f62c):**
+- Stray run POLYGON 05:04 UTC (30 kontraktów) — `removeRepeatableByKey` usuwa konfig
+  repeatu, ale NIE zmaterializowane delayed instancje; jedna przeżyła wyłączenie
+  i odpaliła po reboocie. Fix: `queue.drain(true)` przy starcie; zweryfikowane
+  delayed=0/waiting=0. Stray run nieszkodliwy (dane options dopisane, zero alertów,
+  zero correlated).
