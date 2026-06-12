@@ -89,9 +89,9 @@ export function getEffectiveStartTime(alertSentAt: Date): Date {
   // wymagać 4-5 skipów; 5 było ciasne, 10 daje margines bez ryzyka infinite loop.
   for (let attempt = 0; attempt < 10; attempt++) {
     const { weekday, hour, minute } = parseET(d);
+    const timeMinutes = hour * 60 + minute;
 
     if (TRADING_DAYS.has(weekday) && !isNyseHoliday(d)) {
-      const timeMinutes = hour * 60 + minute;
       const openMinutes = OPEN_HOUR * 60 + OPEN_MINUTE;
 
       if (timeMinutes < openMinutes) {
@@ -101,10 +101,17 @@ export function getEffectiveStartTime(alertSentAt: Date): Date {
       }
     }
 
-    // Po zamknięciu / weekend / święto — przejdź do następnego dnia 0:00 ET
-    // Ustawiamy na następny dzień rano (5:00 UTC ~ 0:00-1:00 ET)
-    d.setUTCDate(d.getUTCDate() + 1);
-    d.setUTCHours(5, 0, 0, 0);
+    // Po zamknięciu / weekend / święto — przejdź do ~00:30 ET NASTĘPNEGO dnia ET.
+    // S20-T06 (12.06.2026): poprzednio `setUTCDate(+1)` + 05:00 UTC — ale dla
+    // alertów z okna 00:00-04:00 UTC (= 20:00-23:59 ET POPRZEDNIEGO dnia w EDT)
+    // data UTC jest już "jutrzejsza" względem wieczoru ET, więc +1 dzień UTC
+    // przeskakiwał CAŁĄ następną sesję. Case: EYE 10.06 02:43Z (= 09.06 22:43 ET)
+    // kotwiczył sloty na 11.06 zamiast 10.06 — a to okno discovery reconciliation
+    // (22:40 ET = 02:40 UTC), czyli KAŻDY alert z recon tracił dzień pomiaru.
+    // Liczymy w ET: do północy ET zostało (24h − timeMinutes); +30 min marginesu.
+    // DST transition (23h/25h dzień): re-parse w następnej iteracji koryguje dryf.
+    const minutesToNextEtDay = 24 * 60 - timeMinutes + 30;
+    d.setTime(d.getTime() + minutesToNextEtDay * 60_000);
   }
 
   // Fallback — zwróć oryginalny czas
