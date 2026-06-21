@@ -44,7 +44,7 @@ const SOURCE_TABLES: Record<string, string[]> = {
   POLYGON: ['options_flow'],
 };
 
-const HIDDEN_COLLECTORS = ['REDDIT', 'STOCKTWITS', 'FINNHUB'];
+const HIDDEN_COLLECTORS = ['REDDIT', 'STOCKTWITS', 'FINNHUB', 'PDUFA_BIO'];
 
 /** Format countdown "2m 35s" lub "35s" */
 const fmtCountdown = (sec: number): string => {
