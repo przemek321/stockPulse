@@ -17,30 +17,18 @@ export class PdufaBioScheduler implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    // Usuń stare repeatable joby (zapobiega duplikatom po restarcie)
+    // WYŁĄCZONY 21.06.2026: pdufa.bio przepisany na Next.js client-side render
+    // (kalendarz /calendar bez <table> w statycznym HTML → scraper 404/PARSER_EMPTY).
+    // Kolektor karmił TYLKO PDUFA boost options flow (wyłączone 10.06) + był obalony
+    // jako sygnał (badanie 09.06: brak run-up przed decyzją FDA). Martwy → cleanup-only
+    // (wzorzec StockTwits/Finnhub/Options). Kod/dane/entity/endpoint zostają — odwracalne
+    // (przywróć add() z git history po ewentualnej naprawie scrapera).
     const existing = await this.queue.getRepeatableJobs();
     for (const job of existing) {
       await this.queue.removeRepeatableByKey(job.key);
     }
+    await this.queue.drain(true); // czyść delayed/waiting (lekcja options: removeRepeatable nie tyka zmaterializowanych)
 
-    // Scraping strony co 6 godzin.
-    // Cron pattern zamiast `every: ms` dla deterministycznego timingu (nie dryfuje od restartu).
-    await this.queue.add(
-      'collect-pdufa-bio',
-      {},
-      {
-        repeat: { pattern: '15 */6 * * *', tz: 'UTC' },
-        removeOnComplete: { count: 10 },
-        removeOnFail: { count: 50 },
-      },
-    );
-
-    // Natychmiastowy pierwszy run po starcie
-    await this.queue.add('collect-pdufa-bio-init', {}, {
-      removeOnComplete: { count: 1 },
-      removeOnFail: { count: 5 },
-    });
-
-    this.logger.log('Zaplanowano scraping PDUFA.bio: CRON 15 */6 * * * UTC (00:15/06:15/12:15/18:15, + natychmiastowy start)');
+    this.logger.warn('PDUFA.bio collector WYŁĄCZONY (21.06.2026 — strona client-rendered, kolektor martwy: options off + sygnał obalony)');
   }
 }

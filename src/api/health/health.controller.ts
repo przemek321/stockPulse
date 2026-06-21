@@ -66,9 +66,10 @@ export class HealthController {
     ]);
 
     const collectors = [stHealth, fhHealth, secHealth, rdHealth, pdufaHealth];
-    // Sprint 11: STOCKTWITS, FINNHUB, REDDIT są wyłączone (placeholder/no edge).
-    // Health check liczy tylko aktywne kolektory.
-    const disabledSources = new Set(['STOCKTWITS', 'FINNHUB', 'REDDIT']);
+    // Sprint 11: STOCKTWITS, FINNHUB, REDDIT wyłączone (placeholder/no edge).
+    // PDUFA_BIO wyłączony 21.06.2026 (strona client-rendered, kolektor martwy — options
+    // off + sygnał obalony). Health check liczy tylko aktywne kolektory (SEC_EDGAR).
+    const disabledSources = new Set(['STOCKTWITS', 'FINNHUB', 'REDDIT', 'PDUFA_BIO']);
     const activeCollectors = collectors.filter((c) => !disabledSources.has(c.source));
     const allHealthy = activeCollectors.every((c) => c.isHealthy);
 
