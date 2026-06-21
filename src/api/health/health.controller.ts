@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
+import { Repository, DataSource, MoreThanOrEqual, Not, In } from 'typeorm';
 import { StocktwitsService } from '../../collectors/stocktwits/stocktwits.service';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
@@ -381,10 +381,13 @@ export class HealthController {
     const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // Ostatnie logi kolektorów (per kolektor: last 5 runs)
-    // Options Flow loguje jako POLYGON w collection_logs (DataSource.POLYGON)
-    const activeCollectors = ['SEC_EDGAR', 'PDUFA_BIO', 'POLYGON'];
-    const disabledCollectors = ['STOCKTWITS', 'FINNHUB', 'REDDIT'];
+    // Ostatnie logi kolektorów (per kolektor: last 5 runs).
+    // POLYGON (options flow) wyłączony 10.06, PDUFA_BIO wyłączony 21.06 — ich
+    // historyczne FAILED-logi nie powinny świecić jako aktywne błędy systemu.
+    const activeCollectors = ['SEC_EDGAR'];
+    const disabledCollectors = ['STOCKTWITS', 'FINNHUB', 'REDDIT', 'PDUFA_BIO', 'POLYGON'];
+    // Klasy serwisów wyłączonych kolektorów — wykluczane z systemErrors (system_logs)
+    const disabledCollectorClasses = ['PdufaBioService', 'OptionsFlowService', 'StocktwitsService', 'FinnhubService', 'RedditService'];
 
     const collectorHealthPromises = activeCollectors.map(async (source) => {
       const logs = await this.logRepo.find({
@@ -411,14 +414,16 @@ export class HealthController {
       };
     });
 
-    // Błędy systemowe (system_logs) z ostatnich 24h
+    // Błędy systemowe (system_logs) z ostatnich 24h — z wykluczeniem wyłączonych
+    // kolektorów (ich stare błędy to nie aktywne problemy; np. PDUFA 404 po wyłączeniu).
     const systemErrors = await this.dataSource.query(`
       SELECT module, class_name, function_name, error_message, duration_ms, created_at
       FROM system_logs
       WHERE status = 'error' AND created_at >= $1
+        AND (class_name IS NULL OR class_name <> ALL($2::text[]))
       ORDER BY created_at DESC
       LIMIT 20
-    `, [last24h]);
+    `, [last24h, disabledCollectorClasses]);
 
     // Statystyki alertów (7d)
     const alertStats = await this.dataSource.query(`
@@ -432,11 +437,12 @@ export class HealthController {
       WHERE "sentAt" >= $2
     `, [last24h, last7d]);
 
-    // BullMQ failed jobs — via collection_logs FAILED w 7d
+    // BullMQ failed jobs — via collection_logs FAILED w 7d (bez wyłączonych kolektorów)
     const failedJobs7d = await this.logRepo.count({
       where: {
         status: 'FAILED' as any,
         startedAt: MoreThanOrEqual(last7d),
+        collector: Not(In(disabledCollectors)) as any,
       },
     });
 
