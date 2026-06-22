@@ -110,7 +110,8 @@ function extractLogMeta(args: any[], result: any): LogMeta {
     if (
       action === 'ALERT_TELEGRAM_FAILED' ||
       action === 'REDIS_ERROR' ||
-      action === 'PARSER_EMPTY'
+      action === 'PARSER_EMPTY' ||
+      action === 'FETCH_TIMEOUT'
     ) {
       meta.level = 'warn';
     } else if (action === 'ERROR') {

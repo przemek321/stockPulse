@@ -280,6 +280,17 @@ export class Form4DiscoveryService {
         if (didRegister) registered++;
       }
       return { collector: 'FORM4_DISCOVERY', entries: entries.length, fresh, registered };
+    } catch (err) {
+      // Transient: timeout fetcha atomu getcurrent (SEC bywa wolny). Samonaprawiające —
+      // następny cykl za 5 min ponawia, accessiony nie są markowane seen → zero utraty.
+      // Warn, nie error (nie powinno flipować health/system-overview). Prawdziwe błędy
+      // (inny name) re-throw → @Logged status='error'.
+      const name = (err as Error)?.name;
+      if (name === 'TimeoutError' || name === 'AbortError') {
+        this.logger.warn(`Discovery poll: fetch timeout (${(err as Error).message}) — retry za 5 min`);
+        return { collector: 'FORM4_DISCOVERY', entries: 0, fresh: 0, registered: 0, action: 'FETCH_TIMEOUT' };
+      }
+      throw err;
     } finally {
       clearTimeout(budgetTimer);
     }
