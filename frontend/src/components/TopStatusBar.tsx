@@ -36,18 +36,29 @@ interface StatusData {
 // ── HELPERS ───────────────────────────────────────────────
 
 /**
- * NYSE sesja: pon-pt, 9:30-16:00 ET (14:30-21:00 UTC).
- * Używa UTC żeby być niezależnym od strefy serwera/przeglądarki.
+ * NYSE sesja: pon-pt, 9:30-16:00 ET. Liczone w strefie America/New_York
+ * przez Intl — DST (EST↔EDT) obsługiwany automatycznie, bez zaszytych
+ * offsetów UTC. Poprzednia wersja zakładała stały EST (14:30-21:00 UTC) i
+ * przez cały czas letni myliła się o 1h: 9:30-10:30 ET pokazywała CLOSED,
+ * 16:00-17:00 OPEN. Mirror logiki backendu `src/common/utils/market-hours.util.ts`.
+ * Uwaga: chip nie filtruje świąt NYSE (~9 dni/rok) — czysto kosmetyczne,
+ * realny pomiar outcome filtruje święta po stronie backendu (isNyseHoliday).
  */
 const getNyseStatus = (): { label: 'OPEN' | 'CLOSED'; color: string } => {
-  const now = new Date();
-  const dow = now.getUTCDay(); // 0=nd, 6=sob
-  if (dow === 0 || dow === 6) return { label: 'CLOSED', color: COLORS.down };
-  const minsUtc = now.getUTCHours() * 60 + now.getUTCMinutes();
-  // 14:30 UTC = 870, 21:00 UTC = 1260 (standard time; ignorujemy DST dla uproszczenia)
-  const open = 14 * 60 + 30;
-  const close = 21 * 60;
-  const inSession = minsUtc >= open && minsUtc < close;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  const weekday = get('weekday'); // Mon..Sun
+  if (weekday === 'Sat' || weekday === 'Sun') return { label: 'CLOSED', color: COLORS.down };
+  const hour = parseInt(get('hour'), 10) % 24; // 24→0 (quirk północy en-US locale)
+  const minute = parseInt(get('minute'), 10);
+  const mins = hour * 60 + minute;
+  const inSession = mins >= 9 * 60 + 30 && mins < 16 * 60; // 9:30-16:00 ET
   return {
     label: inSession ? 'OPEN' : 'CLOSED',
     color: inSession ? COLORS.up : COLORS.down,
