@@ -37,6 +37,22 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
 fi
 
+# 1.5 Czekaj na synchronizacje zegara (NTP).
+#     RTC Jetsona wraca do 1970 po reboocie (brak podtrzymania bateryjnego) —
+#     bez tego kontenery startuja z data 1970: "Up 56 years" w docker ps,
+#     overflow duration_ms w system_logs, stemple 1970 w raporcie 8h.
+log "Czekam na synchronizacje zegara (NTP)... (RTC: $(cat /sys/class/rtc/rtc0/date 2>/dev/null) $(cat /sys/class/rtc/rtc0/time 2>/dev/null))"
+for i in $(seq 1 30); do
+    if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = "yes" ]; then
+        log "Zegar zsynchronizowany (po $((i*2))s): $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+        break
+    fi
+    sleep 2
+done
+if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ]; then
+    log "OSTRZEZENIE: zegar NIE zsynchronizowany po 60s — start mimo to (czas moze byc bledny)"
+fi
+
 # 2. Git pull
 cd "$REPO_DIR" || exit 1
 GIT_OUTPUT=$(git pull 2>&1)
