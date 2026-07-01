@@ -303,8 +303,9 @@ describe('Form4Pipeline — C-suite whitelist (Sprint 16b)', () => {
     expect(isCsuiteRole('')).toBe(false);
   });
 
-  it('match by insiderName fallback → true', () => {
-    expect(isCsuiteRole(null, 'Jane Doe, CEO')).toBe(true);
+  it('Harvard hole zamknięty (02.07.2026): rola-only, nazwa insidera nie jest matchowana', () => {
+    // Entity 10% owner z „President"/„CSO" w nazwie nie może wejść do kohorty C-suite BUY.
+    expect(isCsuiteRole('10% Owner')).toBe(false);
   });
 });
 
@@ -473,11 +474,10 @@ describe('Form4Pipeline — SKIP_NON_ROLE_SELL hard skip (TASK-02, 22.04.2026)',
   const shouldSkipNonRoleSell = (
     role: string | null,
     txType: string,
-    insiderName?: string,
   ): boolean => {
     return (
       txType === 'SELL' &&
-      !isCsuiteRole(role, insiderName) &&
+      !isCsuiteRole(role) &&
       !isDirectorRole(role)
     );
   };
@@ -542,8 +542,8 @@ describe('Form4Pipeline — SKIP_NON_ROLE_SELL hard skip (TASK-02, 22.04.2026)',
     expect(shouldSkipNonRoleSell(null, 'BUY')).toBe(false);
   });
 
-  it('Match przez insiderName fallback (CEO w nazwisku) SELL → NIE skip', () => {
-    expect(shouldSkipNonRoleSell(null, 'SELL', 'Jane Doe, CEO')).toBe(false);
+  it('Entity 10% Owner SELL (np. uczelnia z "President" w nazwie) → skip (rola-only od 02.07.2026)', () => {
+    expect(shouldSkipNonRoleSell('10% Owner', 'SELL')).toBe(true);
   });
 });
 

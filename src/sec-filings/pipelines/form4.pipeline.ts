@@ -47,9 +47,12 @@ export const C_SUITE_PATTERNS: readonly RegExp[] = [
   /\bPrincipal\s+(Financial|Accounting)\s+Officer\b/i,
 ];
 
-export function isCsuiteRole(role: string | null | undefined, name?: string): boolean {
+export function isCsuiteRole(role: string | null | undefined): boolean {
+  // Rola-only, bez fallbacku na nazwę insidera („Harvard hole", zamknięty 02.07.2026):
+  // entity 10% owner z „President"/„CSO" w NAZWIE (uczelnie/fundusze w biotechach)
+  // matchował wzorce i wchodził do kohorty C-suite BUY (boost ×1.3 + floor HIGH).
   const target = role ?? '';
-  return C_SUITE_PATTERNS.some(p => p.test(target) || (name ? p.test(name) : false));
+  return C_SUITE_PATTERNS.some(p => p.test(target));
 }
 
 /**
@@ -228,7 +231,7 @@ export class Form4Pipeline {
     // 10% Owner też trafia tu (żadna hipoteza H1-H6 nie testowała — zostaje w skip).
     if (
       payload.transactionType === 'SELL' &&
-      !isCsuiteRole(role, payload.insiderName) &&
+      !isCsuiteRole(role) &&
       !isDirector
     ) {
       this.logger.debug(
@@ -426,7 +429,7 @@ export class Form4Pipeline {
         }
       }
 
-      const isCsuite = isCsuiteRole(parsed.insiderRole, parsed.insiderName);
+      const isCsuite = isCsuiteRole(parsed.insiderRole);
       const isBuy = parsed.transactionType === 'BUY';
 
       // BUY conviction boosty — backtest-backed (Sprint 15 + V4 calibration):
