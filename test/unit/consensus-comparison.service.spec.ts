@@ -42,6 +42,10 @@ describe('ConsensusComparisonService — happy path PODD replay', () => {
   });
 
   it('PODD Q1 2026: Finnhub EPS + Alpha Vantage revenue → wypełnione pola', async () => {
+    // Daty forward względne do zegara — forward-only filter odrzuca kwartały <= dziś,
+    // więc zaszyta data wygasa z kalendarzem (fixture '2026-06-30' padł 01.07.2026).
+    const forwardQ = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    const forwardFY = new Date(Date.now() + 180 * 86400_000).toISOString().slice(0, 10);
     global.fetch = jest.fn().mockImplementation(async (url: string) => {
       if (url.includes('finnhub.io')) {
         return {
@@ -59,14 +63,14 @@ describe('ConsensusComparisonService — happy path PODD replay', () => {
             symbol: 'PODD',
             estimates: [
               {
-                date: '2026-06-30',
+                date: forwardQ,
                 horizon: 'fiscal quarter',
                 eps_estimate_average: '1.4392',
                 revenue_estimate_average: '789330720.00',
                 revenue_estimate_analyst_count: '23.00',
               },
               {
-                date: '2026-12-31',
+                date: forwardFY,
                 horizon: 'fiscal year',
                 revenue_estimate_average: '3303722320.00',
               },
@@ -105,6 +109,7 @@ describe('ConsensusComparisonService — graceful degradation', () => {
   });
 
   it('Finnhub HTTP 500 + Alpha Vantage OK → revenue nadal działa', async () => {
+    const forwardQ = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
     global.fetch = jest.fn().mockImplementation(async (url: string) => {
       if (url.includes('finnhub.io')) {
         return { ok: false, status: 500 };
@@ -115,7 +120,7 @@ describe('ConsensusComparisonService — graceful degradation', () => {
           symbol: 'TEST',
           estimates: [
             {
-              date: '2026-06-30',
+              date: forwardQ,
               horizon: 'fiscal quarter',
               revenue_estimate_average: '100000000',
               revenue_estimate_analyst_count: '10',
@@ -210,6 +215,9 @@ describe('ConsensusComparisonService — graceful degradation', () => {
     // Trigger live test 06.05.2026: bez forward-only filter pierwszy quarter
     // ASC był 2017-Q2 ($106M, kiedy PODD była 8x mniejszą firmą). Forward filter
     // gwarantuje że bierzemy NEXT fiscal quarter.
+    const forwardQ1 = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    const forwardQ2 = new Date(Date.now() + 120 * 86400_000).toISOString().slice(0, 10);
+    const forwardFY = new Date(Date.now() + 180 * 86400_000).toISOString().slice(0, 10);
     global.fetch = jest.fn().mockImplementation(async (url: string) => {
       if (url.includes('finnhub.io')) {
         return {
@@ -226,10 +234,10 @@ describe('ConsensusComparisonService — graceful degradation', () => {
             { date: '2017-06-30', horizon: 'fiscal quarter', revenue_estimate_average: '106170000' },
             { date: '2025-12-31', horizon: 'fiscal quarter', revenue_estimate_average: '755000000' },
             // Forward
-            { date: '2026-06-30', horizon: 'fiscal quarter', revenue_estimate_average: '789330720', revenue_estimate_analyst_count: '20' },
-            { date: '2026-09-30', horizon: 'fiscal quarter', revenue_estimate_average: '820000000' },
+            { date: forwardQ1, horizon: 'fiscal quarter', revenue_estimate_average: '789330720', revenue_estimate_analyst_count: '20' },
+            { date: forwardQ2, horizon: 'fiscal quarter', revenue_estimate_average: '820000000' },
             // Fiscal year (powinno być pominięte)
-            { date: '2026-12-31', horizon: 'fiscal year', revenue_estimate_average: '3303722320' },
+            { date: forwardFY, horizon: 'fiscal year', revenue_estimate_average: '3303722320' },
           ],
         }),
       };
@@ -240,7 +248,7 @@ describe('ConsensusComparisonService — graceful degradation', () => {
     );
     const result = await svc.fetchAndCompare('PODD', PODD_REPORT_TEXT);
 
-    // Bierze najbliższy forward fiscal quarter = 2026-06-30 ($789M), NIE 2017-Q2 ($106M)
+    // Bierze najbliższy forward fiscal quarter ($789M), NIE 2017-Q2 ($106M)
     expect(result.revenueEstimate).toBe(789_330_720);
     expect(result.analystCount).toBe(20);
     // Period przyjmuje wartość z Finnhub (raportowany Q) — Alpha Vantage period
