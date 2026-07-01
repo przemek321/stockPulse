@@ -26,7 +26,9 @@ decyzyjny (przypominany w raporcie 8h, `VALIDATION_CALENDAR` w summary-scheduler
 | ~01.09 | Werdykt „czy system ma edge" (~20-30 alertów z 7d) |
 | 07.09 | Bullish-8K gate revisit (90d) |
 
-Pierwsze obserwacje w toku: EYE, SMMT (discovery) + 6 APLS — alerty DB-only, mierzone, NIE na Telegram.
+Pierwsze obserwacje w toku: EYE, SMMT, COR (discovery) + 6 APLS — alerty DB-only, mierzone, NIE na
+Telegram. Wiążące definicje metryk (hit=raw, alpha osobno) pre-zarejestrowane 02.07 w
+[KALENDARZU](doc/KALENDARZ-WALIDACJI-2026.md).
 
 ## Opis projektu
 
@@ -69,8 +71,10 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   stagger +2 min vs core :05/:35) + nightly reconciliation daily-index 22:40 ET. Pre-filter:
   SIC healthcare/biotech → discretionary BUY ≥$500K C-suite/Director (role-only) → mcap ≥$250M
   + ADV ≥$1M → auto-rejestracja `sector='healthcare_discovery'`, observation mode.
-- **PDUFA.bio** co 6h (`15 */6 * * *` UTC) — kalendarz FDA. `action='PARSER_EMPTY'` gdy parser
-  zwróci 0 mimo HTTP OK → warn.
+- **PDUFA.bio** — **WYŁĄCZONY 21.06** (c65a7cb): upstream przepisany na client-side render →
+  HTTP 404 dla scrapera. Dane `pdufa_catalysts` nieodświeżane od 19.06 (ostatnia przyszła
+  data: VERA 07.07 — potem sekcja PDUFA w raporcie 8h pusta). Decyzja do podjęcia:
+  nowy parser (headless/API) albo sunset.
 - **WYŁĄCZONE**: Options Flow (CRON off 10.06 — 6h zombie cycle/dzień, noga korelacyjna
   redundantna; kod/dane/API zostają, odwracalne. Scoring uśpiony, przy re-enable pamiętaj:
   **spike ratio >1000 → suspicious, conviction ×0.5** anomalia Polygona; PDUFA boost ×1.3 gdy
@@ -84,7 +88,10 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   udokumentowany inline): plan 10b5-1 → skip; pure Director SELL → `SKIP_DIRECTOR_SELL`;
   non-role SELL → `SKIP_NON_ROLE_SELL`; observation ticker → skip PRZED GPT (wyjątek:
   `biotech_apls` + `healthcare_discovery` przechodzą przez GPT, BUY-only ≥$500K, dispatch
-  DB-only observation, storeSignal skip na sektorze); C-suite SELL → `csuite_sell_no_edge`.
+  DB-only observation, storeSignal skip na sektorze; `semi_supply_chain` = skip PRZED GPT
+  **bez wiersza w alerts** — ta kohorta nie gromadzi danych obserwacyjnych); KAŻDY SELL
+  (w tym C-suite) → `sell_no_edge` (enum `csuite_sell_no_edge` jest martwy — flaga
+  `isCsuiteSellObservation` w dispatcherze nie ma settera; audyt 02.07).
   **BUY boosty** (backtest-backed): C-suite ×1.3 / Director ×1.15, healthcare/apls/discovery ×1.2,
   apls strict ×1.1. Floor priority MEDIUM dla Director BUY ≥$100K (GPT nie wetuje). Multi-tx
   aggregation (TASK-03). `sell_no_edge` → SKIP storeSignal (correlation backdoor FIX-07).
@@ -93,11 +100,13 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   injection + gap guard (FIX-12), missing-data guard (FIX-01), FIX-16 shadow, **bullish gate**
   (P1-02: bullish poza udokumentowanym beatem 2.02-R4 → observation). Limit tekstu `MAX_TEXT_LENGTH`=50k,
   daily cap **20 GPT/ticker/dzień** (`DailyCapService`).
-- **CorrelationService** — 3 wzorce z oknami: INSIDER_CLUSTER (2+ Form 4 w **7d**, SELL only —
-  BUY disabled TASK-09), INSIDER_PLUS_8K (insider+8-K w **24h**), INSIDER_PLUS_OPTIONS
-  (insider+opcje w **120h/5d**, martwy po options off). Redis Sorted Sets, progi
-  `MIN_CONVICTION=0.05` / `MIN_CORRELATED_CONVICTION=0.20`. `detectDirectionConflict` (FIX-05).
-  PATTERN_THROTTLE 72h dla 8K/OPTIONS.
+- **CorrelationService** — 3 wzorce z oknami (audyt 02.07: wszystkie de facto MARTWE —
+  cisza korelacji to artefakt architektury, nie throttle): INSIDER_CLUSTER strukturalnie
+  martwy (BUY disabled TASK-09, a SELL nie zasila Redis od FIX-07 — detektor nigdy nie ma
+  2 sygnałów); INSIDER_PLUS_8K ~martwy (okno **24h** liczone po czasie INGESTII w storeSignal,
+  a mediana latencji Form 4 = 69h); INSIDER_PLUS_OPTIONS martwy po options off (**120h/5d**).
+  Redis Sorted Sets, progi `MIN_CONVICTION=0.05` / `MIN_CORRELATED_CONVICTION=0.20`.
+  `detectDirectionConflict` (FIX-05). PATTERN_THROTTLE 72h dla 8K/OPTIONS.
 - **AlertDispatcherService** (`src/alerts/alert-dispatcher.service.ts`) — centralny dispatch,
   `@Logged('alerts')`. **Priority order suppression**: observation > gpt_missing_data >
   consensus_* > bullish_8k > direction_conflict > sell_no_edge > csuite_sell_no_edge >
@@ -137,17 +146,17 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 - **Healthcare** (core, delivery): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — 28 zwalidowanych tickerów.
 - **biotech_apls** (observation): 6 tickerów (URGN/ARDX/MNKD/CRSP/AXSM/RCKT), [doc/stockpulse-biotech-apls.json](doc/stockpulse-biotech-apls.json).
 - **semi_supply_chain** (observation): 14 tickerów, [doc/stockpulse-semi-supply-chain.json](doc/stockpulse-semi-supply-chain.json).
-- **healthcare_discovery** (observation, auto-rejestracja Pakiet 2): rośnie z rynku (EYE, SMMT...).
+- **healthcare_discovery** (observation, auto-rejestracja Pakiet 2): rośnie z rynku (EYE, SMMT, COR...).
 
 ## Ważne konwencje danych (PUŁAPKI — czytaj przed pisaniem kodu)
 
 - **insider_trades.transactionType**: pełne słowa (`SELL`, `BUY`, `EXERCISE`, `TAX`, `GRANT`, `OTHER`), NIE kody SEC (`P`, `S`). Zawsze filtruj po pełnych słowach.
 - **insider_trades.is10b51Plan**: `true` = plan (szum, skip), `false` = discretionary (sygnał). Źródło prawdy: **doc-level `<aff10b5One>`** w XML (NIE per-transaction tag — ten nie występuje w realnych filingach; fix P1-00 09.06).
-- **C-suite detection** (`isCsuiteRole`): whitelist CEO/CFO/COO/CTO/CMO/CSO/CLO/CIO + President/Chairman/EVP — **role-only** w pre-filtrach (drugi arg `name` matchowałby wzorce na nazwie entity — „Harvard hole").
+- **C-suite detection** (`isCsuiteRole`): whitelist CEO/CFO/COO/CTO/CMO/CSO/CLO/CIO + President/Chairman/EVP — **role-only WSZĘDZIE**; parametr `name` usunięty 02.07.2026 („Harvard hole": entity z „President"/„CSO" w nazwie matchowało wzorce; ścieżka boost BUY miała tę dziurę do 02.07 — starsze alerty mogą nosić skażony priorytet, atrybucję ról w analizach licz z `insider_trades.insiderRole`).
 - **priceAtAlert**: zapisywany dla WSZYSTKICH alertów, **PRZED dispatch** (cena wejścia w Telegramie).
 - **tickers.sector**: `healthcare` / `biotech_apls` / `healthcare_discovery` / `semi_supply_chain`. Healthcare-class → boost ×1.2.
-- **tickers.observationOnly**: `true` = alert do DB, NIE na Telegram. Gate w Form4/Form8k/AlertEvaluator/Correlation.
-- **alerts.nonDeliveryReason**: `observation` / `gpt_missing_data` / `consensus_*` / `bullish_8k_no_edge` / `bullish_no_consensus_data` / `direction_conflict` / `sell_no_edge` / `csuite_sell_no_edge` / `cluster_sell_no_edge` / `daily_limit` / `telegram_failed` / `null`. Krytyczne dla forward analysis.
+- **tickers.observationOnly**: `true` = alert do DB, NIE na Telegram. Gate w Form4/Form8k/AlertEvaluator/Correlation. WYJĄTEK: `semi_supply_chain` skipowany PRZED GPT bez wiersza w alerts — obserwacja bez danych (apls/discovery mają alerty DB-only).
+- **alerts.nonDeliveryReason**: `observation` / `gpt_missing_data` / `consensus_*` / `bullish_8k_no_edge` / `bullish_no_consensus_data` / `direction_conflict` / `sell_no_edge` / `csuite_sell_no_edge` (martwy — nigdy nie występuje, patrz Form4Pipeline) / `cluster_sell_no_edge` / `daily_limit` / `telegram_failed` / `null`. Krytyczne dla forward analysis. PUŁAPKA: priorytet suppression maskuje powody — byczy 8-K z missing-data ląduje w `gpt_missing_data`, nie `bullish_*`; w analizach gate'ów filtruj też po `alertDirection`.
 - **Sektorowa alpha**: surowy priceChange miesza edge alertu z beta biotechu — uczciwa metryka to `xbiAlpha`/`ibbAlpha` (vs XBI, fallback IBB).
 - **Pomiar outcome na 7d** (nie 3d) — backtest pokazuje edge na 7d, 3d zaniża.
 
