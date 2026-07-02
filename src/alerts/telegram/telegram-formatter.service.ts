@@ -244,6 +244,12 @@ export class TelegramFormatterService {
     priority: string;
     /** Pakiet 1 fix #5: cena w momencie alertu (captureAlertSnapshot PRZED dispatch) */
     entryPrice?: number | null;
+    /**
+     * Reguły gry real (doc/REGULY-GRY-REAL-2026-07-02.md): true TYLKO dla ścieżki,
+     * która realnie dostarcza na Telegram (rule 'Form 4 Insider BUY' + ticker poza
+     * obserwacją) — alerty DB-only nie mogą nosić znacznika 🎯 (lekcja ping COR 02.07).
+     */
+    qualifiesRealRules?: boolean;
   }): string {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.analysis.conviction > 0 ? '🟢' : '🔴';
@@ -285,6 +291,16 @@ export class TelegramFormatterService {
         entryPrice: data.entryPrice,
       }),
     );
+    if (data.qualifiesRealRules) {
+      // Chase guard +3% z reguł gry real — powyżej tej ceny sygnał odpuszczamy.
+      const maxEntry =
+        data.entryPrice != null
+          ? `max wejście ${this.escapeMarkdown(`$${(data.entryPrice * 1.03).toFixed(2)}`)} \\(chase \\+3%\\), `
+          : '';
+      lines.push(
+        `🎯 *KWALIFIKUJE wg reguł gry real* — ${maxEntry}pozycja 2\\-2\\.4k PLN, wyjście 7d`,
+      );
+    }
     lines.push(`⏰ ${timestamp}`);
 
     return lines.join('\n');

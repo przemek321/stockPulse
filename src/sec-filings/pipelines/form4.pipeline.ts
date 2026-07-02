@@ -524,6 +524,10 @@ export class Form4Pipeline {
         analysis,
         priority,
         entryPrice: snapshot.priceAtAlert,
+        // Reguły gry real (doc/REGULY-GRY-REAL-2026-07-02.md): znacznik 🎯 wyłącznie
+        // dla BUY, które faktycznie pójdzie na Telegram — observation zostaje bez tagu.
+        qualifiesRealRules:
+          isBuy && rule.name === 'Form 4 Insider BUY' && ticker?.observationOnly !== true,
       });
 
       // TASK-01: centralized dispatch via AlertDispatcherService.

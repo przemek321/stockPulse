@@ -154,4 +154,60 @@ describe('Telegram actionable (Pakiet 1 fix #5)', () => {
       expect(msg).not.toContain('Wejście');
     });
   });
+
+  describe('znacznik 🎯 reguł gry real (doc/REGULY-GRY-REAL-2026-07-02.md)', () => {
+    const analysis = {
+      price_impact: { direction: 'positive', magnitude: 'medium', confidence: 0.8 },
+      conviction: 1.1,
+      summary: 'Insider BUY',
+      conclusion: 'Silny sygnał.',
+      key_facts: ['BUY $497K'],
+      catalyst_type: 'insider_buy',
+    };
+    const base = {
+      symbol: 'PODD',
+      companyName: 'Insulet',
+      insiderName: 'Weatherman Elizabeth',
+      insiderRole: 'Director',
+      transactionType: 'BUY',
+      totalValue: 496_960,
+      shares: 1_600,
+      is10b51Plan: false,
+      sharesOwnedAfter: 12_000,
+      analysis,
+      priority: 'MEDIUM' as const,
+    };
+
+    it('qualifiesRealRules + entryPrice → tag z max wejściem (chase +3%)', () => {
+      const msg = formatter.formatForm4GptAlert({
+        ...base,
+        entryPrice: 310.6,
+        qualifiesRealRules: true,
+      });
+      expect(msg).toContain('KWALIFIKUJE wg reguł gry real');
+      // 310.60 * 1.03 = 319.918 → $319.92
+      expect(msg).toContain('$319\\.92');
+      expect(msg).toContain('wyjście 7d');
+    });
+
+    it('qualifiesRealRules bez entryPrice → tag bez segmentu max wejścia', () => {
+      const msg = formatter.formatForm4GptAlert({
+        ...base,
+        qualifiesRealRules: true,
+      });
+      expect(msg).toContain('KWALIFIKUJE wg reguł gry real');
+      expect(msg).not.toContain('max wejście');
+    });
+
+    it('brak flagi (observation/SELL/domyślnie) → ZERO znacznika', () => {
+      const noFlag = formatter.formatForm4GptAlert({ ...base, entryPrice: 310.6 });
+      const flagFalse = formatter.formatForm4GptAlert({
+        ...base,
+        entryPrice: 310.6,
+        qualifiesRealRules: false,
+      });
+      expect(noFlag).not.toContain('KWALIFIKUJE');
+      expect(flagFalse).not.toContain('KWALIFIKUJE');
+    });
+  });
 });
