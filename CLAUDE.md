@@ -150,7 +150,7 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 
 ## Ważne konwencje danych (PUŁAPKI — czytaj przed pisaniem kodu)
 
-- **insider_trades.transactionType**: pełne słowa (`SELL`, `BUY`, `EXERCISE`, `TAX`, `GRANT`, `OTHER`), NIE kody SEC (`P`, `S`). Zawsze filtruj po pełnych słowach.
+- **insider_trades.transactionType**: pełne słowa (`SELL`, `BUY`, `EXERCISE`, `TAX`, `GRANT`, `GIFT`, `OTHER`), NIE kody SEC (`P`, `S`). Zawsze filtruj po pełnych słowach. (`GIFT` pierwszy raz 03.07.2026 — MU.)
 - **insider_trades.is10b51Plan**: `true` = plan (szum, skip), `false` = discretionary (sygnał). Źródło prawdy: **doc-level `<aff10b5One>`** w XML (NIE per-transaction tag — ten nie występuje w realnych filingach; fix P1-00 09.06).
 - **C-suite detection** (`isCsuiteRole`): whitelist CEO/CFO/COO/CTO/CMO/CSO/CLO/CIO + President/Chairman/EVP — **role-only WSZĘDZIE**; parametr `name` usunięty 02.07.2026 („Harvard hole": entity z „President"/„CSO" w nazwie matchowało wzorce; ścieżka boost BUY miała tę dziurę do 02.07 — starsze alerty mogą nosić skażony priorytet, atrybucję ról w analizach licz z `insider_trades.insiderRole`).
 - **priceAtAlert**: zapisywany dla WSZYSTKICH alertów, **PRZED dispatch** (cena wejścia w Telegramie).
