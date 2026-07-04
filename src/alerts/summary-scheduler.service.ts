@@ -5,6 +5,7 @@ import { Alert, InsiderTrade } from '../entities';
 import { TelegramService } from './telegram/telegram.service';
 import { TelegramFormatterService } from './telegram/telegram-formatter.service';
 import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
+import { SystemLogService } from '../system-log/system-log.service';
 
 /**
  * Raport statusu systemu wysyłany na Telegram co 8 godzin.
@@ -168,6 +169,19 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`Raport 8h wysłany (${totalAlerts} alertów)`);
       } else {
         this.logger.error('TELEGRAM FAILED: raport 8h nie wysłany');
+        // Tier 1: porażka wysyłki musi trafić do system_logs — TelegramService
+        // zwraca false zamiast rzucać, więc @Logged widzi sukces (02-05.07 raport
+        // padał 3 dni niewidocznie dla observability; błąd był tylko w konsoli).
+        SystemLogService.getInstance()?.log({
+          module: 'alerts',
+          className: 'SummarySchedulerService',
+          functionName: 'sendSummary',
+          status: 'error',
+          durationMs: 0,
+          level: 'error',
+          errorMessage: 'TELEGRAM FAILED: raport 8h nie wysłany (sendMarkdown=false)',
+          decisionReason: 'telegram_failed',
+        });
       }
     } catch (error) {
       this.logger.error(
@@ -270,7 +284,9 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       lines.push('🔭 *Nowe obserwacje:*');
       for (const o of obsAlerts.slice(0, 6)) {
         const price = o.price != null ? ` @ $${esc(Number(o.price).toFixed(2))}` : '';
-        const sector = o.sector ? ` \[${esc(o.sector)}\]` : '';
+        // MarkdownV2: w template literal musi być \\[ — pojedynczy \[ JS redukuje
+        // do gołego '[', a Telegram odrzuca całą wiadomość (bug klasy 05.07.2026).
+        const sector = o.sector ? ` \\[${esc(o.sector)}\\]` : '';
         lines.push(`  • ${esc(o.symbol)}${sector} ${esc(o.rule)} ${esc(o.priority)}${price}`);
       }
       if (obsAlerts.length > 6) {
@@ -289,7 +305,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
           : e.daysLeft === 0
             ? '🔴 DZIŚ'
             : `za ${esc(String(e.daysLeft))}d`;
-        lines.push(`  • ${esc(e.date)} \(${when}\): ${esc(e.label)}`);
+        lines.push(`  • ${esc(e.date)} \\(${when}\\): ${esc(e.label)}`);
       }
     }
 

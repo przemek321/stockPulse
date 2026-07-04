@@ -292,3 +292,44 @@ describe('sendSummary — sekcja Nowe obserwacje (10.06.2026)', () => {
     expect(msg).toContain('3 więcej');
   });
 });
+
+// ── Inwariant MarkdownV2 (05.07.2026) ─────────────────────────────
+// Regres: 02-05.07 raport 8h padał w 100% ("can't parse entities: Character '('"),
+// bo `\(` w template literal to gołe '(' — JS zjada pojedynczy backslash.
+// Bug ujawnił się dopiero, gdy sekcja kalendarza weszła w okno 7d przed 09.07.
+describe('sendSummary — inwariant escapowania MarkdownV2 (05.07.2026)', () => {
+  it('pełny raport (obserwacje + kalendarz) nie zawiera nieescapowanych znaków specjalnych', async () => {
+    // Fake time wymusza render sekcji kalendarza. UWAGA: data musi trafiać w okno
+    // ≤7d któregoś wpisu VALIDATION_CALENDAR — po usunięciu wpisów 07.2026 z kalendarza
+    // przesuń ją pod kolejny termin (test produkcyjnego kalendarza: linia ~230).
+    jest.useFakeTimers({ now: new Date('2026-07-06T12:00:00Z') });
+    try {
+      const { scheduler, telegram } = buildScheduler({
+        alertsByRule: [{ rule: 'Form 4 Insider BUY', count: '2', delivered: '1' }],
+        reasons: [{ reason: 'observation', count: '1' }],
+        trades: [{ type: 'BUY', count: '2', totalValue: '1250322' }],
+        obsAlerts: [{
+          symbol: 'COR',
+          rule: 'Form 4 Insider BUY',
+          priority: 'MEDIUM',
+          price: '271.28',
+          sector: 'healthcare_discovery',
+        }],
+      });
+
+      await scheduler.sendSummary();
+
+      const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+      // Sekcje-wyzwalacze obu historycznych instancji buga muszą być obecne:
+      expect(msg).toContain('Kalendarz walidacji');
+      expect(msg).toContain('Nowe obserwacje');
+      // Inwariant: każdy znak specjalny MarkdownV2 musi być poprzedzony backslashem —
+      // Telegram odrzuca CAŁĄ wiadomość za jeden. Wyjątki: '*' (bold) i '_' (kursywa
+      // "_Niedostarczone:_") to celowe formatowanie; dane przechodzą przez esc().
+      const offenders = msg.match(/(?<!\\)[()\[\]~`>#+=|{}.!-]/g) ?? [];
+      expect(offenders).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
