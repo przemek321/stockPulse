@@ -213,6 +213,7 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
     <>
       <Box
         onClick={onToggle}
+        title={a.nonDeliveryReason ? `Alert stłumiony (${nonDeliveryLabelShort(a.nonDeliveryReason)}) — pomiar walidacyjny, NIE sygnał` : undefined}
         sx={{
           display: 'flex',
           minWidth: TOTAL_WIDTH,
@@ -221,6 +222,13 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
           cursor: 'pointer',
           transition: 'background-color 0.1s',
           '&:hover': { bgcolor: COLORS.bg.cellHover },
+          // Alerty stłumione (observation/gpt_missing_data/...) = pomiar, nie sygnał —
+          // wyszarzone, żeby nie wyglądały jak przegrane sygnały (case SEM 06.07.2026).
+          ...(a.nonDeliveryReason && {
+            opacity: 0.45,
+            filter: 'saturate(0.4)',
+            '&:hover': { bgcolor: COLORS.bg.cellHover, opacity: 0.8 },
+          }),
         }}
       >
         {/* STATUS — pasek koloru */}
