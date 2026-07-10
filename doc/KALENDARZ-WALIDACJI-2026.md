@@ -25,7 +25,13 @@ Ustalone po audycie 02.07 (workflow edge-analysis), bo na danych z czerwca sama 
 - **Za mało danych ≠ fail**: przy N poniżej progu gate'u werdykt brzmi „insufficient N"
   i przesuwamy przegląd — nie forsujemy decyzji (anty-wzorzec, który FIX-16 miał wyeliminować).
 
-## 2026-07-09 — APLS Faza 4 review
+## ~~2026-07-09 — APLS Faza 4 review~~ ✅ WYKONANY 10.07 — INSUFFICIENT DATA
+
+**Werdykt** ([APLS-FAZA-4-REVIEW-2026-07-10.md](APLS-FAZA-4-REVIEW-2026-07-10.md)): 0 BUY od
+seedu (brak podaży sygnału w rajdzie XBI, nie brak edge) → okno przedłużone do werdyktu 01.09,
+licznik gate'u od pierwszego BUY. Wpis zdjęty z VALIDATION_CALENDAR.
+
+<details><summary>Oryginalny zapis gate'u</summary>
 
 - **Co**: ocena okna obserwacyjnego 6 tickerów `biotech_apls` (URGN/ARDX/MNKD/CRSP/AXSM/RCKT), seed 09.06.
 - **Gate**: ≥6 BUY events, hit rate 7d ≥60%, median XBI-alpha ≥+2%.
@@ -37,6 +43,8 @@ Ustalone po audycie 02.07 (workflow edge-analysis), bo na danych z czerwca sama 
   To brak PODAŻY sygnału, nie brak edge. Rekomendacja na 09.07: **przedłużenie okna** (np. do
   werdyktu 01.09) + liczyć okno od PIERWSZEGO BUY, nie od daty seedu. Wniosek „brak edge"
   na zerowej próbce byłby błędny.
+
+</details>
 
 ## 2026-07-25 — przegląd okna obs discovery (Pakiet 2)
 
@@ -89,6 +97,10 @@ Ustalone po audycie 02.07 (workflow edge-analysis), bo na danych z czerwca sama 
   vs ABBV 22.06 wycięty katalizator M&A (raw **+16.1%**, α +5.4%) — 1:1. Tagować po
   `catalyst_type`: hipoteza, że gate projektowany pod earnings-hype nie powinien łapać `ma`
   (decyzja przy N≥3 dla tej kategorii).
+- **Update 10.07**: SEM #2441 (byczy 8-K przez `gpt_missing_data` — klasa maskowana!) 7d:
+  raw 0.00%, α **−3.8%** → tłumienie zasadne. VRTX #2442 (07.07, `bullish_8k_no_edge`) —
+  trzeci przypadek wprost, 7d ~14.07. Bilans gate'ów tłumiących bullish: 2 zasadne
+  (MOH, SEM) / 1 kosztowny (ABBV M&A) / 1 w toku (VRTX).
 - **Kontekst**: [PLAN-EDGE-IMPROVEMENTS-2026-06-09.md](PLAN-EDGE-IMPROVEMENTS-2026-06-09.md) §2.P1, commit `44732fc`.
 
 ## Wcześniejsze gate'y (dla porządku)

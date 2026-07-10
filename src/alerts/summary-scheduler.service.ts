@@ -21,7 +21,8 @@ import { SystemLogService } from '../system-log/system-log.service';
  * Po wykonaniu przeglądu — usuń wpis z tej tablicy.
  */
 export const VALIDATION_CALENDAR: ReadonlyArray<{ date: string; label: string }> = [
-  { date: '2026-07-09', label: 'APLS Faza 4 review (≥6 BUY, hit 7d ≥60%, alpha ≥+2%)' },
+  // 2026-07-09 APLS Faza 4: WYKONANY 10.07 — insufficient data (0 BUY od seedu),
+  // okno przedłużone do werdyktu 01.09; doc/APLS-FAZA-4-REVIEW-2026-07-10.md.
   { date: '2026-07-25', label: 'Przegląd okna obs discovery → decyzja delivery top-N' },
   { date: '2026-08-25', label: 'FIX-16 shadow review (N≥3 would_uncap) → decyzja deploy' },
   { date: '2026-09-01', label: 'Werdykt "czy system ma edge" (forward 7d, ~20-30 alertów)' },
