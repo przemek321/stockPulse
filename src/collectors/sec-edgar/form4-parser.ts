@@ -246,7 +246,18 @@ function mergeOwnerRoles(owners: any[]): { name: string; role: string | null } {
     ? `${primaryName} (co-filing z ${extraNames.join(', ')})`
     : primaryName;
 
-  return { name: displayName, role: combinedRole };
+  // Limity kolumn DB (insiderName 255, insiderRole 100) — co-filingi funduszy
+  // potrafią skleić >255 znaków; bez przycięcia INSERT pada i trade przepada
+  // (DATA GAP CBIO/ARTV/PBLS 20-22.07.2026).
+  return {
+    name: truncateForColumn(displayName, 255),
+    role: combinedRole ? truncateForColumn(combinedRole, 100) : null,
+  };
+}
+
+/** Przycina string do limitu kolumny DB z wielokropkiem (bezstratnie gdy mieści się). */
+function truncateForColumn(value: string, limit: number): string {
+  return value.length <= limit ? value : `${value.slice(0, limit - 1)}…`;
 }
 
 /**

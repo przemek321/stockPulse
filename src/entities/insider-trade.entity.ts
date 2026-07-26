@@ -19,8 +19,12 @@ export class InsiderTrade {
   @Column({ length: 10 })
   symbol: string;
 
-  /** Imię i nazwisko insidera */
-  @Column({ length: 100 })
+  /**
+   * Imię i nazwisko insidera. 255: co-filingi funduszy (osoba + fundusze zarządzane)
+   * sklejają wiele nazw — varchar(100) ucinał INSERT i gubił trade'y
+   * (CBIO/ARTV/PBLS 20-22.07.2026, RA Capital / Fairmount).
+   */
+  @Column({ length: 255 })
   insiderName: string;
 
   /** Rola (CEO, CFO, Director, 10% Owner itd.) */

@@ -46,6 +46,16 @@ licznik gate'u od pierwszego BUY. Wpis zdjęty z VALIDATION_CALENDAR.
 
 </details>
 
+## ~~2026-07-25 — przegląd okna obs discovery~~ ✅ WYKONANY 27.07 — BEZ PROMOCJI
+
+**Werdykt** ([DISCOVERY-OBS-REVIEW-2026-07-27.md](DISCOVERY-OBS-REVIEW-2026-07-27.md)): alpha XBI
+0/5 (śr. −4.6pp), jedyny alert w reżimie spadkowym (CAI) przegrał też na raw → delivery top-N NIE
+włączone, obs do werdyktu 01.09. Kohorta 7 tickerów — segmentować: osobowa (EYE/COR/CAI/SMMT) vs
+funduszowa (CBIO/ARTV/PBLS — 10% Owner co-filing, klasa nietestowana w V5). Bug varchar(100)
+naprawiony (DATA GAP CBIO/ARTV/PBLS). Wpis zdjęty z VALIDATION_CALENDAR.
+
+<details><summary>Oryginalny zapis gate'u</summary>
+
 ## 2026-07-25 — przegląd okna obs discovery (Pakiet 2)
 
 - **Co**: jakość kandydatów auto-zarejestrowanych przez `form4-discovery` od 10.06.
@@ -55,6 +65,8 @@ licznik gate'u od pierwszego BUY. Wpis zdjęty z VALIDATION_CALENDAR.
   przedłużenie obs / korekta filtrów. Też: przycinanie uniwersum discovery
   (brak auto-expiry — celowo odłożone do tego przeglądu).
 - **Kontekst**: [PAKIET-2-DISCOVERY-2026-06-10.md](PAKIET-2-DISCOVERY-2026-06-10.md).
+
+</details>
 
 ## 2026-08-25 — FIX-16 shadow review
 

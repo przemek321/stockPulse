@@ -23,7 +23,8 @@ import { SystemLogService } from '../system-log/system-log.service';
 export const VALIDATION_CALENDAR: ReadonlyArray<{ date: string; label: string }> = [
   // 2026-07-09 APLS Faza 4: WYKONANY 10.07 — insufficient data (0 BUY od seedu),
   // okno przedłużone do werdyktu 01.09; doc/APLS-FAZA-4-REVIEW-2026-07-10.md.
-  { date: '2026-07-25', label: 'Przegląd okna obs discovery → decyzja delivery top-N' },
+  // 2026-07-25 discovery obs: WYKONANY 27.07 — bez promocji (alpha 0/5), obs do 01.09;
+  // doc/DISCOVERY-OBS-REVIEW-2026-07-27.md.
   { date: '2026-08-25', label: 'FIX-16 shadow review (N≥3 would_uncap) → decyzja deploy' },
   { date: '2026-09-01', label: 'Werdykt "czy system ma edge" (forward 7d, ~20-30 alertów)' },
   { date: '2026-09-07', label: 'Bullish-8K gate revisit (90d; hit suppressed >55% → zawęzić)' },
