@@ -113,6 +113,14 @@ naprawiony (DATA GAP CBIO/ARTV/PBLS). Wpis zdjęty z VALIDATION_CALENDAR.
   raw 0.00%, α **−3.8%** → tłumienie zasadne. VRTX #2442 (07.07, `bullish_8k_no_edge`) —
   trzeci przypadek wprost, 7d ~14.07. Bilans gate'ów tłumiących bullish: 2 zasadne
   (MOH, SEM) / 1 kosztowny (ABBV M&A) / 1 w toku (VRTX).
+- **Update 10.08**: VRTX #2442 domknięty: 7d raw **−9.8%**, α **−6.0%** → tłumienie zasadne.
+  OSCR #2473 (06.08, byczy 2.02 przez `gpt_missing_data` — klasa maskowana): GPT LONG
+  conv 0.30 na EPS beat „+179.5%" ($1.10 vs $0.39) przy braku MLR/przychodów/guidance
+  w tekście; rynek **−12.1% 1d / −5.9% 3d** (7d w pomiarze). Beat najpewniej artefaktem
+  GAAP vs adjusted-konsensus; guard missing-data uratował najgorszy byczy call w historii
+  pomiaru. Bilans: **4 zasadne (MOH, SEM, VRTX, OSCR) / 1 kosztowny (ABBV M&A)**.
+  Hipoteza do przeglądu 07.09: ekstremalne beaty (>+100%) traktować jak FIX-16 misses —
+  podejrzenie niezgodności definicji EPS, nie euforii.
 - **Kontekst**: [PLAN-EDGE-IMPROVEMENTS-2026-06-09.md](PLAN-EDGE-IMPROVEMENTS-2026-06-09.md) §2.P1, commit `44732fc`.
 
 ## Wcześniejsze gate'y (dla porządku)
