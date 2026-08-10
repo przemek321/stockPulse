@@ -449,9 +449,12 @@ export default function App() {
       </Box>
 
 
-      {/* ── Skorelowane Sygnały ────────────────── */}
+      {/* ── Skorelowane Sygnały ──────────────────
+          Audyt 02.07.2026: wszystkie 3 wzorce korelacji de facto martwe
+          (cluster bez zasilania Redis, okno 24h vs latencja Form 4 ~69h,
+          options OFF) — ostatni alert 28.05, panel pokazuje historię. */}
       <DataPanel
-        title="Skorelowane Sygnały"
+        title="Skorelowane Sygnały (wzorce martwe — audyt 02.07.2026, ostatni 28.05)"
         icon={<HubIcon sx={{ color: '#42a5f5' }} />}
         badgeColor="info"
         defaultSortKey="sentAt"
@@ -491,9 +494,11 @@ export default function App() {
 
       {/* Panel "Alerty wysłane" usunięty — duplikował "Alerty SEC & Insider" bez filtra */}
 
-      {/* ── PDUFA Calendar (Decyzje FDA) ────── */}
+      {/* ── PDUFA Calendar (Decyzje FDA) ──────
+          Kolektor OFF 21.06.2026 (upstream przepisany na client-side → 404).
+          Filtr upcoming_only → pusto po ostatniej dacie (VERA 07.07). */}
       <DataPanel
-        title="PDUFA Kalendarz (Decyzje FDA)"
+        title="PDUFA Kalendarz (kolektor OFF 21.06.2026 — kalendarz wysechł 07.07)"
         icon={<EventIcon sx={{ color: '#42a5f5' }} />}
         badgeColor="info"
         defaultSortKey="pdufaDate"
