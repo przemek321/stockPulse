@@ -258,7 +258,7 @@ export default function SystemHealthPanel() {
         </Box>
       </Box>
 
-      {/* Stats row (alerts / pipeline / failed jobs) */}
+      {/* Stats row (alerts / failed jobs) */}
       <Box
         sx={{
           display: 'flex',
@@ -277,17 +277,6 @@ export default function SystemHealthPanel() {
             )}
             <StatPair label="TICKERS" value={data.alerts.tickers7d} />
             <StatPair label="24H" value={data.alerts.last24h} />
-          </>
-        )}
-        {data.pipeline && (
-          <>
-            <StatPair label="PIPELINE 24H" value={data.pipeline.total24h} />
-            {data.pipeline.escalated24h > 0 && (
-              <StatPair label="AI" value={data.pipeline.escalated24h} color={COLORS.accent} />
-            )}
-            {data.pipeline.failed24h > 0 && (
-              <StatPair label="FAILED" value={data.pipeline.failed24h} color={COLORS.down} />
-            )}
           </>
         )}
         {data.failedJobs7d > 0 && (
