@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Container, Typography, Chip, Divider, Dialog, DialogTitle, DialogContent, IconButton, Tabs, Tab } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CloseIcon from '@mui/icons-material/Close';
@@ -136,9 +136,18 @@ const PriorityChip = ({ value, row }: {
 
 declare const __BUILD_DATE__: string;
 
+/** Odczyt zapamiętanej zakładki — F5 nie cofa już do Dashboardu */
+const readTab = (key: string, max: number): number => {
+  const v = Number(localStorage.getItem(key));
+  return Number.isInteger(v) && v >= 0 && v <= max ? v : 0;
+};
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState(0);
-  const [dashSubTab, setDashSubTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(() => readTab('sp.activeTab', 3));
+  const [dashSubTab, setDashSubTab] = useState(() => readTab('sp.dashSubTab', 1));
+
+  useEffect(() => { localStorage.setItem('sp.activeTab', String(activeTab)); }, [activeTab]);
+  useEffect(() => { localStorage.setItem('sp.dashSubTab', String(dashSubTab)); }, [dashSubTab]);
 
   return (
     <>

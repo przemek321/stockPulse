@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Typography, Autocomplete, TextField,
   ToggleButtonGroup, ToggleButton, Collapse, IconButton,
@@ -575,15 +575,30 @@ const SummaryBar = ({ selected, summary }: {
 
 /* ── Glowny komponent ─────────────────────────────────── */
 
+const DAY_OPTIONS = [7, 14, 30, 60, 90];
+
 export default function SignalTimeline() {
   const [symbols, setSymbols] = useState<TimelineSymbol[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [days, setDays] = useState<number>(7);
+  // Okres i filtr reguły zapamiętane w localStorage — F5 nie resetuje widoku
+  const [days, setDays] = useState<number>(() => {
+    const v = Number(localStorage.getItem('sp.timeline.days'));
+    return DAY_OPTIONS.includes(v) ? v : 7;
+  });
+  const [ruleFilter, setRuleFilter] = useState<string | null>(
+    () => localStorage.getItem('sp.timeline.rule'),
+  );
   const [alerts, setAlerts] = useState<TimelineAlert[]>([]);
   const [summary, setSummary] = useState<TimelineSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [dialogMsg, setDialogMsg] = useState<string | null>(null);
+
+  useEffect(() => { localStorage.setItem('sp.timeline.days', String(days)); }, [days]);
+  useEffect(() => {
+    if (ruleFilter) localStorage.setItem('sp.timeline.rule', ruleFilter);
+    else localStorage.removeItem('sp.timeline.rule');
+  }, [ruleFilter]);
 
   // Zaladuj tickery z alertami
   useEffect(() => {
@@ -618,6 +633,17 @@ export default function SignalTimeline() {
     (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime(),
   );
 
+  // Opcje filtra reguł — z aktualnie załadowanych alertów (etykiety jak w kolumnie RULE)
+  const ruleOptions = useMemo(() => {
+    const set = new Set(alerts.map(a => shortRule(a.ruleName)));
+    if (ruleFilter) set.add(ruleFilter); // wybór spoza bieżącego okresu nie znika z listy
+    return Array.from(set).sort();
+  }, [alerts, ruleFilter]);
+
+  const visibleAlerts = ruleFilter
+    ? sortedAlerts.filter(a => shortRule(a.ruleName) === ruleFilter)
+    : sortedAlerts;
+
   return (
     <Box sx={{ ...panelSx, p: 0, mb: 2, overflow: 'hidden' }}>
       {/* Header bar */}
@@ -644,7 +670,7 @@ export default function SignalTimeline() {
           color: COLORS.text.inverse,
           opacity: 0.7,
         }}>
-          {sortedAlerts.length} ROWS · {days}D
+          {visibleAlerts.length} ROWS · {days}D{ruleFilter ? ` · ${ruleFilter.toUpperCase()}` : ''}
         </Typography>
       </Box>
 
@@ -686,10 +712,36 @@ export default function SignalTimeline() {
           )}
           sx={{ minWidth: 200 }}
         />
-        {selected && (
+        <Typography sx={{ ...labelSx, mr: 0.5, ml: 1 }}>RULE</Typography>
+        <Autocomplete
+          options={ruleOptions}
+          value={ruleFilter}
+          onChange={(_, v) => setRuleFilter(v)}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder="WSZYSTKIE"
+              size="small"
+              sx={{
+                '& .MuiInputBase-root': {
+                  fontSize: TYPOGRAPHY.size.base,
+                  fontFamily: TYPOGRAPHY.sansFamily,
+                  bgcolor: COLORS.bg.card,
+                  borderRadius: '2px',
+                  minHeight: 30,
+                },
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: COLORS.border,
+                },
+              }}
+            />
+          )}
+          sx={{ minWidth: 170 }}
+        />
+        {(selected || ruleFilter) && (
           <Link
             component="button"
-            onClick={() => setSelected(null)}
+            onClick={() => { setSelected(null); setRuleFilter(null); }}
             sx={{
               ...TYPOGRAPHY.uppercase,
               color: COLORS.accent,
@@ -751,7 +803,7 @@ export default function SignalTimeline() {
       <Box sx={{ overflowX: 'auto' }}>
         <TableHeader />
         <Box>
-          {sortedAlerts.map((a, i) => (
+          {visibleAlerts.map((a, i) => (
             <SignalRow
               key={a.id}
               a={a}
@@ -765,7 +817,7 @@ export default function SignalTimeline() {
       </Box>
 
       {/* Empty state */}
-      {!loading && sortedAlerts.length === 0 && (
+      {!loading && visibleAlerts.length === 0 && (
         <Box sx={{
           py: 4, textAlign: 'center',
           bgcolor: COLORS.bg.card,
@@ -776,9 +828,12 @@ export default function SignalTimeline() {
             color: COLORS.text.muted,
             fontSize: TYPOGRAPHY.size.sm,
           }}>
-            {selected
-              ? `BRAK ALERTOW DLA ${selected} · ${days}D`
-              : `BRAK ALERTOW · ${days}D`}
+            {[
+              'BRAK ALERTOW',
+              selected ? `DLA ${selected}` : null,
+              ruleFilter ? `· ${ruleFilter.toUpperCase()}` : null,
+              `· ${days}D`,
+            ].filter(Boolean).join(' ')}
           </Typography>
         </Box>
       )}
