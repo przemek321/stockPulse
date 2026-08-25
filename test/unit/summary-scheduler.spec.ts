@@ -227,9 +227,9 @@ describe('upcomingValidationEvents — kalendarz walidacji', () => {
     expect(ev[0].date).toBe('2026-07-25');
   });
 
-  it('produkcyjny kalendarz ma 3 daty decyzyjne (APLS i discovery wykonane)', () => {
+  it('produkcyjny kalendarz ma 3 daty decyzyjne (APLS, discovery i FIX-16 #1 wykonane)', () => {
     expect(VALIDATION_CALENDAR.map((e) => e.date)).toEqual([
-      '2026-08-25', '2026-09-01', '2026-09-07',
+      '2026-09-01', '2026-09-07', '2026-11-15',
     ]);
   });
 });
@@ -304,7 +304,8 @@ describe('sendSummary — inwariant escapowania MarkdownV2 (05.07.2026)', () => 
     // przesuń ją pod kolejny termin (test produkcyjnego kalendarza: linia ~230).
     // 10.07: przesunięta 06.07→20.07 po zdjęciu wpisu APLS (20.07 łapie discovery 25.07).
     // 27.07: przesunięta 20.07→20.08 po zdjęciu wpisu discovery (20.08 łapie FIX-16 25.08).
-    jest.useFakeTimers({ now: new Date('2026-08-20T12:00:00Z') });
+    // 25.08: przesunięta 20.08→26.08 po zdjęciu wpisu FIX-16 #1 (26.08 łapie werdykt 01.09).
+    jest.useFakeTimers({ now: new Date('2026-08-26T12:00:00Z') });
     try {
       const { scheduler, telegram } = buildScheduler({
         alertsByRule: [{ rule: 'Form 4 Insider BUY', count: '2', delivered: '1' }],

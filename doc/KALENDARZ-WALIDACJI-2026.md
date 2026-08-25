@@ -68,7 +68,12 @@ naprawiony (DATA GAP CBIO/ARTV/PBLS). Wpis zdjęty z VALIDATION_CALENDAR.
 
 </details>
 
-## 2026-08-25 — FIX-16 shadow review
+## ~~2026-08-25 — FIX-16 shadow review~~ ✅ WYKONANY 25.08 — INSUFFICIENT N (1/6)
+
+**Werdykt** ([FIX-16-SHADOW-REVIEW-2026-08-25.md](FIX-16-SHADOW-REVIEW-2026-08-25.md)):
+N=1 `would_uncap` (HIMS 10.08, kierunek potwierdzony −10.8% 7d) < gate 3 → cap zostaje,
+shadow przedłużony, **review #2: 2026-11-15** (po Q3 earnings; wcześniej przy N≥3).
+Niuans: HIMS i tak stłumiony przez `gpt_missing_data` — uncap sam nie dostarczyłby shorta.
 
 - **Co**: czy asymetryczny cap R1 (extreme miss bez capu) ma poparcie w danych.
 - **Query**: `SELECT "gptAnalysis"->'fix16_shadow' FROM sec_filings WHERE "gptAnalysis" ? 'fix16_shadow'`.

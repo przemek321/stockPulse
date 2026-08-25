@@ -25,9 +25,11 @@ export const VALIDATION_CALENDAR: ReadonlyArray<{ date: string; label: string }>
   // okno przedłużone do werdyktu 01.09; doc/APLS-FAZA-4-REVIEW-2026-07-10.md.
   // 2026-07-25 discovery obs: WYKONANY 27.07 — bez promocji (alpha 0/5), obs do 01.09;
   // doc/DISCOVERY-OBS-REVIEW-2026-07-27.md.
-  { date: '2026-08-25', label: 'FIX-16 shadow review (N≥3 would_uncap) → decyzja deploy' },
+  // 2026-08-25 FIX-16 review: WYKONANY 25.08 — insufficient N (1/6 would_uncap, HIMS),
+  // cap zostaje, shadow przedłużony; doc/FIX-16-SHADOW-REVIEW-2026-08-25.md.
   { date: '2026-09-01', label: 'Werdykt "czy system ma edge" (forward 7d, ~20-30 alertów)' },
   { date: '2026-09-07', label: 'Bullish-8K gate revisit (90d; hit suppressed >55% → zawęzić)' },
+  { date: '2026-11-15', label: 'FIX-16 shadow review #2 (po Q3 earnings; gate N≥3 would_uncap)' },
 ];
 
 /**
