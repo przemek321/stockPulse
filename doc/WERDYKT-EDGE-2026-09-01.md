@@ -11,9 +11,10 @@
 - **57 alertów** post-fixowych (od 09.06) z pełnym 7d, z 61 zmierzonych; 4 poza cutoffem (UNH 25.08,
   THC/IMTX/RGNX 27.08 — żaden delivered). 0/61 alertów bez kierunku (konwencja „pusty=positive" nieużyta).
 - **Zdarzenia (E)**: alerty tego samego symbolu i kierunku w łańcuchu ≤7 dni = 1 zdarzenie (średnia).
-  57 alertów → 51 zdarzeń. Duplikaty ujawnione przez weryfikację: ELV #2446/#2447 (te same transakcje,
-  1.5h odstępu, oba delivered), SMMT #2434/#2435, THC #2455/#2466, PFE #2477 i KURA #2486 re-alertują
-  wcześniejsze BUY (bug, §7).
+  57 alertów → 51 zdarzeń. Sklejone pary: ELV #2446/#2447 (CEO Boudreaux + dyrektor Peru — dwa RÓŻNE
+  filingi tego samego dnia, nie duplikat), SMMT #2434/#2435 (dwa Form 4 co-CEO na jedną wspólną transakcję
+  $50M — joint filers), THC/PFE/KURA (różni insiderzy w oknie 7d). Weryfikacja początkowo zgłosiła
+  „duplikaty" — to był artefakt joina transakcji po symbolu w oknie 14d, nie bug systemu (§7).
 - **Metryki**: hit = kierunek SUROWEJ ceny; alpha XBI (i IBB) OSOBNO; signed = zwrot × kierunek.
   **Nowa kolumna REAL** (wymuszona przez recenzję): zwrot od pierwszej dostępnej ceny (`price1h`,
   pierwszy odczyt po otwarciu NYSE) do 7d — bo **19/23 alertów Form 4 BUY wyszło po sesji**, a
@@ -161,11 +162,14 @@ sygnał/miesiąc. **Dziennik (REGUŁY §6 „obowiązkowy") nie istniał — za�
    Form 4 BUY bez FUND ma hit <60% **lub** mediana REAL ≤ −1% przy N≥20 zdarzeń.
 
 ### KORYGOWAĆ (bugi i instrumentacja — dozwolone mid-window)
-- **Bug: duplikaty alertów** na tych samych transakcjach (ELV ×2 delivered, SMMT ×2, THC SELL re-alert,
-  PFE/KURA re-alert wcześniejszych BUY) — agregacja multi-tx (TASK-03) musi dedupować po accession/transakcji.
-  Priorytet P1 (zawyża N i spamuje 🎯).
-- **Bug: zamrożona cena** SEM #2441 (16.51 przez 7d — stale quote Finnhub) → guard: 5 identycznych slotów = flaga
-  `price_frozen`, wykluczenie z metryk.
+- ~~Bug: duplikaty alertów~~ — **wycofane po weryfikacji u źródła (01.09 wieczór)**: ELV/THC/PFE/KURA to różni
+  insiderzy (osobne filingi), jedyny realny przypadek to SMMT (joint filers co-CEO, jedna transakcja → 2 alerty
+  obs). Do teczki jako ograniczenie: dedup po (symbol, transactionDate, shares, price) między co-filerami.
+- **Bug: zamrożona cena** SEM #2441 (16.51 przez 7d) — przyczyna: **SEM zszedł z giełdy** (brak w rejestrze SEC
+  company_tickers, ostatni filing 01.07 = domknięcie przejęcia); Finnhub oddawał ostatni kurs sprzed delistingu
+  jako bieżący, dziś zwraca c=0. WBA (delisted II.2026) w tym samym stanie. Fix: `getQuote` odrzuca notowanie ze
+  znacznikiem `t` starszym niż 7 dni (slot zostaje pusty, hard timeout 11d domyka alert) + usunięcie SEM/WBA
+  z uniwersum (DELETE 2 wiersze `tickers` — zgoda usera). #2441 wykluczony z metryk 01.11 (`price_frozen`).
 - **8-K Material Event GPT (1/7)** → observation (oba kierunki) do N≥10 — **ZATWIERDZONE i WDROŻONE 01.09**
   (`nonDeliveryReason='material_event_obs'`, bullish gate ma pierwszeństwo; spec `form8k-material-event-obs`).
 - **XTB Załącznik A**: sprawdzić dostępność tickerów discovery (KURA, PRE, MOBI, ABCL, IONS, REPL, BFLY, ELAN,
@@ -179,7 +183,7 @@ sygnał/miesiąc. **Dziennik (REGUŁY §6 „obowiązkowy") nie istniał — za�
 - ~~APLS-obs~~ — **wycofane** (teza o redundancji fałszywa).
 
 ## 7. Anomalie danych (do naprawy, nie wpływają na decyzje po korekcie)
-Duplikaty alertów (§0); SEM frozen quote; VRTX #2431 sell_no_edge z samych planów 10b5-1 (sprzed fixu P1-00
+„Duplikaty" alertów = artefakt joina, poza SMMT joint filers (§0); SEM frozen quote = delisting (§6); VRTX #2431 sell_no_edge z samych planów 10b5-1 (sprzed fixu P1-00
 z 09.06 wieczór); CAI #2443 bez wiersza w roles (transakcja 15.05, filing 13.07 — latencja 59d); BFLY #2480
 BUY $1.0M przy $21.4M SELL w oknie (sygnał mieszany alertowany jako BUY); KURA #2479/#2486 odstęp 7d 0h48m
 (granica sklejania).

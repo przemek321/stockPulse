@@ -22,6 +22,8 @@ const BASE_URL = 'https://finnhub.io/api/v1';
  */
 @Injectable()
 export class FinnhubService extends BaseCollectorService {
+  /** Max wiek notowania z /quote (pole `t`) — starsze = martwy ticker (SEM/WBA po delistingu). */
+  static readonly QUOTE_MAX_AGE_SEC = 7 * 86400;
   protected readonly logger = new Logger(FinnhubService.name);
   private readonly apiKey: string;
 
@@ -203,7 +205,19 @@ export class FinnhubService extends BaseCollectorService {
   async getQuote(symbol: string): Promise<number | null> {
     try {
       const data = await this.fetchApi('/quote', { symbol });
-      return data?.c > 0 ? data.c : null;
+      if (!(data?.c > 0)) return null;
+      // Werdykt 01.09.2026 (SEM #2441): po delistingu Finnhub przez tygodnie oddawał
+      // ostatni kurs sprzed zejścia z giełdy (16.51) jako bieżący → tracker wypełnił
+      // 5 slotów identyczną ceną i alert wszedł do metryk jako 0.00%. `t` = unix ts
+      // ostatniej aktualizacji notowania; starsze niż 7 dni (weekend + święto + zapas)
+      // = notowania martwe → null (slot zostaje pusty, hard timeout 11d domknie alert).
+      if (typeof data.t === 'number' && data.t > 0 && Date.now() / 1000 - data.t > FinnhubService.QUOTE_MAX_AGE_SEC) {
+        this.logger.warn(
+          `getQuote(${symbol}): stale quote t=${new Date(data.t * 1000).toISOString()} (delisting?) → null`,
+        );
+        return null;
+      }
+      return data.c;
     } catch (err) {
       this.logger.warn(`getQuote(${symbol}) error: ${err.message}`);
       return null;

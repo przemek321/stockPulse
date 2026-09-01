@@ -124,7 +124,9 @@ REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; na
   niezależnie od tagu „10%" (case IMTX #2490). Decyzje o FUND dopiero przy N≥10 zdarzeń.
 - **Benchmark**: capture XLV (instrumentacja); SIC 283x/2836 → XBI, inne healthcare → XLV; alerty sprzed
   wdrożenia nadal vs XBI/IBB. Do 01.11 XBI wiążący.
-- **Zdarzenia**: symbol + kierunek, łańcuch ≤7 dni.
+- **Zdarzenia**: symbol + kierunek, łańcuch ≤7 dni. Joint filers (SMMT-class: 2 Form 4 na jedną wspólną
+  transakcję) = 1 zdarzenie. Alerty z zamrożonym notowaniem (5 identycznych slotów — SEM #2441, delisting)
+  **wykluczone** z metryk (`price_frozen`).
 - **APLS**: liczone łącznie z discovery (ta sama metryka BUY ≥$500K 7d); osobnego gate'u brak.
 - **Teczka**: stale-filing trap (≥3 alerty z latencją >30d → osobno, inaczej zamknąć); reżim IX-X (α byczych
   med ≥+2pp przy N≥12); 8-K Material Event GPT (1/7) — N≥10 → decyzja obs/sunset.
