@@ -146,7 +146,7 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 
 ### Monitorowane sektory
 
-- **Healthcare** (core, delivery): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — 28 zwalidowanych tickerów.
+- **Healthcare** (core, delivery): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — 28 zwalidowanych tickerów. **SEM i WBA usunięte 01.09.2026** (delisting — brak w rejestrze SEC, Finnhub c=0; kopia wierszy `backups/tickers_SEM_WBA_deleted_20260901.json`). Guard `getQuote` odrzuca notowania starsze niż 7 dni.
 - **biotech_apls** (observation): 6 tickerów (URGN/ARDX/MNKD/CRSP/AXSM/RCKT), [doc/stockpulse-biotech-apls.json](doc/stockpulse-biotech-apls.json).
 - **semi_supply_chain** (observation): 14 tickerów, [doc/stockpulse-semi-supply-chain.json](doc/stockpulse-semi-supply-chain.json).
 - **healthcare_discovery** (observation, auto-rejestracja Pakiet 2): rośnie z rynku (EYE, SMMT, COR...).

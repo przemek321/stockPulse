@@ -252,25 +252,6 @@
           "ceo": "Barry Port",
           "cfo": "Suzanne Snapper",
           "notes": "Skilled nursing facilities + senior living. 300+ facilities."
-        },
-        {
-          "ticker": "SEM",
-          "name": "Select Medical Holdings",
-          "cik": "0001320414",
-          "subsector": "Specialty Hospitals / Rehab",
-          "market_cap_tier": "mid",
-          "aliases": [
-            "Select Medical",
-            "Concentra"
-          ],
-          "key_metrics": [
-            "critical_illness_revenue",
-            "rehab_revenue",
-            "occupancy"
-          ],
-          "ceo": "David Chernow",
-          "cfo": "Martin Jackson",
-          "notes": "Long-term acute care + rehab hospitals + occupational health (Concentra)."
         }
       ]
     },
@@ -898,12 +879,6 @@
         "sec_insider": true
       },
       {
-        "name": "Tim Wentworth",
-        "role": "CEO",
-        "company": "WBA",
-        "sec_insider": true
-      },
-      {
         "name": "Gary Guthart",
         "role": "CEO",
         "company": "ISRG",
@@ -1256,8 +1231,7 @@
           "HCA",
           "THC",
           "UHS",
-          "CYH",
-          "SEM"
+          "CYH"
         ],
         "notes": "Inpatient hospital payment rates."
       },
@@ -1380,9 +1354,7 @@
       "UHS": "0000352915",
       "CYH": "0001108109",
       "ENSG": "0001300514",
-      "SEM": "0001320414",
       "CVS": "0000064803",
-      "WBA": "0001618673",
       "HIMS": "0001773751",
       "VEEV": "0001393052",
       "DOCS": "0001833708",
