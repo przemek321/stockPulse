@@ -85,7 +85,18 @@ Niuans: HIMS i tak stłumiony przez `gpt_missing_data` — uncap sam nie dostarc
   25 req/dzień może być wąskim gardłem danych konsensusu w szczycie Q2.
 - **Kontekst**: HIMS 11.05 stracony short −19.7% 1d; [SPRINT-19-BACKLOG.md](SPRINT-19-BACKLOG.md) FAZA 3.
 
-## 2026-09-01 — werdykt „czy system ma edge"
+## ~~2026-09-01 — werdykt „czy system ma edge"~~ ✅ WYKONANY 01.09 — EDGE NIE WYKAZANY (insufficient N)
+
+**Werdykt** ([WERDYKT-EDGE-2026-09-01.md](WERDYKT-EDGE-2026-09-01.md), 57 alertów / 51 zdarzeń, zweryfikowany
+2 ślepymi przeliczeniami + 4 recenzjami): system ≠ „bez edge" (REGUŁY §5 nie stopuje gry), ale edge NIE
+wykazany. Klasa Form 4 BUY bez FUND (16 zdarzeń): hit 81% ✅, alpha śr +1.6 ❌ / med +2.2 ✅ → nierozstrzygnięte;
+**zwrot REALIZOWALNY** (price1h→7d, 19/23 alertów po sesji, gap +4%) = 0.0% brutto / −1.0% netto.
+**C-suite BUY (8 zdarzeń): hit 100%, α +4.9pp [CI>0], REAL +1.0% netto** — hipoteza wiodąca, N za małe.
+Discovery osobowa: hit 79%, α +1.4/med +1.2 → bez promocji. FUND N=4, APLS 0 BUY → insufficient (teza
+„APLS redundantne" FAŁSZYWA — kod pomija istniejące tickery; kohorta zostaje). Delivered grywalne: 3 alerty,
+REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; następny: **01.11 werdykt #2**.
+
+<details><summary>Oryginalny zapis gate'u</summary>
 
 - **Co**: powtórka forward-analizy z [REPORT-2026-06-09-EDGE-ASSESSMENT.md](REPORT-2026-06-09-EDGE-ASSESSMENT.md)
   na alertach post-fixowych: signed return 3d **i 7d**, hit rate, XBI-alpha, per reguła.
@@ -100,7 +111,32 @@ Niuans: HIMS i tak stłumiony przez `gpt_missing_data` — uncap sam nie dostarc
   końca VI werdykt stanie na ~20-23 z 7d (dolny brzeg), sprawdzić licznik ~20.07;
   (4) obserwacje z czerwca dzielą jedno okno rynkowe (rajd XBI) — nie są niezależne.
 
+</details>
+
+## 2026-11-01 — werdykt #2 + przegląd discovery #2 (pre-rejestracja 01.09, WIĄŻĄCA)
+
+- **Statystyka alpha = MEDIANA** (oryginalny zapis APLS); średnia obok. Bramka: hit 7d ≥60% ∧ med α ≥+2pp.
+- **Trzeci warunek każdej promocji: REAL** — mediana `price1h → price7d` po 1% kosztów > 0.
+- **Sub-gate C-suite** (rola z `insider_trades.insiderRole`, `isCsuiteRole`): N≥10 zdarzeń C-suite BUY
+  (discovery+core), hit ≥60% ∧ med α ≥+2pp ∧ REAL>0 → promocja TYLKO C-suite BUY z discovery do delivery (🎯).
+  Director-only zostaje w obs niezależnie. Stan 01.09: 8 zdarzeń, wszystkie warunki spełnione, brakuje N.
+- **FUND** = co-filer jest ENCJĄ w nazwie (CAPITAL/FUND/LP/LLC/PARTNERS/ADVISORS/MANAGEMENT/HOLDINGS/TRUST),
+  niezależnie od tagu „10%" (case IMTX #2490). Decyzje o FUND dopiero przy N≥10 zdarzeń.
+- **Benchmark**: capture XLV (instrumentacja); SIC 283x/2836 → XBI, inne healthcare → XLV; alerty sprzed
+  wdrożenia nadal vs XBI/IBB. Do 01.11 XBI wiążący.
+- **Zdarzenia**: symbol + kierunek, łańcuch ≤7 dni.
+- **APLS**: liczone łącznie z discovery (ta sama metryka BUY ≥$500K 7d); osobnego gate'u brak.
+- **Teczka**: stale-filing trap (≥3 alerty z latencją >30d → osobno, inaczej zamknąć); reżim IX-X (α byczych
+  med ≥+2pp przy N≥12); 8-K Material Event GPT (1/7) — N≥10 → decyzja obs/sunset.
+- **Werdykt systemowy #2**: „bez edge" (stop gry, REGUŁY §5) tylko gdy klasa Form 4 BUY bez FUND: hit <60%
+  LUB mediana REAL ≤ −1% przy N≥20 zdarzeń. Inaczej: kontynuacja / promocja wg sub-gate'ów.
+
 ## 2026-09-07 — bullish-8K gate revisit (90d od P1-02)
+
+- **Wynik pełnego query na 01.09** (4 powody, positive, 7d): N=16, hit **50%**, signed +0.95%, α −2.32pp ·
+  med −4.0, REAL +1.0% → gate zawężenia NIE odpala. Sub-hipoteza `bullish_no_consensus_data` (6: hit 83%,
+  +6.4%, α śr +4.2 / med +1.3, THC +27% dominuje). `gpt_missing_data` positive: hit 33%, α −6.2 (odwrócenie
+  wobec „6/9, +2.1%"). `bullish_8k_no_edge` `ma`: N=1 → odłożone.
 
 - **Query**: alerty `nonDeliveryReason IN ('bullish_8k_no_edge','bullish_no_consensus_data')`
   + price outcomes 1d/3d/7d. **UWAGA (audyt 02.07)**: priorytet suppression maskuje bullish —
