@@ -170,15 +170,41 @@ describe('Form4Pipeline — healthcare_discovery (Pakiet 2)', () => {
     expect(mocks.azureOpenai.analyzeCustomPrompt).not.toHaveBeenCalled();
   });
 
-  it('discovery BUY $300K < $500K → SKIP_DISCOVERY_BELOW_THRESHOLD bez GPT', async () => {
+  // Werdykt 01.09.2026 (tier-2): discovery C-suite ≥$100K przechodzi, Director nadal ≥$500K
+  it('discovery Director BUY $300K < $500K → SKIP_DISCOVERY_BELOW_THRESHOLD bez GPT', async () => {
     const { pipeline, mocks } = buildPipelineWithMocks();
-    mocks.tradeRepo.findOne.mockResolvedValue(buyTrade({ totalValue: 300_000 }));
+    mocks.tradeRepo.findOne.mockResolvedValue(buyTrade({ insiderRole: 'Director', totalValue: 300_000 }));
 
     const result = await pipeline.onInsiderTrade(
-      buyPayload({ totalValue: 300_000 }),
+      buyPayload({ insiderRole: 'Director', totalValue: 300_000 }),
     );
 
     expect(result.action).toBe('SKIP_DISCOVERY_BELOW_THRESHOLD');
+    expect(mocks.azureOpenai.analyzeCustomPrompt).not.toHaveBeenCalled();
+  });
+
+  it('discovery CEO BUY $300K (tier-2 ≥$100K) → GPT + observation alert DB-only', async () => {
+    const { pipeline, mocks } = buildPipelineWithMocks();
+    mocks.tradeRepo.findOne.mockResolvedValue(buyTrade({ totalValue: 300_000 }));
+
+    const result = await pipeline.onInsiderTrade(buyPayload({ totalValue: 300_000 }));
+
+    expect(result.action).not.toBe('SKIP_DISCOVERY_BELOW_THRESHOLD');
+    expect(mocks.azureOpenai.analyzeCustomPrompt).toHaveBeenCalled();
+    expect(mocks.alertRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ delivered: false, nonDeliveryReason: 'observation' }),
+    );
+  });
+
+  it('discovery CEO BUY $99K < $100K → SKIP_DISCOVERY_BELOW_THRESHOLD (poniżej tier-2)', async () => {
+    const { pipeline, mocks } = buildPipelineWithMocks();
+    mocks.tradeRepo.findOne.mockResolvedValue(buyTrade({ totalValue: 99_000 }));
+
+    const result = await pipeline.onInsiderTrade(buyPayload({ totalValue: 99_000 }));
+
+    // Poniżej $100K łapie już wcześniejszy, ogólny gate wartości (SKIP_LOW_VALUE, core $100K) —
+    // discovery-specific gate nie jest nawet osiągany. Istotne: zero GPT.
+    expect(result.action).toMatch(/^SKIP_(LOW_VALUE|DISCOVERY_BELOW_THRESHOLD)$/);
     expect(mocks.azureOpenai.analyzeCustomPrompt).not.toHaveBeenCalled();
   });
 

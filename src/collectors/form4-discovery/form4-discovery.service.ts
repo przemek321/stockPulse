@@ -10,7 +10,7 @@ import { SecEdgarService } from '../sec-edgar/sec-edgar.service';
 import { TelegramService } from '../../alerts/telegram/telegram.service';
 import { FinnhubService } from '../finnhub/finnhub.service';
 import { parseForm4Xml, Form4Transaction } from '../sec-edgar/form4-parser';
-import { isCsuiteRole, isDirectorRole } from '../../sec-filings/pipelines/form4.pipeline';
+import { isCsuiteRole, isDirectorRole, OBS_MIN_BUY_VALUE_CSUITE } from '../../sec-filings/pipelines/form4.pipeline';
 import { EventType } from '../../events/event-types';
 import { Logged } from '../../common/decorators/logged.decorator';
 import { DISCOVERY_REDIS } from './redis.provider';
@@ -187,7 +187,13 @@ export function prefilterForm4Buy(transactions: Form4Transaction[]): PrefilterRe
     byInsider.set(t.insiderName, cur);
   }
 
+  // Werdykt 01.09.2026 (tier-2): próg zależy od ROLI — C-suite ≥$100K, Director ≥$500K
+  // (backtest V5 H2: efekt C-suite BUY płaski względem progu; Director-only forward α −1.4pp).
+  const thresholdFor = (role: string | null) =>
+    isCsuiteRole(role ?? '') ? OBS_MIN_BUY_VALUE_CSUITE : DISCOVERY_MIN_BUY_VALUE;
+
   let best: { name: string; value: number; role: string | null } | null = null;
+  let bestPassing: { name: string; value: number; role: string | null } | null = null;
   for (const [name, v] of byInsider) {
     // ROLA-only (bez insiderName!): isCsuiteRole z name matchowałby wzorce na
     // nazwie entity ("PRESIDENT AND FELLOWS OF HARVARD COLLEGE", "CSO CAPITAL LP"
@@ -196,12 +202,15 @@ export function prefilterForm4Buy(transactions: Form4Transaction[]): PrefilterRe
     const hasExecRole = isCsuiteRole(v.role ?? '') || isDirectorRole(v.role ?? '');
     if (!hasExecRole) continue; // czysty 10% Owner / brak roli → odpada
     if (!best || v.value > best.value) best = { name, value: v.value, role: v.role };
+    if (v.value >= thresholdFor(v.role) && (!bestPassing || v.value > bestPassing.value)) {
+      bestPassing = { name, value: v.value, role: v.role };
+    }
   }
 
   if (!best) {
     return { pass: false, reason: 'no_exec_role_buy', buyValue: 0, insiderName: null, insiderRole: null };
   }
-  if (best.value < DISCOVERY_MIN_BUY_VALUE) {
+  if (!bestPassing) {
     return {
       pass: false,
       reason: 'below_value_threshold',
@@ -210,7 +219,14 @@ export function prefilterForm4Buy(transactions: Form4Transaction[]): PrefilterRe
       insiderRole: best.role,
     };
   }
-  return { pass: true, reason: 'ok', buyValue: best.value, insiderName: best.name, insiderRole: best.role };
+  // 'ok_csuite_t2' = przeszło tylko dzięki progowi C-suite (< $500K) — osobna kohorta w analizach
+  return {
+    pass: true,
+    reason: bestPassing.value < DISCOVERY_MIN_BUY_VALUE ? 'ok_csuite_t2' : 'ok',
+    buyValue: bestPassing.value,
+    insiderName: bestPassing.name,
+    insiderRole: bestPassing.role,
+  };
 }
 
 const SEC_FETCH_TIMEOUT_MS = 15_000;
@@ -412,7 +428,8 @@ export class Form4DiscoveryService {
 
       this.logger.log(
         `Discovery kandydat: ${meta.ticker} (${meta.name ?? cik}, SIC ${meta.sic}) — ` +
-          `${pre.insiderName} (${pre.insiderRole ?? '?'}) BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}`,
+          `${pre.insiderName} (${pre.insiderRole ?? '?'}) BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}` +
+          (pre.reason === 'ok_csuite_t2' ? ' [tier-2 C-suite ≥$100K]' : ''),
       );
 
       // 4. Finnhub: mcap + ADV (3 calls per kandydat — kandydatów 2-5/tydzień).

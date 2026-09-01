@@ -156,10 +156,39 @@ describe('prefilterForm4Buy (Pakiet 2)', () => {
     expect(r.pass).toBe(true);
   });
 
-  it('CEO BUY $499K → below_value_threshold', () => {
+  // Werdykt 01.09.2026 (tier-2): C-suite ≥$100K przechodzi jako 'ok_csuite_t2', Director nadal ≥$500K
+  it('CEO BUY $499K → pass tier-2 (ok_csuite_t2)', () => {
     const r = prefilterForm4Buy([txn({ totalValue: 499_000 })]);
+    expect(r.pass).toBe(true);
+    expect(r.reason).toBe('ok_csuite_t2');
+    expect(r.buyValue).toBe(499_000);
+  });
+
+  it('CEO BUY $99K → below_value_threshold (poniżej progu tier-2)', () => {
+    const r = prefilterForm4Buy([txn({ totalValue: 99_000 })]);
     expect(r.pass).toBe(false);
     expect(r.reason).toBe('below_value_threshold');
+  });
+
+  it('Director BUY $499K → below_value_threshold (tier-2 tylko dla C-suite)', () => {
+    const r = prefilterForm4Buy([txn({ insiderRole: 'Director', totalValue: 499_000 })]);
+    expect(r.pass).toBe(false);
+    expect(r.reason).toBe('below_value_threshold');
+  });
+
+  it('Director $300K + CFO $150K w jednym filingu → pass przez CFO (nie największą grupę)', () => {
+    const r = prefilterForm4Buy([
+      txn({ insiderName: 'Big Director', insiderRole: 'Director', totalValue: 300_000 }),
+      txn({ insiderName: 'Small CFO', insiderRole: 'Chief Financial Officer', totalValue: 150_000 }),
+    ]);
+    expect(r.pass).toBe(true);
+    expect(r.reason).toBe('ok_csuite_t2');
+    expect(r.insiderName).toBe('Small CFO');
+  });
+
+  it('Executive Vice President (bez C-suite) BUY $200K → below_value_threshold (jak Director)', () => {
+    const r = prefilterForm4Buy([txn({ insiderRole: 'Executive Vice President, Human Resources', totalValue: 200_000 })]);
+    expect(r.pass).toBe(false);
   });
 
   it('czysty 10% Owner BUY $5M → no_exec_role_buy (86% szumu all-market)', () => {

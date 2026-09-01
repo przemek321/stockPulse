@@ -20,26 +20,33 @@ WITH buy_alerts AS (
     AND NOT (a."priceAtAlert" = a."price1h" AND a."price1h" = a."price4h" AND a."price4h" = a."price1d"
              AND a."price1d" = a."price3d" AND a."price3d" = a."price7d")
 ),
-roles AS (
-  SELECT b.id,
-    bool_or(i."insiderName" ~* '(CAPITAL|FUND|\mLP\M|L\.P\.|LLC|PARTNERS|ADVISORS|MANAGEMENT|HOLDINGS|TRUST)') AS is_fund,
-    bool_or(
-         i."insiderRole" ~* '\mChief\s+(Executive|Financial|Operating|Technology|Information|Medical|Scientific|Legal|Accounting)\s+Officer\M'
-      OR i."insiderRole" ~* '\m(CEO|CFO|COO|CTO|CIO|CMO|CSO|CLO)\M'
+-- Agregacja per insider (semantyka TASK-03 / prefilterForm4Buy): wartość grupy = suma transakcji
+-- jednego insidera w oknie; tier liczony z grupy C-suite, nie z pojedynczego wiersza.
+per_insider AS (
+  SELECT b.id, i."insiderName" AS insider, max(i."insiderRole") AS role, sum(i."totalValue") AS value,
+    max(i."insiderRole") ~* '\mChief\s+(Executive|Financial|Operating|Technology|Information|Medical|Scientific|Legal|Accounting)\s+Officer\M'
+      OR max(i."insiderRole") ~* '\m(CEO|CFO|COO|CTO|CIO|CMO|CSO|CLO)\M'
       -- "President" bez "Vice/Senior President" (Postgres nie ma lookbehind → wycinamy je przed testem)
-      OR regexp_replace(i."insiderRole", '(Vice|Senior)\s+President', '', 'gi') ~* '\mPresident\M'
-      OR i."insiderRole" ~* '\mChair(man|woman|person)\M'
-      OR i."insiderRole" ~* '\m(EVP|Executive\s+Vice\s+President)[\s,]+.*?(Finance|Operations?|Product|Strategy)\M'
-      OR i."insiderRole" ~* '\mPrincipal\s+(Financial|Accounting)\s+Officer\M'
-    ) AS is_csuite,
-    string_agg(DISTINCT i."insiderRole", ' | ') AS roles
+      OR regexp_replace(max(i."insiderRole"), '(Vice|Senior)\s+President', '', 'gi') ~* '\mPresident\M'
+      OR max(i."insiderRole") ~* '\mChair(man|woman|person)\M'
+      OR max(i."insiderRole") ~* '\m(EVP|Executive\s+Vice\s+President)[\s,]+.*?(Finance|Operations?|Product|Strategy)\M'
+      OR max(i."insiderRole") ~* '\mPrincipal\s+(Financial|Accounting)\s+Officer\M' AS csuite
   FROM buy_alerts b
   JOIN insider_trades i ON i.symbol = b.symbol AND i."transactionType" = 'BUY'
     AND i."transactionDate" BETWEEN b."sentAt"::date - 14 AND b."sentAt"::date
-  GROUP BY b.id
+  GROUP BY b.id, i."insiderName"
+),
+roles AS (
+  SELECT id,
+    bool_or(insider ~* '(CAPITAL|FUND|\mLP\M|L\.P\.|LLC|PARTNERS|ADVISORS|MANAGEMENT|HOLDINGS|TRUST)') AS is_fund,
+    bool_or(csuite) AS is_csuite,
+    string_agg(DISTINCT role, ' | ') AS roles,
+    max(value) FILTER (WHERE csuite) AS max_buy
+  FROM per_insider
+  GROUP BY id
 ),
 cs AS (
-  SELECT b.id, b.symbol, b."sentAt", b.delivered, b.sector, r.roles,
+  SELECT b.id, b.symbol, b."sentAt", b.delivered, b.sector, r.roles, r.max_buy,
     (b."price7d" - b."priceAtAlert") / b."priceAtAlert" * 100 AS raw7d,
     (b."price7d" - b."priceAtAlert") / b."priceAtAlert" * 100
       - (b."xbi7d" - b."xbiAtAlert") / b."xbiAtAlert" * 100 AS alpha7d,
@@ -61,6 +68,8 @@ numbered AS (
 events AS (
   SELECT symbol, ev_no, min("sentAt") AS first_at, count(*) AS n_alerts, bool_or(delivered) AS delivered,
          min(sector) AS sector, max(roles) AS roles,
+         -- T1 = pre-zarejestrowany sub-gate (BUY ≥$500K); T2 = tier-2 C-suite $100-500K (od 01.09, osobno)
+         CASE WHEN max(max_buy) >= 500000 THEN 'T1' ELSE 'T2' END AS tier,
          avg(raw7d) AS raw7d, avg(alpha7d) AS alpha7d, avg(real_net7d) AS real_net7d, avg(gap1h) AS gap1h
   FROM numbered
   GROUP BY symbol, ev_no

@@ -84,6 +84,17 @@ export const APLS_MIN_BUY_VALUE = 500_000;
 export const APLS_STRICT_TIER: readonly string[] = ['URGN', 'ARDX', 'MNKD', 'CRSP'];
 
 /**
+ * Werdykt 01.09.2026 — tier-2 C-suite dla discovery (pre-rejestracja w KALENDARZU, wpis 01.11).
+ * Backtest V5 H2 (C-suite discretionary BUY, 7d): ≥$100K N=25 d=+0.94 hit 80% vs ≥$500K N=17
+ * d=+1.08 hit 82% — efekt płaski względem progu, a $500K kosztuje ~1/3 podaży. Forward 01.09:
+ * C-suite BUY 8 zdarzeń hit 100%, α +4.9pp, REAL +1% netto; Director-only α −1.4pp → próg
+ * obniżony WYŁĄCZNIE dla ról C-suite (isCsuiteRole), Director zostaje na $500K.
+ * Dotyczy discovery (pre-filter + kolejne filingi); APLS zostaje na $500K (osobna hipoteza).
+ * Kohorta liczona OSOBNO (T2) w sub-gate C-suite (scripts/csuite-gate.sh).
+ */
+export const OBS_MIN_BUY_VALUE_CSUITE = 100_000;
+
+/**
  * Pakiet 1 fix #1 (09.06.2026): deterministyczny floor priority dla backtest-backed BUY.
  * Discretionary BUY >= $100K od C-suite/Director nie może być zawetowany przez
  * subiektywną ocenę GPT (magnitude/confidence). Case: PODD Weatherman 03.06 Director
@@ -302,10 +313,14 @@ export class Form4Pipeline {
             traceId: payload.traceId,
           };
         }
-        if ((payload.totalValue ?? 0) < APLS_MIN_BUY_VALUE) {
+        // Werdykt 01.09.2026: discovery C-suite BUY ≥$100K (tier-2), Director ≥$500K; APLS bez zmian.
+        const obsMinValue = isDiscoveryTicker && isCsuiteRole(payload.insiderRole)
+          ? OBS_MIN_BUY_VALUE_CSUITE
+          : APLS_MIN_BUY_VALUE;
+        if ((payload.totalValue ?? 0) < obsMinValue) {
           this.logger.debug(
             `Form4 ${tierLabel} skip: ${payload.symbol} BUY $${Math.round(payload.totalValue ?? 0)} ` +
-              `< próg $${APLS_MIN_BUY_VALUE} (conservative threshold)`,
+              `< próg $${obsMinValue} (conservative threshold)`,
           );
           return {
             action: isAplsTicker ? 'SKIP_APLS_BELOW_THRESHOLD' : 'SKIP_DISCOVERY_BELOW_THRESHOLD',

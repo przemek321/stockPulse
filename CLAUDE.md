@@ -69,8 +69,9 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
 - **Form4 Discovery** (Pakiet 2) — event-driven screening WSZYSTKICH Form 4 z rynku
   (`src/collectors/form4-discovery/`). Poll atom getcurrent co 5 min (`2-57/5 6-22 ET pn-pt`,
   stagger +2 min vs core :05/:35) + nightly reconciliation daily-index 22:40 ET. Pre-filter:
-  SIC healthcare/biotech → discretionary BUY ≥$500K C-suite/Director (role-only) → mcap ≥$250M
-  + ADV ≥$1M → auto-rejestracja `sector='healthcare_discovery'`, observation mode.
+  SIC healthcare/biotech → discretionary BUY C-suite **≥$100K** (tier-2 od 01.09, `ok_csuite_t2`) /
+  Director ≥$500K (role-only) → mcap ≥$250M + ADV ≥$1M → auto-rejestracja
+  `sector='healthcare_discovery'`, observation mode. Sub-gate C-suite: `scripts/csuite-gate.sh` (T1/T2).
 - **PDUFA.bio** — **WYŁĄCZONY 21.06** (c65a7cb): upstream przepisany na client-side render →
   HTTP 404 dla scrapera. Dane `pdufa_catalysts` nieodświeżane od 19.06 (ostatnia przyszła
   data: VERA 07.07 — potem sekcja PDUFA w raporcie 8h pusta). Decyzja do podjęcia:

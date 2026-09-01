@@ -123,6 +123,12 @@ REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; na
   **Wyzwalacz wczesny**: przegląd sub-gate'u odpala w dniu, w którym N osiągnie 10 (nie czekamy na 01.11) —
   licznik `scripts/csuite-gate.sh` (cron pn-pt 23:45, log `logs/csuite-gate.log`, jednorazowy ping Telegram
   przy N≥10; `--print` = tabela zdarzeń). SQL = wierna kopia whitelisty `isCsuiteRole` (`scripts/sql/csuite-gate.cte.sql`).
+- **Tier-2 C-suite (pre-rejestracja 01.09 wieczór, wdrożone tego dnia)**: próg discovery dla ról C-suite
+  obniżony **$500K → $100K** (Director zostaje na $500K; APLS bez zmian). Uzasadnienie: backtest V5 H2 —
+  C-suite BUY 7d ≥$100K N=25 d=+0.94 hit 80% vs ≥$500K N=17 d=+1.08 hit 82% (efekt płaski, próg kosztuje
+  ~1/3 podaży); forward Director-only α −1.4pp → tylko C-suite. Kohorta **T2 ($100-500K) liczona OSOBNO**
+  od T1 (≥$500K, sub-gate #1 bez zmian); T2 ma własny identyczny gate (N≥10 ∧ hit ≥60% ∧ med α ≥+2 ∧ REAL>0)
+  → promocja C-suite BUY T2. Ryzyko do obserwacji: mniejsze zakupy = mniejszy sygnał? (backtest mówi nie).
 - **FUND** = co-filer jest ENCJĄ w nazwie (CAPITAL/FUND/LP/LLC/PARTNERS/ADVISORS/MANAGEMENT/HOLDINGS/TRUST),
   niezależnie od tagu „10%" (case IMTX #2490). Decyzje o FUND dopiero przy N≥10 zdarzeń.
 - **Benchmark**: capture XLV (instrumentacja); SIC 283x/2836 → XBI, inne healthcare → XLV; alerty sprzed
