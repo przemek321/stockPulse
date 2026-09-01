@@ -47,6 +47,9 @@ export function nonDeliveryLabel(reason: string | null | undefined): string | nu
       return 'byczy 8-K (zero edge)';
     case 'bullish_no_consensus_data':
       return 'byczy 8-K (brak danych konsensusu)';
+    // Werdykt 01.09.2026: miękkie 8-K (Material Event GPT) → observation
+    case 'material_event_obs':
+      return 'miękkie 8-K (obs, werdykt 01.09)';
     default:
       return reason;
   }
@@ -84,6 +87,8 @@ export function nonDeliveryLabelShort(reason: string | null | undefined): string
       return 'byczy 8-K';
     case 'bullish_no_consensus_data':
       return 'byczy 8-K (brak kons.)';
+    case 'material_event_obs':
+      return 'miękkie 8-K obs';
     default:
       return reason;
   }

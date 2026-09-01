@@ -85,12 +85,11 @@ function buildMocks(opts: {
       create: jest.fn((x: any) => x),
       findOne: jest.fn().mockResolvedValue(null),
     },
+    // Werdykt 01.09.2026: reguła = to, o co pipeline pyta (mapToRuleName: catalyst
+    // 'earnings' → '8-K Earnings Miss'). Wcześniej stała nazwa '8-K Material Event GPT'
+    // — po wprowadzeniu material-event obs taki mock wciągałby 2.02 do obserwacji.
     ruleRepo: {
-      findOne: jest.fn().mockResolvedValue({
-        name: '8-K Material Event GPT',
-        isActive: true,
-        throttleMinutes: 60,
-      }),
+      findOne: jest.fn(async (q: any) => ({ name: q.where.name, isActive: true, throttleMinutes: 60 })),
     },
     azureOpenai: { analyzeCustomPrompt: jest.fn().mockResolvedValue(opts.gpt) },
     telegram: { sendMarkdown: jest.fn() },

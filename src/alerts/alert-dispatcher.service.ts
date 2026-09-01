@@ -13,6 +13,8 @@ import { Logged } from '../common/decorators/logged.decorator';
  *   3. isConsensusGap        — S19-FIX-12: raport vs analyst consensus mismatch (PODD 06.05 case)
  *   4. isBullish8kGate       — Pakiet 1 fix #2 (09.06.2026): bullish 8-K poza udokumentowanym
  *                              beatem 2.02-R4 → observation (delivered bullish 0/4, śr. −4.4% 3d)
+ *   4b. isMaterialEventObs   — Werdykt 01.09.2026: '8-K Material Event GPT' 1/7 hit forward (BEAR 0/3,
+ *                              BULL 1/4) → observation oba kierunki do N>=10 (doc/WERDYKT-EDGE-2026-09-01.md)
  *   5. isDirectionConflict   — S19-FIX-05: Correlated pattern z konfliktem kierunków Form4 vs Options/8-K (UNH 29-30.04 case)
  *   6. isSellNoEdge          — Sprint 17 Form4 SELL (V4 backtest: zero edge)
  *   7. isCsuiteSellObservation — Sprint 16b Form4 C-suite SELL
@@ -35,6 +37,8 @@ export interface DispatchParams {
    *  ('bullish_8k_no_edge') od braku danych konsensusu ('bullish_no_consensus_data'). */
   isBullish8kGate?: boolean;
   bullish8kReason?: string;
+  /** Werdykt 01.09.2026: miękkie 8-K ('8-K Material Event GPT') → observation, oba kierunki. */
+  isMaterialEventObs?: boolean;
   isDirectionConflict?: boolean;
   isSellNoEdge?: boolean;
   isCsuiteSellObservation?: boolean;
@@ -128,6 +132,10 @@ export class AlertDispatcherService {
       // Pakiet 1 fix #2: bullish 8-K bez udokumentowanego beatu → DB only.
       // Sub-reason rozróżnia narrative od braku danych (forward analysis).
       suppressedBy = params.bullish8kReason || 'bullish_8k_no_edge';
+    } else if (params.isMaterialEventObs) {
+      // Werdykt 01.09.2026: GPT na miękkich 8-K bez edge (1/7) → DB only, bez pinga
+      // (ping dotyczy tylko 'observation' = kohorty discovery/APLS).
+      suppressedBy = 'material_event_obs';
     } else if (params.isDirectionConflict) {
       suppressedBy = 'direction_conflict';
     } else if (params.isSellNoEdge) {

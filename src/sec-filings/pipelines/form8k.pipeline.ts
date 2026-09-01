@@ -500,6 +500,21 @@ export class Form8kPipeline {
         }
       }
 
+      // Werdykt 01.09.2026 (doc/WERDYKT-EDGE-2026-09-01.md §1.7): reguła
+      // '8-K Material Event GPT' (miękkie 8-K: M&A, kontrakty, regulacje) forward
+      // 1/7 hit (BEAR 0/3, BULL 1/4) — GPT na narracji bez liczb nie ma edge w żadną
+      // stronę. Oba kierunki → observation (DB + price outcome płyną, brak Telegramu,
+      // brak pinga) do N>=10 delivered-equivalent; decyzja przy przeglądzie 01.11.
+      // Bullish gate wyżej ma pierwszeństwo (ciągłość klasy dla przeglądu 07.09).
+      // '8-K Earnings Miss' (2.02), '8-K Leadership Change' (5.02) i bankruptcy nietknięte.
+      const isMaterialEventObs = rule.name === '8-K Material Event GPT';
+      if (isMaterialEventObs && !bullish8kReason && !consensusGapDecision) {
+        this.logger.log(
+          `8-K material-event obs dla ${payload.symbol} Item ${mainItem}: ` +
+            `${effectiveDirection} conviction=${analysis.conviction.toFixed(2)} → DB only`,
+        );
+      }
+
       // Pakiet 1 fix #5: snapshot PRZED budową wiadomości — cena wejścia w linii
       // "📌 Akcja" (wcześniej snapshot po dispatch). Reużyty przy alertRepo.save.
       const snapshot = await captureAlertSnapshot(this.finnhub, payload.symbol);
@@ -530,6 +545,8 @@ export class Form8kPipeline {
             // Pakiet 1 fix #2: bullish 8-K poza udokumentowanym beatem → DB only.
             isBullish8kGate: bullish8kReason !== null,
             bullish8kReason: bullish8kReason ?? undefined,
+            // Werdykt 01.09.2026: miękkie 8-K (Material Event GPT) → observation.
+            isMaterialEventObs,
           })
         : buildDispatcherUnavailableFallback({ ticker: payload.symbol, ruleName: rule.name, traceId: payload.traceId });
 
@@ -575,7 +592,7 @@ export class Form8kPipeline {
       // downstream pattern detection (INSIDER_PLUS_8K mógłby wzmacniać złą tezę).
       // Pakiet 1 fix #2: gated bullish też NIE zasila Redis — inaczej bullish
       // narrative budowałby INSIDER_PLUS_8K (powtórka backdooru FIX-07).
-      if (this.correlation && !consensusGapDecision && !bullish8kReason) {
+      if (this.correlation && !consensusGapDecision && !bullish8kReason && !isMaterialEventObs) {
         try {
           const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));
           const signal: StoredSignal = {

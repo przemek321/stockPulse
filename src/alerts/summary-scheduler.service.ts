@@ -225,6 +225,8 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     // Pakiet 1 fix #2 (09.06.2026): bullish 8-K gate
     bullish_8k_no_edge: 'Byczy 8-K (zero edge)',
     bullish_no_consensus_data: 'Byczy 8-K (brak danych konsensusu)',
+    // Werdykt 01.09.2026: miękkie 8-K (Material Event GPT) → observation
+    material_event_obs: 'Miękkie 8-K (obs, werdykt 01.09)',
   };
 
   /**

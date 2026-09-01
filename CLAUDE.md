@@ -98,7 +98,9 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
 - **Form8kPipeline** — GPT per-Item (1.01/2.02/5.02/other). Item 1.03 Bankruptcy → CRITICAL bez GPT.
   Item 2.02: fetch Exhibit 99.1 + doklejenie PO `extractItemText` (FIX-10b boundary), consensus
   injection + gap guard (FIX-12), missing-data guard (FIX-01), FIX-16 shadow, **bullish gate**
-  (P1-02: bullish poza udokumentowanym beatem 2.02-R4 → observation). Limit tekstu `MAX_TEXT_LENGTH`=50k,
+  (P1-02: bullish poza udokumentowanym beatem 2.02-R4 → observation), **material-event obs**
+  (werdykt 01.09: reguła `8-K Material Event GPT` 1/7 hit → oba kierunki DB-only
+  `material_event_obs`, bez pinga; 2.02/5.02/bankruptcy nietknięte). Limit tekstu `MAX_TEXT_LENGTH`=50k,
   daily cap **20 GPT/ticker/dzień** (`DailyCapService`).
 - **CorrelationService** — 3 wzorce z oknami (audyt 02.07: wszystkie de facto MARTWE —
   cisza korelacji to artefakt architektury, nie throttle): INSIDER_CLUSTER strukturalnie
@@ -156,7 +158,7 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 - **priceAtAlert**: zapisywany dla WSZYSTKICH alertów, **PRZED dispatch** (cena wejścia w Telegramie).
 - **tickers.sector**: `healthcare` / `biotech_apls` / `healthcare_discovery` / `semi_supply_chain`. Healthcare-class → boost ×1.2.
 - **tickers.observationOnly**: `true` = alert do DB, NIE na Telegram. Gate w Form4/Form8k/AlertEvaluator/Correlation. WYJĄTEK: `semi_supply_chain` skipowany PRZED GPT bez wiersza w alerts — obserwacja bez danych (apls/discovery mają alerty DB-only).
-- **alerts.nonDeliveryReason**: `observation` / `gpt_missing_data` / `consensus_*` / `bullish_8k_no_edge` / `bullish_no_consensus_data` / `direction_conflict` / `sell_no_edge` / `csuite_sell_no_edge` (martwy — nigdy nie występuje, patrz Form4Pipeline) / `cluster_sell_no_edge` / `daily_limit` / `telegram_failed` / `null`. Krytyczne dla forward analysis. PUŁAPKA: priorytet suppression maskuje powody — byczy 8-K z missing-data ląduje w `gpt_missing_data`, nie `bullish_*`; w analizach gate'ów filtruj też po `alertDirection`.
+- **alerts.nonDeliveryReason**: `observation` / `gpt_missing_data` / `consensus_*` / `bullish_8k_no_edge` / `bullish_no_consensus_data` / `material_event_obs` (od 01.09) / `direction_conflict` / `sell_no_edge` / `csuite_sell_no_edge` (martwy — nigdy nie występuje, patrz Form4Pipeline) / `cluster_sell_no_edge` / `daily_limit` / `telegram_failed` / `null`. Krytyczne dla forward analysis. PUŁAPKA: priorytet suppression maskuje powody — byczy 8-K z missing-data ląduje w `gpt_missing_data`, nie `bullish_*`; w analizach gate'ów filtruj też po `alertDirection`.
 - **Sektorowa alpha**: surowy priceChange miesza edge alertu z beta biotechu — uczciwa metryka to `xbiAlpha`/`ibbAlpha` (vs XBI, fallback IBB).
 - **Pomiar outcome na 7d** (nie 3d) — backtest pokazuje edge na 7d, 3d zaniża.
 - **TypeORM `synchronize:true` + zmiana długości kolumny = CRASH-LOOP** (incydent 27.07.2026, 676 restartów): schema sync robi DROP+ADD NOT NULL zamiast `ALTER TYPE` i pada na niepustej tabeli (transakcja rollbackuje → pętla). Przy zmianie typu/długości kolumny encji: NAJPIERW ręczny `ALTER TABLE ... ALTER COLUMN ... TYPE ...` na prod, POTEM deploy kodu.

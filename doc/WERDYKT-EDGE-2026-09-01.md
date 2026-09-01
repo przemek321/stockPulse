@@ -166,15 +166,16 @@ sygnał/miesiąc. **Dziennik (REGUŁY §6 „obowiązkowy") nie istniał — za�
   Priorytet P1 (zawyża N i spamuje 🎯).
 - **Bug: zamrożona cena** SEM #2441 (16.51 przez 7d — stale quote Finnhub) → guard: 5 identycznych slotów = flaga
   `price_frozen`, wykluczenie z metryk.
-- **8-K Material Event GPT (1/7)**: propozycja przeniesienia do observation (oba kierunki) do N≥10 — nie jest
-  grywalny wg reguł, więc zmiana dotyczy tylko szumu na Telegramie. **Decyzja usera.**
+- **8-K Material Event GPT (1/7)** → observation (oba kierunki) do N≥10 — **ZATWIERDZONE i WDROŻONE 01.09**
+  (`nonDeliveryReason='material_event_obs'`, bullish gate ma pierwszeństwo; spec `form8k-material-event-obs`).
 - **XTB Załącznik A**: sprawdzić dostępność tickerów discovery (KURA, PRE, MOBI, ABCL, IONS, REPL, BFLY, ELAN,
   BSX, PFE, CAI, ARTV, CBIO, PBLS) przed 01.11 — bez tego promocja C-suite byłaby pusta.
 - **Nazwa reguły** „8-K Earnings Miss" → obejmuje beaty; kosmetyka przy najbliższej zmianie pipeline'u.
 
-### ZWIJAĆ (propozycje — wymagają zgody usera, bo dotyczą prod DB / usunięcia kodu)
-- `semi_supply_chain` obs (14 tickerów, zero danych od 04.2026).
-- CorrelationService (3 wzorce martwe, audyt 02.07) i PDUFA (kolektor OFF, kalendarz wyschnięty).
+### ZWIJAĆ — decyzja usera 01.09: **ZOSTAWIAMY** („nic nie psuje")
+- `semi_supply_chain` obs, CorrelationService, PDUFA — martwe, ale nieszkodliwe; wycięcie dotyka 80+ plików
+  i ryzykuje crash-loop na enumach kolumn (`sector`, `collector`) przy `synchronize:true`. Zostają jako
+  udokumentowany dług; ELV do dziennika też odpuszczone (faza testowa).
 - ~~APLS-obs~~ — **wycofane** (teza o redundancji fałszywa).
 
 ## 7. Anomalie danych (do naprawy, nie wpływają na decyzje po korekcie)
