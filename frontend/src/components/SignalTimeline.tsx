@@ -58,6 +58,29 @@ const shortRule = (rule: string): string => {
 };
 
 /**
+ * Werdykt 01.09.2026: C-suite BUY = jedyna podgrupa z edge (8 zdarzeń: hit 100%, α +4.9pp,
+ * REAL +1% netto) — sub-gate promocji przy N≥10. Oznaczamy takie alerty na timeline.
+ * Rola parsowana z wiadomości ("👤 *Imię* \(Rola\)"); wzorce = kopia whitelisty
+ * isCsuiteRole z form4.pipeline.ts (role-only, bez nazwiska — „Harvard hole").
+ */
+const C_SUITE_PATTERNS: RegExp[] = [
+  /\bChief\s+(Executive|Financial|Operating|Technology|Information|Medical|Scientific|Legal|Accounting)\s+Officer\b/i,
+  /\b(CEO|CFO|COO|CTO|CIO|CMO|CSO|CLO)\b/i,
+  /(?<!Vice\s)(?<!Senior\s)\bPresident\b/i,
+  /\bChair(man|woman|person)\b/i,
+  /\b(?:EVP|Executive\s+Vice\s+President)[\s,]+.*?(Finance|Operations?|Product|Strategy)\b/i,
+  /\bPrincipal\s+(Financial|Accounting)\s+Officer\b/i,
+];
+
+const isCsuiteBuy = (a: TimelineAlert): boolean => {
+  if (!/form 4/i.test(a.ruleName) || !/buy/i.test(a.ruleName)) return false;
+  const roles = Array.from(a.message.matchAll(/👤 \*[^*]+\* \\\(([^)]*)\\\)/g), (m) => m[1].replace(/\\/g, ''));
+  return roles.some((r) => C_SUITE_PATTERNS.some((p) => p.test(r)));
+};
+
+const CSUITE_FILTER = 'Form4 BUY C-suite';
+
+/**
  * Delta pct miedzy cena alertu a wynikiem (1h/4h/1d/3d)
  */
 const calcDelta = (base: number | null, v: number | null): number | null => {
@@ -266,8 +289,15 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
           color: COLORS.text.accent,
           borderRight: `1px solid ${COLORS.border}`,
           textTransform: 'uppercase',
+          display: 'flex', alignItems: 'center', gap: 0.4,
         }}>
           {a.symbol}
+          {isCsuiteBuy(a) && (
+            <Box component="span" title="C-suite BUY (CEO/CFO/COO/prezes) — podgrupa z edge, sub-gate N≥10" sx={{
+              fontSize: '0.6rem', fontWeight: 800, lineHeight: 1, px: 0.4, py: 0.15,
+              bgcolor: COLORS.upBg, color: COLORS.up, border: `1px solid ${COLORS.upBorder}`, borderRadius: '2px',
+            }}>C</Box>
+          )}
         </Box>
 
         {/* RULE */}
@@ -636,13 +666,16 @@ export default function SignalTimeline() {
   // Opcje filtra reguł — z aktualnie załadowanych alertów (etykiety jak w kolumnie RULE)
   const ruleOptions = useMemo(() => {
     const set = new Set(alerts.map(a => shortRule(a.ruleName)));
+    if (alerts.some(isCsuiteBuy)) set.add(CSUITE_FILTER);
     if (ruleFilter) set.add(ruleFilter); // wybór spoza bieżącego okresu nie znika z listy
     return Array.from(set).sort();
   }, [alerts, ruleFilter]);
 
-  const visibleAlerts = ruleFilter
-    ? sortedAlerts.filter(a => shortRule(a.ruleName) === ruleFilter)
-    : sortedAlerts;
+  const visibleAlerts = !ruleFilter
+    ? sortedAlerts
+    : ruleFilter === CSUITE_FILTER
+      ? sortedAlerts.filter(isCsuiteBuy)
+      : sortedAlerts.filter(a => shortRule(a.ruleName) === ruleFilter);
 
   return (
     <Box sx={{ ...panelSx, p: 0, mb: 2, overflow: 'hidden' }}>

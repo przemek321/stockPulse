@@ -120,6 +120,9 @@ REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; na
 - **Sub-gate C-suite** (rola z `insider_trades.insiderRole`, `isCsuiteRole`): N≥10 zdarzeń C-suite BUY
   (discovery+core), hit ≥60% ∧ med α ≥+2pp ∧ REAL>0 → promocja TYLKO C-suite BUY z discovery do delivery (🎯).
   Director-only zostaje w obs niezależnie. Stan 01.09: 8 zdarzeń, wszystkie warunki spełnione, brakuje N.
+  **Wyzwalacz wczesny**: przegląd sub-gate'u odpala w dniu, w którym N osiągnie 10 (nie czekamy na 01.11) —
+  licznik `scripts/csuite-gate.sh` (cron pn-pt 23:45, log `logs/csuite-gate.log`, jednorazowy ping Telegram
+  przy N≥10; `--print` = tabela zdarzeń). SQL = wierna kopia whitelisty `isCsuiteRole` (`scripts/sql/csuite-gate.cte.sql`).
 - **FUND** = co-filer jest ENCJĄ w nazwie (CAPITAL/FUND/LP/LLC/PARTNERS/ADVISORS/MANAGEMENT/HOLDINGS/TRUST),
   niezależnie od tagu „10%" (case IMTX #2490). Decyzje o FUND dopiero przy N≥10 zdarzeń.
 - **Benchmark**: capture XLV (instrumentacja); SIC 283x/2836 → XBI, inne healthcare → XLV; alerty sprzed
