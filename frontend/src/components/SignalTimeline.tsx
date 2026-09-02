@@ -28,6 +28,18 @@ const fmtShortTime = (v: string) => {
   return `${mo}-${dy} ${hr}:${mn}`;
 };
 
+/**
+ * Strefy czasu (02.09.2026): baza i Telegram mówią UTC, front renderuje w strefie przeglądarki (PL),
+ * a sloty price outcome kotwiczą się na otwarciu NYSE (NY). Żeby „czasy się zgadzały", kolumna
+ * TIME jest jawnie PL, a tooltip pokazuje ten sam moment w NY i UTC.
+ */
+const tzFmt = (tz: string) =>
+  new Intl.DateTimeFormat('pl-PL', { timeZone: tz, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+const fmtTzHint = (v: string): string => {
+  const d = new Date(v);
+  return `PL ${tzFmt('Europe/Warsaw').format(d)} · NY ${tzFmt('America/New_York').format(d)} · UTC ${tzFmt('UTC').format(d)}`;
+};
+
 const fmtGap = (hours: number | null): string => {
   if (hours == null) return '';
   if (hours < 1) return `${Math.round(hours * 60)}m`;
@@ -141,7 +153,7 @@ type ColDef = { key: string; label: string; width: number; align?: 'left' | 'rig
 
 const COLUMNS: ColDef[] = [
   { key: 'status', label: '', width: 4, align: 'left' },
-  { key: 'time', label: 'TIME', width: 88, align: 'left' },
+  { key: 'time', label: 'TIME PL', width: 104, align: 'left' },
   { key: 'ticker', label: 'TCKR', width: 52, align: 'left' },
   { key: 'rule', label: 'RULE', width: 130, align: 'left' },
   { key: 'dir', label: 'DIR', width: 56, align: 'left' },
@@ -260,16 +272,17 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
           bgcolor: accentColor,
         }} />
 
-        {/* TIME */}
-        <Box sx={{
-          width: 88, minWidth: 88, px: 1, py: 0.6,
+        {/* TIME (strefa PL; tooltip: NY + UTC) */}
+        <Box title={fmtTzHint(a.sentAt)} sx={{
+          width: 104, minWidth: 104, px: 1, py: 0.6,
           fontFamily: TYPOGRAPHY.monoFamily,
           fontSize: TYPOGRAPHY.size.base,
           color: COLORS.text.secondary,
           borderRight: `1px solid ${COLORS.border}`,
           display: 'flex', flexDirection: 'column', lineHeight: 1.2,
         }}>
-          <Box>{fmtShortTime(a.sentAt)}</Box>
+          {/* data i godzina zawsze w JEDNEJ linii (przy 88px łamało się na dwie — mylące) */}
+          <Box sx={{ whiteSpace: 'nowrap' }}>{fmtShortTime(a.sentAt)}</Box>
           {showGap && (
             <Box sx={{
               fontSize: TYPOGRAPHY.size.xs,
@@ -466,13 +479,20 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
               </Typography>
             </Box>
             <Box>
-              <Typography sx={labelSx}>FULL TIMESTAMP</Typography>
+              <Typography sx={labelSx}>FULL TIMESTAMP (PL · NY · UTC)</Typography>
               <Typography sx={{
                 fontSize: TYPOGRAPHY.size.base,
                 fontFamily: TYPOGRAPHY.monoFamily,
                 color: COLORS.text.primary,
               }}>
-                {fmtTimestamp(a.sentAt)}
+                {fmtTimestamp(a.sentAt)} PL
+              </Typography>
+              <Typography sx={{
+                fontSize: TYPOGRAPHY.size.xs,
+                fontFamily: TYPOGRAPHY.monoFamily,
+                color: COLORS.text.secondary,
+              }}>
+                {fmtTzHint(a.sentAt)}
               </Typography>
             </Box>
             <Box>

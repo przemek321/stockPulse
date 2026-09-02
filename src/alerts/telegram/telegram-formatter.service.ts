@@ -23,7 +23,7 @@ export class TelegramFormatterService {
     const value = this.escapeMarkdown(
       `$${data.totalValue.toLocaleString('en-US')}`,
     );
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
+    const timestamp = this.fmtFooterTime();
 
     const lines = [
       `${icon} *StockPulse Alert*`,
@@ -75,7 +75,7 @@ export class TelegramFormatterService {
         ? `• Opis: ${this.escapeMarkdown(data.description)}`
         : '',
       '',
-      `⏰ ${this.escapeMarkdown(new Date().toISOString())}`,
+      `⏰ ${this.fmtFooterTime()}`,
     ]
       .filter(Boolean)
       .join('\n');
@@ -254,7 +254,7 @@ export class TelegramFormatterService {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.analysis.conviction > 0 ? '🟢' : '🔴';
     const value = this.escapeMarkdown(`$${data.totalValue.toLocaleString('en-US')}`);
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
+    const timestamp = this.fmtFooterTime();
 
     const lines = [
       `${icon} *StockPulse Alert*`,
@@ -327,7 +327,7 @@ export class TelegramFormatterService {
   }): string {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.analysis.conviction > 0 ? '🟢' : '🔴';
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
+    const timestamp = this.fmtFooterTime();
 
     const lines = [
       `${icon} *StockPulse Alert*`,
@@ -372,7 +372,7 @@ export class TelegramFormatterService {
     filingDate: string;
     documentUrl?: string;
   }): string {
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
+    const timestamp = this.fmtFooterTime();
 
     return [
       `🔴 *StockPulse — CRITICAL*`,
@@ -405,7 +405,7 @@ export class TelegramFormatterService {
   }): string {
     const icon = this.priorityIcon(data.priority);
     const dirIcon = data.direction === 'positive' ? '🟢' : '🔴';
-    const timestamp = this.escapeMarkdown(new Date().toISOString());
+    const timestamp = this.fmtFooterTime();
 
     const lines = [
       `${icon} *StockPulse Alert*`,
@@ -442,6 +442,19 @@ export class TelegramFormatterService {
   /**
    * Escapuje znaki specjalne MarkdownV2.
    */
+  /**
+   * Stopka „⏰" w czasie POLSKIM + NY (02.09.2026). Wcześniej ISO UTC — godziny na Telegramie
+   * różniły się o 2h od Signal Timeline (strefa przeglądarki), user: „czasy mi się nie zgadzają".
+   * NY dodane, bo sloty price outcome kotwiczą się na otwarciu NYSE.
+   */
+  private fmtFooterTime(d: Date = new Date()): string {
+    const f = (tz: string) =>
+      new Intl.DateTimeFormat('pl-PL', {
+        timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+      }).format(d);
+    return this.escapeMarkdown(`${f('Europe/Warsaw')} PL (${f('America/New_York')} NY)`);
+  }
+
   private escapeMarkdown(text: string): string {
     return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
   }

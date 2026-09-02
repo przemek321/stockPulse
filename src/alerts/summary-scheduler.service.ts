@@ -318,7 +318,11 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     }
 
     lines.push('');
-    lines.push(`⏰ ${esc(now)} UTC`);
+    // 02.09.2026: czas polski zamiast UTC — spójnie z Signal Timeline i stopką alertów.
+    const nowPl = new Intl.DateTimeFormat('pl-PL', {
+      timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(new Date());
+    lines.push(`⏰ ${esc(nowPl)} PL`);
 
     return lines.join('\n');
   }
