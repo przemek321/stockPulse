@@ -227,9 +227,9 @@ describe('upcomingValidationEvents — kalendarz walidacji', () => {
     expect(ev[0].date).toBe('2026-07-25');
   });
 
-  it('produkcyjny kalendarz ma 3 daty decyzyjne (APLS, discovery, FIX-16 #1 i werdykt #1 wykonane)', () => {
+  it('produkcyjny kalendarz ma 2 daty decyzyjne (APLS, discovery, FIX-16 #1, werdykt #1, bullish #1 wykonane)', () => {
     expect(VALIDATION_CALENDAR.map((e) => e.date)).toEqual([
-      '2026-09-07', '2026-11-01', '2026-11-15',
+      '2026-11-01', '2026-11-15',
     ]);
   });
 });
@@ -306,7 +306,8 @@ describe('sendSummary — inwariant escapowania MarkdownV2 (05.07.2026)', () => 
     // 27.07: przesunięta 20.07→20.08 po zdjęciu wpisu discovery (20.08 łapie FIX-16 25.08).
     // 25.08: przesunięta 20.08→26.08 po zdjęciu wpisu FIX-16 #1 (26.08 łapie werdykt 01.09).
     // 01.09: przesunięta 26.08→02.09 po zdjęciu wpisu werdyktu #1 (02.09 łapie bullish 07.09).
-    jest.useFakeTimers({ now: new Date('2026-09-02T12:00:00Z') });
+    // 07.09: przesunięta 02.09→27.10 po zdjęciu wpisu bullish #1 (27.10 łapie werdykt #2 01.11).
+    jest.useFakeTimers({ now: new Date('2026-10-27T12:00:00Z') });
     try {
       const { scheduler, telegram } = buildScheduler({
         alertsByRule: [{ rule: 'Form 4 Insider BUY', count: '2', delivered: '1' }],

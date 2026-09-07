@@ -29,9 +29,10 @@ export const VALIDATION_CALENDAR: ReadonlyArray<{ date: string; label: string }>
   // cap zostaje, shadow przedłużony; doc/FIX-16-SHADOW-REVIEW-2026-08-25.md.
   // 2026-09-01 werdykt #1: WYKONANY 01.09 — edge NIE wykazany (insufficient N; klasa BUY hit 81%,
   // alpha nierozstrzygnięta, REAL 0%); C-suite BUY hipoteza wiodąca; doc/WERDYKT-EDGE-2026-09-01.md.
-  { date: '2026-09-07', label: 'Bullish-8K gate revisit (90d; pełne query 01.09: hit 50% → nie odpala)' },
+  // 2026-09-07 bullish-8K revisit: WYKONANY 07.09 — hit 50% ≤55%, bramka bez zawężenia;
+  // doc/BULLISH-8K-GATE-REVIEW-2026-09-07.md. Przegląd #2 połączony z 15.11.
   { date: '2026-11-01', label: 'Werdykt #2 + discovery #2 (med α, REAL>0, sub-gate C-suite N≥10)' },
-  { date: '2026-11-15', label: 'FIX-16 shadow review #2 (po Q3 earnings; gate N≥3 would_uncap)' },
+  { date: '2026-11-15', label: 'FIX-16 shadow #2 + bullish-8K #2 (po Q3; N≥3 would_uncap; sub-hip. no_consensus N≥10)' },
 ];
 
 /**

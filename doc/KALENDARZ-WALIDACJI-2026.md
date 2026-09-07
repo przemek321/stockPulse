@@ -142,7 +142,12 @@ REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; na
 - **Werdykt systemowy #2**: „bez edge" (stop gry, REGUŁY §5) tylko gdy klasa Form 4 BUY bez FUND: hit <60%
   LUB mediana REAL ≤ −1% przy N≥20 zdarzeń. Inaczej: kontynuacja / promocja wg sub-gate'ów.
 
-## 2026-09-07 — bullish-8K gate revisit (90d od P1-02)
+## ~~2026-09-07 — bullish-8K gate revisit (90d od P1-02)~~ ✅ WYKONANY 07.09 — BEZ ZAWĘŻENIA
+
+**Werdykt** ([BULLISH-8K-GATE-REVIEW-2026-09-07.md](BULLISH-8K-GATE-REVIEW-2026-09-07.md)): pełne query
+N=16, hit **50%** (≤55%), signed +0.95%, α med −4.0, REAL med −0.1% → gate zawężenia NIE odpala, bramka
+zostaje. Teczka: sub-hipoteza `bullish_no_consensus_data` (6: hit 83%, +6.4%, ale THC-outlier; kryterium
+N≥10 ∧ hit ≥60% ∧ med α ≥+2 ∧ REAL>0) i wyjątek `ma` (N=2 <3, odłożone). **Przegląd #2: 15.11** (z FIX-16 #2).
 
 - **Wynik pełnego query na 01.09** (4 powody, positive, 7d): N=16, hit **50%**, signed +0.95%, α −2.32pp ·
   med −4.0, REAL +1.0% → gate zawężenia NIE odpala. Sub-hipoteza `bullish_no_consensus_data` (6: hit 83%,
