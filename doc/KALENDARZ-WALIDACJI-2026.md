@@ -120,7 +120,16 @@ REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; na
 - **Sub-gate C-suite** (rola z `insider_trades.insiderRole`, `isCsuiteRole`): N≥10 zdarzeń C-suite BUY
   (discovery+core), hit ≥60% ∧ med α ≥+2pp ∧ REAL>0 → promocja TYLKO C-suite BUY z discovery do delivery (🎯).
   Director-only zostaje w obs niezależnie. Stan 01.09: 8 zdarzeń, wszystkie warunki spełnione, brakuje N.
-  **Wyzwalacz wczesny**: przegląd sub-gate'u odpala w dniu, w którym N osiągnie 10 (nie czekamy na 01.11) —
+  **✅ Wyzwalacz odpalił 18.09 (N=10), przegląd 23.09 → BEZ PROMOCJI**
+  ([CSUITE-SUBGATE-REVIEW-2026-09-23.md](CSUITE-SUBGATE-REVIEW-2026-09-23.md)): gate przeszedł na medianie
+  in-sample (7/10 zdarzeń sprzed pre-rejestracji), out-of-sample (INBX/ATEC/RLMD) hit 67%, med REAL **−6.68%**,
+  śr REAL T1 −1.23% (−271 PLN), gap do pierwszej ceny med +7.3%, chase guard blokuje 8/10. **Gate #2 (wiążący
+  od 23.09)**: tylko zdarzenia T1 z `first_at ≥ 02.09`; N≥10 ∧ hit ≥60% ∧ med α ≥+2 ∧ **med REAL >0 ∧ śr REAL >0
+  ∧ ≥30% wchodzalnych (gap ≤3%)**; zdarzenie = ten sam insider/symbol w ≤7 dniach kalendarzowych po
+  `transactionDate`; tier z grupy wyzwalacza w jednym filingu. Stan 23.09: N=3, FAIL. Chase guard bez zmian.
+  Bugi naprawione: ping bez kontroli `ok:true` (18.09 nie dotarł), atrybucja roli z okna 14d zamiast z
+  transakcji wyzwalającej (fantomowe INBX #2508).
+  Wyzwalacz wczesny (bez zmian): przegląd sub-gate'u odpala w dniu, w którym N osiągnie 10 (nie czekamy na 01.11) —
   licznik `scripts/csuite-gate.sh` (cron pn-pt 23:45, log `logs/csuite-gate.log`, jednorazowy ping Telegram
   przy N≥10; `--print` = tabela zdarzeń). SQL = wierna kopia whitelisty `isCsuiteRole` (`scripts/sql/csuite-gate.cte.sql`).
 - **Tier-2 C-suite (pre-rejestracja 01.09 wieczór, wdrożone tego dnia)**: próg discovery dla ról C-suite
