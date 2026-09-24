@@ -21,6 +21,10 @@
 - Kupno w dniu alertu albo na otwarciu następnej sesji NYSE.
 - **Chase guard**: jeśli cena > `priceAtAlert` +3% → NIE wchodzić (lekcja SMMT #2435:
   „nie goń sygnału"). Odpuszczony sygnał odnotować w dzienniku jako `SKIPPED_CHASE`.
+  *Dopisek 24.09.2026*: guard ocenia cenę w momencie faktycznego wejścia (wejście intraday w dniu alertu
+  poniżej progu jest OK — case ELV 17.07). Przegląd sub-gate'u 23.09 potwierdził, że guard chroni:
+  zdarzenia C-suite zablokowane przez +3% miały realizowalną medianę −0.4%. **Nie luzować** bez
+  pre-zarejestrowanej hipotezy (teczka: „gap-band", KALENDARZ).
 - Zlecenie limit (nie market) — spread na mid-capach potrafi zjeść pół edge'a.
 
 ## 3. Sizing i koszty (matematyka 8k PLN)
@@ -32,6 +36,12 @@
   **0.5% w każdą stronę** (~1% round-trip) + spread. Realny próg rentowności ≈ +1.2%.
 - Brak akcji ułamkowych dla części tickerów (załącznik A) → pozycja = wielokrotność 1 akcji;
   jeśli 1 akcja > 2 400 PLN i brak ułamków → sygnał odpuszczony (`SKIPPED_SIZE`).
+- **Dopisek 24.09.2026** (przeniesione z dziennika, luka ujawniona przy ELV 17.07: 1 akcja ≈ 1 350 PLN):
+  gdy 1 akcja kosztuje 1 200–2 400 PLN, dopuszczalna pozycja = **1 akcja** (nawet poniżej minimum 1 500 PLN);
+  2 akcje tylko, jeśli łącznie ≤ 2 400 PLN. Lepiej 1 akcja niż 0 lub przekroczenie limitu.
+- **Dopisek 24.09.2026 — tie-break przy limicie 2 pozycji**: gdy kwalifikuje się więcej sygnałów niż wolnych
+  slotów (case 11.09: INBX otwarty + ATEC + RLMD tego samego dnia), wchodzi **wcześniejszy wg `sentAt`**;
+  pozostałe → `SKIPPED_SLOTS` w dzienniku. Bez tej reguły dziennik jest nieodtwarzalny.
 - **Zakaz zwiększania stawki** po stracie lub wygranej (sizing stały, nie martyngał).
 
 ## 4. Wyjście
@@ -43,8 +53,16 @@
 
 ## 5. Stop dyscyplinarny
 
-- **3 kolejne transakcje z alpha 7d < 0 vs XBI → pauza do werdyktu 01.09.**
+- ~~3 kolejne transakcje z alpha 7d < 0 vs XBI → pauza do werdyktu 01.09.~~
+  **Zmiana 24.09.2026 (zatwierdzona przez właściciela)**: **3 kolejne transakcje ze stratą NETTO na koncie
+  (wynik PLN po kosztach z dziennika < 0) → pauza do najbliższego werdyktu (01.11).** Powód: alpha vs XBI
+  mierzy jakość SYGNAŁU, nie wynik GRACZA — KURA 24.08 (alpha +2.5%, konto −9%) i RLMD 11.09 (alpha +2.0%,
+  konto −7%) pokazały, że bezpiecznik podpięty do alpha nie odpaliłby przy 3 stratach z rzędu na rachunku
+  (przegląd sub-gate'u 23.09). Alpha zostaje metryką analiz systemu; o pauzie decyduje rachunek.
+  Reguła jest bardziej konserwatywna (odpala szybciej), nie luźniejsza. Sygnały pominięte (`SKIPPED_*`)
+  nie liczą się do serii — liczą się tylko transakcje faktycznie wykonane.
 - Werdykt 01.09 „system bez edge" → koniec gry realnej, powrót do walidacji.
+  *(Werdykt 01.09: edge NIE wykazany, ale system ≠ „bez edge" — gra trwa jako pomiar; następny werdykt 01.11.)*
 - Każda transakcja niezgodna z regułami (wejście z emocji, brak wpisu w dzienniku,
   przetrzymanie po 7d) → tygodniowa pauza, niezależnie od wyniku.
 
@@ -69,15 +87,18 @@ pobrana 02.07.2026). Oferta brokera zmienia się — **przed transakcją potwier
 | core healthcare (36) | ABBV ALHC AMGN BIIB BMY CERT CI CNC CVS CYH DOCS DVA DXCM ELV ENSG GDRX GILD GSK HCA HCAT HIMS HUM ISRG LLY MOH MRNA OSCR PODD REGN SEM TDOC THC UHS UNH VEEV VRTX |
 | discovery (3) | EYE SMMT **COR1** |
 | biotech_apls (6) | ARDX AXSM CRSP MNKD RCKT URGN |
+| discovery — kohorta C-suite (dopisek 24.09.2026, spec. XTB z 18.12.2025) | ATEC BSX ENOV INBX KURA PFE RLMD SMMT — dostępne (RLMD bez ułamków, przy $4 bez znaczenia). **PRE.US — BRAK na XTB** (najlepsze zdarzenie kohorty, +9%, było niewykonalne). Pozostałe tickery discovery (ABCL ALMS ARTV BFLY CAI CBIO COO ELAN EYE IMTX IONS MOBI NAMS PBLS REPL RGNX TYRA) — **niesprawdzone**. |
+
+*Dopisek 24.09.2026 — procedura dla otwartego uniwersum (discovery)*: 🎯 na tickerze spoza tej tabeli →
+sprawdzić w xStation PRZED wejściem; brak instrumentu = `SKIPPED_XTB` w dzienniku, nie sygnał. Kohorta
+discovery na dziś NIE jest promowana (przegląd 23.09) — tabela jest przygotowaniem na wypadek gate'u #2.
 
 **Uwagi krytyczne:**
 
-- **SEM jest na XTB** (`SEM.US`) — w wyszukiwarce xStation szukaj „SEM.US" albo „Select
-  Medical" (samo „SEM" może nie podpowiedzieć).
+- ~~SEM jest na XTB (`SEM.US`)~~ — **SEM zdjęty z giełdy (delisting 07.2026)**, usunięty z uniwersum 01.09.2026.
 - **Cencora = `COR1.US`** (nie COR.US!). Stary ticker `ABC.US` (AmerisourceBergen) istnieje,
   ale jest **close-only** — nie pomylić.
-- **WBA nie istnieje** — Walgreens zdjęty z giełdy (przejęcie Sycamore). Martwy ticker
-  w naszym uniwersum; do usunięcia przy najbliższym przeglądzie.
+- **WBA nie istnieje** — Walgreens zdjęty z giełdy (przejęcie Sycamore). Usunięty z uniwersum 01.09.2026.
 - **Bez akcji ułamkowych**: CYH, GDRX, ARDX, MNKD, COR1. Praktycznie bez znaczenia —
   wszystkie poza COR1 kosztują <$15; COR1 ≈ $288 ≈ 1 150 PLN = 1–2 akcje mieszczą się
   w pozycji.

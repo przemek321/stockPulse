@@ -14,8 +14,10 @@
 - Kwalifikujące sygnały 02.07–01.09: **2 zdarzenia** (ELV, PODD); zagrany 1 (ELV, wynik do uzupełnienia).
 - Częstotliwość: ~1 sygnał/miesiąc. Otwarte pozycje na 01.09: brak.
 
-## Korekty reguł (z werdyktu 01.09)
-- **Sizing przy drogich akcjach**: gdy 1 akcja > 1 500 PLN (np. ELV ~1 350-1 400 PLN), dopuszczalna pozycja
-  = 1 akcja (poniżej minimum) — lepiej 1 akcja niż 0 lub 2 (> max 2 400). Pozycja 2 akcji tylko gdy ≤ 2 400 PLN.
-- **Chase guard** ocenia cenę w momencie faktycznego wejścia (intraday OK), nie pierwszą cenę następnej sesji.
-- Zapisywać także `SKIPPED_*` — bez tego bilans reguł jest nieweryfikowalny (lekcja: 0 wpisów przez 2 miesiące).
+## Korekty reguł
+Sizing przy drogich akcjach, chase guard intraday, tie-break slotów i stop dyscyplinarny na NETTO —
+**przeniesione do REGUŁ jako datowane dopiski 24.09.2026** (§2, §3, §5, Załącznik A). Tu zostaje tylko:
+- Zapisywać także `SKIPPED_*` (`SKIPPED_CHASE` / `SKIPPED_SIZE` / `SKIPPED_SLOTS` / `SKIPPED_XTB` /
+  `SKIPPED_USER`) — bez tego bilans reguł jest nieweryfikowalny (lekcja: 0 wpisów przez 2 miesiące).
+- **Stop dyscyplinarny (od 24.09)**: seria = kolejne WYKONANE transakcje z wynikiem PLN netto < 0; 3 z rzędu
+  → pauza do 01.11. Licznik serii na dziś: **0** (ELV wynik niezapisany — nie liczy się; PODD pominięty).
