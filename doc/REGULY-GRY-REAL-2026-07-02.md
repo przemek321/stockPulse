@@ -61,6 +61,19 @@
   (przegląd sub-gate'u 23.09). Alpha zostaje metryką analiz systemu; o pauzie decyduje rachunek.
   Reguła jest bardziej konserwatywna (odpala szybciej), nie luźniejsza. Sygnały pominięte (`SKIPPED_*`)
   nie liczą się do serii — liczą się tylko transakcje faktycznie wykonane.
+  **Doprecyzowanie 24.09 (żeby dało się to policzyć mechanicznie, nie „na oko")**:
+  1. **Kolejność serii = data WYJŚCIA** (nie wejścia). Transakcja liczy się dopiero, gdy jest zamknięta
+     i ma wpisany wynik PLN netto. Pozycja otwarta nie wchodzi do serii; jeśli dwie pozycje są otwarte
+     naraz, o kolejności decyduje to, która została zamknięta wcześniej.
+  2. **Strata = wynik PLN netto < 0** (po przewalutowaniu 0.5%×2 i spreadzie, wg wyciągu XTB — nie wg
+     pomiaru systemu). Wynik dokładnie 0 lub dodatni przerywa serię.
+  3. **Wpis bez wyniku = brak transakcji** dla licznika. ELV 17.07 (wynik niezapisany) NIE liczy się —
+     licznik startuje od zera od pierwszej transakcji zamkniętej po 24.09.
+  4. **Reset serii**: jedna transakcja z wynikiem ≥ 0 zeruje licznik; pauza po 3. stracie trwa do
+     najbliższego werdyktu (01.11), a po niej licznik zaczyna od zera.
+  5. **Data wyjścia** = 7. dzień kalendarzowy od dnia wejścia (§4); gdy wypada w weekend/święto NYSE —
+     najbliższa następna sesja. Liczy się dzień w czasie NY (wejście po 22:00 PL to już następny dzień NY).
+  Licznik serii prowadzony jawnie w kolumnie **„seria"** dziennika (0/1/2/3 — po każdej zamkniętej transakcji).
 - Werdykt 01.09 „system bez edge" → koniec gry realnej, powrót do walidacji.
   *(Werdykt 01.09: edge NIE wykazany, ale system ≠ „bez edge" — gra trwa jako pomiar; następny werdykt 01.11.)*
 - Każda transakcja niezgodna z regułami (wejście z emocji, brak wpisu w dzienniku,
