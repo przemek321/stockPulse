@@ -127,7 +127,7 @@ export default function DataPanel({
     >
       {/* ── HEADER BAR ─────────────────────────────────────── */}
       <Box
-        onClick={handleToggle}
+        onClick={() => { void handleToggle(); }}
         sx={{
           display: 'flex',
           alignItems: 'center',

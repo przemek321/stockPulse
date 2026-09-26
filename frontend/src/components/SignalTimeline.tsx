@@ -117,7 +117,7 @@ const MessageDialog = ({ message, open, onClose }: {
         <Box>
           <IconButton size="small" sx={{ color: COLORS.text.inverse }}
             onClick={() => {
-              navigator.clipboard.writeText(message);
+              void navigator.clipboard.writeText(message).catch(() => undefined);
               setCopied(true);
               setTimeout(() => { setCopied(false); }, 2000);
             }}>
@@ -199,6 +199,45 @@ const TableHeader = () => (
   </Box>
 );
 
+/* ── Komorki tabeli (poziom modulu) ───────────────────── */
+// static-components (przeglad ESLint 27.09.2026): komponent definiowany WEWNATRZ komponentu
+// dostaje nowa tozsamosc przy kazdym renderze rodzica → React odmontowuje i montuje poddrzewo
+// od nowa (utrata stanu, focus, animacje). Wyniesione na poziom modulu — zamykaja sie tylko
+// nad stalymi z importow, wiec render jest identyczny.
+
+/** Komorka delty cenowej (SignalRow) */
+const DeltaCell = ({ v }: { v: number | null }) => (
+  <Box sx={{
+    width: 58, minWidth: 58, px: 1, py: 0.6,
+    textAlign: 'right',
+    fontFamily: TYPOGRAPHY.monoFamily,
+    fontSize: TYPOGRAPHY.size.base,
+    fontWeight: 600,
+    color: deltaColor(v),
+    borderRight: `1px solid ${COLORS.border}`,
+  }}>
+    {v == null ? '—' : fmtDelta(v)}
+  </Box>
+);
+
+/** Komorka summary bara (SummaryBar) */
+const SummaryCell = ({ label, value, color }: { label: string; value: string; color?: string }) => (
+  <Box sx={{
+    px: 1.5, py: 0.8,
+    borderRight: `1px solid ${COLORS.border}`,
+    minWidth: 90,
+  }}>
+    <Typography sx={labelSx}>{label}</Typography>
+    <Typography sx={{
+      ...metricSx,
+      color: color ?? COLORS.text.primary,
+      fontSize: TYPOGRAPHY.size.md,
+    }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
 /* ── Wiersz tabeli ────────────────────────────────────── */
 
 const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
@@ -228,21 +267,6 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
   const convBg = a.conviction == null
     ? 'transparent'
     : a.conviction > 0 ? COLORS.upBg : COLORS.downBg;
-
-  // Komorka delty cenowej
-  const DeltaCell = ({ v }: { v: number | null }) => (
-    <Box sx={{
-      width: 58, minWidth: 58, px: 1, py: 0.6,
-      textAlign: 'right',
-      fontFamily: TYPOGRAPHY.monoFamily,
-      fontSize: TYPOGRAPHY.size.base,
-      fontWeight: 600,
-      color: deltaColor(v),
-      borderRight: `1px solid ${COLORS.border}`,
-    }}>
-      {v == null ? '—' : fmtDelta(v)}
-    </Box>
-  );
 
   return (
     <>
@@ -573,23 +597,6 @@ const SummaryBar = ({ selected, summary }: {
     : summary.hitRate1d <= 40 ? COLORS.down
     : COLORS.warning;
 
-  const Cell = ({ label, value, color }: { label: string; value: string; color?: string }) => (
-    <Box sx={{
-      px: 1.5, py: 0.8,
-      borderRight: `1px solid ${COLORS.border}`,
-      minWidth: 90,
-    }}>
-      <Typography sx={labelSx}>{label}</Typography>
-      <Typography sx={{
-        ...metricSx,
-        color: color ?? COLORS.text.primary,
-        fontSize: TYPOGRAPHY.size.md,
-      }}>
-        {value}
-      </Typography>
-    </Box>
-  );
-
   return (
     <Box sx={{
       display: 'flex',
@@ -601,21 +608,21 @@ const SummaryBar = ({ selected, summary }: {
       mb: 1,
       overflowX: 'auto',
     }}>
-      <Cell label="TICKER" value={selected} color={COLORS.text.accent} />
-      <Cell label="SIGNALS" value={String(summary.totalAlerts)} />
-      <Cell
+      <SummaryCell label="TICKER" value={selected} color={COLORS.text.accent} />
+      <SummaryCell label="SIGNALS" value={String(summary.totalAlerts)} />
+      <SummaryCell
         label="DOMINANT"
         value={summary.directionConsistency != null
           ? `${dominantLabel} ${summary.directionConsistency}%`
           : dominantLabel}
         color={dominantColor}
       />
-      <Cell
+      <SummaryCell
         label="HIT RATE 1D"
         value={summary.hitRate1d != null ? `${summary.hitRate1d}%` : '—'}
         color={hitRateColor}
       />
-      <Cell
+      <SummaryCell
         label="AVG GAP"
         value={summary.avgHoursBetween != null ? fmtGap(summary.avgHoursBetween) : '—'}
       />
@@ -671,11 +678,11 @@ export default function SignalTimeline() {
     setLoading(false);
   }, [selected, days]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { void loadData(); }, [loadData]);
 
   // Auto-refresh co 60s
   useEffect(() => {
-    const interval = setInterval(loadData, 60_000);
+    const interval = setInterval(() => { void loadData(); }, 60_000);
     return () => { clearInterval(interval); };
   }, [loadData]);
 

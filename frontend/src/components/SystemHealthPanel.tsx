@@ -178,8 +178,8 @@ export default function SystemHealthPanel() {
   }, []);
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 60_000);
+    void load();
+    const interval = setInterval(() => { void load(); }, 60_000);
     return () => { clearInterval(interval); };
   }, [load]);
 
@@ -252,7 +252,7 @@ export default function SystemHealthPanel() {
           >
             {fmtTimestamp(data.timestamp)}
           </Typography>
-          <IconButton size="small" onClick={load} title="Refresh" sx={{ p: 0.25 }}>
+          <IconButton size="small" onClick={() => { void load(); }} title="Refresh" sx={{ p: 0.25 }}>
             <RefreshIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Box>

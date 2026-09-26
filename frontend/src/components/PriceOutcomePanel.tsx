@@ -239,7 +239,7 @@ export default function PriceOutcomePanel() {
     >
       {/* ── HEADER BAR ────────────────────────────────── */}
       <Box
-        onClick={handleToggle}
+        onClick={() => { void handleToggle(); }}
         sx={{
           display: 'flex',
           alignItems: 'center',

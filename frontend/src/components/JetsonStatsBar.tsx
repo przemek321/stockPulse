@@ -43,8 +43,8 @@ export default function JetsonStatsBar() {
   }, []);
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 10_000);
+    void load();
+    const interval = setInterval(() => { void load(); }, 10_000);
     return () => { clearInterval(interval); };
   }, [load]);
 

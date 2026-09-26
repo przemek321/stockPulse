@@ -192,8 +192,8 @@ export default function TopStatusBar({ activeTab, onTabChange }: Props) {
   };
 
   useEffect(() => {
-    fetchAll();
-    const id = setInterval(fetchAll, 30_000);
+    void fetchAll();
+    const id = setInterval(() => { void fetchAll(); }, 30_000);
     return () => { clearInterval(id); };
   }, []);
 

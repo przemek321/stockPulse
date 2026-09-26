@@ -31,7 +31,7 @@ const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: s
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => { setCopied(false); }, 2000);
-    });
+    }).catch(() => undefined); // schowek niedostepny (http / brak uprawnien) — bez UI
   };
 
   return (

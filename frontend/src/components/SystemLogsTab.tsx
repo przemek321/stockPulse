@@ -231,7 +231,7 @@ function LogRow({ log }: { log: SystemLog }) {
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigator.clipboard.writeText(log.traceId!);
+                          void navigator.clipboard.writeText(log.traceId ?? '').catch(() => undefined);
                         }}
                         sx={{ fontSize: '0.65rem', minWidth: 'auto', py: 0.3, px: 1 }}
                       >
@@ -390,13 +390,13 @@ export default function SystemLogsTab() {
 
   // Ładuj przy zmianie filtrów / strony
   useEffect(() => {
-    loadLogs();
+    void loadLogs();
   }, [loadLogs]);
 
   // Auto-refresh co 30s
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(loadLogs, 30_000);
+    const interval = setInterval(() => { void loadLogs(); }, 30_000);
     return () => { clearInterval(interval); };
   }, [autoRefresh, loadLogs]);
 
@@ -583,7 +583,7 @@ export default function SystemLogsTab() {
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               setPage(1);
-              loadLogs();
+              void loadLogs();
             }
           }}
           sx={{ width: 100 }}
@@ -610,7 +610,7 @@ export default function SystemLogsTab() {
         <Button
           size="small"
           startIcon={<RefreshIcon />}
-          onClick={loadLogs}
+          onClick={() => { void loadLogs(); }}
           disabled={loading}
         >
           Odśwież
@@ -633,7 +633,7 @@ export default function SystemLogsTab() {
           size="small"
           variant="outlined"
           startIcon={<DownloadIcon />}
-          onClick={handleExport}
+          onClick={() => { void handleExport(); }}
         >
           Export JSON
         </Button>

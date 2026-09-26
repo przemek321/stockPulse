@@ -8,9 +8,6 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 21
     },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    },
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },
@@ -86,9 +83,6 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 5
     },
-    "@typescript-eslint/no-misused-promises": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 3
     },
@@ -106,18 +100,6 @@
     }
   },
   "src/components/DbSummary.tsx": {
-    "@eslint-react/no-nested-component-definitions": {
-      "count": 1
-    },
-    "@eslint-react/static-components": {
-      "count": 8
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    },
-    "@typescript-eslint/no-misused-promises": {
-      "count": 2
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 4
     },
@@ -126,9 +108,6 @@
     },
     "@typescript-eslint/no-unsafe-return": {
       "count": 2
-    },
-    "react-hooks/static-components": {
-      "count": 4
     }
   },
   "src/components/GlossaryTab.tsx": {
@@ -140,12 +119,6 @@
     }
   },
   "src/components/JetsonStatsBar.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    },
-    "@typescript-eslint/no-misused-promises": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     },
@@ -155,9 +128,6 @@
   },
   "src/components/PriceOutcomePanel.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-misused-promises": {
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
@@ -183,22 +153,10 @@
     }
   },
   "src/components/SignalTimeline.tsx": {
-    "@eslint-react/no-nested-component-definitions": {
-      "count": 2
-    },
-    "@eslint-react/static-components": {
-      "count": 18
-    },
     "@typescript-eslint/no-confusing-void-expression": {
       "count": 1
     },
     "@typescript-eslint/no-empty-function": {
-      "count": 1
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
-    },
-    "@typescript-eslint/no-misused-promises": {
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
@@ -218,20 +176,11 @@
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
-    },
-    "react-hooks/static-components": {
-      "count": 9
     }
   },
   "src/components/SystemHealthPanel.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    },
-    "@typescript-eslint/no-misused-promises": {
-      "count": 2
     },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 1
@@ -255,15 +204,6 @@
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 3
-    },
-    "@typescript-eslint/no-misused-promises": {
-      "count": 3
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
     },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 3
@@ -289,12 +229,6 @@
   },
   "src/components/TopStatusBar.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    },
-    "@typescript-eslint/no-misused-promises": {
       "count": 1
     },
     "@typescript-eslint/no-unsafe-argument": {

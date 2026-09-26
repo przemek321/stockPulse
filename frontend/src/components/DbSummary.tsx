@@ -35,6 +35,24 @@ const fetchOverviewMini = async (): Promise<SystemOverviewSlim> => {
  * Inline horizontalny stat strip + przycisk raportu tygodniowego (JSON).
  * Bloomberg style: pojedyncza linia z metrykami bazy i przyciskiem download.
  */
+/** Stat: LABEL VALUE (poziom modulu — static-components, patrz SignalTimeline) */
+const Stat = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+    <Typography sx={{ ...labelSx, fontSize: TYPOGRAPHY.size.xs }}>{label}</Typography>
+    <Typography
+      sx={{
+        fontFamily: TYPOGRAPHY.monoFamily,
+        fontSize: TYPOGRAPHY.size.md,
+        fontWeight: TYPOGRAPHY.weight.bold,
+        color: COLORS.text.primary,
+        lineHeight: 1.2,
+      }}
+    >
+      {value ?? '—'}
+    </Typography>
+  </Box>
+);
+
 export default function DbSummary() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<StatsData | null>(null);
@@ -52,8 +70,8 @@ export default function DbSummary() {
         /* ignore — panel jest opcjonalny */
       }
     };
-    load();
-    const id = setInterval(load, 60_000);
+    void load();
+    const id = setInterval(() => { void load(); }, 60_000);
     return () => {
       alive = false;
       clearInterval(id);
@@ -90,23 +108,6 @@ export default function DbSummary() {
   const dbSize = stats?.database.size ?? null;
   const alerts7d = overview?.alerts?.delivered7d ?? null;
 
-  const Stat = ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-      <Typography sx={{ ...labelSx, fontSize: TYPOGRAPHY.size.xs }}>{label}</Typography>
-      <Typography
-        sx={{
-          fontFamily: TYPOGRAPHY.monoFamily,
-          fontSize: TYPOGRAPHY.size.md,
-          fontWeight: TYPOGRAPHY.weight.bold,
-          color: COLORS.text.primary,
-          lineHeight: 1.2,
-        }}
-      >
-        {value ?? '—'}
-      </Typography>
-    </Box>
-  );
-
   return (
     <Box
       sx={{
@@ -132,7 +133,7 @@ export default function DbSummary() {
       {/* Download button (terminal style) */}
       <Box
         component="button"
-        onClick={handleDownload}
+        onClick={() => { void handleDownload(); }}
         disabled={loading}
         sx={{
           display: 'flex',
