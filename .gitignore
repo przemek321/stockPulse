@@ -66,3 +66,7 @@ polymarket-*.json
 polymarket-*.sh
 polymarket-*.txt
 scripts/audit/trades_export.csv
+
+# ESLint: pełny raport pierwszego przelotu (regenerowalny); baseline = eslint-suppressions.json (commitowany)
+lint-baseline.json
+frontend/lint-baseline.json

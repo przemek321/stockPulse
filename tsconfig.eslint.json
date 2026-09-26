@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "incremental": false, "types": ["node", "jest"] },
+  "include": ["src/**/*", "test/**/*", "jest.config.js", "eslint.config.mjs"],
+  "exclude": ["node_modules", "dist", "scripts"]
+}

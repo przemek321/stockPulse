@@ -1,0 +1,1601 @@
+{
+  "jest.config.js": {
+    "no-undef": {
+      "count": 1
+    }
+  },
+  "src/alerts/alert-delivery-gate.service.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    }
+  },
+  "src/alerts/alert-dispatcher.service.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 14
+    },
+    "no-useless-escape": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 2
+    }
+  },
+  "src/alerts/alert-evaluator.service.ts": {
+    "@typescript-eslint/consistent-generic-constructors": {
+      "count": 1
+    },
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 3
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 5
+    }
+  },
+  "src/alerts/alerts.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/alerts/summary-scheduler.service.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 3
+    },
+    "@typescript-eslint/no-misused-promises": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-plus-operands": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    },
+    "no-useless-escape": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 2
+    }
+  },
+  "src/alerts/telegram/telegram-formatter.service.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 4
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 8
+    },
+    "no-useless-escape": {
+      "count": 2
+    }
+  },
+  "src/alerts/telegram/telegram.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/alerts/telegram/telegram.service.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    }
+  },
+  "src/api/alerts/alerts.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 12
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 26
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 18
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 53
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 5
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 8
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 14
+    },
+    "no-useless-escape": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/api/api.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 7
+    }
+  },
+  "src/api/health/health.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 25
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 16
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 6
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 7
+    },
+    "perfectionist/sort-imports": {
+      "count": 5
+    }
+  },
+  "src/api/health/system-stats.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-regexp-exec": {
+      "count": 2
+    },
+    "@typescript-eslint/require-await": {
+      "count": 4
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/api/options-flow/options-flow.controller.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/api/sentiment/sentiment.controller.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 6
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 6
+    }
+  },
+  "src/api/system-logs/system-logs.controller.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 3
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 5
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/api/tickers/tickers.controller.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    }
+  },
+  "src/app.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 7
+    }
+  },
+  "src/collectors/collectors.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 5
+    }
+  },
+  "src/collectors/finnhub/finnhub.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/finnhub/finnhub.processor.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/finnhub/finnhub.scheduler.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/collectors/finnhub/finnhub.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 16
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 31
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 4
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 8
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 6
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/form4-discovery/form4-discovery.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 4
+    }
+  },
+  "src/collectors/form4-discovery/form4-discovery.processor.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/form4-discovery/form4-discovery.scheduler.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/collectors/form4-discovery/form4-discovery.service.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 3
+    },
+    "@typescript-eslint/no-confusing-void-expression": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-regexp-exec": {
+      "count": 4
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 16
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 7
+    },
+    "no-useless-escape": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 5
+    }
+  },
+  "src/collectors/form4-discovery/redis.provider.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/options-flow/options-flow.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/options-flow/options-flow.processor.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/options-flow/options-flow.scheduler.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/collectors/options-flow/options-flow.service.ts": {
+    "@typescript-eslint/no-confusing-void-expression": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 3
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 4
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 19
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 11
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/pdufa-bio/pdufa-bio.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/pdufa-bio/pdufa-bio.processor.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/pdufa-bio/pdufa-bio.scheduler.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/collectors/pdufa-bio/pdufa-bio.service.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 5
+    },
+    "perfectionist/sort-imports": {
+      "count": 4
+    }
+  },
+  "src/collectors/reddit/reddit.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/reddit/reddit.processor.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/reddit/reddit.scheduler.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 2
+    }
+  },
+  "src/collectors/reddit/reddit.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 14
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 3
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 15
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 9
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/sec-edgar/form4-parser.ts": {
+    "@typescript-eslint/dot-notation": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 12
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 29
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 7
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 14
+    }
+  },
+  "src/collectors/sec-edgar/sec-edgar.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/sec-edgar/sec-edgar.processor.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/sec-edgar/sec-edgar.scheduler.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/collectors/sec-edgar/sec-edgar.service.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 2
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 13
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 14
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 14
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 5
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/shared/base-collector.service.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 4
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 4
+    },
+    "perfectionist/sort-imports": {
+      "count": 2
+    }
+  },
+  "src/collectors/stocktwits/stocktwits.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/collectors/stocktwits/stocktwits.processor.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/collectors/stocktwits/stocktwits.scheduler.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/collectors/stocktwits/stocktwits.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 4
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 3
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/common/decorators/logged.decorator.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 15
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 16
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 3
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 3
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 3
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 7
+    }
+  },
+  "src/common/filters/http-exception.filter.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "src/common/guards/api-token.guard.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    }
+  },
+  "src/config/config.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    }
+  },
+  "src/correlation/correlation.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/correlation/correlation.service.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 1
+    },
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 7
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 7
+    }
+  },
+  "src/correlation/redis.provider.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    }
+  },
+  "src/database/database.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/database/seeds/seed.ts": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 5
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 7
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 5
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 3
+    }
+  },
+  "src/entities/system-log.entity.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/events/events.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    }
+  },
+  "src/main.ts": {
+    "@typescript-eslint/no-floating-promises": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/options-flow/options-flow-alert.service.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 6
+    }
+  },
+  "src/options-flow/options-flow-scoring.service.ts": {
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/options-flow/options-flow.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 5
+    }
+  },
+  "src/price-outcome/price-outcome.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/price-outcome/price-outcome.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 8
+    },
+    "perfectionist/sort-imports": {
+      "count": 2
+    }
+  },
+  "src/price-outcome/sector-alpha.ts": {
+    "@typescript-eslint/no-inferrable-types": {
+      "count": 1
+    }
+  },
+  "src/queues/queues.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/sec-filings/pipelines/form4.pipeline.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 10
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 5
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 18
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 6
+    },
+    "perfectionist/sort-imports": {
+      "count": 8
+    }
+  },
+  "src/sec-filings/pipelines/form8k.pipeline.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 13
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 31
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-optional-chain": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 35
+    },
+    "@typescript-eslint/return-await": {
+      "count": 4
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 22
+    },
+    "no-useless-escape": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 10
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/sec-filings/prompts/form4.prompt.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    }
+  },
+  "src/sec-filings/prompts/form8k-1-01.prompt.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    }
+  },
+  "src/sec-filings/prompts/form8k-2-02.prompt.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 3
+    }
+  },
+  "src/sec-filings/prompts/form8k-5-02.prompt.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    }
+  },
+  "src/sec-filings/prompts/form8k-other.prompt.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    }
+  },
+  "src/sec-filings/scoring/price-impact.scorer.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/sec-filings/sec-filings.controller.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 3
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    }
+  },
+  "src/sec-filings/sec-filings.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 6
+    }
+  },
+  "src/sec-filings/services/consensus-comparison.service.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 5
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 9
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 13
+    }
+  },
+  "src/sec-filings/services/daily-cap.service.ts": {
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 3
+    }
+  },
+  "src/sec-filings/types/sec-filing-analysis.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "src/sec-filings/utils/consensus-gap-guard.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 4
+    }
+  },
+  "src/sec-filings/utils/extract-reported-numbers.ts": {
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    }
+  },
+  "src/sec-filings/utils/missing-data-detector.ts": {
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    }
+  },
+  "src/sentiment/anthropic-client.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "@typescript-eslint/no-redundant-type-constituents": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 2
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 2
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/sentiment/azure-openai-client.service.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-redundant-type-constituents": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 5
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 3
+    }
+  },
+  "src/sentiment/sentiment.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/system-log/system-log.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/system-log/system-log.service.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-inferrable-types": {
+      "count": 3
+    },
+    "@typescript-eslint/prefer-nullish-coalescing": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 5
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 10
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "src/ticker-profile/ticker-profile.module.ts": {
+    "@typescript-eslint/no-extraneous-class": {
+      "count": 1
+    }
+  },
+  "src/ticker-profile/ticker-profile.service.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 7
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 12
+    }
+  },
+  "test/agents/alert-evaluator-agent.spec.ts": {
+    "@typescript-eslint/no-empty-function": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 8
+    },
+    "@typescript-eslint/require-await": {
+      "count": 8
+    }
+  },
+  "test/agents/collectors-agent.spec.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    }
+  },
+  "test/agents/correlation-agent.spec.ts": {
+    "@typescript-eslint/no-empty-function": {
+      "count": 1
+    },
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 6
+    }
+  },
+  "test/agents/options-flow-agent.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 10
+    },
+    "@typescript-eslint/require-await": {
+      "count": 14
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 3
+    }
+  },
+  "test/agents/price-outcome-agent.spec.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 4
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "test/agents/sec-filings-agent.spec.ts": {
+    "@typescript-eslint/no-confusing-void-expression": {
+      "count": 6
+    },
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/alert-delivery-gate.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 1
+    }
+  },
+  "test/unit/alert-dispatcher.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 3
+    }
+  },
+  "test/unit/alert-evaluator.spec.ts": {
+    "@typescript-eslint/no-empty-function": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 9
+    },
+    "@typescript-eslint/require-await": {
+      "count": 9
+    }
+  },
+  "test/unit/alerts-outcomes-mapper.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 46
+    }
+  },
+  "test/unit/consensus-comparison.service.spec.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 17
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 29
+    },
+    "@typescript-eslint/unbound-method": {
+      "count": 3
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/consensus-gap-guard.spec.ts": {
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/correlation-direction-conflict.spec.ts": {
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "test/unit/correlation.spec.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 6
+    }
+  },
+  "test/unit/finnhub-quote-stale.spec.ts": {
+    "@typescript-eslint/unbound-method": {
+      "count": 3
+    }
+  },
+  "test/unit/fix16-shadow.spec.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 9
+    },
+    "perfectionist/sort-imports": {
+      "count": 2
+    }
+  },
+  "test/unit/form4-aggregation.spec.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    }
+  },
+  "test/unit/form4-correlation-backdoor.spec.ts": {
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 3
+    }
+  },
+  "test/unit/form4-discovery-pipeline.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 1
+    }
+  },
+  "test/unit/form4-discovery.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 15
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    }
+  },
+  "test/unit/form4-parser.spec.ts": {
+    "@typescript-eslint/array-type": {
+      "count": 1
+    },
+    "@typescript-eslint/no-inferrable-types": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 3
+    }
+  },
+  "test/unit/form4-pipeline-rules.spec.ts": {
+    "@typescript-eslint/no-inferrable-types": {
+      "count": 1
+    }
+  },
+  "test/unit/form8k-bullish-gate.spec.ts": {
+    "@typescript-eslint/no-redundant-type-constituents": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 3
+    },
+    "@typescript-eslint/require-await": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 5
+    }
+  },
+  "test/unit/form8k-exhibit-991.spec.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 9
+    }
+  },
+  "test/unit/form8k-guidance-floor.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "@typescript-eslint/require-await": {
+      "count": 3
+    }
+  },
+  "test/unit/form8k-material-event-obs.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 4
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 6
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/form8k-missing-data.spec.ts": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 3
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 1
+    }
+  },
+  "test/unit/form8k-prompts-template.spec.ts": {
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/missing-data-detector.spec.ts": {
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/options-flow-cycle-budget.spec.ts": {
+    "@typescript-eslint/no-confusing-void-expression": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "@typescript-eslint/require-await": {
+      "count": 4
+    }
+  },
+  "test/unit/options-flow-obs-gate.spec.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/strict-boolean-expressions": {
+      "count": 4
+    }
+  },
+  "test/unit/options-flow-scoring.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 2
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/pdufa-collector.spec.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 3
+    },
+    "perfectionist/sort-imports": {
+      "count": 1
+    }
+  },
+  "test/unit/sector-alpha.spec.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 6
+    }
+  },
+  "test/unit/sector-snapshot.spec.ts": {
+    "@typescript-eslint/consistent-generic-constructors": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "test/unit/summary-scheduler.spec.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 9
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 1
+    },
+    "no-useless-escape": {
+      "count": 3
+    }
+  },
+  "test/unit/unusual-activity-detector.spec.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 4
+    }
+  }
+}
