@@ -121,7 +121,7 @@ const PriorityChip = ({ value, row }: {
     : 'default';
 
   const label = suppressed
-    ? `${value} (${nonDeliveryLabel(reason)})`
+    ? `${value} (${nonDeliveryLabel(reason) ?? reason})`
     : value;
 
   return (

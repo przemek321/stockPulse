@@ -248,7 +248,7 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
     <>
       <Box
         onClick={onToggle}
-        title={a.nonDeliveryReason ? `Alert stłumiony (${nonDeliveryLabelShort(a.nonDeliveryReason)}) — pomiar walidacyjny, NIE sygnał` : undefined}
+        title={a.nonDeliveryReason ? `Alert stłumiony (${nonDeliveryLabelShort(a.nonDeliveryReason) ?? a.nonDeliveryReason}) — pomiar walidacyjny, NIE sygnał` : undefined}
         sx={{
           display: 'flex',
           minWidth: TOTAL_WIDTH,

@@ -17,7 +17,7 @@ export class SecEdgarProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<{ collector: string; count: number }> {
-    this.logger.log(`Rozpoczynam cykl zbierania SEC EDGAR (job ${job.id})`);
+    this.logger.log(`Rozpoczynam cykl zbierania SEC EDGAR (job ${job.id ?? '?'})`);
     return this.secEdgarService.runCollectionCycle();
   }
 }

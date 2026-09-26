@@ -193,7 +193,7 @@ export class RedditService extends BaseCollectorService {
     const username = this.config.get<string>('REDDIT_USERNAME');
     const password = this.config.get<string>('REDDIT_PASSWORD');
 
-    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const auth = Buffer.from(`${clientId ?? ''}:${clientSecret ?? ''}`).toString('base64');
 
     const res = await fetch('https://www.reddit.com/api/v1/access_token', {
       method: 'POST',
@@ -202,7 +202,7 @@ export class RedditService extends BaseCollectorService {
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'StockPulse/1.0',
       },
-      body: `grant_type=password&username=${username}&password=${password}`,
+      body: `grant_type=password&username=${username ?? ''}&password=${password ?? ''}`,
     });
 
     if (!res.ok) {
@@ -221,7 +221,7 @@ export class RedditService extends BaseCollectorService {
   private async redditFetch(url: string): Promise<any> {
     const res = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${this.accessToken ?? ''}`,
         'User-Agent': 'StockPulse/1.0',
       },
     });

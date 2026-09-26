@@ -19,4 +19,8 @@ async function bootstrap() {
   );
 }
 
-bootstrap();
+// Bez catch błąd startu (np. brak DB) ginął jako unhandled rejection bez kodu wyjścia.
+bootstrap().catch((err: unknown) => {
+  Logger.error(`Start StockPulse nieudany: ${err instanceof Error ? err.stack ?? err.message : String(err)}`, 'Bootstrap');
+  process.exit(1);
+});

@@ -17,7 +17,7 @@ export class StocktwitsProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<{ collector: string; count: number }> {
-    this.logger.log(`Rozpoczynam cykl zbierania StockTwits (job ${job.id})`);
+    this.logger.log(`Rozpoczynam cykl zbierania StockTwits (job ${job.id ?? '?'})`);
     return this.stocktwitsService.runCollectionCycle();
   }
 }

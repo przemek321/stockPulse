@@ -47,9 +47,6 @@
     "@typescript-eslint/prefer-nullish-coalescing": {
       "count": 6
     },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 7
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 16
     },
@@ -63,9 +60,6 @@
     },
     "@typescript-eslint/no-unsafe-return": {
       "count": 1
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 7
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 11
@@ -86,9 +80,6 @@
     },
     "@typescript-eslint/no-unsafe-return": {
       "count": 1
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 4
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
@@ -148,9 +139,6 @@
     "@typescript-eslint/no-unsafe-return": {
       "count": 2
     },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 4
-    },
     "react-hooks/static-components": {
       "count": 4
     }
@@ -183,9 +171,6 @@
       "count": 1
     },
     "@typescript-eslint/prefer-optional-chain": {
-      "count": 1
-    },
-    "@typescript-eslint/restrict-template-expressions": {
       "count": 1
     },
     "react-hooks/set-state-in-effect": {
@@ -222,9 +207,6 @@
     },
     "@typescript-eslint/prefer-optional-chain": {
       "count": 1
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 3
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 3
@@ -269,9 +251,6 @@
     },
     "@typescript-eslint/prefer-nullish-coalescing": {
       "count": 3
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 10
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 19
@@ -340,9 +319,6 @@
     "@typescript-eslint/prefer-nullish-coalescing": {
       "count": 4
     },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 6
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 12
     },
@@ -396,9 +372,6 @@
   "src/theme/financial.ts": {
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 1
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 4
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2

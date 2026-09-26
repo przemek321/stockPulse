@@ -331,7 +331,7 @@ export class Form8kPipeline {
           analysis.conviction = Math.sign(analysis.conviction) * cappedAbs;
           consensusGapDecision = decision;
           this.logger.warn(
-            `8-K consensus gap dla ${payload.symbol}: ${decision.details} ` +
+            `8-K consensus gap dla ${payload.symbol}: ${decision.details ?? ''} ` +
               `(conviction ${oldConv.toFixed(2)} → ${analysis.conviction.toFixed(2)})`,
           );
 

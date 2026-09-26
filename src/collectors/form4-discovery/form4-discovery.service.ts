@@ -345,7 +345,7 @@ export class Form4DiscoveryService {
       if (text === null) {
         return { collector: 'FORM4_DISCOVERY', indexed: 0, fresh: 0, registered: 0, action: 'NO_DAILY_INDEX' };
       }
-      this.logger.log(`Discovery reconciliation: daily-index ${usedDate}`);
+      this.logger.log(`Discovery reconciliation: daily-index ${usedDate ?? '?'}`);
 
       const rows = parseDailyIndexForm4(text);
       let fresh = 0;
@@ -427,8 +427,8 @@ export class Form4DiscoveryService {
       }
 
       this.logger.log(
-        `Discovery kandydat: ${meta.ticker} (${meta.name ?? cik}, SIC ${meta.sic}) — ` +
-          `${pre.insiderName} (${pre.insiderRole ?? '?'}) BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}` +
+        `Discovery kandydat: ${meta.ticker} (${meta.name ?? cik}, SIC ${meta.sic ?? '?'}) — ` +
+          `${pre.insiderName ?? '?'} (${pre.insiderRole ?? '?'}) BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}` +
           (pre.reason === 'ok_csuite_t2' ? ' [tier-2 C-suite ≥$100K]' : ''),
       );
 
@@ -486,14 +486,14 @@ export class Form4DiscoveryService {
         symbol: meta.ticker,
         name: meta.name ?? meta.ticker,
         cik: cik.padStart(10, '0'),
-        subsector: meta.sicDescription ?? `SIC ${meta.sic}`,
+        subsector: meta.sicDescription ?? `SIC ${meta.sic ?? '?'}`,
         priority: 'LOW',
         sector: 'healthcare_discovery',
         observationOnly: true,
         isActive: true,
         notes:
           `Auto-discovered ${new Date().toISOString().split('T')[0]} (Pakiet 2): ` +
-          `${pre.insiderName} BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}, ` +
+          `${pre.insiderName ?? '?'} BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}, ` +
           `mcap $${Math.round(mcap)}M, ADV $${Math.round(advUsd).toLocaleString('en-US')}`,
       });
       await this.tickerRepo.save(ticker);
@@ -552,7 +552,7 @@ export class Form4DiscoveryService {
       await this.redis.expire(regKey, 48 * 3600);
       await this.markSeen(accession);
       this.logger.log(
-        `Discovery ZAREJESTROWANY: ${meta.ticker} (${meta.name}) — observation mode, ` +
+        `Discovery ZAREJESTROWANY: ${meta.ticker} (${meta.name ?? '?'}) — observation mode, ` +
           `przegląd okna obs ~25.07.2026`,
       );
 

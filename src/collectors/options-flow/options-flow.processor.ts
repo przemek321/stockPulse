@@ -17,7 +17,7 @@ export class OptionsFlowProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<{ collector: string; count: number }> {
-    this.logger.log(`Rozpoczynam cykl zbierania options flow (job ${job.id})`);
+    this.logger.log(`Rozpoczynam cykl zbierania options flow (job ${job.id ?? '?'})`);
     return this.optionsFlowService.runCollectionCycle();
   }
 }

@@ -17,7 +17,7 @@ export class FinnhubProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<{ collector: string; count: number }> {
-    this.logger.log(`Rozpoczynam cykl zbierania Finnhub (job ${job.id})`);
+    this.logger.log(`Rozpoczynam cykl zbierania Finnhub (job ${job.id ?? '?'})`);
     return this.finnhubService.runCollectionCycle();
   }
 }

@@ -104,7 +104,7 @@ export class ConsensusComparisonService {
       const diffPct =
         ((finnhub.epsEstimate - alpha.epsEstimate) / Math.abs(alpha.epsEstimate)) * 100;
       this.logger.log(
-        `consensus source diff ${symbol} period=${period}: ` +
+        `consensus source diff ${symbol} period=${period ?? '?'}: ` +
           `Finnhub eps=${finnhub.epsEstimate.toFixed(4)}, ` +
           `AlphaVantage eps=${alpha.epsEstimate.toFixed(4)} ` +
           `(diff ${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%)`,
@@ -212,7 +212,7 @@ export class ConsensusComparisonService {
 
     // Alpha Vantage rate-limit message
     if (json.Information || json.Note) {
-      this.logger.warn(`AlphaVantage rate-limited dla ${symbol}: ${json.Information ?? json.Note}`);
+      this.logger.warn(`AlphaVantage rate-limited dla ${symbol}: ${json.Information ?? json.Note ?? ''}`);
       return null;
     }
 
@@ -303,13 +303,13 @@ function validNumber(n: number | null): number | null {
 function maybeWarnAnomaly(row: AlphaVantageEstimateRow, logger: Logger, symbol: string): void {
   if (row.revenueEstimate !== null && isFinite(row.revenueEstimate) && row.revenueEstimate < 1_000_000) {
     logger.warn(
-      `AlphaVantage suspect revenue ${symbol} ${row.date}: ` +
+      `AlphaVantage suspect revenue ${symbol} ${row.date ?? '?'}: ` +
         `${row.revenueEstimate} (likely thousands not dollars; passing through)`,
     );
   }
   if (row.epsEstimate !== null && isFinite(row.epsEstimate) && Math.abs(row.epsEstimate) > 50) {
     logger.warn(
-      `AlphaVantage suspect EPS ${symbol} ${row.date}: ` +
+      `AlphaVantage suspect EPS ${symbol} ${row.date ?? '?'}: ` +
         `${row.epsEstimate} (likely one-time charge or data issue; passing through)`,
     );
   }

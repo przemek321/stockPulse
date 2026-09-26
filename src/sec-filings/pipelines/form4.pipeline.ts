@@ -209,7 +209,7 @@ export class Form4Pipeline {
 
     // Sprint 11: wyfiltruj planowe transakcje 10b5-1 (szum, nie realny sygnał insiderski)
     if (payload.is10b51Plan === true) {
-      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP 10b5-1 plan`);
+      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName ?? '?'} — SKIP 10b5-1 plan`);
       return { action: 'SKIP_10B51_PLAN', symbol: payload.symbol, traceId: payload.traceId };
     }
 
@@ -227,7 +227,7 @@ export class Form4Pipeline {
     const hasCsuite = isCsuiteRole(role);
     const isPureDirector = isDirector && !hasCsuite;
     if (isPureDirector && payload.transactionType === 'SELL') {
-      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName} — SKIP pure Director SELL (anty-sygnał)`);
+      this.logger.debug(`Form4: ${payload.symbol} ${payload.insiderName ?? '?'} — SKIP pure Director SELL (anty-sygnał)`);
       return { action: 'SKIP_DIRECTOR_SELL', symbol: payload.symbol, traceId: payload.traceId };
     }
 
@@ -246,7 +246,7 @@ export class Form4Pipeline {
       !isDirector
     ) {
       this.logger.debug(
-        `Form4: ${payload.symbol} ${payload.insiderName} (${role || 'brak roli'}) — SKIP_NON_ROLE_SELL`,
+        `Form4: ${payload.symbol} ${payload.insiderName ?? '?'} (${role || 'brak roli'}) — SKIP_NON_ROLE_SELL`,
       );
       return { action: 'SKIP_NON_ROLE_SELL', symbol: payload.symbol, traceId: payload.traceId };
     }
@@ -305,7 +305,7 @@ export class Form4Pipeline {
         const tierLabel = isAplsTicker ? 'APLS' : 'DISCOVERY';
         if (payload.transactionType !== 'BUY') {
           this.logger.debug(
-            `Form4 ${tierLabel} skip: ${payload.symbol} ${payload.transactionType} — obs vertical przetwarza tylko BUY`,
+            `Form4 ${tierLabel} skip: ${payload.symbol} ${payload.transactionType ?? '?'} — obs vertical przetwarza tylko BUY`,
           );
           return {
             action: isAplsTicker ? 'SKIP_APLS_NON_BUY' : 'SKIP_DISCOVERY_NON_BUY',
@@ -596,7 +596,7 @@ export class Form4Pipeline {
 
       this.logger.log(
         `Form4 GPT alert: ${payload.symbol} ${parsed.insiderName}` +
-          (isAggregate ? ` [×${payload.aggregateCount} fills]` : '') +
+          (isAggregate ? ` [×${payload.aggregateCount ?? 0} fills]` : '') +
           ` — ${analysis.price_impact.direction}/${analysis.price_impact.magnitude} ` +
           `conviction=${analysis.conviction.toFixed(2)}`,
       );
@@ -644,7 +644,7 @@ export class Form4Pipeline {
         }
       } else if (this.correlation && isSellNoEdgeSuppressed) {
         this.logger.debug(
-          `Form4 ${payload.symbol} ${dispatchResult.suppressedBy}: pomijam correlation.storeSignal ` +
+          `Form4 ${payload.symbol} ${dispatchResult.suppressedBy ?? '-'}: pomijam correlation.storeSignal ` +
             `(V5 backtest zero edge dla SELL — nie zasilamy Redis żeby uniknąć INSIDER_PLUS_OPTIONS backdoor)`,
         );
       } else if (this.correlation && isObservationSuppressed) {

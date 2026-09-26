@@ -18,7 +18,7 @@ export class Form4DiscoveryProcessor extends WorkerHost {
 
   async process(job: Job): Promise<unknown> {
     if (job.name === 'reconcile') {
-      this.logger.log(`Discovery reconciliation start (job ${job.id})`);
+      this.logger.log(`Discovery reconciliation start (job ${job.id ?? '?'})`);
       return this.discovery.runReconciliation();
     }
     return this.discovery.runDiscoveryCycle();

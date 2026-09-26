@@ -200,7 +200,7 @@ export function Logged(moduleName: string) {
           output: null,
           errorMessage:
             error instanceof Error
-              ? `${error.message}\n${error.stack}`
+              ? `${error.message}\n${error.stack ?? ''}`
               : String(error),
           traceId: meta.traceId,
           parentTraceId: meta.parentTraceId,

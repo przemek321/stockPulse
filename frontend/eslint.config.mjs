@@ -48,6 +48,9 @@ export default tseslint.config(
       '@typescript-eslint/strict-boolean-expressions': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
+      // Kalibracja 27.09.2026 (przegląd baseline): liczby/booleany w ${} to szum (`ticker ${count}`),
+      // zostają na error: any, unknown, null/undefined, obiekty — to realne błędy w tekście.
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true, allowBoolean: true }],
     },
   },
 );

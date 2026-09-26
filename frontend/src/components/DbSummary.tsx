@@ -76,7 +76,7 @@ export default function DbSummary() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(`Blad pobierania raportu: ${err}`);
+      alert(`Blad pobierania raportu: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }

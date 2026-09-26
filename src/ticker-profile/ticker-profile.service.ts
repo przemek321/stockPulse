@@ -87,7 +87,7 @@ export class TickerProfileService {
     // 5. Cache in-memory (2h TTL)
     this.cache.set(symbol, { text, expiresAt: Date.now() + this.CACHE_TTL_MS });
 
-    this.logger.debug(`TickerProfile: ${symbol} — ${metrics.totalSignals} sygnałów, hit rate ${metrics.hitRate1d}%`);
+    this.logger.debug(`TickerProfile: ${symbol} — ${metrics.totalSignals} sygnałów, hit rate ${metrics.hitRate1d ?? '—'}%`);
 
     return text;
   }

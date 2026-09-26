@@ -17,7 +17,7 @@ export class PdufaBioProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<{ collector: string; count: number }> {
-    this.logger.log(`Rozpoczynam scraping PDUFA.bio (job ${job.id})`);
+    this.logger.log(`Rozpoczynam scraping PDUFA.bio (job ${job.id ?? '?'})`);
     return this.pdufaBioService.runCollectionCycle();
   }
 }
