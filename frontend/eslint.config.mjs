@@ -53,4 +53,11 @@ export default tseslint.config(
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true, allowBoolean: true }],
     },
   },
+  {
+    // Pliki konfiguracyjne Node (nie kod aplikacji): bez @types/node w projekcie FE `process.env`
+    // jest typem nierozwiązywalnym → w CI (czysty npm ci) 3 błędy no-unsafe-*, których lokalnie
+    // nie było (host miał @types/node z zależności przechodnich). Lint składniowy zostaje.
+    files: ['vite.config.ts', 'eslint.config.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+  },
 );

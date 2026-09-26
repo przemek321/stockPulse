@@ -1,9 +1,4 @@
 {
-  "eslint.config.mjs": {
-    "@typescript-eslint/no-deprecated": {
-      "count": 1
-    }
-  },
   "src/App.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 21
@@ -269,14 +264,6 @@
   "src/utils/nonDeliveryLabel.ts": {
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
-    }
-  },
-  "vite.config.ts": {
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
     }
   }
 }
