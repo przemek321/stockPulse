@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(python3 -c 'import sys,json; print(json.load(sys.stdin).get(\"tool_input\",{}).get(\"file_path\",\"\"))' 2>/dev/null); [ -n \"$f\" ] && /home/n1copl/stockPulse/scripts/lint-changed.sh \"$f\" || true",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
