@@ -13,28 +13,28 @@ import { DataSource } from '../common/interfaces/data-source.enum';
 @Entity('collection_logs')
 export class CollectionLog {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** Nazwa kolektora */
   @Column({ type: 'enum', enum: DataSource })
-  collector: DataSource;
+  collector!: DataSource;
 
   /** Status: SUCCESS, PARTIAL, FAILED */
   @Column({ length: 20 })
-  status: string;
+  status!: string;
 
   /** Ile elementów zebrano w tym cyklu */
   @Column({ default: 0 })
-  itemsCollected: number;
+  itemsCollected!: number;
 
   /** Opis błędu (jeśli wystąpił) */
   @Column({ type: 'text', nullable: true })
-  errorMessage: string;
+  errorMessage!: string;
 
   /** Czas trwania cyklu w milisekundach */
   @Column({ default: 0 })
-  durationMs: number;
+  durationMs!: number;
 
   @CreateDateColumn()
-  startedAt: Date;
+  startedAt!: Date;
 }

@@ -1,14 +1,22 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
-import { EventType } from '../../events/event-types';
-import { SecFiling, Ticker, Alert, AlertRule } from '../../entities';
-import { AzureOpenaiClientService } from '../../sentiment/azure-openai-client.service';
-import { TelegramService } from '../../alerts/telegram/telegram.service';
+import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
+import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
 import { TelegramFormatterService } from '../../alerts/telegram/telegram-formatter.service';
-import { DailyCapService } from '../services/daily-cap.service';
+import { TelegramService } from '../../alerts/telegram/telegram.service';
+import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
+import { Logged } from '../../common/decorators/logged.decorator';
+import { errMsg } from '../../common/utils/error-message.util';
+import { CorrelationService } from '../../correlation/correlation.service';
+import { StoredSignal } from '../../correlation/types/correlation.types';
+import { SecFiling, Ticker, Alert, AlertRule } from '../../entities';
+import { EventType } from '../../events/event-types';
+import { captureAlertSnapshot } from '../../price-outcome/sector-snapshot.helper';
+import { AzureOpenaiClientService } from '../../sentiment/azure-openai-client.service';
+import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import {
   detectItems,
   extractItemText,
@@ -17,30 +25,23 @@ import {
   stripHtml,
   MAX_TEXT_LENGTH,
 } from '../parsers/form8k.parser';
-import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysis';
-import { detectMissingDataFacts } from '../utils/missing-data-detector';
-import {
-  extractGuidanceStatus,
-  shouldEnforceConvictionFloor,
-  GuidanceStatus,
-} from '../utils/extract-guidance-status';
 import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
-import { CorrelationService } from '../../correlation/correlation.service';
-import { StoredSignal } from '../../correlation/types/correlation.types';
-import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
-import { captureAlertSnapshot } from '../../price-outcome/sector-snapshot.helper';
-import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
-import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
-import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
-import { Logged } from '../../common/decorators/logged.decorator';
 import { ConsensusComparisonService, formatConsensusBlock } from '../services/consensus-comparison.service';
+import { DailyCapService } from '../services/daily-cap.service';
 import { ConsensusComparison } from '../types/consensus-comparison';
+import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysis';
 import {
   shouldCapForConsensusGap,
   isDocumentedBeat,
   hasFullConsensusData,
 } from '../utils/consensus-gap-guard';
+import {
+  extractGuidanceStatus,
+  shouldEnforceConvictionFloor,
+  GuidanceStatus,
+} from '../utils/extract-guidance-status';
 import { buildFix16Shadow } from '../utils/fix16-shadow';
+import { detectMissingDataFacts } from '../utils/missing-data-detector';
 
 /**
  * Pipeline analizy GPT dla filingów 8-K.
@@ -99,7 +100,7 @@ export class Form8kPipeline {
     try {
       // Pobierz filing z bazy
       const filing = await this.filingRepo.findOne({ where: { id: payload.filingId } });
-      if (!filing || !filing.documentUrl) {
+      if (!filing?.documentUrl) {
         return { action: 'SKIP_NOT_FOUND', symbol: payload.symbol, traceId: payload.traceId };
       }
 
@@ -127,7 +128,7 @@ export class Form8kPipeline {
       const companyName = ticker?.name ?? payload.symbol;
 
       // Pobierz tekst filingu z SEC EDGAR (po skip — observation tickers nie konsumują HTTP fetch)
-      let filingText = await this.fetchFilingText(filing.documentUrl);
+      const filingText = await this.fetchFilingText(filing.documentUrl);
       if (!filingText || filingText.length < 100) {
         this.logger.debug(`8-K ${payload.symbol}: tekst za krótki (${filingText?.length ?? 0} znaków)`);
         return { action: 'SKIP_SHORT_TEXT', symbol: payload.symbol, traceId: payload.traceId };
@@ -278,7 +279,7 @@ export class Form8kPipeline {
         );
       } catch (err) {
         this.logger.error(
-          `8-K GPT invalid JSON for ${payload.symbol}: ${err.message} — pomijam`,
+          `8-K GPT invalid JSON for ${payload.symbol}: ${errMsg(err)} — pomijam`,
         );
         return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
       }
@@ -434,7 +435,7 @@ export class Form8kPipeline {
             }),
           );
         } catch (err) {
-          this.logger.error(`Failed to save 8-K missing-data alert for ${payload.symbol}: ${err.message}`);
+          this.logger.error(`Failed to save 8-K missing-data alert for ${payload.symbol}: ${errMsg(err)}`);
         }
 
         return { action: dispatchResult.action, symbol: payload.symbol, traceId: payload.traceId };
@@ -575,7 +576,7 @@ export class Form8kPipeline {
           }),
         );
       } catch (err) {
-        this.logger.error(`Failed to save 8-K alert for ${payload.symbol}: ${err.message}`);
+        this.logger.error(`Failed to save 8-K alert for ${payload.symbol}: ${errMsg(err)}`);
       }
 
       this.logger.log(
@@ -607,13 +608,13 @@ export class Form8kPipeline {
           await this.correlation.storeSignal(signal);
           this.correlation.schedulePatternCheck(payload.symbol);
         } catch (err) {
-          this.logger.warn(`Correlation storeSignal error: ${err.message}`);
+          this.logger.warn(`Correlation storeSignal error: ${errMsg(err)}`);
         }
       }
 
       return { action: dispatchResult.action, symbol: payload.symbol, traceId: payload.traceId };
     } catch (err) {
-      this.logger.error(`8-K Pipeline error ${payload.symbol}: ${err.message}`);
+      this.logger.error(`8-K Pipeline error ${payload.symbol}: ${errMsg(err)}`);
       return { action: 'ERROR', symbol: payload.symbol, traceId: payload.traceId };
     }
   }
@@ -672,7 +673,7 @@ export class Form8kPipeline {
         }),
       );
     } catch (err) {
-      this.logger.error(`Failed to save bankruptcy alert for ${symbol}: ${err.message}`);
+      this.logger.error(`Failed to save bankruptcy alert for ${symbol}: ${errMsg(err)}`);
     }
 
     this.logger.log(`BANKRUPTCY alert: ${symbol} — 8-K Item 1.03`);
@@ -692,7 +693,7 @@ export class Form8kPipeline {
         await this.correlation.storeSignal(signal);
         this.correlation.schedulePatternCheck(symbol);
       } catch (err) {
-        this.logger.warn(`Correlation storeSignal error: ${err.message}`);
+        this.logger.warn(`Correlation storeSignal error: ${errMsg(err)}`);
       }
     }
   }
@@ -754,7 +755,7 @@ export class Form8kPipeline {
       const html = await docRes.text();
       return stripHtml(html);
     } catch (err) {
-      this.logger.warn(`Błąd pobierania tekstu 8-K: ${err.message}`);
+      this.logger.warn(`Błąd pobierania tekstu 8-K: ${errMsg(err)}`);
       return null;
     }
   }
@@ -819,7 +820,7 @@ export class Form8kPipeline {
       const html = await docRes.text();
       return stripHtml(html);
     } catch (err) {
-      this.logger.warn(`Błąd pobierania Exhibit 99.1: ${err.message}`);
+      this.logger.warn(`Błąd pobierania Exhibit 99.1: ${errMsg(err)}`);
       return null;
     }
   }

@@ -1,17 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BaseCollectorService } from '../shared/base-collector.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { DataSource } from '../../common/interfaces/data-source.enum';
+import { errMsg } from '../../common/utils/error-message.util';
 import {
   NewsArticle,
   InsiderTrade,
   Ticker,
   CollectionLog,
 } from '../../entities';
-import { DataSource } from '../../common/interfaces/data-source.enum';
 import { EventType } from '../../events/event-types';
+import { BaseCollectorService } from '../shared/base-collector.service';
 
 const BASE_URL = 'https://finnhub.io/api/v1';
 
@@ -219,7 +220,7 @@ export class FinnhubService extends BaseCollectorService {
       }
       return data.c;
     } catch (err) {
-      this.logger.warn(`getQuote(${symbol}) error: ${err.message}`);
+      this.logger.warn(`getQuote(${symbol}) error: ${errMsg(err)}`);
       return null;
     }
   }
@@ -242,7 +243,7 @@ export class FinnhubService extends BaseCollectorService {
         name: data.name ?? null,
       };
     } catch (err) {
-      this.logger.warn(`getCompanyProfile(${symbol}) error: ${err.message}`);
+      this.logger.warn(`getCompanyProfile(${symbol}) error: ${errMsg(err)}`);
       return null;
     }
   }
@@ -257,7 +258,7 @@ export class FinnhubService extends BaseCollectorService {
       const v = data?.metric?.['10DayAverageTradingVolume'];
       return typeof v === 'number' && v > 0 ? v : null;
     } catch (err) {
-      this.logger.warn(`get10DayAvgVolumeMlnShares(${symbol}) error: ${err.message}`);
+      this.logger.warn(`get10DayAvgVolumeMlnShares(${symbol}) error: ${errMsg(err)}`);
       return null;
     }
   }

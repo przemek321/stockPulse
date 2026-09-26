@@ -20,6 +20,7 @@ import {
 import { Logged } from '../common/decorators/logged.decorator';
 import { AlertDeliveryGate } from '../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
+import { errMsg } from '../common/utils/error-message.util';
 
 /**
  * CorrelationService — wykrywa wzorce między sygnałami z różnych źródeł.
@@ -205,7 +206,7 @@ export class CorrelationService implements OnModuleDestroy {
       const ttlSec = Math.ceil(ttlMs / 1000);
       await this.redis.expire(redisKey, ttlSec);
     } catch (err) {
-      this.logger.error(`Redis storeSignal failed for ${signal.ticker}: ${err.message} — signal not correlated`);
+      this.logger.error(`Redis storeSignal failed for ${signal.ticker}: ${errMsg(err)} — signal not correlated`);
       return { action: 'REDIS_ERROR', ticker: signal.ticker };
     }
 
@@ -315,7 +316,7 @@ export class CorrelationService implements OnModuleDestroy {
         action: 'PATTERNS_DETECTED',
       };
     } catch (err) {
-      this.logger.error(`Pattern detection error for ${ticker}: ${err.message}`);
+      this.logger.error(`Pattern detection error for ${ticker}: ${errMsg(err)}`);
       return { ticker, signals: 0, patterns: 0, action: 'ERROR' };
     }
   }

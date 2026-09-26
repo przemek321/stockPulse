@@ -14,50 +14,50 @@ import {
 @Entity('tickers')
 export class Ticker {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Index({ unique: true })
   @Column({ length: 10 })
-  symbol: string;
+  symbol!: string;
 
   @Column({ length: 255 })
-  name: string;
+  name!: string;
 
   /** Numer CIK z SEC EDGAR (do wyszukiwania filingów) */
   @Column({ length: 20, nullable: true })
-  cik: string;
+  cik!: string;
 
   /** Podsektor: Managed Care, Hospitals, PBM, Health IT, Medical Devices */
   @Column({ length: 100 })
-  subsector: string;
+  subsector!: string;
 
   /** Priorytet monitoringu: CRITICAL, HIGH, MEDIUM, LOW */
   @Column({ length: 20, default: 'MEDIUM' })
-  priority: string;
+  priority!: string;
 
   /** Alternatywne nazwy do wyszukiwania (JSON array) */
   @Column('jsonb', { default: [] })
-  aliases: string[];
+  aliases!: string[];
 
   /** Kluczowe metryki do śledzenia (JSON array) */
   @Column('jsonb', { default: [] })
-  keyMetrics: string[];
+  keyMetrics!: string[];
 
   /** CEO */
   @Column({ length: 100, nullable: true })
-  ceo: string;
+  ceo!: string;
 
   /** CFO */
   @Column({ length: 100, nullable: true })
-  cfo: string;
+  cfo!: string;
 
   /** Dodatkowe notatki */
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes!: string;
 
   /** Sektor: healthcare (domyślny) lub semi_supply_chain */
   @Column({ length: 50, default: 'healthcare' })
-  sector: string;
+  sector!: string;
 
   /**
    * Observation mode: alert zapisywany do DB, ale NIE wysyłany na Telegram.
@@ -67,15 +67,15 @@ export class Ticker {
    * refactor do ticker_categories table (sector + subsector + observation_only).
    */
   @Column({ default: false })
-  observationOnly: boolean;
+  observationOnly!: boolean;
 
   /** Czy ticker jest aktywnie monitorowany */
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

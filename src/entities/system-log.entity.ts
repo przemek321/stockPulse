@@ -17,69 +17,69 @@ import {
 @Index(['ticker', 'createdAt'])
 export class SystemLog {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Index()
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   /** Moduł źródłowy: collectors, sentiment, sec-filings, correlation, alerts */
   @Index()
   @Column({ length: 50 })
-  module: string;
+  module!: string;
 
   /** Nazwa klasy serwisu, np. StocktwitsService */
   @Column({ length: 100, name: 'class_name' })
-  className: string;
+  className!: string;
 
   /** Nazwa metody, np. collect, analyze */
   @Index()
   @Column({ length: 100, name: 'function_name' })
-  functionName: string;
+  functionName!: string;
 
   /** Status: success | error */
   @Index()
   @Column({ length: 20 })
-  status: string;
+  status!: string;
 
   /** Czas trwania w milisekundach */
   @Column({ type: 'int', name: 'duration_ms' })
-  durationMs: number;
+  durationMs!: number;
 
   /** Argumenty wejściowe (obcięte do 2000 znaków) */
   @Column({ type: 'jsonb', nullable: true })
-  input: Record<string, any> | null;
+  input!: Record<string, any> | null;
 
   /** Wartość zwrócona (obcięta do 2000 znaków) */
   @Column({ type: 'jsonb', nullable: true })
-  output: Record<string, any> | null;
+  output!: Record<string, any> | null;
 
   // ── Tier 1 observability ──────────────────────────────────
 
   /** UUID identyfikujący pełną ścieżkę pojedynczego eventu (filing/trade/flow). */
   @Column({ type: 'varchar', length: 36, name: 'trace_id', nullable: true })
-  traceId: string | null;
+  traceId!: string | null;
 
   /** trace_id rodzica — np. dla Form 4 trades parent = filing traceId. */
   @Column({ type: 'varchar', length: 36, name: 'parent_trace_id', nullable: true })
-  parentTraceId: string | null;
+  parentTraceId!: string | null;
 
   /** Poziom logu: debug | info | warn | error. Wpływa na retencję (tiered cleanup). */
   @Index()
   @Column({ type: 'varchar', length: 5, nullable: true })
-  level: string | null;
+  level!: string | null;
 
   /** Ticker ekstraktowany z payload/output — fast filter bez JSONB query. */
   @Column({ type: 'varchar', length: 10, nullable: true })
-  ticker: string | null;
+  ticker!: string | null;
 
   /** Powód decyzji — np. SKIP_LOW_VALUE, ALERT_SENT_TELEGRAM, PATTERNS_DETECTED. */
   @Column({ type: 'varchar', length: 80, name: 'decision_reason', nullable: true })
-  decisionReason: string | null;
+  decisionReason!: string | null;
 
   // ── Istniejące ──────────────────────────────────────────
 
   /** Komunikat błędu (stack trace) */
   @Column({ type: 'text', nullable: true, name: 'error_message' })
-  errorMessage: string | null;
+  errorMessage!: string | null;
 }

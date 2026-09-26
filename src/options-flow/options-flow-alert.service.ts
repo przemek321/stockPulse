@@ -12,6 +12,7 @@ import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
 import { Logged } from '../common/decorators/logged.decorator';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
+import { errMsg } from '../common/utils/error-message.util';
 
 /** Minimalny |conviction| do rejestracji w CorrelationService */
 const MIN_CONVICTION_CORRELATION = 0.25;
@@ -234,7 +235,7 @@ export class OptionsFlowAlertService {
         }),
       );
     } catch (err) {
-      this.logger.error(`Failed to save Options Flow alert for ${flow.symbol}: ${err.message}`);
+      this.logger.error(`Failed to save Options Flow alert for ${flow.symbol}: ${errMsg(err)}`);
     }
 
     this.logger.log(

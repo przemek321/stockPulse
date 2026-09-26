@@ -13,31 +13,31 @@ import {
 @Entity('alert_rules')
 export class AlertRule {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** Nazwa reguły (np. "Sentiment Crash", "Insider Trade Large") */
   @Column({ length: 100, unique: true })
-  name: string;
+  name!: string;
 
   /** Warunek w formie tekstowej (do ewaluacji przez AlertEvaluator) */
   @Column({ type: 'text' })
-  condition: string;
+  condition!: string;
 
   /** Priorytet: INFO, MEDIUM, HIGH, CRITICAL */
   @Column({ length: 20 })
-  priority: string;
+  priority!: string;
 
   /** Minimalne minuty między alertami tego samego typu per ticker */
   @Column({ default: 15 })
-  throttleMinutes: number;
+  throttleMinutes!: number;
 
   /** Czy reguła jest aktywna */
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

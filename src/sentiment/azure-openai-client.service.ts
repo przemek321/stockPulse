@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logged } from '../common/decorators/logged.decorator';
+import { errMsg } from '../common/utils/error-message.util';
 
 /** Wynik wzbogaconej analizy z Azure OpenAI gpt-4o-mini */
 export interface EnrichedAnalysis {
@@ -106,7 +107,7 @@ export class AzureOpenaiClientService {
 
       return await response.json();
     } catch (err) {
-      this.logger.error(`Błąd Azure Analysis Service: ${err.message}`);
+      this.logger.error(`Błąd Azure Analysis Service: ${errMsg(err)}`);
       return null;
     }
   }
@@ -144,7 +145,7 @@ export class AzureOpenaiClientService {
       const data = await response.json();
       return data.result ?? data;
     } catch (err) {
-      this.logger.error(`Błąd Azure /analyze/custom: ${err.message}`);
+      this.logger.error(`Błąd Azure /analyze/custom: ${errMsg(err)}`);
       return null;
     }
   }

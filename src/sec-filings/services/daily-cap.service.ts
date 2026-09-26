@@ -1,5 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import Redis from 'ioredis';
+import { errMsg } from '../../common/utils/error-message.util';
 
 /** Injection token dla instancji Redis (SEC filings) */
 export const SEC_FILINGS_REDIS = 'SEC_FILINGS_REDIS';
@@ -51,7 +52,7 @@ export class DailyCapService {
       }
       return true;
     } catch (err) {
-      this.logger.error(`DailyCap Redis error for ${ticker}: ${err.message}`);
+      this.logger.error(`DailyCap Redis error for ${ticker}: ${errMsg(err)}`);
       return true; // fail-open: nie blokuj pipeline przy problemach Redis
     }
   }

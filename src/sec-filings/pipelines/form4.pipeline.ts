@@ -19,6 +19,7 @@ import { TickerProfileService } from '../../ticker-profile/ticker-profile.servic
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
 import { Logged } from '../../common/decorators/logged.decorator';
+import { errMsg } from '../../common/utils/error-message.util';
 
 /**
  * C-suite whitelist dla boost decyzji (Form4Pipeline + testy jednostkowe).
@@ -406,7 +407,7 @@ export class Form4Pipeline {
         );
       } catch (err) {
         this.logger.error(
-          `Form4 GPT invalid JSON for ${payload.symbol}: ${err.message} — pomijam`,
+          `Form4 GPT invalid JSON for ${payload.symbol}: ${errMsg(err)} — pomijam`,
         );
         return { action: 'SKIP_INVALID_JSON', symbol: payload.symbol, traceId: payload.traceId };
       }
@@ -591,7 +592,7 @@ export class Form4Pipeline {
           }),
         );
       } catch (err) {
-        this.logger.error(`Failed to save Form4 alert for ${payload.symbol}: ${err.message}`);
+        this.logger.error(`Failed to save Form4 alert for ${payload.symbol}: ${errMsg(err)}`);
       }
 
       this.logger.log(
@@ -640,7 +641,7 @@ export class Form4Pipeline {
           await this.correlation.storeSignal(signal);
           this.correlation.schedulePatternCheck(payload.symbol);
         } catch (err) {
-          this.logger.warn(`Correlation storeSignal error: ${err.message}`);
+          this.logger.warn(`Correlation storeSignal error: ${errMsg(err)}`);
         }
       } else if (this.correlation && isSellNoEdgeSuppressed) {
         this.logger.debug(
@@ -656,7 +657,7 @@ export class Form4Pipeline {
 
       return { action: dispatchResult.action, symbol: payload.symbol, traceId: payload.traceId };
     } catch (err) {
-      this.logger.error(`Form4 Pipeline error ${payload.symbol}: ${err.message}`);
+      this.logger.error(`Form4 Pipeline error ${payload.symbol}: ${errMsg(err)}`);
       return { action: 'ERROR', symbol: payload.symbol, traceId: payload.traceId };
     }
   }

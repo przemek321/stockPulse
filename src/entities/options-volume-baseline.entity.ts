@@ -14,29 +14,29 @@ import {
 @Unique(['occSymbol'])
 export class OptionsVolumeBaseline {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** OCC symbol opcji */
   @Column({ length: 30, unique: true })
-  occSymbol: string;
+  occSymbol!: string;
 
   @Index()
   @Column({ length: 10 })
-  symbol: string;
+  symbol!: string;
 
   /** Rolling 20-day average volume */
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  avgVolume20d: number;
+  avgVolume20d!: number;
 
   /** Ile dni w średniej (max 20) */
   @Column({ type: 'int', default: 0 })
-  dataPoints: number;
+  dataPoints!: number;
 
   /** Ostatni dzienny volume */
   @Column({ type: 'int', default: 0 })
-  lastVolume: number;
+  lastVolume!: number;
 
   /** Data ostatniej aktualizacji */
   @Column({ type: 'date' })
-  lastUpdated: Date;
+  lastUpdated!: Date;
 }

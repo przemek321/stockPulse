@@ -17,33 +17,33 @@ import {
 @Unique(['symbol', 'pdufaDate', 'drugName'])
 export class PdufaCatalyst {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** Ticker spółki (np. BMY, MRNA, ISRG) */
   @Index()
   @Column({ length: 10 })
-  symbol: string;
+  symbol!: string;
 
   /** Nazwa leku/terapii */
   @Column({ name: 'drug_name', length: 255, nullable: true })
-  drugName: string;
+  drugName!: string;
 
   /** Wskazanie terapeutyczne (np. Acute Myeloid Leukemia) */
   @Column({ length: 500, nullable: true })
-  indication: string;
+  indication!: string;
 
   /** Obszar terapeutyczny (np. Oncology, Rare Disease) */
   @Column({ name: 'therapeutic_area', length: 100, nullable: true })
-  therapeuticArea: string;
+  therapeuticArea!: string;
 
   /** Data decyzji PDUFA (dzień oczekiwanej decyzji FDA) */
   @Index()
   @Column({ name: 'pdufa_date', type: 'date' })
-  pdufaDate: Date;
+  pdufaDate!: Date;
 
   /** ODIN tier z pdufa.bio: TIER_1..TIER_4 (jeśli dostępny) */
   @Column({ name: 'odin_tier', length: 10, nullable: true })
-  odinTier: string;
+  odinTier!: string;
 
   /** ODIN score — prawdopodobieństwo approval (np. 90.7) */
   @Column({
@@ -53,15 +53,15 @@ export class PdufaCatalyst {
     scale: 2,
     nullable: true,
   })
-  odinScore: number;
+  odinScore!: number;
 
   /** Typ eventu: pdufa, readout, earnings */
   @Column({ name: 'event_type', length: 50, default: 'pdufa' })
-  eventType: string;
+  eventType!: string;
 
   /** Wynik decyzji FDA: NULL=pending, APPROVED, CRL, DELAYED */
   @Column({ length: 20, nullable: true })
-  outcome: string;
+  outcome!: string;
 
   /** Timestamp ostatniego scrape'a */
   @Column({
@@ -69,11 +69,11 @@ export class PdufaCatalyst {
     type: 'timestamp',
     default: () => 'NOW()',
   })
-  scrapedAt: Date;
+  scrapedAt!: Date;
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

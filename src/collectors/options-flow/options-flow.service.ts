@@ -1,18 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { BaseCollectorService } from '../shared/base-collector.service';
+import { Repository } from 'typeorm';
+import { DataSource } from '../../common/interfaces/data-source.enum';
+import { errCode } from '../../common/utils/error-message.util';
 import {
   OptionsFlow,
   OptionsVolumeBaseline,
   Ticker,
   CollectionLog,
 } from '../../entities';
-import { DataSource } from '../../common/interfaces/data-source.enum';
 import { EventType } from '../../events/event-types';
+import { BaseCollectorService } from '../shared/base-collector.service';
 import {
   filterContracts,
   detectSpike,
@@ -275,7 +276,7 @@ export class OptionsFlowService extends BaseCollectorService {
             });
           } catch (err) {
             // UNIQUE constraint violation = duplikat sesji → skip
-            if (err?.code === '23505') continue;
+            if (errCode(err) === '23505') continue;
             throw err;
           }
         }
@@ -463,7 +464,7 @@ export class OptionsFlowService extends BaseCollectorService {
         reject(new Error('AbortError: cycle budget exceeded'));
         return;
       }
-      const t = setTimeout(() => resolve(), ms);
+      const t = setTimeout(() => { resolve(); }, ms);
       signal?.addEventListener(
         'abort',
         () => {

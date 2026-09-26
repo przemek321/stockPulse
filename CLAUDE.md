@@ -162,6 +162,7 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 - **alerts.nonDeliveryReason**: `observation` / `gpt_missing_data` / `consensus_*` / `bullish_8k_no_edge` / `bullish_no_consensus_data` / `material_event_obs` (od 01.09) / `direction_conflict` / `sell_no_edge` / `csuite_sell_no_edge` (martwy — nigdy nie występuje, patrz Form4Pipeline) / `cluster_sell_no_edge` / `daily_limit` / `telegram_failed` / `null`. Krytyczne dla forward analysis. PUŁAPKA: priorytet suppression maskuje powody — byczy 8-K z missing-data ląduje w `gpt_missing_data`, nie `bullish_*`; w analizach gate'ów filtruj też po `alertDirection`.
 - **Sektorowa alpha**: surowy priceChange miesza edge alertu z beta biotechu — uczciwa metryka to `xbiAlpha`/`ibbAlpha` (vs XBI, fallback IBB).
 - **Pomiar outcome na 7d** (nie 3d) — backtest pokazuje edge na 7d, 3d zaniża.
+- **`strict: true` w tsconfig (od 27.09.2026)**: pola encji mają `!` (TypeORM hydruje — NIE dawać wartości domyślnych, zmieniłyby INSERT-y przy synchronize); `catch (err)` = `unknown` → używać `errMsg(err)` / `errCode(err)` z `src/common/utils/error-message.util.ts`, nie `err.message`.
 - **TypeORM `synchronize:true` + zmiana długości kolumny = CRASH-LOOP** (incydent 27.07.2026, 676 restartów): schema sync robi DROP+ADD NOT NULL zamiast `ALTER TYPE` i pada na niepustej tabeli (transakcja rollbackuje → pętla). Przy zmianie typu/długości kolumny encji: NAJPIERW ręczny `ALTER TABLE ... ALTER COLUMN ... TYPE ...` na prod, POTEM deploy kodu.
 
 ## Multi-środowisko: Laptop ↔ Jetson

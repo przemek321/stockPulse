@@ -13,11 +13,11 @@ import {
 @Entity('insider_trades')
 export class InsiderTrade {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Index()
   @Column({ length: 10 })
-  symbol: string;
+  symbol!: string;
 
   /**
    * Imię i nazwisko insidera. 255: co-filingi funduszy (osoba + fundusze zarządzane)
@@ -25,44 +25,44 @@ export class InsiderTrade {
    * (CBIO/ARTV/PBLS 20-22.07.2026, RA Capital / Fairmount).
    */
   @Column({ length: 255 })
-  insiderName: string;
+  insiderName!: string;
 
   /** Rola (CEO, CFO, Director, 10% Owner itd.) */
   @Column({ length: 100, nullable: true })
-  insiderRole: string;
+  insiderRole!: string;
 
   /** Typ transakcji: BUY, SELL, EXERCISE */
   @Column({ length: 20 })
-  transactionType: string;
+  transactionType!: string;
 
   /** Liczba akcji */
   @Column('decimal', { precision: 15, scale: 2, default: 0 })
-  shares: number;
+  shares!: number;
 
   /** Cena za akcję */
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
-  pricePerShare: number;
+  pricePerShare!: number;
 
   /** Łączna wartość transakcji w USD */
   @Column('decimal', { precision: 15, scale: 2, default: 0 })
-  totalValue: number;
+  totalValue!: number;
 
   /** Data transakcji */
   @Column({ type: 'date' })
-  transactionDate: Date;
+  transactionDate!: Date;
 
   /** Numer accession filingu Form 4 */
   @Column({ length: 30, nullable: true })
-  accessionNumber: string;
+  accessionNumber!: string;
 
   /** Czy transakcja jest częścią planu 10b5-1 (zaplanowana z góry) */
   @Column({ type: 'boolean', nullable: true })
-  is10b51Plan: boolean | null;
+  is10b51Plan!: boolean | null;
 
   /** Liczba akcji po transakcji */
   @Column('decimal', { precision: 15, scale: 2, nullable: true })
-  sharesOwnedAfter: number | null;
+  sharesOwnedAfter!: number | null;
 
   @CreateDateColumn()
-  collectedAt: Date;
+  collectedAt!: Date;
 }

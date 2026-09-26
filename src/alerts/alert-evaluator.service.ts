@@ -1,18 +1,19 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, FindOptionsWhere } from 'typeorm';
-import { OnEvent } from '@nestjs/event-emitter';
-import { Alert, AlertRule, Ticker } from '../entities';
-import { EventType } from '../events/event-types';
-import { TelegramService } from './telegram/telegram.service';
-import { TelegramFormatterService } from './telegram/telegram-formatter.service';
+import { FinnhubService } from '../collectors/finnhub/finnhub.service';
+import { Logged } from '../common/decorators/logged.decorator';
+import { errMsg } from '../common/utils/error-message.util';
 import { CorrelationService } from '../correlation/correlation.service';
 import { SourceCategory, StoredSignal } from '../correlation/types/correlation.types';
-import { Logged } from '../common/decorators/logged.decorator';
-import { FinnhubService } from '../collectors/finnhub/finnhub.service';
+import { Alert, AlertRule, Ticker } from '../entities';
+import { EventType } from '../events/event-types';
 import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
 import { AlertDeliveryGate } from './alert-delivery-gate.service';
 import { AlertDispatcherService } from './alert-dispatcher.service';
+import { TelegramFormatterService } from './telegram/telegram-formatter.service';
+import { TelegramService } from './telegram/telegram.service';
 
 /**
  * Ewaluator reguł alertów.
@@ -27,7 +28,7 @@ export class AlertEvaluatorService {
   private readonly logger = new Logger(AlertEvaluatorService.name);
 
   /** Cache reguł alertów — TTL 5 min, unika powtarzanych zapytań do DB */
-  private rulesCache: Map<string, AlertRule | null> = new Map();
+  private rulesCache = new Map<string, AlertRule | null>();
   private rulesCacheExpiry = 0;
   private static readonly RULES_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -174,7 +175,7 @@ export class AlertEvaluatorService {
         await this.correlation.storeSignal(signal);
         this.correlation.schedulePatternCheck(symbol);
       } catch (err) {
-        this.logger.warn(`Correlation storeSignal error: ${err.message}`);
+        this.logger.warn(`Correlation storeSignal error: ${errMsg(err)}`);
       }
     }
 
