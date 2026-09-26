@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BaseCollectorService } from '../shared/base-collector.service';
-import { RawMention, CollectionLog, Ticker } from '../../entities';
 import { DataSource } from '../../common/interfaces/data-source.enum';
+import { RawMention, CollectionLog, Ticker } from '../../entities';
 import { EventType } from '../../events/event-types';
+import { BaseCollectorService } from '../shared/base-collector.service';
 
 const BASE_URL = 'https://api.stocktwits.com/api/2';
 

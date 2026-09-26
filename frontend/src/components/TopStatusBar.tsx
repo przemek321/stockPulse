@@ -194,7 +194,7 @@ export default function TopStatusBar({ activeTab, onTabChange }: Props) {
   useEffect(() => {
     fetchAll();
     const id = setInterval(fetchAll, 30_000);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); };
   }, []);
 
   const nyse = getNyseStatus();
@@ -309,7 +309,7 @@ export default function TopStatusBar({ activeTab, onTabChange }: Props) {
       >
         <Tabs
           value={activeTab}
-          onChange={(_, v) => onTabChange(v)}
+          onChange={(_, v) => { onTabChange(v); }}
           sx={{
             minHeight: 32,
             '& .MuiTabs-indicator': {

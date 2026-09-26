@@ -5,11 +5,8 @@
     }
   },
   "src/App.tsx": {
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 5
-    },
     "@typescript-eslint/no-explicit-any": {
-      "count": 22
+      "count": 21
     },
     "@typescript-eslint/no-floating-promises": {
       "count": 1
@@ -20,9 +17,6 @@
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6
     },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 7
     },
@@ -30,7 +24,7 @@
       "count": 3
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 14
+      "count": 13
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 6
@@ -66,9 +60,6 @@
     }
   },
   "src/components/CollectorStatus.tsx": {
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 3
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
@@ -90,7 +81,7 @@
   },
   "src/components/DataPanel.tsx": {
     "@typescript-eslint/no-confusing-void-expression": {
-      "count": 3
+      "count": 2
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 5
@@ -121,9 +112,6 @@
     "@eslint-react/static-components": {
       "count": 8
     },
-    "@typescript-eslint/dot-notation": {
-      "count": 2
-    },
     "@typescript-eslint/no-floating-promises": {
       "count": 1
     },
@@ -131,7 +119,7 @@
       "count": 2
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
+      "count": 4
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
@@ -147,30 +135,18 @@
     "@eslint-react/no-missing-key": {
       "count": 17
     },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     }
   },
   "src/components/JetsonStatsBar.tsx": {
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 1
-    },
     "@typescript-eslint/no-floating-promises": {
       "count": 1
     },
     "@typescript-eslint/no-misused-promises": {
       "count": 1
     },
-    "@typescript-eslint/prefer-optional-chain": {
+    "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
     },
     "react-hooks/set-state-in-effect": {
@@ -178,12 +154,6 @@
     }
   },
   "src/components/PriceOutcomePanel.tsx": {
-    "@typescript-eslint/array-type": {
-      "count": 1
-    },
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 4
-    },
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -219,11 +189,8 @@
     "@eslint-react/static-components": {
       "count": 18
     },
-    "@typescript-eslint/consistent-type-definitions": {
-      "count": 1
-    },
     "@typescript-eslint/no-confusing-void-expression": {
-      "count": 9
+      "count": 1
     },
     "@typescript-eslint/no-empty-function": {
       "count": 1
@@ -234,14 +201,8 @@
     "@typescript-eslint/no-misused-promises": {
       "count": 1
     },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
     },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 1
@@ -263,9 +224,6 @@
     }
   },
   "src/components/SystemHealthPanel.tsx": {
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 2
-    },
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -293,7 +251,7 @@
   },
   "src/components/SystemLogsTab.tsx": {
     "@typescript-eslint/no-confusing-void-expression": {
-      "count": 10
+      "count": 1
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
@@ -330,9 +288,6 @@
     }
   },
   "src/components/TopStatusBar.tsx": {
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 2
-    },
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },

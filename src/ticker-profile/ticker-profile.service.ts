@@ -99,7 +99,7 @@ export class TickerProfileService {
     // Hit rate ogólny
     const hits = alerts.map(a => this.isHit(a));
     const evaluated = hits.filter(h => h !== null);
-    const correct = evaluated.filter(h => h === true).length;
+    const correct = evaluated.filter(h => h).length;
     const hitRate1d = evaluated.length > 0 ? Math.round(correct / evaluated.length * 100) : null;
 
     // Średni |ruch| 1d
@@ -119,7 +119,7 @@ export class TickerProfileService {
     const ruleBreakdown = [...ruleMap.entries()].map(([ruleName, ruleAlerts]) => {
       const rHits = ruleAlerts.map(a => this.isHit(a));
       const rEval = rHits.filter(h => h !== null);
-      const rCorrect = rEval.filter(h => h === true).length;
+      const rCorrect = rEval.filter(h => h).length;
 
       const rMoves = ruleAlerts
         .filter(a => a.priceAtAlert && a.price1d && a.alertDirection)

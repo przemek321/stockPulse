@@ -119,7 +119,7 @@ const MessageDialog = ({ message, open, onClose }: {
             onClick={() => {
               navigator.clipboard.writeText(message);
               setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
+              setTimeout(() => { setCopied(false); }, 2000);
             }}>
             <ContentCopyIcon fontSize="small" />
           </IconButton>
@@ -149,7 +149,7 @@ const MessageDialog = ({ message, open, onClose }: {
 
 /* ── Konfiguracja kolumn tabeli ───────────────────────── */
 
-type ColDef = { key: string; label: string; width: number; align?: 'left' | 'right' | 'center' };
+interface ColDef { key: string; label: string; width: number; align?: 'left' | 'right' | 'center' }
 
 const COLUMNS: ColDef[] = [
   { key: 'status', label: '', width: 4, align: 'left' },
@@ -286,7 +286,7 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
           {showGap && (
             <Box sx={{
               fontSize: TYPOGRAPHY.size.xs,
-              color: gapH! > 48 ? COLORS.warning : COLORS.text.muted,
+              color: gapH > 48 ? COLORS.warning : COLORS.text.muted,
             }}>
               (+{fmtGap(gapH)})
             </Box>
@@ -652,7 +652,7 @@ export default function SignalTimeline() {
 
   // Zaladuj tickery z alertami
   useEffect(() => {
-    fetchTimelineSymbols(days).then(d => setSymbols(d.symbols || [])).catch(() => {});
+    fetchTimelineSymbols(days).then(d => { setSymbols(d.symbols || []); }).catch(() => {});
   }, [days]);
 
   // Zaladuj dane — per ticker lub ostatnie ze wszystkich
@@ -676,7 +676,7 @@ export default function SignalTimeline() {
   // Auto-refresh co 60s
   useEffect(() => {
     const interval = setInterval(loadData, 60_000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [loadData]);
 
   const sortedAlerts = [...alerts].sort(
@@ -743,7 +743,7 @@ export default function SignalTimeline() {
           value={symbols.find(s => s.symbol === selected) ?? null}
           getOptionLabel={(o) => `${o.symbol} (${o.alertCount})`}
           isOptionEqualToValue={(a, b) => a.symbol === b.symbol}
-          onChange={(_, v) => setSelected(v?.symbol ?? null)}
+          onChange={(_, v) => { setSelected(v?.symbol ?? null); }}
           renderInput={(params) => (
             <TextField
               {...params}
@@ -769,7 +769,7 @@ export default function SignalTimeline() {
         <Autocomplete
           options={ruleOptions}
           value={ruleFilter}
-          onChange={(_, v) => setRuleFilter(v)}
+          onChange={(_, v) => { setRuleFilter(v); }}
           renderInput={(params) => (
             <TextField
               {...params}
@@ -862,8 +862,8 @@ export default function SignalTimeline() {
               a={a}
               index={i}
               expanded={expandedId === a.id}
-              onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
-              onShowMessage={() => setDialogMsg(a.message)}
+              onToggle={() => { setExpandedId(expandedId === a.id ? null : a.id); }}
+              onShowMessage={() => { setDialogMsg(a.message); }}
             />
           ))}
         </Box>
@@ -895,7 +895,7 @@ export default function SignalTimeline() {
       <MessageDialog
         message={dialogMsg || ''}
         open={dialogMsg != null}
-        onClose={() => setDialogMsg(null)}
+        onClose={() => { setDialogMsg(null); }}
       />
     </Box>
   );

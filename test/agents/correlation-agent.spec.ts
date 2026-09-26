@@ -132,7 +132,7 @@ function makeSignal(overrides: Partial<StoredSignal> = {}): StoredSignal {
     ticker: 'UNH',
     source_category: 'social',
     conviction: 0.5,
-    direction: 'negative' as Direction,
+    direction: 'negative',
     catalyst_type: 'earnings',
     timestamp: Date.now(),
     ...overrides,
@@ -792,7 +792,7 @@ describe('Agent: Correlation — Throttle / Deduplikacja', () => {
     );
     // EXPIRE NIE wywołany dla klucza fired: (delivered=false → 15min zostaje;
     // storeSignal nie jest w tej ścieżce, więc expire na 'signals:*' też 0).
-    const expireCalls = (redis.expire as jest.Mock).mock.calls.filter(
+    const expireCalls = (redis.expire).mock.calls.filter(
       (call: any[]) => typeof call[0] === 'string' && call[0].startsWith('fired:'),
     );
     expect(expireCalls).toHaveLength(0);
@@ -897,7 +897,7 @@ describe('Agent: Correlation — Priority', () => {
       expect.objectContaining({ priority: 'HIGH' }),
     );
     // Sanity: NIE ma żadnego call z CRITICAL (gdyby było — regresja).
-    const criticalCalls = (formatter.formatCorrelatedAlert as jest.Mock).mock.calls.filter(
+    const criticalCalls = (formatter.formatCorrelatedAlert).mock.calls.filter(
       (call: any[]) => call[0]?.priority === 'CRITICAL',
     );
     expect(criticalCalls).toHaveLength(0);

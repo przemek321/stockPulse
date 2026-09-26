@@ -8,9 +8,9 @@
  */
 
 import { detectItems, extractItemText, selectPromptBuilder, isBankruptcyItem, stripHtml } from '../../src/sec-filings/parsers/form8k.parser';
+import { buildForm4Prompt, Form4PromptData } from '../../src/sec-filings/prompts/form4.prompt';
 import { scoreToAlertPriority, mapToRuleName } from '../../src/sec-filings/scoring/price-impact.scorer';
 import { parseGptResponse, SecFilingAnalysisSchema } from '../../src/sec-filings/types/sec-filing-analysis';
-import { buildForm4Prompt, Form4PromptData } from '../../src/sec-filings/prompts/form4.prompt';
 
 // ── Helper: tworzy poprawny SecFilingAnalysis ──
 
@@ -481,12 +481,12 @@ describe('Agent: SEC Filings — Conviction normalizacja (logika)', () => {
     return Math.max(-1.0, Math.min(1.0, conviction / 2.0));
   }
 
-  it('+2.0 → +1.0', () => expect(normalizeConviction(2.0)).toBe(1.0));
-  it('-2.0 → -1.0', () => expect(normalizeConviction(-2.0)).toBe(-1.0));
-  it('+1.0 → +0.5', () => expect(normalizeConviction(1.0)).toBeCloseTo(0.5));
-  it('0 → 0', () => expect(normalizeConviction(0)).toBe(0));
-  it('+3.0 → capped +1.0', () => expect(normalizeConviction(3.0)).toBe(1.0));
-  it('-3.0 → capped -1.0', () => expect(normalizeConviction(-3.0)).toBe(-1.0));
+  it('+2.0 → +1.0', () => { expect(normalizeConviction(2.0)).toBe(1.0); });
+  it('-2.0 → -1.0', () => { expect(normalizeConviction(-2.0)).toBe(-1.0); });
+  it('+1.0 → +0.5', () => { expect(normalizeConviction(1.0)).toBeCloseTo(0.5); });
+  it('0 → 0', () => { expect(normalizeConviction(0)).toBe(0); });
+  it('+3.0 → capped +1.0', () => { expect(normalizeConviction(3.0)).toBe(1.0); });
+  it('-3.0 → capped -1.0', () => { expect(normalizeConviction(-3.0)).toBe(-1.0); });
 });
 
 // ══════════════════════════════════════════════

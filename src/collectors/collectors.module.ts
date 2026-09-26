@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { StocktwitsModule } from './stocktwits/stocktwits.module';
 import { FinnhubModule } from './finnhub/finnhub.module';
-import { SecEdgarModule } from './sec-edgar/sec-edgar.module';
-import { RedditModule } from './reddit/reddit.module';
-import { PdufaBioModule } from './pdufa-bio/pdufa-bio.module';
-import { OptionsFlowCollectorModule } from './options-flow/options-flow.module';
 import { Form4DiscoveryModule } from './form4-discovery/form4-discovery.module';
+import { OptionsFlowCollectorModule } from './options-flow/options-flow.module';
+import { PdufaBioModule } from './pdufa-bio/pdufa-bio.module';
+import { RedditModule } from './reddit/reddit.module';
+import { SecEdgarModule } from './sec-edgar/sec-edgar.module';
+import { StocktwitsModule } from './stocktwits/stocktwits.module';
 
 /**
  * Zbiorczy moduł kolektorów danych.

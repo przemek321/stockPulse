@@ -77,7 +77,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
     await scheduler.sendSummary();
 
     expect(telegram.sendMarkdown).toHaveBeenCalledTimes(1);
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
 
     expect(msg).toContain('Łącznie: 5');
     expect(msg).toContain('dostarczono: 1');
@@ -103,7 +103,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
 
     await scheduler.sendSummary();
 
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
     expect(msg).toContain('Łącznie: 2');
     expect(msg).toContain('dostarczono: 2');
     expect(msg).not.toContain('Niedostarczone');
@@ -118,7 +118,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
 
     await scheduler.sendSummary();
 
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
     expect(msg).toContain('Brak alertów w tym okresie');
     expect(msg).not.toContain('Niedostarczone');
     expect(msg).not.toContain('Łącznie:');
@@ -133,7 +133,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
 
     await scheduler.sendSummary();
 
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
     expect(msg).toContain('future');
     expect(msg).toContain('Niedostarczone');
   });
@@ -166,7 +166,7 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
 
     await scheduler.sendSummary();
 
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
     // Myślniki/parens escape'owane w MarkdownV2 (\-, \(, \)) — match bez escapów
     const plain = msg.replace(/\\([_*\[\]()~`>#+\-=|{}.!\\])/g, '$1');
     expect(plain).toContain('Obserwacja');
@@ -251,7 +251,7 @@ describe('sendSummary — sekcja Nowe obserwacje (10.06.2026)', () => {
 
     await scheduler.sendSummary();
 
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
     const plain = msg.replace(/\\([_*\[\]()~`>#+\-=|{}.!\\])/g, '$1');
     expect(plain).toContain('Nowe obserwacje');
     expect(plain).toContain('EYE');
@@ -269,7 +269,7 @@ describe('sendSummary — sekcja Nowe obserwacje (10.06.2026)', () => {
 
     await scheduler.sendSummary();
 
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
     expect(msg).not.toContain('Nowe obserwacje');
   });
 
@@ -286,7 +286,7 @@ describe('sendSummary — sekcja Nowe obserwacje (10.06.2026)', () => {
 
     await scheduler.sendSummary();
 
-    const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+    const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
     expect(msg).toContain('TK5');
     expect(msg).not.toContain('TK6');
     expect(msg).toContain('3 więcej');
@@ -324,7 +324,7 @@ describe('sendSummary — inwariant escapowania MarkdownV2 (05.07.2026)', () => 
 
       await scheduler.sendSummary();
 
-      const msg = (telegram.sendMarkdown as jest.Mock).mock.calls[0][0] as string;
+      const msg = (telegram.sendMarkdown).mock.calls[0][0] as string;
       // Sekcje-wyzwalacze obu historycznych instancji buga muszą być obecne:
       expect(msg).toContain('Kalendarz walidacji');
       expect(msg).toContain('Nowe obserwacje');

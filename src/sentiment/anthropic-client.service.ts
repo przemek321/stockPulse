@@ -1,6 +1,6 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
 import { Logged } from '../common/decorators/logged.decorator';
 import { EnrichedAnalysis } from './azure-openai-client.service';
 

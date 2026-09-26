@@ -12,8 +12,8 @@
  *   R4. (no cap) BOTH beats >+5% lub brak danych
  */
 
-import { shouldCapForConsensusGap } from '../../src/sec-filings/utils/consensus-gap-guard';
 import { ConsensusComparison } from '../../src/sec-filings/types/consensus-comparison';
+import { shouldCapForConsensusGap } from '../../src/sec-filings/utils/consensus-gap-guard';
 
 function buildComparison(overrides: Partial<ConsensusComparison>): ConsensusComparison {
   return {

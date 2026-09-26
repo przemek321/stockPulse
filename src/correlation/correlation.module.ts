@@ -1,11 +1,11 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Alert, AlertRule, Ticker } from '../entities';
+import { AlertsModule } from '../alerts/alerts.module';
 import { TelegramModule } from '../alerts/telegram/telegram.module';
 import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
-import { AlertsModule } from '../alerts/alerts.module';
-import { correlationRedisProvider } from './redis.provider';
+import { Alert, AlertRule, Ticker } from '../entities';
 import { CorrelationService } from './correlation.service';
+import { correlationRedisProvider } from './redis.provider';
 
 /**
  * Moduł korelacji sygnałów — wykrywa wzorce między źródłami

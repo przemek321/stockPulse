@@ -1,14 +1,18 @@
 import { Injectable, Logger, Inject, OnModuleDestroy, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import Redis from 'ioredis';
 import { createHash } from 'crypto';
-import { CORRELATION_REDIS } from './redis.provider';
-import { TelegramService } from '../alerts/telegram/telegram.service';
+import Redis from 'ioredis';
+import { Repository } from 'typeorm';
+import { AlertDeliveryGate } from '../alerts/alert-delivery-gate.service';
+import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
 import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
+import { TelegramService } from '../alerts/telegram/telegram.service';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
-import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
+import { Logged } from '../common/decorators/logged.decorator';
+import { errMsg } from '../common/utils/error-message.util';
 import { Alert, AlertRule, Ticker } from '../entities';
+import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
+import { CORRELATION_REDIS } from './redis.provider';
 import {
   StoredSignal,
   DetectedPattern,
@@ -17,10 +21,6 @@ import {
   PATTERN_LABELS,
   PATTERN_THROTTLE,
 } from './types/correlation.types';
-import { Logged } from '../common/decorators/logged.decorator';
-import { AlertDeliveryGate } from '../alerts/alert-delivery-gate.service';
-import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
-import { errMsg } from '../common/utils/error-message.util';
 
 /**
  * CorrelationService — wykrywa wzorce między sygnałami z różnych źródeł.
@@ -114,7 +114,7 @@ export function detectDirectionConflict(
   }
   if (netByCategory.size < 2) return false;
 
-  const directions: Array<'positive' | 'negative'> = [];
+  const directions: ('positive' | 'negative')[] = [];
   for (const sum of netByCategory.values()) {
     if (Math.abs(sum) < neutralThreshold) continue; // neutral nie wprowadza konfliktu
     directions.push(sum > 0 ? 'positive' : 'negative');

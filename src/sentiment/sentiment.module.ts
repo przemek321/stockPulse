@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { AzureOpenaiClientService } from './azure-openai-client.service';
 import { AnthropicClientService } from './anthropic-client.service';
+import { AzureOpenaiClientService } from './azure-openai-client.service';
 
 /**
  * Moduł AI (legacy nazwa: SentimentModule z ery FinBERT + sentiment pipeline).

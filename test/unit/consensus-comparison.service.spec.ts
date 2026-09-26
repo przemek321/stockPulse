@@ -9,8 +9,8 @@
  *   - Brak kluczy w env → graceful (dla TS nie crash, returns fewer fields)
  */
 
-import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ConsensusComparisonService,
   computeSurprisePct,

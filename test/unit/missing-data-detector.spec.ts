@@ -1,6 +1,6 @@
-import { detectMissingDataFacts, hasGptMissingData } from '../../src/sec-filings/utils/missing-data-detector';
 import * as fs from 'fs';
 import * as path from 'path';
+import { detectMissingDataFacts, hasGptMissingData } from '../../src/sec-filings/utils/missing-data-detector';
 
 /**
  * S19-FIX-01: testy detektora missing-data flag w GPT key_facts.

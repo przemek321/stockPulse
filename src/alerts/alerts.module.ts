@@ -1,14 +1,14 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Alert, AlertRule, InsiderTrade, Ticker } from '../entities';
-import { AlertEvaluatorService } from './alert-evaluator.service';
-import { AlertDeliveryGate } from './alert-delivery-gate.service';
-import { AlertDispatcherService } from './alert-dispatcher.service';
-import { SummarySchedulerService } from './summary-scheduler.service';
-import { TelegramModule } from './telegram/telegram.module';
+import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
 import { PdufaBioModule } from '../collectors/pdufa-bio/pdufa-bio.module';
 import { CorrelationModule } from '../correlation/correlation.module';
-import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
+import { Alert, AlertRule, InsiderTrade, Ticker } from '../entities';
+import { AlertDeliveryGate } from './alert-delivery-gate.service';
+import { AlertDispatcherService } from './alert-dispatcher.service';
+import { AlertEvaluatorService } from './alert-evaluator.service';
+import { SummarySchedulerService } from './summary-scheduler.service';
+import { TelegramModule } from './telegram/telegram.module';
 
 /**
  * Moduł alertów.

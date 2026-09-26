@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
-import * as path from 'path';
 import * as os from 'os';
+import * as path from 'path';
 
 /**
  * Ścieżki do danych systemowych hosta.
@@ -131,8 +131,8 @@ export class SystemStatsService {
     try {
       const meminfo = fs.readFileSync(`${HOST_PROC}/meminfo`, 'utf8');
 
-      const totalMatch = meminfo.match(/MemTotal:\s+(\d+)\s+kB/);
-      const availMatch = meminfo.match(/MemAvailable:\s+(\d+)\s+kB/);
+      const totalMatch = /MemTotal:\s+(\d+)\s+kB/.exec(meminfo);
+      const availMatch = /MemAvailable:\s+(\d+)\s+kB/.exec(meminfo);
 
       if (!totalMatch || !availMatch) return null;
 

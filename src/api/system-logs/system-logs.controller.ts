@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
-import { SystemLogService } from '../../system-log/system-log.service';
 import { ApiTokenGuard } from '../../common/guards/api-token.guard';
+import { SystemLogService } from '../../system-log/system-log.service';
 
 /**
  * Kontroler REST API dla logów systemowych.

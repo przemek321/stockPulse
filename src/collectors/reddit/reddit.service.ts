@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BaseCollectorService } from '../shared/base-collector.service';
-import { RawMention, Ticker, CollectionLog } from '../../entities';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { DataSource } from '../../common/interfaces/data-source.enum';
+import { RawMention, Ticker, CollectionLog } from '../../entities';
 import { EventType } from '../../events/event-types';
+import { BaseCollectorService } from '../shared/base-collector.service';
 
 /**
  * Kolektor danych z Reddit.

@@ -81,10 +81,10 @@ export function shouldCapForConsensusGap(
   // R3: single-metric beat (jedna >+5%, druga in-line albo brak)
   // Liczy się tylko gdy są dane dla obu — inaczej nie wiemy czy "single"
   if (bothKnown) {
-    const epsStrongBeat = eps! >= 5;
-    const revStrongBeat = rev! >= 5;
-    const epsWeak = eps! < 5;
-    const revWeak = rev! < 5;
+    const epsStrongBeat = eps >= 5;
+    const revStrongBeat = rev >= 5;
+    const epsWeak = eps < 5;
+    const revWeak = rev < 5;
     const isSingleBeat = (epsStrongBeat && revWeak) || (revStrongBeat && epsWeak);
     if (isSingleBeat && absConv > 0.7) {
       const strong = epsStrongBeat ? 'EPS' : 'revenue';

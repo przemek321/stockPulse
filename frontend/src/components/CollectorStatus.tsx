@@ -80,13 +80,13 @@ export default function CollectorStatus() {
         });
         setCountdowns(cd);
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => { setError(e.message); });
   }, []);
 
   useEffect(() => {
     load();
     const id = setInterval(load, 30_000);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); };
   }, [load]);
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function CollectorStatus() {
         return next;
       });
     }, 1000);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); };
   }, []);
 
   if (error)

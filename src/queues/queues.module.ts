@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ALL_QUEUE_NAMES } from './queue-names.const';
 

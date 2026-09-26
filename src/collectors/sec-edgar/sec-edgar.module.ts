@@ -1,11 +1,11 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bullmq';
-import { SecEdgarService } from './sec-edgar.service';
-import { SecEdgarProcessor } from './sec-edgar.processor';
-import { SecEdgarScheduler } from './sec-edgar.scheduler';
 import { SecFiling, InsiderTrade, Ticker, CollectionLog } from '../../entities';
 import { QUEUE_NAMES } from '../../queues/queue-names.const';
+import { SecEdgarProcessor } from './sec-edgar.processor';
+import { SecEdgarScheduler } from './sec-edgar.scheduler';
+import { SecEdgarService } from './sec-edgar.service';
 
 /**
  * Moduł kolektora SEC EDGAR.

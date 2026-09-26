@@ -3,8 +3,8 @@
  * Plik: src/options-flow/options-flow-scoring.service.ts
  */
 
-import { OptionsFlowScoringService } from '../../src/options-flow/options-flow-scoring.service';
 import { type TickerAggregation, type UnusualContract } from '../../src/collectors/options-flow/unusual-activity-detector';
+import { OptionsFlowScoringService } from '../../src/options-flow/options-flow-scoring.service';
 
 // ── Mocki ──
 
@@ -14,7 +14,7 @@ function createMockPdufaRepo(upcoming: any = null) {
 
 function createService(pdufaOverride?: any) {
   const pdufaRepo = pdufaOverride ?? createMockPdufaRepo();
-  const service = new OptionsFlowScoringService(pdufaRepo as any);
+  const service = new OptionsFlowScoringService(pdufaRepo);
   return { service, pdufaRepo };
 }
 
@@ -36,7 +36,7 @@ function makeHeadline(overrides: Partial<UnusualContract> = {}): UnusualContract
 }
 
 function makeAggregation(overrides: Partial<TickerAggregation> = {}): TickerAggregation {
-  const headline = makeHeadline(overrides.headlineContract as any);
+  const headline = makeHeadline(overrides.headlineContract);
   return {
     symbol: 'MRNA',
     unusualContracts: [headline],

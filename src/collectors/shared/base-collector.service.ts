@@ -1,10 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CollectionLog } from '../../entities';
+import { Logged } from '../../common/decorators/logged.decorator';
 import { ICollector, CollectorHealth } from '../../common/interfaces/collector.interface';
 import { DataSource } from '../../common/interfaces/data-source.enum';
-import { Logged } from '../../common/decorators/logged.decorator';
+import { CollectionLog } from '../../entities';
 
 /**
  * Bazowa klasa dla wszystkich kolektorów danych.

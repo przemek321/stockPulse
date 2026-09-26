@@ -8,7 +8,7 @@ import { captureAlertSnapshot } from '../../src/price-outcome/sector-snapshot.he
 
 class FakeFinnhubService {
   quotes: Record<string, number | null> = {};
-  errorFor: Set<string> = new Set();
+  errorFor = new Set<string>();
   callCount = 0;
   callOrder: string[] = [];
 

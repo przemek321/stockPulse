@@ -1,18 +1,18 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
-import { SecFiling, Ticker } from '../../entities';
-import { SecEdgarService } from '../sec-edgar/sec-edgar.service';
+import { Repository } from 'typeorm';
 import { TelegramService } from '../../alerts/telegram/telegram.service';
+import { Logged } from '../../common/decorators/logged.decorator';
+import { SecFiling, Ticker } from '../../entities';
+import { EventType } from '../../events/event-types';
+import { isCsuiteRole, isDirectorRole, OBS_MIN_BUY_VALUE_CSUITE } from '../../sec-filings/pipelines/form4.pipeline';
 import { FinnhubService } from '../finnhub/finnhub.service';
 import { parseForm4Xml, Form4Transaction } from '../sec-edgar/form4-parser';
-import { isCsuiteRole, isDirectorRole, OBS_MIN_BUY_VALUE_CSUITE } from '../../sec-filings/pipelines/form4.pipeline';
-import { EventType } from '../../events/event-types';
-import { Logged } from '../../common/decorators/logged.decorator';
+import { SecEdgarService } from '../sec-edgar/sec-edgar.service';
 import { DISCOVERY_REDIS } from './redis.provider';
 
 /**
@@ -105,11 +105,11 @@ export function parseGetCurrentAtom(xml: string): AtomFilingEntry[] {
   let m: RegExpExecArray | null;
   while ((m = entryRe.exec(xml)) !== null) {
     const entry = m[1];
-    const titleM = entry.match(/<title>4 - (.*?) \((\d{10})\) \(Issuer\)<\/title>/);
+    const titleM = /<title>4 - (.*?) \((\d{10})\) \(Issuer\)<\/title>/.exec(entry);
     if (!titleM) continue;
-    const accM = entry.match(/accession-number=(\d{10}-\d{2}-\d{6})/);
+    const accM = /accession-number=(\d{10}-\d{2}-\d{6})/.exec(entry);
     if (!accM) continue;
-    const filedM = entry.match(/Filed:&lt;\/b&gt;\s*(\d{4}-\d{2}-\d{2})/);
+    const filedM = /Filed:&lt;\/b&gt;\s*(\d{4}-\d{2}-\d{2})/.exec(entry);
     if (!out.has(accM[1])) {
       out.set(accM[1], {
         accession: accM[1],
@@ -138,11 +138,11 @@ export function parseGetCurrentAtom(xml: string): AtomFilingEntry[] {
  */
 export function parseDailyIndexForm4(
   text: string,
-): Array<{ accession: string; cik: string; dateFiled: string | null }> {
-  const out: Array<{ accession: string; cik: string; dateFiled: string | null }> = [];
+): { accession: string; cik: string; dateFiled: string | null }[] {
+  const out: { accession: string; cik: string; dateFiled: string | null }[] = [];
   for (const line of text.split('\n')) {
     if (!line.startsWith('4 ')) continue; // dokładnie '4' (nie 4/A, nie 424B5)
-    const pathM = line.match(/(\d{8})?\s+edgar\/data\/(\d+)\/(\d{10}-\d{2}-\d{6})\.txt\s*$/);
+    const pathM = /(\d{8})?\s+edgar\/data\/(\d+)\/(\d{10}-\d{2}-\d{6})\.txt\s*$/.exec(line);
     if (pathM) {
       const d = pathM[1];
       out.push({
@@ -271,7 +271,7 @@ export class Form4DiscoveryService {
     action?: string;
   }> {
     const budget = new AbortController();
-    const budgetTimer = setTimeout(() => budget.abort(), POLL_BUDGET_MS);
+    const budgetTimer = setTimeout(() => { budget.abort(); }, POLL_BUDGET_MS);
     try {
       const xml = await this.fetchText(
         'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb=&owner=include&count=100&output=atom',
@@ -325,7 +325,7 @@ export class Form4DiscoveryService {
     action?: string;
   }> {
     const budget = new AbortController();
-    const budgetTimer = setTimeout(() => budget.abort(), RECON_BUDGET_MS);
+    const budgetTimer = setTimeout(() => { budget.abort(); }, RECON_BUDGET_MS);
     try {
       // Data wg America/New_York — reconciliation odpala 22:40 ET tego samego dnia.
       // Fallback na poprzedni dzień: gdyby plik nie był jeszcze opublikowany
@@ -621,7 +621,7 @@ export class Form4DiscoveryService {
     await this.delay(SEC_DELAY_MS);
     const raw = await this.fetchText(`${baseDir}/index.json`, signal);
     try {
-      const items: Array<{ name: string }> = JSON.parse(raw)?.directory?.item ?? [];
+      const items: { name: string }[] = JSON.parse(raw)?.directory?.item ?? [];
       const xml = items.find(
         (i) => i.name.toLowerCase().endsWith('.xml') && !i.name.includes('/'),
       );

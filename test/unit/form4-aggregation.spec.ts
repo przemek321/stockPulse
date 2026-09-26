@@ -25,7 +25,7 @@ interface MockTxn {
 }
 
 // Replikacja grupowania z sec-edgar.service.ts parseAndSaveForm4.
-function groupTxns(txns: MockTxn[]): Array<{
+function groupTxns(txns: MockTxn[]): {
   primaryId: number;
   tradeIds: number[];
   aggregateValue: number;
@@ -33,7 +33,7 @@ function groupTxns(txns: MockTxn[]): Array<{
   insiderName: string;
   transactionType: string;
   is10b51Plan: boolean;
-}> {
+}[] {
   const groups = new Map<string, MockTxn[]>();
   for (const t of txns) {
     const key = `${t.insiderName}::${t.transactionType}::${t.is10b51Plan ? 1 : 0}`;

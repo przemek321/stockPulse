@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { BaseCollectorService } from '../shared/base-collector.service';
-import { SecFiling, InsiderTrade, Ticker, CollectionLog } from '../../entities';
+import { Repository } from 'typeorm';
 import { DataSource } from '../../common/interfaces/data-source.enum';
+import { SecFiling, InsiderTrade, Ticker, CollectionLog } from '../../entities';
 import { EventType } from '../../events/event-types';
+import { BaseCollectorService } from '../shared/base-collector.service';
 import { parseForm4Xml } from './form4-parser';
 
 const EDGAR_BASE = 'https://data.sec.gov';
@@ -208,7 +208,7 @@ export class SecEdgarService extends BaseCollectorService {
       }
 
       // Save all rows (history preserved, dedupe by accessionNumber_N)
-      const savedTrades: Array<{ entity: InsiderTrade; txn: typeof transactions[0] }> = [];
+      const savedTrades: { entity: InsiderTrade; txn: typeof transactions[0] }[] = [];
       for (let i = 0; i < transactions.length; i++) {
         const txn = transactions[i];
         const txnAccession = `${accessionNumber}_${i}`;
@@ -245,7 +245,7 @@ export class SecEdgarService extends BaseCollectorService {
       // Group by (insiderName, transactionType). "BUY"+"SELL" od tego samego insidera
       // (np. exercise option + sell) to osobne grupy (różny sygnał ekonomiczny).
       // is10b51Plan też w kluczu — plan vs discretionary nie łącz, bo pipeline skipuje planowe.
-      const groups = new Map<string, Array<typeof savedTrades[0]>>();
+      const groups = new Map<string, typeof savedTrades[0][]>();
       for (const row of savedTrades) {
         const key = `${row.txn.insiderName}::${row.txn.transactionType}::${row.txn.is10b51Plan ? 1 : 0}`;
         const list = groups.get(key) ?? [];

@@ -156,12 +156,12 @@ export class ConsensusComparisonService {
       return null;
     }
 
-    const json = (await res.json()) as Array<{
+    const json = (await res.json()) as {
       actual: number | null;
       estimate: number | null;
       period: string;
       surprisePercent?: number;
-    }>;
+    }[];
 
     if (!Array.isArray(json) || json.length === 0) return null;
 
@@ -199,13 +199,13 @@ export class ConsensusComparisonService {
 
     const json = (await res.json()) as {
       symbol?: string;
-      estimates?: Array<{
+      estimates?: {
         date: string;
         horizon: string;
         eps_estimate_average?: string;
         revenue_estimate_average?: string;
         revenue_estimate_analyst_count?: string;
-      }>;
+      }[];
       Information?: string;
       Note?: string;
     };

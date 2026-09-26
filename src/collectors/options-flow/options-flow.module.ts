@@ -1,9 +1,6 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bullmq';
-import { OptionsFlowService } from './options-flow.service';
-import { OptionsFlowProcessor } from './options-flow.processor';
-import { OptionsFlowScheduler } from './options-flow.scheduler';
 import {
   OptionsFlow,
   OptionsVolumeBaseline,
@@ -11,6 +8,9 @@ import {
   CollectionLog,
 } from '../../entities';
 import { QUEUE_NAMES } from '../../queues/queue-names.const';
+import { OptionsFlowProcessor } from './options-flow.processor';
+import { OptionsFlowScheduler } from './options-flow.scheduler';
+import { OptionsFlowService } from './options-flow.service';
 
 /**
  * Moduł kolektora options flow (Polygon.io Free Tier, EOD).

@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { BaseCollectorService } from '../shared/base-collector.service';
-import { PdufaCatalyst, CollectionLog } from '../../entities';
-import { DataSource } from '../../common/interfaces/data-source.enum';
-import { EventType } from '../../events/event-types';
+import { Repository, MoreThan } from 'typeorm';
 import { Logged } from '../../common/decorators/logged.decorator';
+import { DataSource } from '../../common/interfaces/data-source.enum';
+import { PdufaCatalyst, CollectionLog } from '../../entities';
+import { EventType } from '../../events/event-types';
+import { BaseCollectorService } from '../shared/base-collector.service';
 import { parsePdufaCalendarHtml } from './pdufa-parser';
 
 /**

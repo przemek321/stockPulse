@@ -2,24 +2,24 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
-import { EventType } from '../../events/event-types';
-import { InsiderTrade, Ticker, Alert, AlertRule, SecFiling } from '../../entities';
-import { AzureOpenaiClientService } from '../../sentiment/azure-openai-client.service';
-import { TelegramService } from '../../alerts/telegram/telegram.service';
-import { TelegramFormatterService } from '../../alerts/telegram/telegram-formatter.service';
-import { DailyCapService } from '../services/daily-cap.service';
-import { buildForm4Prompt, Form4PromptData } from '../prompts/form4.prompt';
-import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysis';
-import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
-import { CorrelationService } from '../../correlation/correlation.service';
-import { StoredSignal } from '../../correlation/types/correlation.types';
-import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
-import { captureAlertSnapshot } from '../../price-outcome/sector-snapshot.helper';
-import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
+import { TelegramFormatterService } from '../../alerts/telegram/telegram-formatter.service';
+import { TelegramService } from '../../alerts/telegram/telegram.service';
+import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 import { errMsg } from '../../common/utils/error-message.util';
+import { CorrelationService } from '../../correlation/correlation.service';
+import { StoredSignal } from '../../correlation/types/correlation.types';
+import { InsiderTrade, Ticker, Alert, AlertRule, SecFiling } from '../../entities';
+import { EventType } from '../../events/event-types';
+import { captureAlertSnapshot } from '../../price-outcome/sector-snapshot.helper';
+import { AzureOpenaiClientService } from '../../sentiment/azure-openai-client.service';
+import { TickerProfileService } from '../../ticker-profile/ticker-profile.service';
+import { buildForm4Prompt, Form4PromptData } from '../prompts/form4.prompt';
+import { scoreToAlertPriority, mapToRuleName } from '../scoring/price-impact.scorer';
+import { DailyCapService } from '../services/daily-cap.service';
+import { parseGptResponse, SecFilingAnalysis } from '../types/sec-filing-analysis';
 
 /**
  * C-suite whitelist dla boost decyzji (Form4Pipeline + testy jednostkowe).

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TelegramService } from './telegram/telegram.service';
-import { AlertDeliveryGate } from './alert-delivery-gate.service';
 import { Logged } from '../common/decorators/logged.decorator';
+import { AlertDeliveryGate } from './alert-delivery-gate.service';
+import { TelegramService } from './telegram/telegram.service';
 
 /**
  * Kontekst dispatch'u alertu — caller ustala flagi suppression na podstawie

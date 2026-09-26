@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Alert } from '../entities';
 import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
+import { Alert } from '../entities';
 import { PriceOutcomeService } from './price-outcome.service';
 
 /**

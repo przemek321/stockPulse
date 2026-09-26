@@ -144,16 +144,16 @@ function createAlertService(overrides: any = {}) {
   const dispatcher = overrides.dispatcher ?? createMockDispatcher();
 
   const service = new OptionsFlowAlertService(
-    flowRepo as any,
-    alertRepo as any,
-    ruleRepo as any,
-    tickerRepo as any,
-    scoring as any,
-    correlation as any,
-    telegram as any,
-    formatter as any,
-    finnhub as any,
-    dispatcher as any,
+    flowRepo,
+    alertRepo,
+    ruleRepo,
+    tickerRepo,
+    scoring,
+    correlation,
+    telegram,
+    formatter,
+    finnhub,
+    dispatcher,
   );
   return { service, flowRepo, alertRepo, ruleRepo, scoring, correlation, telegram, formatter, finnhub, dispatcher };
 }

@@ -1,5 +1,5 @@
-import { Form8kPipeline } from '../../src/sec-filings/pipelines/form8k.pipeline';
 import { AlertDispatcherService } from '../../src/alerts/alert-dispatcher.service';
+import { Form8kPipeline } from '../../src/sec-filings/pipelines/form8k.pipeline';
 
 /**
  * Werdykt 01.09.2026 (doc/WERDYKT-EDGE-2026-09-01.md §1.7): reguła
@@ -110,7 +110,7 @@ function buildMocks(opts: { filingText: string; gpt: string }) {
     mocks.tickerProfile as any,
     mocks.deliveryGate as any,
     mocks.dispatcher as any,
-    mocks.consensusService as any,
+    mocks.consensusService,
   );
 
   jest.spyOn(pipeline as any, 'fetchFilingText').mockResolvedValue(opts.filingText);

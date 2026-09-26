@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
+import { Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Optional } from '@nestjs/common';
-import { OptionsFlow, OptionsVolumeBaseline } from '../../entities';
-import { OptionsFlowService } from '../../collectors/options-flow/options-flow.service';
 import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
+import { OptionsFlowService } from '../../collectors/options-flow/options-flow.service';
+import { OptionsFlow, OptionsVolumeBaseline } from '../../entities';
 
 /**
  * REST API dla options flow.

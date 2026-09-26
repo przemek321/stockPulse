@@ -28,7 +28,7 @@
 export function computeSectorAlpha(
   tickerChangePct: number,
   benchmarkChangePct: number,
-  beta: number = 1.0,
+  beta = 1.0,
 ): number {
   return tickerChangePct - beta * benchmarkChangePct;
 }

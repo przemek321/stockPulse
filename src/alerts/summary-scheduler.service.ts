@@ -1,11 +1,11 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
-import { Alert, InsiderTrade } from '../entities';
-import { TelegramService } from './telegram/telegram.service';
-import { TelegramFormatterService } from './telegram/telegram-formatter.service';
 import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
+import { Alert, InsiderTrade } from '../entities';
 import { SystemLogService } from '../system-log/system-log.service';
+import { TelegramFormatterService } from './telegram/telegram-formatter.service';
+import { TelegramService } from './telegram/telegram.service';
 
 /**
  * Raport statusu systemu wysyłany na Telegram co 8 godzin.
@@ -20,7 +20,7 @@ import { SystemLogService } from '../system-log/system-log.service';
  * Szczegóły kryteriów per data: doc/KALENDARZ-WALIDACJI-2026.md.
  * Po wykonaniu przeglądu — usuń wpis z tej tablicy.
  */
-export const VALIDATION_CALENDAR: ReadonlyArray<{ date: string; label: string }> = [
+export const VALIDATION_CALENDAR: readonly { date: string; label: string }[] = [
   // 2026-07-09 APLS Faza 4: WYKONANY 10.07 — insufficient data (0 BUY od seedu),
   // okno przedłużone do werdyktu 01.09; doc/APLS-FAZA-4-REVIEW-2026-07-10.md.
   // 2026-07-25 discovery obs: WYKONANY 27.07 — bez promocji (alpha 0/5), obs do 01.09;
@@ -41,8 +41,8 @@ export const VALIDATION_CALENDAR: ReadonlyArray<{ date: string; label: string }>
  */
 export function upcomingValidationEvents(
   now: Date,
-  calendar: ReadonlyArray<{ date: string; label: string }> = VALIDATION_CALENDAR,
-): Array<{ date: string; label: string; daysLeft: number }> {
+  calendar: readonly { date: string; label: string }[] = VALIDATION_CALENDAR,
+): { date: string; label: string; daysLeft: number }[] {
   const DAY = 24 * 3600_000;
   const today = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z').getTime();
   return calendar

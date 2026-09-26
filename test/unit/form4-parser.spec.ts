@@ -189,12 +189,12 @@ describe('Form4 Parser', () => {
   // ── FLAG #30 fix: multi-reportingOwner ──────────────────────
 
   describe('Multi-reportingOwner (FLAG #30 fix)', () => {
-    const makeMultiOwnerXml = (owners: Array<{
+    const makeMultiOwnerXml = (owners: {
       name: string;
       officerTitle?: string;
       isDirector?: boolean;
       isOfficer?: boolean;
-    }>, code: string = 'P'): string => {
+    }[], code = 'P'): string => {
       const ownersXml = owners.map(o => {
         const rel: string[] = [];
         if (o.officerTitle) rel.push(`<officerTitle>${o.officerTitle}</officerTitle>`);

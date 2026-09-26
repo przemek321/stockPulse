@@ -1,13 +1,12 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, MoreThanOrEqual, Not, In } from 'typeorm';
-import { StocktwitsService } from '../../collectors/stocktwits/stocktwits.service';
-import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
-import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
-import { RedditService } from '../../collectors/reddit/reddit.service';
-import { PdufaBioService } from '../../collectors/pdufa-bio/pdufa-bio.service';
 import { TelegramService } from '../../alerts/telegram/telegram.service';
-import { SystemStatsService } from './system-stats.service';
+import { FinnhubService } from '../../collectors/finnhub/finnhub.service';
+import { PdufaBioService } from '../../collectors/pdufa-bio/pdufa-bio.service';
+import { RedditService } from '../../collectors/reddit/reddit.service';
+import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
+import { StocktwitsService } from '../../collectors/stocktwits/stocktwits.service';
 import {
   Ticker,
   RawMention,
@@ -19,6 +18,7 @@ import {
   CollectionLog,
   PdufaCatalyst,
 } from '../../entities';
+import { SystemStatsService } from './system-stats.service';
 
 /** Interwały kolektorów w minutach — musi odpowiadać schedulerom BullMQ */
 const COLLECTOR_INTERVALS: Record<string, number> = {
@@ -440,7 +440,7 @@ export class HealthController {
     // BullMQ failed jobs — via collection_logs FAILED w 7d (bez wyłączonych kolektorów)
     const failedJobs7d = await this.logRepo.count({
       where: {
-        status: 'FAILED' as any,
+        status: 'FAILED',
         startedAt: MoreThanOrEqual(last7d),
         collector: Not(In(disabledCollectors)) as any,
       },

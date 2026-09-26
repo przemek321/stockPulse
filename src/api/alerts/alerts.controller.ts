@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, DataSource } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Alert, AlertRule, SecFiling } from '../../entities';
 import { EventType } from '../../events/event-types';
 import { PriceOutcomeService } from '../../price-outcome/price-outcome.service';
@@ -426,8 +426,8 @@ export class AlertsController {
     if (!filing) return { error: `filing ${id} not found` };
 
     // Wyczyść gptAnalysis żeby pipeline nie pominął
-    filing.gptAnalysis = null as any;
-    filing.priceImpactDirection = null as any;
+    filing.gptAnalysis = null;
+    filing.priceImpactDirection = null;
     await this.filingRepo.save(filing);
 
     // Emituj event — Form8kPipeline nasłuchuje na NEW_FILING

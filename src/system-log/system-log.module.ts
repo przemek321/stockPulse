@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { SystemLog } from '../entities/system-log.entity';
 import { SystemLogService } from './system-log.service';
 

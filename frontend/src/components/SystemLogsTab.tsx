@@ -397,7 +397,7 @@ export default function SystemLogsTab() {
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(loadLogs, 30_000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoRefresh, loadLogs]);
 
   // Resetuj stronę przy zmianie filtrów
@@ -535,7 +535,7 @@ export default function SystemLogsTab() {
           <Select
             value={module}
             label="Moduł"
-            onChange={(e) => handleModuleChange(e.target.value)}
+            onChange={(e) => { handleModuleChange(e.target.value); }}
           >
             {MODULES.map((m) => (
               <MenuItem key={m.value} value={m.value}>
@@ -550,7 +550,7 @@ export default function SystemLogsTab() {
           <Select
             value={status}
             label="Status"
-            onChange={(e) => handleStatusChange(e.target.value)}
+            onChange={(e) => { handleStatusChange(e.target.value); }}
           >
             {STATUSES.map((s) => (
               <MenuItem key={s.value} value={s.value}>
@@ -565,7 +565,7 @@ export default function SystemLogsTab() {
           <Select
             value={level}
             label="Level"
-            onChange={(e) => handleLevelChange(e.target.value)}
+            onChange={(e) => { handleLevelChange(e.target.value); }}
           >
             {LEVELS.map((l) => (
               <MenuItem key={l.value} value={l.value}>
@@ -579,7 +579,7 @@ export default function SystemLogsTab() {
           size="small"
           label="Ticker"
           value={tickerFilter}
-          onChange={(e) => setTickerFilter(e.target.value.toUpperCase())}
+          onChange={(e) => { setTickerFilter(e.target.value.toUpperCase()); }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               setPage(1);
@@ -595,7 +595,7 @@ export default function SystemLogsTab() {
             <Switch
               size="small"
               checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
+              onChange={(e) => { setAutoRefresh(e.target.checked); }}
             />
           }
           label={
@@ -620,7 +620,7 @@ export default function SystemLogsTab() {
           <Select
             value={exportDays}
             label="Dni"
-            onChange={(e) => setExportDays(Number(e.target.value))}
+            onChange={(e) => { setExportDays(Number(e.target.value)); }}
           >
             {[1, 2, 3, 4, 5, 6, 7].map((d) => (
               <MenuItem key={d} value={d}>
@@ -669,7 +669,7 @@ export default function SystemLogsTab() {
                   <TableSortLabel
                     active={sortKey === col.key}
                     direction={sortKey === col.key ? sortDir : 'desc'}
-                    onClick={() => handleSort(col.key)}
+                    onClick={() => { handleSort(col.key); }}
                   >
                     {col.label}
                   </TableSortLabel>
@@ -707,7 +707,7 @@ export default function SystemLogsTab() {
           <Pagination
             count={totalPages}
             page={page}
-            onChange={(_, p) => setPage(p)}
+            onChange={(_, p) => { setPage(p); }}
             color="primary"
             size="small"
           />

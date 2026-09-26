@@ -180,7 +180,7 @@ export default function SystemHealthPanel() {
   useEffect(() => {
     load();
     const interval = setInterval(load, 60_000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [load]);
 
   if (loading && !data)
@@ -307,7 +307,7 @@ export default function SystemHealthPanel() {
       {data.systemErrors.length > 0 && (
         <Box sx={{ mt: 1, pt: 0.75, borderTop: `1px solid ${COLORS.border}` }}>
           <Box
-            onClick={() => setErrorsExpanded(!errorsExpanded)}
+            onClick={() => { setErrorsExpanded(!errorsExpanded); }}
             sx={{
               display: 'flex',
               alignItems: 'center',

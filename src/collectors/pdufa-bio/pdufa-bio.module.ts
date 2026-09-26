@@ -1,11 +1,11 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bullmq';
-import { PdufaBioService } from './pdufa-bio.service';
-import { PdufaBioProcessor } from './pdufa-bio.processor';
-import { PdufaBioScheduler } from './pdufa-bio.scheduler';
 import { PdufaCatalyst, CollectionLog } from '../../entities';
 import { QUEUE_NAMES } from '../../queues/queue-names.const';
+import { PdufaBioProcessor } from './pdufa-bio.processor';
+import { PdufaBioScheduler } from './pdufa-bio.scheduler';
+import { PdufaBioService } from './pdufa-bio.service';
 
 /**
  * Moduł kolektora PDUFA.bio.

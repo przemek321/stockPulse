@@ -1,6 +1,6 @@
-import { buildFix16Shadow } from '../../src/sec-filings/utils/fix16-shadow';
-import { ConsensusGapDecision } from '../../src/sec-filings/utils/consensus-gap-guard';
 import { ConsensusComparison } from '../../src/sec-filings/types/consensus-comparison';
+import { ConsensusGapDecision } from '../../src/sec-filings/utils/consensus-gap-guard';
+import { buildFix16Shadow } from '../../src/sec-filings/utils/fix16-shadow';
 
 /**
  * Pakiet 1 fix #4 (09.06.2026) — FIX-16 shadow mode.

@@ -154,7 +154,7 @@ describe('Form4Pipeline — healthcare_discovery (Pakiet 2)', () => {
 
     await pipeline.onInsiderTrade(buyPayload());
 
-    const savedFiling = (mocks.filingRepo.save as jest.Mock).mock.calls.at(-1)?.[0];
+    const savedFiling = (mocks.filingRepo.save).mock.calls.at(-1)?.[0];
     expect(savedFiling?.gptAnalysis?.conviction).toBeCloseTo(1.56, 2);
   });
 

@@ -85,8 +85,8 @@ export default function DbSummary() {
   const tableMap: Record<string, number> = {};
   stats?.database.tables.forEach((t) => (tableMap[t.name] = t.count));
 
-  const tickers = tableMap['tickers'] ?? null;
-  const rules = tableMap['alert_rules'] ?? null;
+  const tickers = tableMap.tickers ?? null;
+  const rules = tableMap.alert_rules ?? null;
   const dbSize = stats?.database.size ?? null;
   const alerts7d = overview?.alerts?.delivered7d ?? null;
 

@@ -3,7 +3,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 const PriorityChip = ({ p }: { p: string }) => {
   const color = p === 'KRYTYCZNY' ? 'error' : p === 'WYSOKI' ? 'warning' : p === 'SREDNI' ? 'info' : 'default';
-  return <Chip label={p} color={color as any} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />;
+  return <Chip label={p} color={color} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />;
 };
 
 const S = ({ children, title, intro }: { children: React.ReactNode; title: string; intro?: string }) => (

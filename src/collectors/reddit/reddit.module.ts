@@ -1,11 +1,11 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bullmq';
-import { RedditService } from './reddit.service';
-import { RedditProcessor } from './reddit.processor';
-import { RedditScheduler } from './reddit.scheduler';
 import { RawMention, Ticker, CollectionLog } from '../../entities';
 import { QUEUE_NAMES } from '../../queues/queue-names.const';
+import { RedditProcessor } from './reddit.processor';
+import { RedditScheduler } from './reddit.scheduler';
+import { RedditService } from './reddit.service';
 
 /**
  * Moduł kolektora Reddit.

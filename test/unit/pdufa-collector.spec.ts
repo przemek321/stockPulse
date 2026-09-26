@@ -1,5 +1,5 @@
-import { parsePdufaCalendarHtml } from '../../src/collectors/pdufa-bio/pdufa-parser';
 import { PdufaBioService } from '../../src/collectors/pdufa-bio/pdufa-bio.service';
+import { parsePdufaCalendarHtml } from '../../src/collectors/pdufa-bio/pdufa-parser';
 
 /**
  * Testy jednostkowe dla TASK-06 (23.04.2026): observability parsera PDUFA.

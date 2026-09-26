@@ -15,8 +15,8 @@
  * fail'uje natychmiast.
  */
 
-import { buildForm8k202Prompt } from '../../src/sec-filings/prompts/form8k-2-02.prompt';
 import { buildForm8k101Prompt } from '../../src/sec-filings/prompts/form8k-1-01.prompt';
+import { buildForm8k202Prompt } from '../../src/sec-filings/prompts/form8k-2-02.prompt';
 import { buildForm8k502Prompt } from '../../src/sec-filings/prompts/form8k-5-02.prompt';
 import { buildForm8kOtherPrompt } from '../../src/sec-filings/prompts/form8k-other.prompt';
 

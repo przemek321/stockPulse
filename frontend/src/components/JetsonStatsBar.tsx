@@ -45,11 +45,11 @@ export default function JetsonStatsBar() {
   useEffect(() => {
     load();
     const interval = setInterval(load, 10_000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [load]);
 
   // Ukryj na dev
-  if (!stats || !stats.available) return null;
+  if (!stats?.available) return null;
 
   // Znajdz temperatury CPU i GPU
   const cpuTemp = stats.temperature?.find(

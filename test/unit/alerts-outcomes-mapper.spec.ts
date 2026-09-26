@@ -20,7 +20,7 @@ function makeAlert(overrides: Partial<Alert>): Alert {
     nonDeliveryReason: null,
     catalystType: 'earnings',
     alertDirection: 'positive',
-    priceAtAlert: 100 as any,
+    priceAtAlert: 100,
     price1h: null,
     price4h: null,
     price1d: null,
@@ -44,8 +44,8 @@ function makeAlert(overrides: Partial<Alert>): Alert {
 describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
   it('legacy alert bez XBI snapshot: directionCorrect = raw, alpha = null', () => {
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price1d: 110 as any, // +10% raw
+      priceAtAlert: 100,
+      price1d: 110, // +10% raw
       alertDirection: 'positive',
       xbiAtAlert: null,
       xbi1d: null,
@@ -63,13 +63,13 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
 
   it('alpha zgodna z raw (positive): oba directionCorrect = true', () => {
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price1d: 105 as any, // +5% raw
+      priceAtAlert: 100,
+      price1d: 105, // +5% raw
       alertDirection: 'positive',
-      xbiAtAlert: 80 as any,
-      xbi1d: 81 as any, // XBI +1.25%
-      ibbAtAlert: 120 as any,
-      ibb1d: 121 as any, // IBB +0.83%
+      xbiAtAlert: 80,
+      xbi1d: 81, // XBI +1.25%
+      ibbAtAlert: 120,
+      ibb1d: 121, // IBB +0.83%
     });
     const out = mapAlertToOutcome(alert);
 
@@ -85,13 +85,13 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
     // ale relativnie ticker był słaby. directionCorrect zachowuje raw, alpha
     // pokazuje rzeczywisty edge.
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price1d: 100.5 as any, // +0.5% raw
+      priceAtAlert: 100,
+      price1d: 100.5, // +0.5% raw
       alertDirection: 'positive',
-      xbiAtAlert: 80 as any,
-      xbi1d: 81.6 as any, // XBI +2%
-      ibbAtAlert: 120 as any,
-      ibb1d: 122.4 as any, // IBB +2%
+      xbiAtAlert: 80,
+      xbi1d: 81.6, // XBI +2%
+      ibbAtAlert: 120,
+      ibb1d: 122.4, // IBB +2%
     });
     const out = mapAlertToOutcome(alert);
 
@@ -105,13 +105,13 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
     // Negative direction alert (np. SELL signal), raw -3% ✓, ale sektor -5% →
     // alpha = -3 - (-5) = +2 (ticker UPDATED przeciw direction).
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price1d: 97 as any, // -3% raw
+      priceAtAlert: 100,
+      price1d: 97, // -3% raw
       alertDirection: 'negative',
-      xbiAtAlert: 80 as any,
-      xbi1d: 76 as any, // XBI -5%
-      ibbAtAlert: 120 as any,
-      ibb1d: 114 as any, // IBB -5%
+      xbiAtAlert: 80,
+      xbi1d: 76, // XBI -5%
+      ibbAtAlert: 120,
+      ibb1d: 114, // IBB -5%
     });
     const out = mapAlertToOutcome(alert);
 
@@ -125,13 +125,13 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
     // Negative direction, raw -5% bear ✓, ale sektor flat → alpha = -5
     // (real bearish signal, nie szum sektora).
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price1d: 95 as any, // -5% raw
+      priceAtAlert: 100,
+      price1d: 95, // -5% raw
       alertDirection: 'negative',
-      xbiAtAlert: 80 as any,
-      xbi1d: 80 as any, // XBI flat
-      ibbAtAlert: 120 as any,
-      ibb1d: 120 as any, // IBB flat
+      xbiAtAlert: 80,
+      xbi1d: 80, // XBI flat
+      ibbAtAlert: 120,
+      ibb1d: 120, // IBB flat
     });
     const out = mapAlertToOutcome(alert);
 
@@ -143,13 +143,13 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
 
   it('IBB fallback gdy XBI snapshot brakuje (partial snapshot)', () => {
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price1d: 110 as any, // +10%
+      priceAtAlert: 100,
+      price1d: 110, // +10%
       alertDirection: 'positive',
       xbiAtAlert: null,
       xbi1d: null, // XBI brak → xbiAlpha=null
-      ibbAtAlert: 120 as any,
-      ibb1d: 123 as any, // IBB +2.5%
+      ibbAtAlert: 120,
+      ibb1d: 123, // IBB +2.5%
     });
     const out = mapAlertToOutcome(alert);
 
@@ -160,11 +160,11 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
 
   it('slot price1d nie wypełniony: directionCorrect=null, alpha=null', () => {
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
+      priceAtAlert: 100,
       price1d: null,
       alertDirection: 'positive',
-      xbiAtAlert: 80 as any,
-      ibbAtAlert: 120 as any,
+      xbiAtAlert: 80,
+      ibbAtAlert: 120,
     });
     const out = mapAlertToOutcome(alert);
 
@@ -176,13 +176,13 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
 
   it('alert bez alertDirection: oba directionCorrect=null', () => {
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price1d: 110 as any,
+      priceAtAlert: 100,
+      price1d: 110,
       alertDirection: null,
-      xbiAtAlert: 80 as any,
-      xbi1d: 81 as any,
-      ibbAtAlert: 120 as any,
-      ibb1d: 121 as any,
+      xbiAtAlert: 80,
+      xbi1d: 81,
+      ibbAtAlert: 120,
+      ibb1d: 121,
     });
     const out = mapAlertToOutcome(alert);
 
@@ -192,7 +192,7 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
   });
 
   it('shape: kontrakt response zawiera wszystkie wymagane pola', () => {
-    const out = mapAlertToOutcome(makeAlert({ priceAtAlert: 100 as any }));
+    const out = mapAlertToOutcome(makeAlert({ priceAtAlert: 100 }));
     expect(Object.keys(out).sort()).toEqual(
       [
         'alertDirection', 'catalystType', 'delivered', 'delta1d', 'delta1h',
@@ -209,10 +209,10 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
 
   it('slot 7d wypełniony: delta7d + xbiAlpha7d liczone', () => {
     const alert = makeAlert({
-      priceAtAlert: 100 as any,
-      price7d: 112 as any, // +12% raw na horyzoncie edge'u
-      xbiAtAlert: 90 as any,
-      xbi7d: 94.5 as any, // sektor +5% → alpha ~+7%
+      priceAtAlert: 100,
+      price7d: 112, // +12% raw na horyzoncie edge'u
+      xbiAtAlert: 90,
+      xbi7d: 94.5, // sektor +5% → alpha ~+7%
     });
     const out = mapAlertToOutcome(alert);
 
@@ -222,7 +222,7 @@ describe('mapAlertToOutcome — kontrakt /api/alerts/outcomes', () => {
   });
 
   it('legacy alert (pre-09.06): price7d=null → delta7d i alpha7d null', () => {
-    const out = mapAlertToOutcome(makeAlert({ price1d: 110 as any }));
+    const out = mapAlertToOutcome(makeAlert({ price1d: 110 }));
     expect(out.price7d).toBeNull();
     expect(out.delta7d).toBeNull();
     expect(out.xbiAlpha7d).toBeNull();

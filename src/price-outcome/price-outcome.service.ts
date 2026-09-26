@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not } from 'typeorm';
-import { Cron } from '@nestjs/schedule';
-import { Alert } from '../entities';
 import { FinnhubService } from '../collectors/finnhub/finnhub.service';
 import { Logged } from '../common/decorators/logged.decorator';
 import { isNyseOpen, getEffectiveStartTime } from '../common/utils/market-hours.util';
+import { Alert } from '../entities';
 
 /**
  * CRON service uzupełniający ceny akcji po wysłaniu alertu.

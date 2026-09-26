@@ -390,7 +390,7 @@ describe('Form4DiscoveryService.processAccession (Pakiet 2)', () => {
     expect(mocks.telegram.sendMarkdown).toHaveBeenCalledWith(
       expect.stringContaining('Discovery'),
     );
-    expect((mocks.telegram.sendMarkdown as jest.Mock).mock.calls[0][0]).toContain('TSTX');
+    expect((mocks.telegram.sendMarkdown).mock.calls[0][0]).toContain('TSTX');
   });
 
   it('non-healthcare SIC (semis 3674) → skip PRZED fetchem XML', async () => {

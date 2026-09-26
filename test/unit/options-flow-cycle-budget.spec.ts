@@ -55,7 +55,7 @@ describe('OptionsFlowService.delay — abort signal support (S19-FIX-04)', () =>
     const svc = buildService();
     const ctrl = new AbortController();
     const start = Date.now();
-    setTimeout(() => ctrl.abort(), 30);
+    setTimeout(() => { ctrl.abort(); }, 30);
     await expect((svc as any).delay(10_000, ctrl.signal)).rejects.toThrow(/AbortError/);
     const elapsed = Date.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(20);

@@ -344,7 +344,7 @@ describe('FIX-16 shadow — integracja z pipeline (Pakiet 1 fix #4)', () => {
 
     await pipeline.onFiling(payload);
 
-    const savedFiling = (mocks.filingRepo.save as jest.Mock).mock.calls.at(-1)?.[0];
+    const savedFiling = (mocks.filingRepo.save).mock.calls.at(-1)?.[0];
     expect(savedFiling.gptAnalysis.fix16_shadow).toMatchObject({
       conviction_precap: -1.6,
       cap_applied: 0.3,
@@ -372,7 +372,7 @@ describe('FIX-16 shadow — integracja z pipeline (Pakiet 1 fix #4)', () => {
 
     await pipeline.onFiling(payload);
 
-    const savedFiling = (mocks.filingRepo.save as jest.Mock).mock.calls.at(-1)?.[0];
+    const savedFiling = (mocks.filingRepo.save).mock.calls.at(-1)?.[0];
     expect(savedFiling.gptAnalysis.fix16_shadow).toMatchObject({
       conviction_precap: 1.4,
       would_uncap: false,
@@ -389,7 +389,7 @@ describe('FIX-16 shadow — integracja z pipeline (Pakiet 1 fix #4)', () => {
 
     await pipeline.onFiling(payload);
 
-    const savedFiling = (mocks.filingRepo.save as jest.Mock).mock.calls.at(-1)?.[0];
+    const savedFiling = (mocks.filingRepo.save).mock.calls.at(-1)?.[0];
     expect(savedFiling.gptAnalysis.fix16_shadow).toBeUndefined();
   });
 });

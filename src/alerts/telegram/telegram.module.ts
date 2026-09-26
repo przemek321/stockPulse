@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { TelegramService } from './telegram.service';
 import { TelegramFormatterService } from './telegram-formatter.service';
+import { TelegramService } from './telegram.service';
 
 /**
  * Moduł Telegram — wydzielony z AlertsModule.

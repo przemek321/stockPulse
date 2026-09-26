@@ -1,7 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { OptionsFlowScoringService } from './options-flow-scoring.service';
-import { OptionsFlowAlertService } from './options-flow-alert.service';
+import { AlertsModule } from '../alerts/alerts.module';
+import { TelegramModule } from '../alerts/telegram/telegram.module';
+import { CollectorsModule } from '../collectors/collectors.module';
+import { CorrelationModule } from '../correlation/correlation.module';
 import {
   OptionsFlow,
   Alert,
@@ -9,10 +11,8 @@ import {
   PdufaCatalyst,
   Ticker,
 } from '../entities';
-import { TelegramModule } from '../alerts/telegram/telegram.module';
-import { CorrelationModule } from '../correlation/correlation.module';
-import { CollectorsModule } from '../collectors/collectors.module';
-import { AlertsModule } from '../alerts/alerts.module';
+import { OptionsFlowAlertService } from './options-flow-alert.service';
+import { OptionsFlowScoringService } from './options-flow-scoring.service';
 
 /**
  * Moduł scoringu i alertów options flow.

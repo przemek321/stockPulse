@@ -13,9 +13,6 @@
     },
     "no-useless-escape": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 2
     }
   },
   "src/alerts/alert-evaluator.service.ts": {
@@ -32,15 +29,9 @@
   "src/alerts/alerts.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/alerts/summary-scheduler.service.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 3
-    },
     "@typescript-eslint/no-misused-promises": {
       "count": 2
     },
@@ -73,9 +64,6 @@
     },
     "no-useless-escape": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 2
     }
   },
   "src/alerts/telegram/telegram-formatter.service.ts": {
@@ -91,9 +79,6 @@
   },
   "src/alerts/telegram/telegram.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
       "count": 1
     }
   },
@@ -113,10 +98,7 @@
   },
   "src/api/alerts/alerts.controller.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 12
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 2
+      "count": 10
     },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 26
@@ -125,7 +107,7 @@
       "count": 2
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 18
+      "count": 16
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 11
@@ -144,34 +126,25 @@
     },
     "no-useless-escape": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/api/api.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 7
     }
   },
   "src/api/health/health.controller.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
     },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 5
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 25
+      "count": 24
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 2
@@ -184,17 +157,11 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 7
-    },
-    "perfectionist/sort-imports": {
-      "count": 5
     }
   },
   "src/api/health/system-stats.service.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
-    },
-    "@typescript-eslint/prefer-regexp-exec": {
-      "count": 2
     },
     "@typescript-eslint/require-await": {
       "count": 4
@@ -204,9 +171,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/api/options-flow/options-flow.controller.ts": {
@@ -215,9 +179,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/api/sentiment/sentiment.controller.ts": {
@@ -234,9 +195,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 5
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/api/tickers/tickers.controller.ts": {
@@ -250,33 +208,21 @@
   "src/app.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 7
     }
   },
   "src/collectors/collectors.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 5
     }
   },
   "src/collectors/finnhub/finnhub.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/finnhub/finnhub.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/collectors/finnhub/finnhub.service.ts": {
@@ -308,26 +254,14 @@
   "src/collectors/form4-discovery/form4-discovery.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 4
     }
   },
   "src/collectors/form4-discovery/form4-discovery.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/collectors/form4-discovery/form4-discovery.service.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 3
-    },
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 2
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
@@ -340,17 +274,11 @@
     "@typescript-eslint/no-unsafe-return": {
       "count": 1
     },
-    "@typescript-eslint/prefer-regexp-exec": {
-      "count": 4
-    },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 7
     },
     "no-useless-escape": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 5
     }
   },
   "src/collectors/form4-discovery/redis.provider.ts": {
@@ -364,17 +292,11 @@
   "src/collectors/options-flow/options-flow.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/options-flow/options-flow.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/collectors/options-flow/options-flow.service.ts": {
@@ -403,33 +325,21 @@
   "src/collectors/pdufa-bio/pdufa-bio.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/pdufa-bio/pdufa-bio.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/collectors/pdufa-bio/pdufa-bio.service.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 4
     }
   },
   "src/collectors/reddit/reddit.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/reddit/reddit.scheduler.ts": {
@@ -438,9 +348,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 2
     }
   },
   "src/collectors/reddit/reddit.service.ts": {
@@ -464,15 +371,9 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 9
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/sec-edgar/form4-parser.ts": {
-    "@typescript-eslint/dot-notation": {
-      "count": 1
-    },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
     },
@@ -501,23 +402,14 @@
   "src/collectors/sec-edgar/sec-edgar.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/sec-edgar/sec-edgar.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/collectors/sec-edgar/sec-edgar.service.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -541,9 +433,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 5
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/shared/base-collector.service.ts": {
@@ -555,25 +444,16 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 4
-    },
-    "perfectionist/sort-imports": {
-      "count": 2
     }
   },
   "src/collectors/stocktwits/stocktwits.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/collectors/stocktwits/stocktwits.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/collectors/stocktwits/stocktwits.service.ts": {
@@ -596,9 +476,6 @@
       "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 3
-    },
-    "perfectionist/sort-imports": {
       "count": 3
     }
   },
@@ -650,15 +527,9 @@
   "src/correlation/correlation.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/correlation/correlation.service.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 1
-    },
     "@typescript-eslint/no-floating-promises": {
       "count": 1
     },
@@ -667,9 +538,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 7
     }
   },
   "src/correlation/redis.provider.ts": {
@@ -682,9 +550,6 @@
   },
   "src/database/database.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
       "count": 1
     }
   },
@@ -715,9 +580,6 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 3
     }
   },
   "src/entities/system-log.entity.ts": {
@@ -736,16 +598,10 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/options-flow/options-flow-alert.service.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-type-conversion": {
@@ -753,32 +609,20 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 6
     }
   },
   "src/options-flow/options-flow-scoring.service.ts": {
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/options-flow/options-flow.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 5
     }
   },
   "src/price-outcome/price-outcome.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
       "count": 1
     }
   },
@@ -787,14 +631,6 @@
       "count": 1
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 2
-    }
-  },
-  "src/price-outcome/sector-alpha.ts": {
-    "@typescript-eslint/no-inferrable-types": {
       "count": 1
     }
   },
@@ -806,9 +642,6 @@
       "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
       "count": 1
     }
   },
@@ -830,9 +663,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 6
-    },
-    "perfectionist/sort-imports": {
-      "count": 8
     }
   },
   "src/sec-filings/pipelines/form8k.pipeline.ts": {
@@ -944,15 +774,9 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 6
     }
   },
   "src/sec-filings/services/consensus-comparison.service.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 2
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
     },
@@ -966,14 +790,6 @@
   "src/sec-filings/types/sec-filing-analysis.ts": {
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
-    }
-  },
-  "src/sec-filings/utils/consensus-gap-guard.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 4
     }
   },
   "src/sec-filings/utils/extract-reported-numbers.ts": {
@@ -1007,9 +823,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 2
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/sentiment/azure-openai-client.service.ts": {
@@ -1038,28 +851,16 @@
   "src/sentiment/sentiment.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/system-log/system-log.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "src/system-log/system-log.service.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 1
-    },
     "@typescript-eslint/no-explicit-any": {
       "count": 2
-    },
-    "@typescript-eslint/no-inferrable-types": {
-      "count": 3
     },
     "@typescript-eslint/prefer-nullish-coalescing": {
       "count": 2
@@ -1068,9 +869,6 @@
       "count": 10
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
       "count": 1
     }
   },
@@ -1083,9 +881,6 @@
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },
-    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
-      "count": 2
-    },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 2
     },
@@ -1096,9 +891,6 @@
   "test/agents/alert-evaluator-agent.spec.ts": {
     "@typescript-eslint/no-empty-function": {
       "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 8
     },
     "@typescript-eslint/require-await": {
       "count": 8
@@ -1111,11 +903,8 @@
     "@typescript-eslint/no-non-null-assertion": {
       "count": 2
     },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 3
-    },
     "@typescript-eslint/no-unused-vars": {
-      "count": 2
+      "count": 3
     },
     "@typescript-eslint/require-await": {
       "count": 1
@@ -1125,9 +914,6 @@
     }
   },
   "test/agents/options-flow-agent.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 10
-    },
     "@typescript-eslint/require-await": {
       "count": 14
     },
@@ -1144,9 +930,6 @@
     }
   },
   "test/agents/sec-filings-agent.spec.ts": {
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 6
-    },
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },
@@ -1157,14 +940,6 @@
       "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
-    }
-  },
-  "test/unit/alert-delivery-gate.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
     }
   },
@@ -1180,16 +955,8 @@
     "@typescript-eslint/no-empty-function": {
       "count": 1
     },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 9
-    },
     "@typescript-eslint/require-await": {
       "count": 9
-    }
-  },
-  "test/unit/alerts-outcomes-mapper.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 46
     }
   },
   "test/unit/consensus-comparison.service.spec.ts": {
@@ -1204,14 +971,6 @@
     },
     "@typescript-eslint/unbound-method": {
       "count": 3
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
-    }
-  },
-  "test/unit/consensus-gap-guard.spec.ts": {
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "test/unit/correlation.spec.ts": {
@@ -1227,14 +986,6 @@
   "test/unit/fix16-shadow.spec.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 9
-    },
-    "perfectionist/sort-imports": {
-      "count": 2
-    }
-  },
-  "test/unit/form4-aggregation.spec.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 1
     }
   },
   "test/unit/form4-correlation-backdoor.spec.ts": {
@@ -1242,15 +993,7 @@
       "count": 3
     }
   },
-  "test/unit/form4-discovery-pipeline.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    }
-  },
   "test/unit/form4-discovery.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
     "@typescript-eslint/require-await": {
       "count": 15
     },
@@ -1259,12 +1002,6 @@
     }
   },
   "test/unit/form4-parser.spec.ts": {
-    "@typescript-eslint/array-type": {
-      "count": 1
-    },
-    "@typescript-eslint/no-inferrable-types": {
-      "count": 1
-    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     },
@@ -1272,17 +1009,9 @@
       "count": 3
     }
   },
-  "test/unit/form4-pipeline-rules.spec.ts": {
-    "@typescript-eslint/no-inferrable-types": {
-      "count": 1
-    }
-  },
   "test/unit/form8k-bullish-gate.spec.ts": {
     "@typescript-eslint/no-redundant-type-constituents": {
       "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 3
     },
     "@typescript-eslint/require-await": {
       "count": 2
@@ -1305,17 +1034,11 @@
     }
   },
   "test/unit/form8k-material-event-obs.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
     "@typescript-eslint/require-await": {
       "count": 4
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 6
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "test/unit/form8k-missing-data.spec.ts": {
@@ -1329,20 +1052,7 @@
       "count": 1
     }
   },
-  "test/unit/form8k-prompts-template.spec.ts": {
-    "perfectionist/sort-imports": {
-      "count": 1
-    }
-  },
-  "test/unit/missing-data-detector.spec.ts": {
-    "perfectionist/sort-imports": {
-      "count": 1
-    }
-  },
   "test/unit/options-flow-cycle-budget.spec.ts": {
-    "@typescript-eslint/no-confusing-void-expression": {
-      "count": 1
-    },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
     },
@@ -1359,22 +1069,13 @@
     }
   },
   "test/unit/options-flow-scoring.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 2
-    },
     "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "perfectionist/sort-imports": {
       "count": 1
     }
   },
   "test/unit/pdufa-collector.spec.ts": {
     "@typescript-eslint/require-await": {
       "count": 3
-    },
-    "perfectionist/sort-imports": {
-      "count": 1
     }
   },
   "test/unit/sector-alpha.spec.ts": {
@@ -1386,17 +1087,11 @@
     }
   },
   "test/unit/sector-snapshot.spec.ts": {
-    "@typescript-eslint/consistent-generic-constructors": {
-      "count": 1
-    },
     "@typescript-eslint/require-await": {
       "count": 1
     }
   },
   "test/unit/summary-scheduler.spec.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 9
-    },
     "no-useless-escape": {
       "count": 3
     }

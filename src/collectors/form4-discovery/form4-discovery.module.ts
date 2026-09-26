@@ -1,14 +1,14 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bullmq';
+import { TelegramModule } from '../../alerts/telegram/telegram.module';
 import { SecFiling, Ticker } from '../../entities';
 import { QUEUE_NAMES } from '../../queues/queue-names.const';
-import { SecEdgarModule } from '../sec-edgar/sec-edgar.module';
 import { FinnhubModule } from '../finnhub/finnhub.module';
-import { TelegramModule } from '../../alerts/telegram/telegram.module';
-import { Form4DiscoveryService } from './form4-discovery.service';
+import { SecEdgarModule } from '../sec-edgar/sec-edgar.module';
 import { Form4DiscoveryProcessor } from './form4-discovery.processor';
 import { Form4DiscoveryScheduler } from './form4-discovery.scheduler';
+import { Form4DiscoveryService } from './form4-discovery.service';
 import { discoveryRedisProvider } from './redis.provider';
 
 /**

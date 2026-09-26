@@ -1,19 +1,19 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import Redis from 'ioredis';
+import { AlertsModule } from '../alerts/alerts.module';
+import { TelegramModule } from '../alerts/telegram/telegram.module';
+import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
+import { CorrelationModule } from '../correlation/correlation.module';
 import { SecFiling, InsiderTrade, Ticker, Alert, AlertRule } from '../entities';
 import { SentimentModule } from '../sentiment/sentiment.module';
-import { TelegramModule } from '../alerts/telegram/telegram.module';
-import { AlertsModule } from '../alerts/alerts.module';
-import { CorrelationModule } from '../correlation/correlation.module';
-import { FinnhubModule } from '../collectors/finnhub/finnhub.module';
 import { TickerProfileModule } from '../ticker-profile/ticker-profile.module';
 import { Form4Pipeline } from './pipelines/form4.pipeline';
 import { Form8kPipeline } from './pipelines/form8k.pipeline';
-import { DailyCapService, SEC_FILINGS_REDIS } from './services/daily-cap.service';
-import { ConsensusComparisonService } from './services/consensus-comparison.service';
 import { SecFilingsController } from './sec-filings.controller';
+import { ConsensusComparisonService } from './services/consensus-comparison.service';
+import { DailyCapService, SEC_FILINGS_REDIS } from './services/daily-cap.service';
 
 /**
  * Moduł analizy GPT filingów SEC (Form 4 + 8-K).

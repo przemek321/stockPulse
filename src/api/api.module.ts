@@ -1,12 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { HealthController } from './health/health.controller';
-import { TickersController } from './tickers/tickers.controller';
-import { SentimentController } from './sentiment/sentiment.controller';
-import { AlertsController } from './alerts/alerts.controller';
-import { SystemLogsController } from './system-logs/system-logs.controller';
-import { OptionsFlowController } from './options-flow/options-flow.controller';
-import { SystemStatsService } from './health/system-stats.service';
+import { AlertsModule } from '../alerts/alerts.module';
+import { CollectorsModule } from '../collectors/collectors.module';
 import {
   Ticker,
   RawMention,
@@ -20,9 +15,14 @@ import {
   OptionsFlow,
   OptionsVolumeBaseline,
 } from '../entities';
-import { CollectorsModule } from '../collectors/collectors.module';
-import { AlertsModule } from '../alerts/alerts.module';
 import { PriceOutcomeModule } from '../price-outcome/price-outcome.module';
+import { AlertsController } from './alerts/alerts.controller';
+import { HealthController } from './health/health.controller';
+import { SystemStatsService } from './health/system-stats.service';
+import { OptionsFlowController } from './options-flow/options-flow.controller';
+import { SentimentController } from './sentiment/sentiment.controller';
+import { SystemLogsController } from './system-logs/system-logs.controller';
+import { TickersController } from './tickers/tickers.controller';
 
 /**
  * Moduł REST API.

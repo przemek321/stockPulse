@@ -30,26 +30,26 @@ const TextDialog = ({ label, text, color = '#80cbc4' }: { label: string; text: s
   const handleCopy = () => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => { setCopied(false); }, 2000);
     });
   };
 
   return (
     <>
       <span
-        onClick={() => setOpen(true)}
+        onClick={() => { setOpen(true); }}
         style={{ cursor: 'pointer', fontSize: '0.7rem', color, textDecoration: 'underline dotted' }}
       >
         {label}
       </span>
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={open} onClose={() => { setOpen(false); }} maxWidth="md" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           Szczegóły
           <Box>
             <IconButton size="small" onClick={handleCopy} title="Kopiuj do schowka">
               <ContentCopyIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => setOpen(false)}>
+            <IconButton size="small" onClick={() => { setOpen(false); }}>
               <CloseIcon fontSize="small" />
             </IconButton>
           </Box>
@@ -127,7 +127,7 @@ const PriorityChip = ({ value, row }: {
   return (
     <Chip
       label={label}
-      color={color as any}
+      color={color}
       size="small"
       variant={suppressed ? 'outlined' : 'filled'}
     />
@@ -184,7 +184,7 @@ export default function App() {
       {/* Pod-zakładki dashboardu */}
       <Tabs
         value={dashSubTab}
-        onChange={(_, v) => setDashSubTab(v)}
+        onChange={(_, v) => { setDashSubTab(v); }}
         variant="scrollable"
         scrollButtons={false}
         sx={{ mb: 2 }}

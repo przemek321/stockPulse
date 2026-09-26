@@ -169,9 +169,7 @@ export default function PriceOutcomePanel() {
 
   /** Zbierz płaską listę wierszy: wiersz grupowy + opcjonalnie rozwinięte alerty */
   const flatRows = useMemo(() => {
-    const result: Array<
-      { type: 'group'; group: TickerGroup } | { type: 'sub'; alert: AlertOutcome }
-    > = [];
+    const result: ({ type: 'group'; group: TickerGroup } | { type: 'sub'; alert: AlertOutcome })[] = [];
     for (const g of sortedGroups) {
       result.push({ type: 'group', group: g });
       if (expandedTickers.has(g.symbol)) {
@@ -336,7 +334,7 @@ export default function PriceOutcomePanel() {
               >
                 <Box component="thead">
                   <Box component="tr">
-                    <Box component="th" onClick={() => handleSort('symbol')} sx={thSx('symbol', true)}>
+                    <Box component="th" onClick={() => { handleSort('symbol'); }} sx={thSx('symbol', true)}>
                       Ticker {sortArrow('symbol')}
                     </Box>
                     <Box component="th" sx={thSx(null, false)}>
@@ -347,7 +345,7 @@ export default function PriceOutcomePanel() {
                     </Box>
                     <Box
                       component="th"
-                      onClick={() => handleSort('priceAtAlert')}
+                      onClick={() => { handleSort('priceAtAlert'); }}
                       sx={thSx('priceAtAlert', true)}
                     >
                       Cena {sortArrow('priceAtAlert')}
@@ -373,7 +371,7 @@ export default function PriceOutcomePanel() {
                     <Box component="th" sx={thSx(null, false)}>
                       Trafny
                     </Box>
-                    <Box component="th" onClick={() => handleSort('sentAt')} sx={thSx('sentAt', true)}>
+                    <Box component="th" onClick={() => { handleSort('sentAt'); }} sx={thSx('sentAt', true)}>
                       Data {sortArrow('sentAt')}
                     </Box>
                   </Box>
@@ -390,7 +388,7 @@ export default function PriceOutcomePanel() {
                         <Box
                           component="tr"
                           key={`g-${g.symbol}`}
-                          onClick={() => toggleTicker(g.symbol)}
+                          onClick={() => { toggleTicker(g.symbol); }}
                           sx={{
                             cursor: 'pointer',
                             bgcolor: idx % 2 === 0 ? COLORS.bg.card : COLORS.bg.cardAlt,

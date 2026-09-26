@@ -1,11 +1,11 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bullmq';
-import { StocktwitsService } from './stocktwits.service';
-import { StocktwitsProcessor } from './stocktwits.processor';
-import { StocktwitsScheduler } from './stocktwits.scheduler';
 import { RawMention, Ticker, CollectionLog } from '../../entities';
 import { QUEUE_NAMES } from '../../queues/queue-names.const';
+import { StocktwitsProcessor } from './stocktwits.processor';
+import { StocktwitsScheduler } from './stocktwits.scheduler';
+import { StocktwitsService } from './stocktwits.service';
 
 /**
  * Moduł kolektora StockTwits.

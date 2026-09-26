@@ -59,7 +59,7 @@ describe('AlertDeliveryGate.canDeliverToTelegram', () => {
     const { gate, alertRepo } = buildGate(2);
     await gate.canDeliverToTelegram('MSFT');
 
-    const callArg = (alertRepo.count as jest.Mock).mock.calls[0][0];
+    const callArg = (alertRepo.count).mock.calls[0][0];
     expect(callArg.where.symbol).toBe('MSFT');
     expect(callArg.where.delivered).toBe(true);
     // sentAt używa TypeORM MoreThanOrEqual — _value to todayStart Date w UTC

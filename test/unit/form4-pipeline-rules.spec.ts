@@ -321,7 +321,7 @@ describe('Form4Pipeline — SELL → observation mode (Sprint 17 V4-driven)', ()
   const getRouting = (
     txType: 'BUY' | 'SELL',
     tickerObservationOnly: boolean,
-    dailyLimitHit: boolean = false,
+    dailyLimitHit = false,
   ) => {
     const isBuy = txType === 'BUY';
     const isObservation = tickerObservationOnly;

@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { OptionsFlow, PdufaCatalyst } from '../entities';
 import { type TickerAggregation } from '../collectors/options-flow/unusual-activity-detector';
+import { OptionsFlow, PdufaCatalyst } from '../entities';
 
 /** Wynik scoringu — conviction + direction + metadata */
 export interface ScoringResult {

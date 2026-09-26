@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan, In } from 'typeorm';
-import { Cron } from '@nestjs/schedule';
 import { SystemLog } from '../entities/system-log.entity';
 
 /** Dane do zapisu logu systemowego */
@@ -196,8 +196,8 @@ export class SystemLogService implements OnModuleInit {
   /** Logi per ticker w ostatnich N godzin. */
   async findByTicker(
     ticker: string,
-    hoursAgo: number = 24,
-    limit: number = 500,
+    hoursAgo = 24,
+    limit = 500,
   ): Promise<SystemLog[]> {
     const cutoff = new Date(Date.now() - hoursAgo * 3600_000);
     return this.repo.find({
@@ -211,7 +211,7 @@ export class SystemLogService implements OnModuleInit {
   }
 
   /** Agregacja decision reasons za ostatnie N godzin. */
-  async getDecisionStats(hours: number = 24): Promise<Array<{ reason: string; count: number }>> {
+  async getDecisionStats(hours = 24): Promise<{ reason: string; count: number }[]> {
     const cutoff = new Date(Date.now() - hours * 3600_000);
     return this.repo.query(
       `SELECT decision_reason as reason, COUNT(*)::int as count

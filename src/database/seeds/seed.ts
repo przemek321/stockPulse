@@ -1,8 +1,8 @@
-import { DataSource } from 'typeorm';
-import { Ticker } from '../../entities/ticker.entity';
-import { AlertRule } from '../../entities/alert-rule.entity';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
+import { DataSource } from 'typeorm';
+import { AlertRule } from '../../entities/alert-rule.entity';
+import { Ticker } from '../../entities/ticker.entity';
 
 /**
  * Seed tickerów i reguł alertów z plików JSON.

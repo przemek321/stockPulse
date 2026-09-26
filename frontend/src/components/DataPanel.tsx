@@ -234,7 +234,7 @@ export default function DataPanel({
                           <Box
                             component="th"
                             key={col.key}
-                            onClick={isSortable ? () => handleSort(col.key) : undefined}
+                            onClick={isSortable ? () => { handleSort(col.key); } : undefined}
                             sx={{
                               textAlign: 'left',
                               px: 1,

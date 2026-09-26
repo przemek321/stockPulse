@@ -126,7 +126,7 @@ function parseTransaction(
     // Kod transakcji (P, S, M, A, F, G itd.)
     const code =
       txn.transactionCoding?.transactionCode ||
-      txn.transactionCoding?.['transactionCode'] ||
+      txn.transactionCoding?.transactionCode ||
       '';
     const transactionType = TRANSACTION_CODE_MAP[code] || 'OTHER';
 

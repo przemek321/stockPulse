@@ -105,9 +105,9 @@ function createService(overrides: any = {}) {
   const correlation = overrides.correlation ?? createMockCorrelation();
 
   const service = new AlertEvaluatorService(
-    alertRepo as any, ruleRepo as any, tickerRepo as any,
-    telegram as any, formatter as any, finnhub as any,
-    deliveryGate as any, correlation as any,
+    alertRepo, ruleRepo, tickerRepo,
+    telegram, formatter, finnhub,
+    deliveryGate, correlation,
   );
   return { service, alertRepo, ruleRepo, tickerRepo, telegram, formatter, finnhub, deliveryGate, correlation };
 }

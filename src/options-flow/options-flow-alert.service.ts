@@ -2,17 +2,17 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
-import { EventType } from '../events/event-types';
-import { OptionsFlow, Alert, AlertRule, Ticker } from '../entities';
-import { OptionsFlowScoringService } from './options-flow-scoring.service';
-import { CorrelationService } from '../correlation/correlation.service';
-import { TelegramService } from '../alerts/telegram/telegram.service';
-import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
-import { FinnhubService } from '../collectors/finnhub/finnhub.service';
-import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
-import { Logged } from '../common/decorators/logged.decorator';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../alerts/alert-dispatcher.service';
+import { TelegramFormatterService } from '../alerts/telegram/telegram-formatter.service';
+import { TelegramService } from '../alerts/telegram/telegram.service';
+import { FinnhubService } from '../collectors/finnhub/finnhub.service';
+import { Logged } from '../common/decorators/logged.decorator';
 import { errMsg } from '../common/utils/error-message.util';
+import { CorrelationService } from '../correlation/correlation.service';
+import { OptionsFlow, Alert, AlertRule, Ticker } from '../entities';
+import { EventType } from '../events/event-types';
+import { captureAlertSnapshot } from '../price-outcome/sector-snapshot.helper';
+import { OptionsFlowScoringService } from './options-flow-scoring.service';
 
 /** Minimalny |conviction| do rejestracji w CorrelationService */
 const MIN_CONVICTION_CORRELATION = 0.25;
@@ -101,7 +101,7 @@ export class OptionsFlowAlertService {
         conviction: result.conviction,
         direction: result.direction === 'mixed'
           ? (result.conviction > 0 ? 'positive' : 'negative')
-          : result.direction as 'positive' | 'negative',
+          : result.direction,
         catalyst_type: 'unusual_options',
         timestamp: Date.now(),
       });
