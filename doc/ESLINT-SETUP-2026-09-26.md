@@ -115,6 +115,38 @@ npm run lint:baseline-prune   # po naprawie długu: usuwa z baseline wpisy, któ
 - Nie zainstalowano niczego spoza listy (w szczególności `eslint-plugin-import`).
 - Surowe raporty `lint-baseline.json` (BE 1.7 MB, FE 0.4 MB) są w `.gitignore` — regenerowalne jednym poleceniem.
 
+## 7a. Spłata długu — wykonana 27.09.2026 (11 commitów, `98ded99..db87781`)
+
+Kolejność ustalona przez właściciela po recenzji: **(a) → (e) → (b) → (c) → (d) → (f)**. Każdy krok = osobny commit
+z pełną weryfikacją (tsc → jest 726 → lint pełny „żadna reguła nie może wzrosnąć" → rebuild → logi produkcji;
+dla (f) dodatkowo A/B na prawdziwych filingach SEC i porównanie kształtu odpowiedzi API).
+
+| Krok | Commit | Co | Wynik |
+|---|---|---|---|
+| (a) | `98ded99` | `restrict-template` kalibracja (allowNumber/Boolean), 32 fallbacki `null`/`undefined`, `bootstrap().catch`, CI, hook `lint-changed` | BE 1768→1530, FE 499→445 |
+| (e) | `7cc2adc` | `strict: true` BE — 159 pól encji `!`, `errMsg()`/`errCode()` dla 23 `catch(unknown)` | tsc 183→0 |
+| (b) | `7df258c` | auto-fix reguł kosmetycznych (sort-imports, zbędne asercje, `Array<T>`→`T[]`, `.match`→`.exec`); nullish celowo nie | BE →1194, FE →400 |
+| (c) | `8a97396` | TS 4.9→5.9 na froncie, `moduleResolution: bundler` | lint bez zmian |
+| (d) | `8b64446` | 3 komponenty wewnętrzne wyniesione (koniec remountu), 22 async z `void`/`catch` | FE →343 |
+| CI | `eb3e73f` | `vite.config.ts` bez type-checku (brak `@types/node` w `npm ci`); prune | CI FE zielone |
+| (f1) | `d76d850` | parser Form 4 + pipeline 8-K: typy XML/JSON zamiast `any` (99→0) | 2× SAFE; A/B 7 filingów 7/7 |
+| (f2) | `7a7ddaf` | pipeline Form 4, dekorator `@Logged`, 2 kontrolery, Finnhub, SEC (292→0) | 6× SAFE; API 5/5 identyczne |
+| (f3) | `db87781` | 8 plików niekrytycznych (133→0); **1× UNSAFE poprawione** (reddit) | 7 SAFE + fix; API 5/5 |
+
+**Bilans: backend 1768 → 594 (−66 %), frontend 499 → 332 (−33 %).** Zero wyłączonych reguł, zero `eslint-disable`.
+Pozostały dług (w baseline, decyzją właściciela): `strict-boolean-expressions` 187 BE / 79 FE, `prefer-nullish-coalescing`
+54 / 17, `require-await` 116, plus 16 `no-unsafe-*` w 9 małych plikach. Rozkład reguł FE bez zmian od (d):
+`no-unsafe-*` 122 (z `any` w `api.ts`/DataPanel), `no-missing-key` 17.
+
+**Dwie lekcje z tego dnia:**
+1. **Recenzja adwersarialna złapała realną regresję**, której implementer nie widział: w `reddit.service` zamiana
+   `any` na guard z `throw` zmieniała kontrakt kolektora (cykl SUCCESS/0 → FAILED + retry BullMQ + health degraded).
+   Poprawka: odtworzyć dawny stan „brak tokenu" zamiast rzucać. Sam typ był poprawny — zmieniło się *zachowanie*.
+2. **ESLint 9.39 traktuje nieużyte wpisy baseline jako błąd (exit 2)** — po każdym spadku długu trzeba
+   regenerować `eslint-suppressions.json`, inaczej CI jest czerwone mimo zielonego lintu lokalnie (weryfikowanego
+   z pustym plikiem suppressions). Dwa czerwone runy z tego powodu; od teraz przed pushem: symulacja
+   `git archive | tar` + `npm ci` + `npm run lint`.
+
 ## 7. Następne kroki (do decyzji właściciela, osobne zadanie)
 
 Spłata długu warstwami, od najtańszych mechanicznie: `perfectionist/sort-imports` (168, `--fix`),
