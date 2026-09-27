@@ -35,28 +35,10 @@
     "@typescript-eslint/no-misused-promises": {
       "count": 2
     },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
     },
     "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/restrict-plus-operands": {
-      "count": 2
-    },
-    "@typescript-eslint/restrict-template-expressions": {
       "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
@@ -97,26 +79,8 @@
     }
   },
   "src/api/alerts/alerts.controller.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 10
-    },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 26
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 16
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 53
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 5
     },
     "@typescript-eslint/prefer-nullish-coalescing": {
       "count": 8
@@ -134,29 +98,14 @@
     }
   },
   "src/api/health/health.controller.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 24
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 16
     },
     "@typescript-eslint/prefer-nullish-coalescing": {
       "count": 6
     },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 7
+      "count": 5
     }
   },
   "src/api/health/system-stats.service.ts": {
@@ -226,29 +175,8 @@
     }
   },
   "src/collectors/finnhub/finnhub.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 16
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 28
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 4
-    },
     "@typescript-eslint/require-await": {
       "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 6
     }
   },
   "src/collectors/form4-discovery/form4-discovery.module.ts": {
@@ -265,17 +193,8 @@
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 7
+      "count": 6
     },
     "no-useless-escape": {
       "count": 1
@@ -303,23 +222,8 @@
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 4
     },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 3
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 4
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 3
-    },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 11
+      "count": 7
     }
   },
   "src/collectors/pdufa-bio/pdufa-bio.module.ts": {
@@ -350,55 +254,6 @@
       "count": 1
     }
   },
-  "src/collectors/reddit/reddit.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 14
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 3
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 9
-    }
-  },
-  "src/collectors/sec-edgar/form4-parser.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 12
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 29
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 7
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 14
-    }
-  },
   "src/collectors/sec-edgar/sec-edgar.module.ts": {
     "@typescript-eslint/no-extraneous-class": {
       "count": 1
@@ -407,32 +262,6 @@
   "src/collectors/sec-edgar/sec-edgar.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    }
-  },
-  "src/collectors/sec-edgar/sec-edgar.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 13
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 14
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 1
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 2
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 5
     }
   },
   "src/collectors/shared/base-collector.service.ts": {
@@ -454,58 +283,6 @@
   "src/collectors/stocktwits/stocktwits.scheduler.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 2
-    }
-  },
-  "src/collectors/stocktwits/stocktwits.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 8
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 2
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 3
-    }
-  },
-  "src/common/decorators/logged.decorator.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 15
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 14
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 3
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 5
     }
   },
   "src/common/guards/api-token.guard.ts": {
@@ -554,21 +331,6 @@
     }
   },
   "src/database/seeds/seed.ts": {
-    "@typescript-eslint/no-require-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 5
-    },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     },
@@ -577,9 +339,6 @@
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 5
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
     }
   },
   "src/entities/system-log.entity.ts": {
@@ -646,55 +405,28 @@
     }
   },
   "src/sec-filings/pipelines/form4.pipeline.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 8
     },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 10
     },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
-    },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 6
+      "count": 4
     }
   },
   "src/sec-filings/pipelines/form8k.pipeline.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 4
     },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 1
     },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 13
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 22
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 1
-    },
     "@typescript-eslint/return-await": {
       "count": 4
     },
     "@typescript-eslint/strict-boolean-expressions": {
-      "count": 23
+      "count": 7
     },
     "no-useless-escape": {
       "count": 1
@@ -803,49 +535,6 @@
   "src/sec-filings/utils/missing-data-detector.ts": {
     "@typescript-eslint/no-unsafe-return": {
       "count": 1
-    }
-  },
-  "src/sentiment/anthropic-client.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 3
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 2
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 2
-    }
-  },
-  "src/sentiment/azure-openai-client.service.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "@typescript-eslint/prefer-nullish-coalescing": {
-      "count": 1
-    },
-    "@typescript-eslint/strict-boolean-expressions": {
-      "count": 3
     }
   },
   "src/sentiment/sentiment.module.ts": {

@@ -9,10 +9,12 @@ import { TelegramService } from '../../alerts/telegram/telegram.service';
 import { Logged } from '../../common/decorators/logged.decorator';
 import { SecFiling, Ticker } from '../../entities';
 import { EventType } from '../../events/event-types';
+import { parseEdgarIndexItems } from '../../sec-filings/pipelines/edgar-filing-index.types';
 import { isCsuiteRole, isDirectorRole, OBS_MIN_BUY_VALUE_CSUITE } from '../../sec-filings/pipelines/form4.pipeline';
 import { FinnhubService } from '../finnhub/finnhub.service';
 import { parseForm4Xml, Form4Transaction } from '../sec-edgar/form4-parser';
 import { SecEdgarService } from '../sec-edgar/sec-edgar.service';
+import { parseCachedIssuerMeta, readSecIssuerMeta, SecIssuerMeta } from './form4-discovery.types';
 import { DISCOVERY_REDIS } from './redis.provider';
 
 /**
@@ -581,17 +583,18 @@ export class Form4DiscoveryService {
     }
   }
 
-  /** Metadane emitenta z data.sec.gov/submissions (cache Redis 30d). */
-  private async getIssuerMeta(cik: string, signal: AbortSignal): Promise<{
-    sic: string | null;
-    sicDescription: string | null;
-    ticker: string | null;
-    exchange: string | null;
-    name: string | null;
-  } | null> {
+  /**
+   * Metadane emitenta z data.sec.gov/submissions (cache Redis 30d).
+   * Kształt odpowiedzi + guard cache: form4-discovery.types.ts. Wpis cache w innym
+   * kształcie (stary format / ręczna edycja) = cache miss → ponowny fetch i nadpisanie.
+   */
+  private async getIssuerMeta(cik: string, signal: AbortSignal): Promise<SecIssuerMeta | null> {
     const cacheKey = `sic:${cik}`;
     const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
+    if (cached !== null) {
+      const hit = parseCachedIssuerMeta(cached);
+      if (hit) return hit;
+    }
 
     try {
       await this.delay(SEC_DELAY_MS);
@@ -599,14 +602,7 @@ export class Form4DiscoveryService {
         `https://data.sec.gov/submissions/CIK${cik.padStart(10, '0')}.json`,
         signal,
       );
-      const d = JSON.parse(raw);
-      const meta = {
-        sic: d.sic != null ? String(d.sic) : null,
-        sicDescription: d.sicDescription ?? null,
-        ticker: Array.isArray(d.tickers) && d.tickers.length > 0 ? String(d.tickers[0]).toUpperCase() : null,
-        exchange: Array.isArray(d.exchanges) && d.exchanges.length > 0 ? (d.exchanges[0] ?? null) : null,
-        name: d.name ?? null,
-      };
+      const meta = readSecIssuerMeta(JSON.parse(raw));
       await this.redis.set(cacheKey, JSON.stringify(meta), 'EX', SIC_CACHE_TTL_S);
       return meta;
     } catch (err) {
@@ -621,7 +617,9 @@ export class Form4DiscoveryService {
     await this.delay(SEC_DELAY_MS);
     const raw = await this.fetchText(`${baseDir}/index.json`, signal);
     try {
-      const items: { name: string }[] = JSON.parse(raw)?.directory?.item ?? [];
+      // Kształt index.json + guard: sec-filings/pipelines/edgar-filing-index.types.ts
+      // (null = brak directory.item / nie-tablica → dawniej [] albo TypeError → też null).
+      const items = parseEdgarIndexItems(JSON.parse(raw)) ?? [];
       const xml = items.find(
         (i) => i.name.toLowerCase().endsWith('.xml') && !i.name.includes('/'),
       );

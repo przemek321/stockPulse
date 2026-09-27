@@ -1,8 +1,10 @@
+import { config as loadDotenv } from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { DataSource } from 'typeorm';
 import { AlertRule } from '../../entities/alert-rule.entity';
 import { Ticker } from '../../entities/ticker.entity';
+import { readUniverseAlertRules, readUniverseTickers, UniverseGroupJson } from './seed-universe.types';
 
 /**
  * Seed tickerów i reguł alertów z plików JSON.
@@ -33,30 +35,9 @@ const GROUP_PRIORITY: Record<string, string> = {
   apls_stretch: 'LOW',
 };
 
-interface CompanyJson {
-  ticker: string;
-  name: string;
-  cik: string;
-  subsector: string;
-  market_cap_tier: string;
-  aliases: string[];
-  key_metrics: string[];
-  ceo: string;
-  cfo: string;
-  notes: string;
-}
-
-interface AlertRuleJson {
-  name: string;
-  condition: string;
-  priority: string;
-  throttle_minutes: number;
-  is_active?: boolean;
-}
-
 async function seed() {
   // Konfiguracja połączenia z .env
-  require('dotenv').config();
+  loadDotenv();
 
   const dataSource = new DataSource({
     type: 'postgres',
@@ -73,16 +54,19 @@ async function seed() {
   console.log('✓ Połączono z PostgreSQL');
 
   // ── Wczytanie plików JSON ─────────────────────────────────
+  // Parsowanie tu (błąd składni JSON = wyjątek przed seedem), kształt (`seed-universe.types.ts`)
+  // sprawdzany dopiero w punkcie użycia — zachowuje dawną kolejność: wadliwy plik semi
+  // nie blokuje seedu healthcare, który leci pierwszy.
   const docDir = path.resolve(__dirname, '../../../doc');
 
   const healthcarePath = path.resolve(docDir, 'stockpulse-healthcare-universe.json');
-  const healthcare = JSON.parse(fs.readFileSync(healthcarePath, 'utf-8'));
+  const healthcare: unknown = JSON.parse(fs.readFileSync(healthcarePath, 'utf-8'));
 
   const semiPath = path.resolve(docDir, 'stockpulse-semi-supply-chain.json');
-  const semi = JSON.parse(fs.readFileSync(semiPath, 'utf-8'));
+  const semi: unknown = JSON.parse(fs.readFileSync(semiPath, 'utf-8'));
 
   const aplsPath = path.resolve(docDir, 'stockpulse-biotech-apls.json');
-  const apls = JSON.parse(fs.readFileSync(aplsPath, 'utf-8'));
+  const apls: unknown = JSON.parse(fs.readFileSync(aplsPath, 'utf-8'));
 
   // ── SEED: Tickery ────────────────────────────────────────
   const tickerRepo = dataSource.getRepository(Ticker);
@@ -90,7 +74,7 @@ async function seed() {
 
   /** Wspólna logika seedowania tickerów z dowolnego pliku JSON */
   async function seedTickers(
-    groups: Record<string, { companies: CompanyJson[] }>,
+    groups: Record<string, UniverseGroupJson>,
     sector: string,
     observationOnly: boolean,
   ): Promise<number> {
@@ -143,24 +127,36 @@ async function seed() {
   }
 
   // Healthcare: sector='healthcare', observationOnly=false
-  const healthcareCount = await seedTickers(healthcare.tickers, 'healthcare', false);
+  const healthcareCount = await seedTickers(
+    readUniverseTickers(healthcare, 'stockpulse-healthcare-universe.json'),
+    'healthcare',
+    false,
+  );
   console.log(`✓ Zaimportowano ${healthcareCount} tickerów healthcare`);
 
   // Semi supply chain: sector='semi_supply_chain', observationOnly=true
-  const semiCount = await seedTickers(semi.tickers, 'semi_supply_chain', true);
+  const semiCount = await seedTickers(
+    readUniverseTickers(semi, 'stockpulse-semi-supply-chain.json'),
+    'semi_supply_chain',
+    true,
+  );
   console.log(`✓ Zaimportowano ${semiCount} tickerów semi supply chain (observation mode)`);
 
   // APLS-class biotech: sector='biotech_apls', observationOnly=true (Faza 3, 09.06.2026).
   // W odróżnieniu od semi: Form4Pipeline NIE skipuje ich przed GPT (prompt healthcare
   // semantycznie poprawny dla biotechu) — alerty BUY >= $500K lądują w DB jako observation.
-  const aplsCount = await seedTickers(apls.tickers, 'biotech_apls', true);
+  const aplsCount = await seedTickers(
+    readUniverseTickers(apls, 'stockpulse-biotech-apls.json'),
+    'biotech_apls',
+    true,
+  );
   console.log(`✓ Zaimportowano ${aplsCount} tickerów APLS biotech (observation mode, BUY >= $500K)`);
 
   tickerCount = healthcareCount + semiCount + aplsCount;
 
   // ── SEED: Reguły alertów (tylko z healthcare — semi używa tych samych reguł) ──
   const ruleRepo = dataSource.getRepository(AlertRule);
-  const rules = healthcare.alert_rules.rules as AlertRuleJson[];
+  const rules = readUniverseAlertRules(healthcare, 'stockpulse-healthcare-universe.json');
   let ruleCount = 0;
 
   for (const rule of rules) {
@@ -198,7 +194,7 @@ async function seed() {
   console.log('✓ Rozłączono z PostgreSQL');
 }
 
-seed().catch((err) => {
+seed().catch((err: unknown) => {
   console.error('Seed nie powiódł się:', err);
   process.exit(1);
 });

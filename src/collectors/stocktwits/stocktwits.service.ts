@@ -3,9 +3,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataSource } from '../../common/interfaces/data-source.enum';
+import { errMsg } from '../../common/utils/error-message.util';
 import { RawMention, CollectionLog, Ticker } from '../../entities';
 import { EventType } from '../../events/event-types';
 import { BaseCollectorService } from '../shared/base-collector.service';
+import { readStocktwitsMessages } from './stocktwits-api.types';
 
 const BASE_URL = 'https://api.stocktwits.com/api/2';
 
@@ -50,7 +52,7 @@ export class StocktwitsService extends BaseCollectorService {
         await this.delay(2000);
       } catch (error) {
         this.logger.warn(
-          `Błąd StockTwits dla ${ticker.symbol}: ${error instanceof Error ? error.message : error}`,
+          `Błąd StockTwits dla ${ticker.symbol}: ${errMsg(error)}`,
         );
       }
     }
@@ -62,14 +64,16 @@ export class StocktwitsService extends BaseCollectorService {
    * Pobiera stream wiadomości dla jednego symbolu.
    */
   private async collectForSymbol(symbol: string): Promise<number> {
-    const data = await this.fetchApi(`/streams/symbol/${symbol}.json`);
-    if (!data.messages || data.messages.length === 0) {
+    const messages = readStocktwitsMessages(
+      await this.fetchApi(`/streams/symbol/${symbol}.json`),
+    );
+    if (messages.length === 0) {
       return 0;
     }
 
     let newCount = 0;
 
-    for (const msg of data.messages) {
+    for (const msg of messages) {
       const externalId = `st_${msg.id}`;
 
       // Sprawdź czy wiadomość już istnieje
@@ -78,11 +82,14 @@ export class StocktwitsService extends BaseCollectorService {
       });
       if (exists) continue;
 
-      const sentiment = msg.entities?.sentiment?.basic || undefined;
+      // Pusty string / null / brak → undefined (dawne `|| undefined`)
+      const basic = msg.entities?.sentiment?.basic;
+      const sentiment = typeof basic === 'string' && basic !== '' ? basic : undefined;
+      const username = msg.user?.username;
       const mention = this.mentionRepo.create({
         source: DataSource.STOCKTWITS,
         externalId,
-        author: msg.user?.username || 'unknown',
+        author: typeof username === 'string' && username !== '' ? username : 'unknown',
         body: msg.body,
         url: `https://stocktwits.com/symbol/${symbol}`,
         detectedTickers: [symbol],
@@ -110,8 +117,10 @@ export class StocktwitsService extends BaseCollectorService {
 
   /**
    * Wrapper HTTP do API StockTwits z obsługą rate limitu.
+   * Zwraca surowy JSON jako `unknown` — kształt weryfikuje `readStocktwitsMessages`
+   * z `stocktwits-api.types.ts`.
    */
-  private async fetchApi(endpoint: string): Promise<any> {
+  private async fetchApi(endpoint: string): Promise<unknown> {
     const url = `${BASE_URL}${endpoint}`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'StockPulse/1.0' },
@@ -124,7 +133,8 @@ export class StocktwitsService extends BaseCollectorService {
       throw new Error(`StockTwits HTTP ${res.status}: ${res.statusText}`);
     }
 
-    return res.json();
+    const body: unknown = await res.json();
+    return body;
   }
 
   private delay(ms: number): Promise<void> {

@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logged } from '../common/decorators/logged.decorator';
+import { errMsg } from '../common/utils/error-message.util';
+import { isEnrichedAnalysisPayload } from './anthropic-client.types';
 import { EnrichedAnalysis } from './azure-openai-client.service';
 
 /**
@@ -54,8 +56,12 @@ export class AnthropicClientService {
    * Używany przez Form4Pipeline i Form8kPipeline do analizy SEC filingów.
    * Prompty już zawierają instrukcję "Respond with JSON only" — Claude respektuje to.
    * Prefill asystenta "{" wymusza czysty JSON bez preambuły.
+   *
+   * Zwraca surowy wynik `JSON.parse` jako `unknown` (kształt zależy od promptu — pipeline'y
+   * Form4/Form8k same go walidują) albo `null` przy braku klucza / nie-tekstowej
+   * odpowiedzi / błędzie API lub parsowania.
    */
-  async analyzeCustomPrompt(prompt: string): Promise<any | null> {
+  async analyzeCustomPrompt(prompt: string): Promise<unknown> {
     if (!this.client) return null;
 
     try {
@@ -79,9 +85,10 @@ export class AnthropicClientService {
         .replace(/\s*```$/i, '')
         .trim();
 
-      return JSON.parse(cleaned);
-    } catch (err: any) {
-      this.logger.error(`Anthropic analyzeCustomPrompt error: ${err.message}`);
+      const parsed: unknown = JSON.parse(cleaned);
+      return parsed;
+    } catch (err) {
+      this.logger.error(`Anthropic analyzeCustomPrompt error: ${errMsg(err)}`);
       return null;
     }
   }
@@ -113,9 +120,11 @@ export class AnthropicClientService {
         'escalation_reason.',
         '',
         `Symbol: ${symbol}`,
-        `Source: ${source || 'unknown'}`,
+        `Source: ${source !== undefined && source !== '' ? source : 'unknown'}`,
         `Escalation reason: ${escalationReason}`,
-        pdufaContext ? `PDUFA context: ${pdufaContext}` : '',
+        pdufaContext !== undefined && pdufaContext !== null && pdufaContext !== ''
+          ? `PDUFA context: ${pdufaContext}`
+          : '',
         '',
         'Respond with JSON only, no preamble or explanation.',
       ].filter(Boolean).join('\n');
@@ -137,10 +146,15 @@ export class AnthropicClientService {
         .replace(/\s*```$/i, '')
         .trim();
 
-      const result = JSON.parse(cleaned);
-      return { ...result, processing_time_ms: 0 } as EnrichedAnalysis;
-    } catch (err: any) {
-      this.logger.error(`Anthropic analyze error: ${err.message}`);
+      const result: unknown = JSON.parse(cleaned);
+      if (!isEnrichedAnalysisPayload(result)) {
+        this.logger.warn('Anthropic analyze: odpowiedź JSON nie jest obiektem');
+        return null;
+      }
+      const enriched: EnrichedAnalysis = { ...result, processing_time_ms: 0 };
+      return enriched;
+    } catch (err) {
+      this.logger.error(`Anthropic analyze error: ${errMsg(err)}`);
       return null;
     }
   }

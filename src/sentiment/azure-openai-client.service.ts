@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logged } from '../common/decorators/logged.decorator';
 import { errMsg } from '../common/utils/error-message.util';
+import {
+  isEnrichedAnalysisPayload,
+  readAzureErrorMessage,
+  unwrapAzureCustomResult,
+} from './azure-analysis-api.types';
 
 /** Wynik wzbogaconej analizy z Azure OpenAI gpt-4o-mini */
 export interface EnrichedAnalysis {
@@ -83,10 +88,10 @@ export class AzureOpenaiClientService {
         symbol,
         escalation_reason: escalationReason,
       };
-      if (pdufaContext) {
+      if (pdufaContext !== undefined && pdufaContext !== null && pdufaContext !== '') {
         payload.pdufa_context = pdufaContext;
       }
-      if (source) {
+      if (source !== undefined && source !== '') {
         payload.source = source;
       }
 
@@ -98,14 +103,22 @@ export class AzureOpenaiClientService {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
+        // Body błędu VM to `{ error: string }`; nie-JSON → `{}` → fallback na statusText.
+        const errorBody: unknown = await response.json().catch((): unknown => ({}));
         this.logger.error(
-          `Azure Analysis error: ${response.status} — ${error.error || response.statusText}`,
+          `Azure Analysis error: ${response.status} — ${readAzureErrorMessage(errorBody) ?? response.statusText}`,
         );
         return null;
       }
 
-      return await response.json();
+      const data: unknown = await response.json();
+      if (!isEnrichedAnalysisPayload(data)) {
+        this.logger.warn(
+          `Azure Analysis: odpowiedź bez sentiment/conviction (${JSON.stringify(data).slice(0, 200)}) — pomijam`,
+        );
+        return null;
+      }
+      return data;
     } catch (err) {
       this.logger.error(`Błąd Azure Analysis Service: ${errMsg(err)}`);
       return null;
@@ -116,8 +129,10 @@ export class AzureOpenaiClientService {
    * Wysyła custom prompt do Azure VM (endpoint /analyze/custom).
    * Używany przez SEC Filing GPT Pipeline do analizy filingów z per-typ promptami.
    * Graceful degradation: zwraca null gdy VM niedostępna lub endpoint nie istnieje.
+   * Wynik to surowy JSON z VM (string z tekstem GPT albo obiekt) — kształt waliduje
+   * Zod w pipeline'ach (`parseGptResponse`), dlatego typ zwracany to `unknown`.
    */
-  async analyzeCustomPrompt(prompt: string): Promise<any | null> {
+  async analyzeCustomPrompt(prompt: string): Promise<unknown> {
     if (!this.enabled) return null;
 
     try {
@@ -142,8 +157,8 @@ export class AzureOpenaiClientService {
         return null;
       }
 
-      const data = await response.json();
-      return data.result ?? data;
+      const data: unknown = await response.json();
+      return unwrapAzureCustomResult(data);
     } catch (err) {
       this.logger.error(`Błąd Azure /analyze/custom: ${errMsg(err)}`);
       return null;

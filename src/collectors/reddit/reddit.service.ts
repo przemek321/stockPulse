@@ -4,9 +4,15 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataSource } from '../../common/interfaces/data-source.enum';
+import { errMsg } from '../../common/utils/error-message.util';
 import { RawMention, Ticker, CollectionLog } from '../../entities';
 import { EventType } from '../../events/event-types';
 import { BaseCollectorService } from '../shared/base-collector.service';
+import {
+  isRedditOAuthToken,
+  readRedditListingPosts,
+  readRedditOAuthError,
+} from './reddit-api.types';
 
 /**
  * Kolektor danych z Reddit.
@@ -50,14 +56,21 @@ export class RedditService extends BaseCollectorService {
 
   /**
    * Sprawdza czy konfiguracja Reddit jest kompletna.
+   * `env.validation.ts` daje REDDIT_* domyślnie `''` — brak klucza = pusty string.
    */
   private isConfigured(): boolean {
-    return !!(
-      this.config.get('REDDIT_CLIENT_ID') &&
-      this.config.get('REDDIT_CLIENT_SECRET') &&
-      this.config.get('REDDIT_USERNAME') &&
-      this.config.get('REDDIT_PASSWORD')
+    return (
+      this.hasEnv('REDDIT_CLIENT_ID') &&
+      this.hasEnv('REDDIT_CLIENT_SECRET') &&
+      this.hasEnv('REDDIT_USERNAME') &&
+      this.hasEnv('REDDIT_PASSWORD')
     );
+  }
+
+  /** Zmienna środowiskowa ustawiona i niepusta. */
+  private hasEnv(key: string): boolean {
+    const value = this.config.get<string>(key);
+    return value !== undefined && value !== '';
   }
 
   /**
@@ -87,9 +100,7 @@ export class RedditService extends BaseCollectorService {
         // Rate limit: 100 req/min
         await this.delay(1000);
       } catch (error) {
-        this.logger.warn(
-          `Błąd Reddit r/${subreddit}: ${error instanceof Error ? error.message : error}`,
-        );
+        this.logger.warn(`Błąd Reddit r/${subreddit}: ${errMsg(error)}`);
       }
     }
 
@@ -107,12 +118,12 @@ export class RedditService extends BaseCollectorService {
       `https://oauth.reddit.com/r/${subreddit}/hot?limit=25`,
     );
 
-    if (!data?.data?.children) return 0;
+    // Brak listingu / brak `data.children` → 0 (reader zwraca [] — jak dawne `if (!data?.data?.children)`)
+    const posts = readRedditListingPosts(data);
 
     let newCount = 0;
 
-    for (const child of data.data.children) {
-      const post = child.data;
+    for (const post of posts) {
       const externalId = `reddit_${post.id}`;
 
       // Sprawdź duplikaty
@@ -122,15 +133,19 @@ export class RedditService extends BaseCollectorService {
       if (exists) continue;
 
       // Wykryj tickery w tytule i treści
-      const fullText = `${post.title} ${post.selftext || ''}`;
+      const selftext = post.selftext ?? '';
+      const fullText = `${post.title} ${selftext}`;
       const detected = this.extractTickers(fullText, knownTickers);
       if (detected.length === 0) continue; // Pomijamy posty bez tickerów
+
+      // Pusty/brakujący autor → 'unknown' (dawne `post.author || 'unknown'`)
+      const author = post.author ?? '';
 
       const mention = this.mentionRepo.create({
         source: DataSource.REDDIT,
         externalId,
-        author: post.author || 'unknown',
-        body: `${post.title}\n\n${(post.selftext || '').substring(0, 2000)}`,
+        author: author !== '' ? author : 'unknown',
+        body: `${post.title}\n\n${selftext.substring(0, 2000)}`,
         url: `https://reddit.com${post.permalink}`,
         detectedTickers: detected,
         sourceSentiment: undefined, // Reddit nie ma wbudowanego sentymentu
@@ -186,7 +201,13 @@ export class RedditService extends BaseCollectorService {
    * OAuth2 — pobierz access token z Reddit.
    */
   private async ensureAccessToken(): Promise<void> {
-    if (this.accessToken && Date.now() < this.tokenExpiresAt) return;
+    if (
+      this.accessToken !== null &&
+      this.accessToken !== '' &&
+      Date.now() < this.tokenExpiresAt
+    ) {
+      return;
+    }
 
     const clientId = this.config.get<string>('REDDIT_CLIENT_ID');
     const clientSecret = this.config.get<string>('REDDIT_CLIENT_SECRET');
@@ -209,16 +230,29 @@ export class RedditService extends BaseCollectorService {
       throw new Error(`Reddit OAuth2 error: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data: unknown = await res.json();
+    if (!isRedditOAuthToken(data)) {
+      // Reddit oddaje HTTP 200 z `{ "error": "invalid_grant" }` przy złych poświadczeniach.
+      // Jak dawniej: stan „brak tokenu" (nie throw!) — każde zapytanie do oauth.reddit.com
+      // skończy się 401 łapanym w collect() per subreddit, cykl = SUCCESS/0. Throw zmieniałby
+      // kontrakt kolektora na FAILED + retry BullMQ + health degraded (recenzja 27.09.2026).
+      this.accessToken = null;
+      this.tokenExpiresAt = 0;
+      this.logger.warn(
+        `Reddit OAuth2: brak access_token w odpowiedzi (${readRedditOAuthError(data) ?? 'nieznany błąd'})`,
+      );
+      return;
+    }
     this.accessToken = data.access_token;
     this.tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
     this.logger.log('Reddit OAuth2 token odnowiony');
   }
 
   /**
-   * Wrapper HTTP z tokenem OAuth2.
+   * Wrapper HTTP z tokenem OAuth2. Zwraca surowy JSON jako `unknown` —
+   * kształt weryfikują readery z `reddit-api.types.ts`.
    */
-  private async redditFetch(url: string): Promise<any> {
+  private async redditFetch(url: string): Promise<unknown> {
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${this.accessToken ?? ''}`,
@@ -237,7 +271,8 @@ export class RedditService extends BaseCollectorService {
       throw new Error(`Reddit HTTP ${res.status}`);
     }
 
-    return res.json();
+    const body: unknown = await res.json();
+    return body;
   }
 
   private delay(ms: number): Promise<void> {

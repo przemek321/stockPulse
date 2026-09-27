@@ -2,8 +2,15 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
+import { errMsg } from '../common/utils/error-message.util';
 import { Alert, InsiderTrade } from '../entities';
 import { SystemLogService } from '../system-log/system-log.service';
+import {
+  AlertsByRuleRow,
+  ObservationAlertRow,
+  ReasonBreakdownRow,
+  TradesByTypeRow,
+} from './summary-scheduler-rows.types';
 import { TelegramFormatterService } from './telegram/telegram-formatter.service';
 import { TelegramService } from './telegram/telegram.service';
 
@@ -103,7 +110,8 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     try {
       const since = new Date(Date.now() - this.INTERVAL_MS);
 
-      // Alerty per typ
+      // Alerty per typ (kształty wierszy: summary-scheduler-rows.types.ts —
+      // COUNT/SUM przychodzą z pg jako STRING, stąd parseInt poniżej)
       const alerts = await this.alertRepo
         .createQueryBuilder('a')
         .select('a.ruleName', 'rule')
@@ -111,7 +119,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .addSelect('SUM(CASE WHEN a.delivered = true THEN 1 ELSE 0 END)', 'delivered')
         .where('a.sentAt > :since', { since })
         .groupBy('a.ruleName')
-        .getRawMany();
+        .getRawMany<AlertsByRuleRow>();
 
       const totalAlerts = alerts.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
       const totalDelivered = alerts.reduce((sum, r) => sum + parseInt(r.delivered ?? '0', 10), 0);
@@ -128,7 +136,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .andWhere('a.delivered = false')
         .andWhere('a.nonDeliveryReason IS NOT NULL')
         .groupBy('a.nonDeliveryReason')
-        .getRawMany();
+        .getRawMany<ReasonBreakdownRow>();
 
       // Insider trades BUY/SELL — celowo BEZ filtra is10b51Plan (raport pokazuje cały
       // wolumen; od fixu aff10b5One 09.06.2026 plany są realnie flagowane w DB)
@@ -140,7 +148,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .where('t.collectedAt > :since', { since })
         .andWhere('t.transactionType IN (:...types)', { types: ['BUY', 'SELL'] })
         .groupBy('t.transactionType')
-        .getRawMany();
+        .getRawMany<TradesByTypeRow>();
 
       // Nowe obserwacje (10.06.2026, prośba Przemka „daj znać jak coś wpadnie"):
       // konkretne alerty obserwacyjne z okna 8h (nie tylko licznik w breakdownie).
@@ -156,7 +164,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .where('a.sentAt > :since', { since })
         .andWhere("a.nonDeliveryReason = 'observation'")
         .orderBy('a.sentAt', 'DESC')
-        .getRawMany();
+        .getRawMany<ObservationAlertRow>();
 
       // Nadchodzące katalizatory PDUFA (7 dni)
       let pdufaSection = '';
@@ -191,9 +199,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         });
       }
     } catch (error) {
-      this.logger.error(
-        `Błąd generowania raportu: ${error instanceof Error ? error.message : error}`,
-      );
+      this.logger.error(`Błąd generowania raportu: ${errMsg(error)}`);
     }
   }
 
@@ -234,12 +240,12 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
    * Formatuje wiadomość podsumowania w MarkdownV2.
    */
   private formatSummary(
-    alertsByRule: { rule: string; count: string; delivered: string }[],
+    alertsByRule: AlertsByRuleRow[],
     totalAlerts: number,
     totalDelivered: number,
-    reasonBreakdown: { reason: string; count: string }[],
-    trades: { type: string; count: string; totalValue: string }[],
-    obsAlerts: { symbol: string; rule: string; priority: string; price: string | null; sector: string | null }[] = [],
+    reasonBreakdown: ReasonBreakdownRow[],
+    trades: TradesByTypeRow[],
+    obsAlerts: ObservationAlertRow[] = [],
   ): string {
     const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
@@ -281,7 +287,8 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       lines.push('  Brak nowych BUY/SELL');
     } else {
       for (const t of trades) {
-        const val = parseFloat(t.totalValue || '0');
+        // SUM(numeric) z pg to string albo NULL (nigdy '') — `??` równoważne dawnemu `||`.
+        const val = parseFloat(t.totalValue ?? '0');
         lines.push(`  • ${esc(t.type)}: ${esc(t.count)} transakcji \\(${esc(fmtValue(val))}\\)`);
       }
     }

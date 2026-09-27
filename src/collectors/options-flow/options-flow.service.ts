@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { DataSource } from '../../common/interfaces/data-source.enum';
-import { errCode } from '../../common/utils/error-message.util';
+import { errCode, errMsg } from '../../common/utils/error-message.util';
 import {
   OptionsFlow,
   OptionsVolumeBaseline,
@@ -15,13 +15,18 @@ import {
 import { EventType } from '../../events/event-types';
 import { BaseCollectorService } from '../shared/base-collector.service';
 import {
+  readPolygonBars,
+  readPolygonContracts,
+  readPolygonFirstBar,
+  type PolygonAggBar,
+} from './polygon-api.types';
+import {
   filterContracts,
   detectSpike,
   calcOtmInfo,
   calcDte,
   updateRollingAverage,
   type OptionsContract,
-  type DailyBar,
 } from './unusual-activity-detector';
 
 const POLYGON_BASE = 'https://api.polygon.io';
@@ -148,9 +153,7 @@ export class OptionsFlowService extends BaseCollectorService {
             aborted = true;
             break;
           }
-          this.logger.warn(
-            `Błąd options-flow dla ${ticker.symbol}: ${error instanceof Error ? error.message : error}`,
-          );
+          this.logger.warn(`Błąd options-flow dla ${ticker.symbol}: ${errMsg(error)}`);
         }
       }
     } finally {
@@ -282,9 +285,7 @@ export class OptionsFlowService extends BaseCollectorService {
         }
       } catch (error) {
         // Skip individual contract errors
-        this.logger.debug(
-          `${symbol} ${contract.ticker}: ${error instanceof Error ? error.message : error}`,
-        );
+        this.logger.debug(`${symbol} ${contract.ticker}: ${errMsg(error)}`);
       }
     }
 
@@ -324,8 +325,8 @@ export class OptionsFlowService extends BaseCollectorService {
       throw new Error(`Polygon HTTP ${res.status}`);
     }
 
-    const data = await res.json();
-    return data.results || [];
+    const data: unknown = await res.json();
+    return readPolygonContracts(data);
   }
 
   /**
@@ -334,7 +335,7 @@ export class OptionsFlowService extends BaseCollectorService {
   private async fetchPrevBar(
     occSymbol: string,
     cycleSignal?: AbortSignal,
-  ): Promise<DailyBar | null> {
+  ): Promise<PolygonAggBar | null> {
     await this.delay(RATE_LIMIT_MS, cycleSignal);
     const url = `${POLYGON_BASE}/v2/aggs/ticker/${occSymbol}/prev?apiKey=${this.apiKey}`;
     const res = await fetch(url, { signal: this.buildFetchSignal(cycleSignal) });
@@ -346,8 +347,8 @@ export class OptionsFlowService extends BaseCollectorService {
     }
     if (!res.ok) return null;
 
-    const data = await res.json();
-    return data.results?.[0] || null;
+    const data: unknown = await res.json();
+    return readPolygonFirstBar(data);
   }
 
   /**
@@ -362,8 +363,11 @@ export class OptionsFlowService extends BaseCollectorService {
     const res = await fetch(url, { signal: this.buildFetchSignal(cycleSignal) });
     if (!res.ok) return null;
 
-    const data = await res.json();
-    return data.results?.[0]?.c || null;
+    const data: unknown = await res.json();
+    const bar = readPolygonFirstBar(data);
+    // Close 0 (brak notowań) → null, jak dawne `?.c || null`
+    if (!bar || bar.c === 0) return null;
+    return bar.c;
   }
 
   /**
@@ -416,8 +420,8 @@ export class OptionsFlowService extends BaseCollectorService {
             const res = await fetch(url, { signal: AbortSignal.timeout(POLYGON_FETCH_TIMEOUT_MS) });
             if (!res.ok) continue;
 
-            const data = await res.json();
-            const bars: DailyBar[] = data.results || [];
+            const data: unknown = await res.json();
+            const bars = readPolygonBars(data);
             if (bars.length === 0) continue;
 
             // Oblicz średnią z ostatnich max 20 barów
@@ -442,9 +446,7 @@ export class OptionsFlowService extends BaseCollectorService {
           }
         }
       } catch (error) {
-        this.logger.warn(
-          `Backfill ${ticker.symbol} error: ${error instanceof Error ? error.message : error}`,
-        );
+        this.logger.warn(`Backfill ${ticker.symbol} error: ${errMsg(error)}`);
       }
     }
 
