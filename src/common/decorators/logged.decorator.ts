@@ -4,11 +4,51 @@ import { SystemLogService } from '../../system-log/system-log.service';
  *  Zwiększone z 2000 na 4000 żeby zmieścić enriched context (Tier 1). */
 const MAX_LOG_LENGTH = 4000;
 
+// ── Strażniki typów (strict:true 27.09.2026 — args/result metod są `unknown`) ──
+
+/** Obiekt (także tablica) — odpowiednik dawnego `val && typeof val === 'object'`. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Pole metadanych (symbol/ticker/traceId/parentTraceId/action) jako string albo `null`.
+ * Wszystkie 24 metody z @Logged (27.09.2026) mają te pola typu `string` / `string | undefined`,
+ * więc dla realnego ruchu to dokładnie dawne `x ?? null`; wartość nie-stringowa (nie występuje)
+ * daje `null` zamiast trafić do kolumny varchar jako śmieć.
+ */
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+/** Metoda owijana przez @Logged — sygnatura celowo najogólniejsza (this/args/wynik nieznane). */
+type LoggedMethod = (this: unknown, ...args: unknown[]) => unknown;
+
+function isLoggedMethod(value: unknown): value is LoggedMethod {
+  return typeof value === 'function';
+}
+
+/**
+ * Nazwa klasy z runtime `this` — odpowiednik dawnego `this?.constructor?.name`.
+ * `''` gdy nie da się odczytać (brak `this`, prototyp bez `constructor`) → caller robi
+ * fallback `|| target.constructor.name` tak jak dotąd.
+ */
+function runtimeClassName(self: unknown): string {
+  if ((typeof self !== 'object' && typeof self !== 'function') || self === null)
+    return '';
+  const ctor: unknown = self.constructor;
+  return typeof ctor === 'function' ? ctor.name : '';
+}
+
 /**
  * Serializuje wartość do obiektu logu, obcinając długie stringi.
  * Obsługuje circular references i nietypowe wartości.
+ *
+ * Zwraca wartość JSON gotową do kolumny JSONB: `null` (brak wartości), `{ value }` dla prymitywu,
+ * obiekt/tablicę po round-tripie JSON.stringify→JSON.parse, `{ _truncated, data }` albo `{ _error }`.
+ * Typ `unknown`, bo JSON.parse może oddać także prymityw (obiekt z top-level `toJSON`, np. `Date`).
  */
-function truncateForLog(value: unknown): Record<string, any> | null {
+function truncateForLog(value: unknown): unknown {
   if (value === undefined || value === null) return null;
 
   try {
@@ -19,17 +59,20 @@ function truncateForLog(value: unknown): Record<string, any> | null {
 
     // Serializacja z obsługą circular refs
     const seen = new WeakSet();
-    const json = JSON.stringify(value, (_key, val) => {
-      if (typeof val === 'object' && val !== null) {
-        if (seen.has(val)) return '[Circular]';
-        seen.add(val);
-      }
-      // Obcinaj długie stringi wewnątrz obiektów
-      if (typeof val === 'string' && val.length > 500) {
-        return val.substring(0, 500) + '…';
-      }
-      return val;
-    });
+    const json = JSON.stringify(
+      value,
+      (_key: string, val: unknown): unknown => {
+        if (typeof val === 'object' && val !== null) {
+          if (seen.has(val)) return '[Circular]';
+          seen.add(val);
+        }
+        // Obcinaj długie stringi wewnątrz obiektów
+        if (typeof val === 'string' && val.length > 500) {
+          return val.substring(0, 500) + '…';
+        }
+        return val;
+      },
+    );
 
     if (!json) return null;
 
@@ -39,7 +82,8 @@ function truncateForLog(value: unknown): Record<string, any> | null {
       return { _truncated: true, data: truncated };
     }
 
-    return JSON.parse(json);
+    const parsed: unknown = JSON.parse(json);
+    return parsed;
   } catch {
     return { _error: 'Nie udało się zserializować wartości' };
   }
@@ -49,20 +93,31 @@ function truncateForLog(value: unknown): Record<string, any> | null {
  * Serializuje argumenty funkcji do obiektu logu.
  * Każdy argument dostaje klucz arg0, arg1, ...
  */
-function serializeArgs(args: unknown[]): Record<string, any> | null {
-  if (!args || args.length === 0) return null;
+function serializeArgs(args: unknown[]): Record<string, unknown> | null {
+  if (args.length === 0) return null;
 
-  const result: Record<string, any> = {};
+  const result: Record<string, unknown> = {};
   for (let i = 0; i < args.length; i++) {
     const val = args[i];
     // Pomijaj duże obiekty (np. Job z BullMQ) — weź tylko .data
-    if (val && typeof val === 'object' && 'data' in val) {
-      result[`arg${i}`] = truncateForLog((val as any).data);
+    if (isRecord(val) && 'data' in val) {
+      result[`arg${i}`] = truncateForLog(val.data);
     } else {
       result[`arg${i}`] = truncateForLog(val);
     }
   }
   return result;
+}
+
+/**
+ * Kolumna `output` ma w CreateSystemLogDto kontrakt `Record<string, any>`, a `truncateForLog`
+ * oddaje dla wyniku każdej metody z @Logged obiekt/tablicę albo `null` (prymityw → `{ value }`).
+ * Jedyny inny przypadek — top-level `toJSON` zwracające prymityw (np. goły `Date` jako wynik):
+ * dotąd prymityw szedł do JSONB bez wrappera (typ był kłamstwem), teraz dostaje ten sam `{ value }`
+ * co inne prymitywy. Żadna z 24 metod z @Logged (27.09.2026) nie zwraca takiej wartości.
+ */
+function asOutputObject(value: unknown): object | null {
+  return typeof value === 'object' ? value : { value };
 }
 
 // ── extractLogMeta — Tier 1 observability ─────────────────
@@ -83,30 +138,35 @@ interface LogMeta {
  * - Pipeline handlers zwracają `{ action, symbol, traceId?, ... }`
  * - Collectors zwracają `{ collector, count }` bez action → default level='info'
  */
-function extractLogMeta(args: any[], result: any): LogMeta {
+function extractLogMeta(args: unknown[], result: unknown): LogMeta {
   const meta: LogMeta = {};
 
   // Z pierwszego argumentu (event payload)
-  const arg0 = args?.[0];
-  if (arg0 && typeof arg0 === 'object') {
+  const arg0 = args[0];
+  if (isRecord(arg0)) {
     // BullMQ Job wrap — wyciągnij .data
-    const payload = 'data' in arg0 ? arg0.data : arg0;
-    if (payload && typeof payload === 'object') {
-      meta.ticker = payload.symbol ?? payload.ticker ?? null;
-      meta.traceId = payload.traceId ?? null;
-      meta.parentTraceId = payload.parentTraceId ?? null;
+    const payload: unknown = 'data' in arg0 ? arg0.data : arg0;
+    if (isRecord(payload)) {
+      meta.ticker =
+        stringOrNull(payload.symbol) ?? stringOrNull(payload.ticker);
+      meta.traceId = stringOrNull(payload.traceId);
+      meta.parentTraceId = stringOrNull(payload.parentTraceId);
     }
   }
 
   // Z wyniku (pipeline return)
-  if (result && typeof result === 'object') {
+  if (isRecord(result)) {
     // Ticker: wynik ma priorytet nad args (output jest authoritative)
-    meta.ticker = result.symbol ?? result.ticker ?? meta.ticker ?? null;
-    meta.traceId = result.traceId ?? meta.traceId ?? null;
-    meta.decisionReason = result.action ?? null;
+    meta.ticker =
+      stringOrNull(result.symbol) ??
+      stringOrNull(result.ticker) ??
+      meta.ticker ??
+      null;
+    meta.traceId = stringOrNull(result.traceId) ?? meta.traceId ?? null;
+    meta.decisionReason = stringOrNull(result.action);
 
     // Action-based level mapping
-    const action: string = result.action ?? '';
+    const action: string = stringOrNull(result.action) ?? '';
     if (
       action === 'ALERT_TELEGRAM_FAILED' ||
       action === 'REDIS_ERROR' ||
@@ -126,7 +186,7 @@ function extractLogMeta(args: any[], result: any): LogMeta {
   // Default level — INFO (NIE debug).
   // Collector heartbeats ({collector, count}) i metody bez `action` muszą być INFO,
   // inaczej cleanup 2d uciąłby ważną historię.
-  if (!meta.level) meta.level = 'info';
+  meta.level ??= 'info';
 
   return meta;
 }
@@ -152,20 +212,30 @@ function extractLogMeta(args: any[], result: any): LogMeta {
  */
 export function Logged(moduleName: string) {
   return function (
-    target: any,
+    target: object,
     propertyKey: string,
     descriptor: PropertyDescriptor,
-  ) {
-    const original = descriptor.value;
+  ): PropertyDescriptor {
+    const original: unknown = descriptor.value;
+    // Dekorator metod — `descriptor.value` to zawsze funkcja (accessor/property nie przechodzi
+    // przez sygnaturę MethodDecorator). Fail-fast zamiast TypeError przy pierwszym wywołaniu.
+    if (!isLoggedMethod(original)) {
+      throw new TypeError(
+        `@Logged('${moduleName}'): ${propertyKey} nie jest metodą`,
+      );
+    }
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (
+      this: unknown,
+      ...args: unknown[]
+    ): Promise<unknown> {
       const start = Date.now();
       const logger = SystemLogService.getInstance();
       // Runtime className — łapie dziecko (np. StocktwitsService), nie bazową klasę
-      const className = this?.constructor?.name || target.constructor.name;
+      const className = runtimeClassName(this) || target.constructor.name;
 
       try {
-        const result = await original.apply(this, args);
+        const result: unknown = await original.apply(this, args);
         const durationMs = Date.now() - start;
         const meta = extractLogMeta(args, result);
 
@@ -176,7 +246,7 @@ export function Logged(moduleName: string) {
           status: 'success',
           durationMs,
           input: serializeArgs(args),
-          output: truncateForLog(result),
+          output: asOutputObject(truncateForLog(result)),
           traceId: meta.traceId,
           parentTraceId: meta.parentTraceId,
           level: meta.level,
@@ -187,7 +257,7 @@ export function Logged(moduleName: string) {
         return result;
       } catch (error) {
         const durationMs = Date.now() - start;
-        const errClassName = this?.constructor?.name || target.constructor.name;
+        const errClassName = runtimeClassName(this) || target.constructor.name;
         const meta = extractLogMeta(args, null);
 
         logger?.log({

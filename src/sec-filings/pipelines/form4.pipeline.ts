@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, FindOptionsWhere } from 'typeorm';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
 import { TelegramFormatterService } from '../../alerts/telegram/telegram-formatter.service';
@@ -388,10 +388,14 @@ export class Form4Pipeline {
       // Pobierz profil historyczny tickera (kontekst kalibrujący conviction)
       const signalProfile = await this.tickerProfile?.getSignalProfile(payload.symbol) ?? null;
 
-      // Buduj prompt i wyślij do Claude
+      // Buduj prompt i wyślij do Claude. `analyzeCustomPrompt` zwraca `any | null` (surowy
+      // JSON z VM: string z tekstem GPT albo już sparsowany obiekt) — trzymamy jako `unknown`,
+      // walidacja kształtu jest niżej w Zod (parseGptResponse). `Boolean()` zachowuje
+      // dokładnie dawną semantykę `!rawResponse` (null = VM offline, '' = pusta odpowiedź).
       const prompt = buildForm4Prompt(payload.symbol, companyName, parsed, recentFilings, signalProfile);
-      const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
-      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
+      const rawResponse: unknown = await this.azureOpenai.analyzeCustomPrompt(prompt);
+      const hasResponse = Boolean(rawResponse);
+      if (!hasResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
 
       // Waliduj JSON z GPT (Zod)
       // S20-T03 (28.05.2026): usunięty retry `parseGptResponse(JSON.stringify(rawResponse))`
@@ -669,8 +673,9 @@ export class Form4Pipeline {
     catalystType?: string,
   ): Promise<boolean> {
     const cutoff = new Date(Date.now() - Math.max(throttleMinutes, 1) * 60_000);
-    const where: any = { ruleName, symbol, sentAt: MoreThan(cutoff) };
-    if (catalystType) where.catalystType = catalystType;
+    const where: FindOptionsWhere<Alert> = { ruleName, symbol, sentAt: MoreThan(cutoff) };
+    // Dawne `if (catalystType)` — pusty string też NIE zawęża zapytania (identyczna semantyka).
+    if (catalystType !== undefined && catalystType !== '') where.catalystType = catalystType;
     return !!(await this.alertRepo.findOne({ where }));
   }
 }

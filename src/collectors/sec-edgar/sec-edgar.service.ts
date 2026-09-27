@@ -5,10 +5,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { DataSource } from '../../common/interfaces/data-source.enum';
+import { errMsg } from '../../common/utils/error-message.util';
 import { SecFiling, InsiderTrade, Ticker, CollectionLog } from '../../entities';
 import { EventType } from '../../events/event-types';
 import { BaseCollectorService } from '../shared/base-collector.service';
 import { parseForm4Xml } from './form4-parser';
+import { readSecSubmissionsRecent } from './sec-submissions.types';
 
 const EDGAR_BASE = 'https://data.sec.gov';
 
@@ -70,9 +72,7 @@ export class SecEdgarService extends BaseCollectorService {
         // Rate limit: 10 req/sec → 100ms przerwy
         await this.delay(200);
       } catch (error) {
-        this.logger.warn(
-          `Błąd EDGAR dla ${ticker.symbol}: ${error instanceof Error ? error.message : error}`,
-        );
+        this.logger.warn(`Błąd EDGAR dla ${ticker.symbol}: ${errMsg(error)}`);
       }
     }
 
@@ -88,7 +88,9 @@ export class SecEdgarService extends BaseCollectorService {
       `${EDGAR_BASE}/submissions/CIK${paddedCik}.json`,
     );
 
-    const recent = data.filings?.recent;
+    // Równoległe tablice string[] (form/accessionNumber/filingDate/primaryDocument/
+    // primaryDocDescription) — kształt i guard: sec-submissions.types.ts.
+    const recent = readSecSubmissionsRecent(data);
     if (!recent || recent.form.length === 0) return 0;
 
     let newCount = 0;
@@ -115,10 +117,13 @@ export class SecEdgarService extends BaseCollectorService {
 
       const accessionDir = accessionNumber.replace(/-/g, '');
       const baseDir = `https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${accessionDir}`;
+      // SEC oznacza brak dokumentu/opisu pustym stringiem "" — traktujemy jak brak.
       const primaryDoc = recent.primaryDocument?.[i];
+      const hasPrimaryDoc = primaryDoc !== undefined && primaryDoc !== '';
+      const primaryDocDescription = recent.primaryDocDescription?.[i];
       // Form 4: documentUrl = baseDir (parser sam buduje XML URL z primaryDoc)
       // 8-K/inne: documentUrl = pełny URL do .htm (fetchFilingText potrzebuje)
-      const documentUrl = (formType === '4' || !primaryDoc)
+      const documentUrl = (formType === '4' || !hasPrimaryDoc)
         ? baseDir
         : `${baseDir}/${primaryDoc}`;
 
@@ -127,7 +132,10 @@ export class SecEdgarService extends BaseCollectorService {
         cik: cik.padStart(10, '0'),
         formType,
         accessionNumber,
-        description: recent.primaryDocDescription?.[i] || undefined,
+        description:
+          primaryDocDescription !== undefined && primaryDocDescription !== ''
+            ? primaryDocDescription
+            : undefined,
         filingDate: new Date(recent.filingDate[i]),
         documentUrl,
       });
@@ -145,13 +153,11 @@ export class SecEdgarService extends BaseCollectorService {
 
       // Form 4 → pobierz XML i utwórz InsiderTrade z prawdziwymi danymi
       if (formType === '4') {
-        const primaryDoc = recent.primaryDocument?.[i];
-        if (primaryDoc) {
+        if (hasPrimaryDoc) {
           // primaryDocument zwraca "xslF345X05/edgardoc.xml" (XSLT → HTML)
-          // Raw XML to sama nazwa pliku bez XSLT prefix
-          const rawXmlFile = primaryDoc.includes('/')
-            ? primaryDoc.split('/').pop()
-            : primaryDoc;
+          // Raw XML to sama nazwa pliku bez XSLT prefix: fragment po ostatnim "/",
+          // a bez "/" cały string (to samo co dawne split('/').pop(), ale zawsze string).
+          const rawXmlFile = primaryDoc.slice(primaryDoc.lastIndexOf('/') + 1);
           const xmlUrl = `${documentUrl}/${rawXmlFile}`;
           await this.parseAndSaveForm4(symbol, accessionNumber, xmlUrl, filingTraceId);
           await this.delay(150); // Rate limit SEC
@@ -295,16 +301,17 @@ export class SecEdgarService extends BaseCollectorService {
       return savedTrades.length;
     } catch (error) {
       this.logger.warn(
-        `Błąd parsowania Form 4 XML ${symbol} ${accessionNumber}: ${error instanceof Error ? error.message : error}`,
+        `Błąd parsowania Form 4 XML ${symbol} ${accessionNumber}: ${errMsg(error)}`,
       );
       return 0;
     }
   }
 
   /**
-   * Wrapper HTTP do SEC z obsługą rate limitu.
+   * Wrapper HTTP do SEC z obsługą rate limitu. Zwraca surowy JSON jako `unknown` —
+   * kształt sprawdza caller (guard w `*.types.ts`).
    */
-  private async fetchUrl(url: string): Promise<any> {
+  private async fetchUrl(url: string): Promise<unknown> {
     const res = await fetch(url, {
       headers: this.headers,
       signal: AbortSignal.timeout(SEC_FETCH_TIMEOUT_MS),
@@ -320,7 +327,8 @@ export class SecEdgarService extends BaseCollectorService {
       throw new Error(`SEC HTTP ${res.status}: ${res.statusText}`);
     }
 
-    return res.json();
+    const body: unknown = await res.json();
+    return body;
   }
 
   /**

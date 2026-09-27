@@ -7,6 +7,7 @@ import { PdufaBioService } from '../../collectors/pdufa-bio/pdufa-bio.service';
 import { RedditService } from '../../collectors/reddit/reddit.service';
 import { SecEdgarService } from '../../collectors/sec-edgar/sec-edgar.service';
 import { StocktwitsService } from '../../collectors/stocktwits/stocktwits.service';
+import { DataSource as CollectorSource } from '../../common/interfaces/data-source.enum';
 import {
   Ticker,
   RawMention,
@@ -18,16 +19,31 @@ import {
   CollectionLog,
   PdufaCatalyst,
 } from '../../entities';
+import {
+  AlertStatsRow,
+  DbSizeRow,
+  firstRow,
+  SystemErrorRow,
+  WeeklyAlertSentRow,
+  WeeklyHitRateByCatalystRow,
+  WeeklyHitRateByRuleRow,
+  WeeklyPdufaStatusRow,
+  WeeklyPriceOutcomeRow,
+} from './health-rows.types';
 import { SystemStatsService } from './system-stats.service';
 
-/** Interwały kolektorów w minutach — musi odpowiadać schedulerom BullMQ */
-const COLLECTOR_INTERVALS: Record<string, number> = {
-  STOCKTWITS: 5,
-  FINNHUB: 10,
-  SEC_EDGAR: 30,
-  REDDIT: 10,
-  PDUFA_BIO: 360, // 6 godzin
-};
+/**
+ * Interwały kolektorów w minutach — musi odpowiadać schedulerom BullMQ.
+ * Lista krotek (nie `Record<string, number>`), żeby `source` był typowanym enumem
+ * `collection_logs.collector` bez castu; kolejność = kolejność w odpowiedzi /stats.
+ */
+const COLLECTOR_INTERVALS: readonly (readonly [CollectorSource, number])[] = [
+  [CollectorSource.STOCKTWITS, 5],
+  [CollectorSource.FINNHUB, 10],
+  [CollectorSource.SEC_EDGAR, 30],
+  [CollectorSource.REDDIT, 10],
+  [CollectorSource.PDUFA_BIO, 360], // 6 godzin
+];
 
 /**
  * GET /api/health      — status zdrowia systemu i kolektorów.
@@ -108,9 +124,9 @@ export class HealthController {
 
     // Ostatnie logi kolektorów + obliczenie countdown
     const collectorStats = await Promise.all(
-      Object.entries(COLLECTOR_INTERVALS).map(async ([source, intervalMin]) => {
+      COLLECTOR_INTERVALS.map(async ([source, intervalMin]) => {
         const lastLog = await this.logRepo.findOne({
-          where: { collector: source as any },
+          where: { collector: source },
           order: { startedAt: 'DESC' },
         });
 
@@ -142,14 +158,15 @@ export class HealthController {
     );
 
     // Wielkość bazy
-    const dbSize = await this.tickerRepo.query(
+    const dbSize = await this.tickerRepo.query<DbSizeRow[]>(
       `SELECT pg_size_pretty(pg_database_size(current_database())) as size`,
     );
+    const dbSizeRow = firstRow(dbSize);
 
     return {
       timestamp: now.toISOString(),
       database: {
-        size: dbSize[0]?.size || 'unknown',
+        size: dbSizeRow?.size || 'unknown',
         tables: [
           { name: 'tickers', count: tickers },
           { name: 'raw_mentions', count: mentions },
@@ -183,7 +200,7 @@ export class HealthController {
       hitRateByCatalyst,
     ] = await Promise.all([
       // 1. Alerty wysłane na Telegram
-      this.dataSource.query(`
+      this.dataSource.query<WeeklyAlertSentRow[]>(`
         SELECT
           "ruleName" as rule_name, symbol, priority, "catalystType" as catalyst_type,
           message, "sentAt" as sent_at
@@ -193,7 +210,7 @@ export class HealthController {
       `),
 
       // 2. Status scrapera PDUFA + lista upcoming tickerów
-      this.dataSource.query(`
+      this.dataSource.query<WeeklyPdufaStatusRow[]>(`
         SELECT COUNT(*) as total_events,
           COUNT(*) FILTER (WHERE outcome IS NOT NULL) as resolved,
           COUNT(*) FILTER (WHERE outcome IS NULL AND pdufa_date > NOW()) as upcoming,
@@ -210,7 +227,7 @@ export class HealthController {
       `),
 
       // 3. Price outcomes — alerty z wypełnionymi cenami z okresu
-      this.dataSource.query(`
+      this.dataSource.query<WeeklyPriceOutcomeRow[]>(`
         SELECT
           "ruleName" as rule_name,
           symbol,
@@ -250,7 +267,7 @@ export class HealthController {
       `),
 
       // 4. Hit rate per rule_name (1d + 3d)
-      this.dataSource.query(`
+      this.dataSource.query<WeeklyHitRateByRuleRow[]>(`
         SELECT
           "ruleName" as rule_name,
           COUNT(*) as total_alerts,
@@ -304,7 +321,7 @@ export class HealthController {
       `),
 
       // 5. Hit rate per catalyst_type (1d + 3d)
-      this.dataSource.query(`
+      this.dataSource.query<WeeklyHitRateByCatalystRow[]>(`
         SELECT
           COALESCE("catalystType", 'unknown') as catalyst_type,
           COUNT(*) as total_alerts,
@@ -357,13 +374,14 @@ export class HealthController {
         ORDER BY total_alerts DESC
       `),
     ]);
+    const pdufaStatusRow = firstRow(pdufaStatus);
 
     return {
       generatedAt: new Date().toISOString(),
       periodDays: days,
       sections: {
         alertsSent,
-        pdufaStatus: pdufaStatus[0] || {},
+        pdufaStatus: pdufaStatusRow || {},
         priceOutcomes,
         hitRateByRule,
         hitRateByCatalyst,
@@ -384,14 +402,20 @@ export class HealthController {
     // Ostatnie logi kolektorów (per kolektor: last 5 runs).
     // POLYGON (options flow) wyłączony 10.06, PDUFA_BIO wyłączony 21.06 — ich
     // historyczne FAILED-logi nie powinny świecić jako aktywne błędy systemu.
-    const activeCollectors = ['SEC_EDGAR'];
-    const disabledCollectors = ['STOCKTWITS', 'FINNHUB', 'REDDIT', 'PDUFA_BIO', 'POLYGON'];
+    const activeCollectors: CollectorSource[] = [CollectorSource.SEC_EDGAR];
+    const disabledCollectors: CollectorSource[] = [
+      CollectorSource.STOCKTWITS,
+      CollectorSource.FINNHUB,
+      CollectorSource.REDDIT,
+      CollectorSource.PDUFA_BIO,
+      CollectorSource.POLYGON,
+    ];
     // Klasy serwisów wyłączonych kolektorów — wykluczane z systemErrors (system_logs)
     const disabledCollectorClasses = ['PdufaBioService', 'OptionsFlowService', 'StocktwitsService', 'FinnhubService', 'RedditService'];
 
     const collectorHealthPromises = activeCollectors.map(async (source) => {
       const logs = await this.logRepo.find({
-        where: { collector: source as any },
+        where: { collector: source },
         order: { startedAt: 'DESC' },
         take: 10,
       });
@@ -416,7 +440,7 @@ export class HealthController {
 
     // Błędy systemowe (system_logs) z ostatnich 24h — z wykluczeniem wyłączonych
     // kolektorów (ich stare błędy to nie aktywne problemy; np. PDUFA 404 po wyłączeniu).
-    const systemErrors = await this.dataSource.query(`
+    const systemErrors = await this.dataSource.query<SystemErrorRow[]>(`
       SELECT module, class_name, function_name, error_message, duration_ms, created_at
       FROM system_logs
       WHERE status = 'error' AND created_at >= $1
@@ -426,7 +450,7 @@ export class HealthController {
     `, [last24h, disabledCollectorClasses]);
 
     // Statystyki alertów (7d)
-    const alertStats = await this.dataSource.query(`
+    const alertStats = await this.dataSource.query<AlertStatsRow[]>(`
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE delivered = true) as delivered,
@@ -436,13 +460,14 @@ export class HealthController {
       FROM alerts
       WHERE "sentAt" >= $2
     `, [last24h, last7d]);
+    const alertStatsRow = firstRow(alertStats);
 
     // BullMQ failed jobs — via collection_logs FAILED w 7d (bez wyłączonych kolektorów)
     const failedJobs7d = await this.logRepo.count({
       where: {
         status: 'FAILED',
         startedAt: MoreThanOrEqual(last7d),
-        collector: Not(In(disabledCollectors)) as any,
+        collector: Not(In(disabledCollectors)),
       },
     });
 
@@ -459,7 +484,7 @@ export class HealthController {
         active: collectorHealth,
         disabled: disabledCollectors,
       },
-      systemErrors: systemErrors.map((e: any) => ({
+      systemErrors: systemErrors.map((e) => ({
         module: e.module,
         className: e.class_name,
         function: e.function_name,
@@ -467,12 +492,12 @@ export class HealthController {
         durationMs: e.duration_ms,
         at: e.created_at,
       })),
-      alerts: alertStats[0] ? {
-        total7d: parseInt(alertStats[0].total),
-        delivered7d: parseInt(alertStats[0].delivered),
-        silent7d: parseInt(alertStats[0].silent),
-        tickers7d: parseInt(alertStats[0].tickers),
-        last24h: parseInt(alertStats[0].last_24h),
+      alerts: alertStatsRow ? {
+        total7d: parseInt(alertStatsRow.total),
+        delivered7d: parseInt(alertStatsRow.delivered),
+        silent7d: parseInt(alertStatsRow.silent),
+        tickers7d: parseInt(alertStatsRow.tickers),
+        last24h: parseInt(alertStatsRow.last_24h),
       } : null,
       failedJobs7d,
     };

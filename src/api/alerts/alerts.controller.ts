@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull, DataSource } from 'typeorm';
+import { Repository, Not, IsNull, DataSource, FindOptionsWhere } from 'typeorm';
 import { Alert, AlertRule, SecFiling } from '../../entities';
 import { EventType } from '../../events/event-types';
 import { PriceOutcomeService } from '../../price-outcome/price-outcome.service';
 import { computeAlphaForSlot } from '../../price-outcome/sector-alpha';
+import { RecentTimelineRow, SymbolTimelineRow, TimelineSymbolsRow } from './alerts-timeline-rows.types';
 
 /**
  * Pure function — transformuje Alert entity na outcome DTO dla `/api/alerts/outcomes`.
@@ -135,7 +136,7 @@ export class AlertsController {
     @Query('include_archived') includeArchived?: string,
   ) {
     const take = Math.min(parseInt(limit || '50', 10), 200);
-    const where: Record<string, any> = {};
+    const where: FindOptionsWhere<Alert> = {};
     if (symbol) {
       where.symbol = symbol.toUpperCase();
     }
@@ -215,7 +216,7 @@ export class AlertsController {
     @Query('symbol') symbol?: string,
   ) {
     const take = Math.min(parseInt(limit || '100', 10), 500);
-    const where: Record<string, any> = {
+    const where: FindOptionsWhere<Alert> = {
       priceAtAlert: Not(IsNull()),
       archived: false,
     };
@@ -254,7 +255,9 @@ export class AlertsController {
     const days = Math.max(1, Math.min(parseInt(daysParam || '30', 10) || 30, 365));
     const limit = Math.max(1, Math.min(parseInt(limitParam || '50', 10) || 50, 200));
 
-    const rows = await this.dataSource.query(`
+    // Typ wiersza: kolumny numeric/decimal przychodzą z pg jako STRING (patrz
+    // alerts-timeline-rows.types.ts) — stąd Number() w mapowaniu poniżej.
+    const rows = await this.dataSource.query<SymbolTimelineRow[]>(`
       SELECT
         id,
         symbol,
@@ -303,7 +306,7 @@ export class AlertsController {
       LIMIT $3
     `, [sym, days, limit]);
 
-    const alerts = rows.map((r: any) => ({
+    const alerts = rows.map((r) => ({
       ...r,
       priceAtAlert: r.priceAtAlert != null ? Number(r.priceAtAlert) : null,
       price1h: r.price1h != null ? Number(r.price1h) : null,
@@ -316,19 +319,23 @@ export class AlertsController {
     }));
 
     // Summary
-    const directions = alerts.filter((a: any) => a.alertDirection).map((a: any) => a.alertDirection);
-    const positive = directions.filter((d: string) => d === 'positive').length;
-    const negative = directions.filter((d: string) => d === 'negative').length;
+    // alertDirection to varchar|null — jawny odpowiednik dawnego filtra truthy: odrzuca null i pusty string.
+    const directions = alerts
+      .filter((a) => a.alertDirection != null && a.alertDirection !== '')
+      .map((a) => a.alertDirection);
+    const positive = directions.filter((d) => d === 'positive').length;
+    const negative = directions.filter((d) => d === 'negative').length;
     const totalDir = directions.length;
     const consistency = totalDir > 0 ? Math.round(Math.max(positive, negative) / totalDir * 100) : null;
     const dominant = positive > negative ? 'positive' : negative > positive ? 'negative' : 'mixed';
 
-    const correct = alerts.filter((a: any) => a.directionCorrect1d === true).length;
-    const evaluated = alerts.filter((a: any) => a.directionCorrect1d != null).length;
+    const correct = alerts.filter((a) => a.directionCorrect1d === true).length;
+    const evaluated = alerts.filter((a) => a.directionCorrect1d != null).length;
     const hitRate = evaluated > 0 ? Math.round(correct / evaluated * 100) : null;
 
-    const gaps = alerts.filter((a: any) => a.hoursSincePrev != null).map((a: any) => a.hoursSincePrev);
-    const avgGap = gaps.length > 0 ? Math.round(gaps.reduce((s: number, v: number) => s + v, 0) / gaps.length * 10) / 10 : null;
+    // Ten sam zbiór co dawne filter(!=null).map(hoursSincePrev) — type guard zawęża do number[].
+    const gaps = alerts.map((a) => a.hoursSincePrev).filter((v): v is number => v != null);
+    const avgGap = gaps.length > 0 ? Math.round(gaps.reduce((s, v) => s + v, 0) / gaps.length * 10) / 10 : null;
 
     return {
       symbol: sym,
@@ -351,7 +358,7 @@ export class AlertsController {
   async getTimelineSymbols(@Query('days') daysParam?: string) {
     const days = Math.max(1, Math.min(parseInt(daysParam || '30', 10) || 30, 365));
 
-    const rows = await this.dataSource.query(`
+    const rows = await this.dataSource.query<TimelineSymbolsRow[]>(`
       SELECT symbol, COUNT(*)::int AS "alertCount",
         MAX("sentAt") AS "lastAlert"
       FROM alerts
@@ -372,7 +379,7 @@ export class AlertsController {
     const days = Math.max(1, Math.min(parseInt(daysParam || '7', 10) || 7, 90));
     const limit = Math.max(1, Math.min(parseInt(limitParam || '30', 10) || 30, 100));
 
-    const rows = await this.dataSource.query(`
+    const rows = await this.dataSource.query<RecentTimelineRow[]>(`
       SELECT
         id, symbol, "ruleName", priority, "alertDirection", "catalystType",
         message, "priceAtAlert", price1h, price4h, price1d, price3d, "sentAt",
@@ -397,7 +404,7 @@ export class AlertsController {
       LIMIT $2
     `, [days, limit]);
 
-    const alerts = rows.map((r: any) => ({
+    const alerts = rows.map((r) => ({
       ...r,
       priceAtAlert: r.priceAtAlert != null ? Number(r.priceAtAlert) : null,
       price1h: r.price1h != null ? Number(r.price1h) : null,

@@ -13,6 +13,13 @@ import {
 } from '../../entities';
 import { EventType } from '../../events/event-types';
 import { BaseCollectorService } from '../shared/base-collector.service';
+import {
+  isFinnhubBasicFinancials,
+  isFinnhubCompanyProfile,
+  isFinnhubQuote,
+  readFinnhubInsiderSentimentEntries,
+  readFinnhubNewsArticles,
+} from './finnhub-api.types';
 
 const BASE_URL = 'https://finnhub.io/api/v1';
 
@@ -68,8 +75,10 @@ export class FinnhubService extends BaseCollectorService {
     const from = this.formatDate(weekAgo);
     const to = this.formatDate(today);
 
-    const articles = await this.fetchApi('/company-news', { symbol, from, to });
-    if (!Array.isArray(articles) || articles.length === 0) return 0;
+    const articles = readFinnhubNewsArticles(
+      await this.fetchApi('/company-news', { symbol, from, to }),
+    );
+    if (articles.length === 0) return 0;
 
     let newCount = 0;
 
@@ -116,16 +125,18 @@ export class FinnhubService extends BaseCollectorService {
     const to = this.formatDate(today);
 
     try {
-      const data = await this.fetchApi('/stock/insider-sentiment', {
-        symbol,
-        from,
-        to,
-      });
+      const entries = readFinnhubInsiderSentimentEntries(
+        await this.fetchApi('/stock/insider-sentiment', {
+          symbol,
+          from,
+          to,
+        }),
+      );
 
-      if (!data.data || data.data.length === 0) return 0;
+      if (entries.length === 0) return 0;
 
       let newCount = 0;
-      for (const entry of data.data) {
+      for (const entry of entries) {
         const transactionDate = new Date(
           entry.year,
           entry.month - 1,
@@ -168,12 +179,13 @@ export class FinnhubService extends BaseCollectorService {
   }
 
   /**
-   * Wrapper HTTP do Finnhub API z tokenem.
+   * Wrapper HTTP do Finnhub API z tokenem. Zwraca surowy JSON jako `unknown` —
+   * kształt per endpoint weryfikują guardy z `finnhub-api.types.ts`.
    */
   private async fetchApi(
     endpoint: string,
     params: Record<string, string> = {},
-  ): Promise<any> {
+  ): Promise<unknown> {
     const searchParams = new URLSearchParams({
       ...params,
       token: this.apiKey,
@@ -188,7 +200,8 @@ export class FinnhubService extends BaseCollectorService {
       throw new Error(`Finnhub HTTP ${res.status}: ${res.statusText}`);
     }
 
-    return res.json();
+    const body: unknown = await res.json();
+    return body;
   }
 
   private formatDate(date: Date): string {
@@ -206,7 +219,9 @@ export class FinnhubService extends BaseCollectorService {
   async getQuote(symbol: string): Promise<number | null> {
     try {
       const data = await this.fetchApi('/quote', { symbol });
-      if (!(data?.c > 0)) return null;
+      // Dawne `!(data?.c > 0)`: brak obiektu / brak liczbowego `c` / c<=0 (rynek zamknięty,
+      // delisting: same zera) → null.
+      if (!isFinnhubQuote(data) || !(data.c > 0)) return null;
       // Werdykt 01.09.2026 (SEM #2441): po delistingu Finnhub przez tygodnie oddawał
       // ostatni kurs sprzed zejścia z giełdy (16.51) jako bieżący → tracker wypełnił
       // 5 slotów identyczną ceną i alert wszedł do metryk jako 0.00%. `t` = unix ts
@@ -236,7 +251,8 @@ export class FinnhubService extends BaseCollectorService {
   } | null> {
     try {
       const data = await this.fetchApi('/stock/profile2', { symbol });
-      if (!data || Object.keys(data).length === 0) return null;
+      // Finnhub oddaje `{}` (HTTP 200) dla nieznanego symbolu → null (jak dotąd).
+      if (!isFinnhubCompanyProfile(data) || Object.keys(data).length === 0) return null;
       return {
         marketCapMln: typeof data.marketCapitalization === 'number' ? data.marketCapitalization : null,
         exchange: data.exchange ?? null,
@@ -255,7 +271,7 @@ export class FinnhubService extends BaseCollectorService {
   async get10DayAvgVolumeMlnShares(symbol: string): Promise<number | null> {
     try {
       const data = await this.fetchApi('/stock/metric', { symbol, metric: 'all' });
-      const v = data?.metric?.['10DayAverageTradingVolume'];
+      const v = isFinnhubBasicFinancials(data) ? data.metric['10DayAverageTradingVolume'] : undefined;
       return typeof v === 'number' && v > 0 ? v : null;
     } catch (err) {
       this.logger.warn(`get10DayAvgVolumeMlnShares(${symbol}) error: ${errMsg(err)}`);
