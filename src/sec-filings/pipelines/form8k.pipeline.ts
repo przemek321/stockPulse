@@ -2,7 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, FindOptionsWhere } from 'typeorm';
 import { AlertDeliveryGate } from '../../alerts/alert-delivery-gate.service';
 import { AlertDispatcherService, buildDispatcherUnavailableFallback } from '../../alerts/alert-dispatcher.service';
 import { TelegramFormatterService } from '../../alerts/telegram/telegram-formatter.service';
@@ -42,6 +42,7 @@ import {
 } from '../utils/extract-guidance-status';
 import { buildFix16Shadow } from '../utils/fix16-shadow';
 import { detectMissingDataFacts } from '../utils/missing-data-detector';
+import { parseEdgarIndexItems } from './edgar-filing-index.types';
 
 /**
  * Pipeline analizy GPT dla filingów 8-K.
@@ -262,9 +263,13 @@ export class Form8kPipeline {
         consensusBlock,
       );
 
-      // Wyślij do GPT
-      const rawResponse = await this.azureOpenai.analyzeCustomPrompt(prompt);
-      if (!rawResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
+      // Wyślij do GPT. `analyzeCustomPrompt` zwraca `any | null` (surowy JSON z VM:
+      // string z tekstem GPT albo już sparsowany obiekt) — trzymamy jako `unknown`,
+      // walidacja kształtu jest niżej w Zod (parseGptResponse). `Boolean()` zachowuje
+      // dokładnie dawną semantykę `!rawResponse` (null = VM offline, '' = pusta odpowiedź).
+      const rawResponse: unknown = await this.azureOpenai.analyzeCustomPrompt(prompt);
+      const hasResponse = Boolean(rawResponse);
+      if (!hasResponse) return { action: 'SKIP_VM_OFFLINE', symbol: payload.symbol, traceId: payload.traceId };
 
       // Waliduj JSON z GPT (Zod)
       // S20-T03 (28.05.2026): usunięty retry analogicznie do form4.pipeline.ts —
@@ -622,7 +627,7 @@ export class Form8kPipeline {
   /**
    * Obsługa Item 1.03 — Bankruptcy. Natychmiastowy alert CRITICAL bez GPT.
    */
-  private async handleBankruptcy(symbol: string, filing: SecFiling, ticker?: any): Promise<void> {
+  private async handleBankruptcy(symbol: string, filing: SecFiling, ticker?: Ticker | null): Promise<void> {
     const ruleName = '8-K Bankruptcy';
     const rule = await this.ruleRepo.findOne({
       where: { name: ruleName, isActive: true },
@@ -724,13 +729,13 @@ export class Form8kPipeline {
         return this.fetchDirectDocument(documentUrl);
       }
 
-      const indexData = await indexRes.json();
-      const items = indexData?.directory?.item;
-      if (!Array.isArray(items)) return this.fetchDirectDocument(documentUrl);
+      const indexData: unknown = await indexRes.json();
+      const items = parseEdgarIndexItems(indexData);
+      if (!items) return this.fetchDirectDocument(documentUrl);
 
       // Znajdź główny dokument 8-K (nie XBRL, nie exhibit, nie index)
-      const mainDoc = items.find((item: any) => {
-        const name = item.name?.toLowerCase() ?? '';
+      const mainDoc = items.find(item => {
+        const name = item.name.toLowerCase();
         return (
           (name.endsWith('.htm') || name.endsWith('.html')) &&
           !name.startsWith('r1') && !name.startsWith('r2') &&
@@ -797,17 +802,19 @@ export class Form8kPipeline {
       });
       if (!indexRes.ok) return null;
 
-      const indexData = await indexRes.json();
-      const items = indexData?.directory?.item;
-      if (!Array.isArray(items)) return null;
+      const indexData: unknown = await indexRes.json();
+      const items = parseEdgarIndexItems(indexData);
+      if (!items) return null;
 
-      const exhibit = items.find((entry: any) => {
-        const name = (entry?.name ?? '').toLowerCase();
+      const exhibit = items.find(entry => {
+        const name = entry.name.toLowerCase();
         if (!name.endsWith('.htm') && !name.endsWith('.html')) return false;
         // Match: ex(hibit)?[-_]?99[-_.]?1 — łapie ex991, ex-99-1, exhibit99.1, etc.
         return /ex(hibit)?[-_]?99[-_.]?1\b/.test(name) || /ex(hibit)?991/.test(name);
       });
-      if (!exhibit?.name) return null;
+      // Dopasowany wpis ma z definicji niepusty `name` (regex wymaga "ex…") — dawne
+      // `!exhibit?.name` sprowadza się do braku dopasowania.
+      if (!exhibit) return null;
 
       const docRes = await fetch(`${dirUrl}/${exhibit.name}`, {
         headers: {
@@ -852,8 +859,9 @@ export class Form8kPipeline {
     catalystType?: string,
   ): Promise<boolean> {
     const cutoff = new Date(Date.now() - Math.max(throttleMinutes, 1) * 60_000);
-    const where: any = { ruleName, symbol, sentAt: MoreThan(cutoff) };
-    if (catalystType) where.catalystType = catalystType;
+    const where: FindOptionsWhere<Alert> = { ruleName, symbol, sentAt: MoreThan(cutoff) };
+    // Dawne `if (catalystType)` — pusty string też NIE zawęża zapytania (identyczna semantyka).
+    if (catalystType !== undefined && catalystType !== '') where.catalystType = catalystType;
     return !!(await this.alertRepo.findOne({ where }));
   }
 }

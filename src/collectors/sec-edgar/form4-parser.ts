@@ -1,4 +1,12 @@
 import { XMLParser } from 'fast-xml-parser';
+import {
+  Form4OwnershipDocumentXml,
+  Form4ReportingOwnerXml,
+  Form4TransactionXml,
+  isForm4XmlRoot,
+  XmlElement,
+  xmlElement,
+} from './form4-xml.types';
 
 /**
  * Sparsowana transakcja z Form 4 SEC EDGAR.
@@ -20,8 +28,9 @@ export interface Form4Transaction {
 /**
  * Mapowanie kodów transakcji SEC na czytelne typy.
  * https://www.sec.gov/about/forms/form4data.pdf
+ * `Partial` — nieznany kod (klucz spoza mapy) daje `undefined` → fallback 'OTHER'.
  */
-const TRANSACTION_CODE_MAP: Record<string, Form4Transaction['transactionType']> = {
+const TRANSACTION_CODE_MAP: Partial<Record<string, Form4Transaction['transactionType']>> = {
   P: 'BUY',       // Purchase — zakup na rynku
   S: 'SELL',       // Sale — sprzedaż na rynku
   A: 'GRANT',      // Award/Grant — przyznanie akcji/opcji
@@ -41,12 +50,45 @@ const TRANSACTION_CODE_MAP: Record<string, Form4Transaction['transactionType']> 
 };
 
 /**
+ * Prawdziwość JS surowej wartości XML — 1:1 z dawnym `if (x)` / `x || fallback` na `any`
+ * (`''` / `0` / `false` / `undefined` = „brak"), tylko bez `any` w warunku.
+ * Uwaga: po strnum `<isOfficer>0</isOfficer>` to liczba 0 — falsy, jak dotąd.
+ */
+function truthy(value: unknown): boolean {
+  return Boolean(value);
+}
+
+/**
+ * `parseFloat(String(x))` liścia XML — ta sama koercja co dotąd na `any`: liczba po strnum →
+ * tekst → liczba; `''`, tekst nienumeryczny lub liść-obiekt (np. `<transactionPricePerShare>`
+ * z samym `<footnoteId/>`, bez `<value>` → '[object Object]') → NaN, które wołający zamienia
+ * przez `|| 0` / `|| null` dokładnie jak dotąd.
+ */
+function leafToFloat(value: unknown): number {
+  return parseFloat(String(value));
+}
+
+/**
+ * `new Date(x)` dla surowej wartości XML z zachowaniem koercji, którą dawał `new Date(any)`:
+ * string/number wprost, boolean → ToNumber (`true` → 1 ms epoki), pozostałe → ToString
+ * (`'[object Object]'` → Invalid Date). W realnych filingach to zawsze string "YYYY-MM-DD"
+ * z `<transactionDate><value>`.
+ */
+function toDate(value: unknown): Date {
+  if (typeof value === 'string' || typeof value === 'number') return new Date(value);
+  if (typeof value === 'boolean') return new Date(Number(value));
+  return new Date(String(value));
+}
+
+/**
  * Parsuje XML dokumentu Form 4 SEC EDGAR.
  *
  * Struktura XML: <ownershipDocument> z sekcjami:
  * - reportingOwner → imię + rola insidera
  * - nonDerivativeTable → transakcje na akcjach zwykłych
  * - derivativeTable → transakcje na instrumentach pochodnych (opcje itd.)
+ *
+ * Kształt drzewa po fast-xml-parser i pułapki strnum: `form4-xml.types.ts`.
  *
  * Zwraca tablicę transakcji (Form 4 może mieć wiele transakcji).
  * Puste tablice (brak transakcji) lub błędne pola → skip, bez crash.
@@ -67,15 +109,24 @@ export function parseForm4Xml(xml: string): Form4Transaction[] {
     },
   });
 
-  const doc = parser.parse(xml);
-  const ownership = doc.ownershipDocument;
-  if (!ownership) {
+  const doc: unknown = parser.parse(xml);
+  const ownershipRaw = isForm4XmlRoot(doc) ? doc.ownershipDocument : undefined;
+  if (!truthy(ownershipRaw)) {
     throw new Error('Brak <ownershipDocument> w XML');
   }
+  // Prawdziwy, ale bezdzietny (tekstowy) <ownershipDocument> → jak dotąd: brak sekcji = 0 transakcji.
+  const ownership: Form4OwnershipDocumentXml = xmlElement(ownershipRaw) ?? {};
 
-  // Wyciągnij dane insiderów — obsługuje multi-reportingOwner (Sprint 16 FLAG #30 fix)
-  const ownersRaw = ownership.reportingOwner || [];
-  const ownersList = Array.isArray(ownersRaw) ? ownersRaw : [ownersRaw];
+  // Wyciągnij dane insiderów — obsługuje multi-reportingOwner (Sprint 16 FLAG #30 fix).
+  // Z `isArray` to zawsze tablica; wariant pojedynczego elementu zachowany defensywnie
+  // (dawne `reportingOwner || []` + `Array.isArray`: falsy → [], tablica → ona, inne → [x]).
+  const ownersRaw = ownership.reportingOwner;
+  let ownersList: XmlElement<Form4ReportingOwnerXml>[] = [];
+  if (Array.isArray(ownersRaw)) {
+    ownersList = ownersRaw;
+  } else if (ownersRaw !== undefined && truthy(ownersRaw)) {
+    ownersList = [ownersRaw];
+  }
   const { name: insiderName, role: insiderRole } = mergeOwnerRoles(ownersList);
 
   // Doc-level checkbox 10b5-1 (Pakiet 1 fix #0, 09.06.2026): <aff10b5One>1</aff10b5One>.
@@ -88,22 +139,22 @@ export function parseForm4Xml(xml: string): Form4Transaction[] {
   // (case GILD O'Day 29.04.2026: aff10b5One=1, system potraktował jako discretionary).
   // Akceptowane wartości spójne z edgar_fetcher.py: '1' / 'true' / 'y' (xs:boolean
   // dopuszcza tylko 1/0/true/false; 'Y' to defensywa zgodna z per-transaction fallbackiem).
-  const aff10b5Raw = String(ownership.aff10b5One ?? '').trim().toLowerCase();
+  // `unknown` jawnie: TS typuje `unknown ?? ''` jako `{}`, a to liść XML (string/number/boolean/obiekt).
+  const aff10b5Value: unknown = ownership.aff10b5One ?? '';
+  const aff10b5Raw = String(aff10b5Value).trim().toLowerCase();
   const docLevel10b51 = aff10b5Raw === '1' || aff10b5Raw === 'true' || aff10b5Raw === 'y';
 
   const transactions: Form4Transaction[] = [];
 
   // Transakcje na akcjach zwykłych (non-derivative)
-  const nonDerivTxns =
-    ownership.nonDerivativeTable?.nonDerivativeTransaction || [];
+  const nonDerivTxns = xmlElement(ownership.nonDerivativeTable)?.nonDerivativeTransaction ?? [];
   for (const txn of nonDerivTxns) {
     const parsed = parseTransaction(txn, insiderName, insiderRole, docLevel10b51);
     if (parsed) transactions.push(parsed);
   }
 
   // Transakcje na instrumentach pochodnych (derivative) — np. opcje
-  const derivTxns =
-    ownership.derivativeTable?.derivativeTransaction || [];
+  const derivTxns = xmlElement(ownership.derivativeTable)?.derivativeTransaction ?? [];
   for (const txn of derivTxns) {
     const parsed = parseTransaction(txn, insiderName, insiderRole, docLevel10b51);
     if (parsed) transactions.push(parsed);
@@ -117,35 +168,40 @@ export function parseForm4Xml(xml: string): Form4Transaction[] {
  * Zwraca null jeśli brakuje kluczowych danych.
  */
 function parseTransaction(
-  txn: any,
+  txn: XmlElement<Form4TransactionXml>,
   insiderName: string,
   insiderRole: string | null,
   docLevel10b51: boolean,
 ): Form4Transaction | null {
   try {
-    // Kod transakcji (P, S, M, A, F, G itd.)
-    const code =
-      txn.transactionCoding?.transactionCode ||
-      txn.transactionCoding?.transactionCode ||
-      '';
-    const transactionType = TRANSACTION_CODE_MAP[code] || 'OTHER';
+    // Pusty/tekstowy element (<nonDerivativeTransaction/> → '') nie ma pól → jak dotąd shares=0 → skip
+    const t = xmlElement(txn);
+    if (t === undefined) return null;
 
-    // Liczba akcji
-    const sharesRaw =
-      txn.transactionAmounts?.transactionShares?.value ??
-      txn.transactionAmounts?.transactionShares ??
+    // Kod transakcji (P, S, M, A, F, G itd.)
+    const coding = xmlElement(t.transactionCoding);
+    const codeRaw = coding?.transactionCode;
+    const code = truthy(codeRaw) ? String(codeRaw) : '';
+    const transactionType = TRANSACTION_CODE_MAP[code] ?? 'OTHER';
+
+    // Liczba akcji. Surowe wartości liści trzymamy jako `unknown` (TS typowałby `x ?? 0` jako `{}`),
+    // a koercję robi leafToFloat — identyczną z dawnym `parseFloat(String(any))`.
+    const amounts = xmlElement(t.transactionAmounts);
+    const sharesRaw: unknown =
+      xmlElement(amounts?.transactionShares)?.value ??
+      amounts?.transactionShares ??
       0;
-    const shares = Math.abs(parseFloat(String(sharesRaw)) || 0);
+    const shares = Math.abs(leafToFloat(sharesRaw) || 0);
     if (shares === 0) return null; // Brak akcji → skip
 
     // Cena za akcję (może być pusta dla grantów/giftów)
-    const priceRaw =
-      txn.transactionAmounts?.transactionPricePerShare?.value ??
-      txn.transactionAmounts?.transactionPricePerShare ??
+    const priceRaw: unknown =
+      xmlElement(amounts?.transactionPricePerShare)?.value ??
+      amounts?.transactionPricePerShare ??
       null;
     const pricePerShare =
       priceRaw != null && priceRaw !== '' && priceRaw !== 0
-        ? parseFloat(String(priceRaw)) || null
+        ? leafToFloat(priceRaw) || null
         : null;
 
     // Wartość transakcji
@@ -153,18 +209,17 @@ function parseTransaction(
       pricePerShare != null ? Math.round(shares * pricePerShare * 100) / 100 : 0;
 
     // Data transakcji
-    const dateRaw =
-      txn.transactionDate?.value ?? txn.transactionDate ?? null;
-    if (!dateRaw) return null; // Brak daty transakcji — pomijamy (zamiast wstawiać dzisiejszą)
-    const transactionDate = new Date(dateRaw);
+    const dateRaw: unknown = xmlElement(t.transactionDate)?.value ?? t.transactionDate ?? null;
+    if (!truthy(dateRaw)) return null; // Brak daty transakcji — pomijamy (zamiast wstawiać dzisiejszą)
+    const transactionDate = toDate(dateRaw);
 
     // Plan 10b5-1 — zaplanowana transakcja (niższy priorytet sygnału).
     // Źródło prawdy: doc-level <aff10b5One> (docLevel10b51, parsowany w parseForm4Xml).
     // Per-transaction tag zachowany jako fallback dla nietypowych filerów — w realnych
     // filingach EDGAR nie występuje (Pakiet 1 fix #0).
-    const rule10b5Raw =
-      txn.transactionCoding?.['Rule10b5-1Transaction'] ??
-      txn.transactionCoding?.rule10b51Transaction ??
+    const rule10b5Raw: unknown =
+      coding?.['Rule10b5-1Transaction'] ??
+      coding?.rule10b51Transaction ??
       '';
     const is10b51Plan =
       docLevel10b51 ||
@@ -172,12 +227,13 @@ function parseTransaction(
       String(rule10b5Raw).toUpperCase() === 'Y';
 
     // Akcje po transakcji (z postTransactionAmounts)
-    const sharesAfterRaw =
-      txn.postTransactionAmounts?.sharesOwnedFollowingTransaction?.value ??
-      txn.postTransactionAmounts?.sharesOwnedFollowingTransaction ??
+    const post = xmlElement(t.postTransactionAmounts);
+    const sharesAfterRaw: unknown =
+      xmlElement(post?.sharesOwnedFollowingTransaction)?.value ??
+      post?.sharesOwnedFollowingTransaction ??
       null;
     const sharesOwnedAfter =
-      sharesAfterRaw != null ? parseFloat(String(sharesAfterRaw)) || null : null;
+      sharesAfterRaw != null ? leafToFloat(sharesAfterRaw) || null : null;
 
     return {
       insiderName,
@@ -207,7 +263,9 @@ function parseTransaction(
  * Brać pierwszego ownera = skażone dane (Director SELL anti-signal błędnie
  * aplikowany do transakcji gdzie faktyczny decision-maker jest CEO).
  */
-function mergeOwnerRoles(owners: any[]): { name: string; role: string | null } {
+function mergeOwnerRoles(
+  owners: XmlElement<Form4ReportingOwnerXml>[],
+): { name: string; role: string | null } {
   if (owners.length === 0) {
     return { name: 'Unknown', role: null };
   }
@@ -226,7 +284,7 @@ function mergeOwnerRoles(owners: any[]): { name: string; role: string | null } {
   for (const owner of owners) {
     names.push(extractInsiderName(owner));
     const role = extractInsiderRole(owner);
-    if (role) allRoles.push(role);
+    if (role !== null) allRoles.push(role); // extractInsiderRole nigdy nie zwraca '' (join niepustych parts)
   }
 
   // Unikalne role-parts (niezależnie od owner)
@@ -251,7 +309,7 @@ function mergeOwnerRoles(owners: any[]): { name: string; role: string | null } {
   // (DATA GAP CBIO/ARTV/PBLS 20-22.07.2026).
   return {
     name: truncateForColumn(displayName, 255),
-    role: combinedRole ? truncateForColumn(combinedRole, 100) : null,
+    role: combinedRole !== null ? truncateForColumn(combinedRole, 100) : null,
   };
 }
 
@@ -262,28 +320,32 @@ function truncateForColumn(value: string, limit: number): string {
 
 /**
  * Wyciąga imię insidera z reportingOwner.
+ * Kolejność jak dotąd: rptOwnerName → rptOwnerCik → 'Unknown' (po prawdziwości JS: pusty tag
+ * `''` = brak). `String()` bo po strnum CIK jest liczbą (0001234567 → 1234567) — do kolumny
+ * varchar i tak trafiał jako tekst.
  */
-function extractInsiderName(owner: any): string {
-  if (!owner) return 'Unknown';
-  return (
-    owner.reportingOwnerId?.rptOwnerName ||
-    owner.reportingOwnerId?.rptOwnerCik ||
-    'Unknown'
-  );
+function extractInsiderName(owner: XmlElement<Form4ReportingOwnerXml>): string {
+  const id = xmlElement(xmlElement(owner)?.reportingOwnerId);
+  const name = id?.rptOwnerName;
+  if (truthy(name)) return String(name);
+  const cik = id?.rptOwnerCik;
+  if (truthy(cik)) return String(cik);
+  return 'Unknown';
 }
 
 /**
  * Wyciąga rolę insidera z reportingOwnerRelationship.
  * Składa z flag: isOfficer + officerTitle, isDirector, isTenPercentOwner.
+ * Flagi po strnum: "1" → 1, "true" → true, "0" → 0 — stąd `String(x) === '1' || x === true`.
  */
-function extractInsiderRole(owner: any): string | null {
-  const rel = owner?.reportingOwnerRelationship;
-  if (!rel) return null;
+function extractInsiderRole(owner: XmlElement<Form4ReportingOwnerXml>): string | null {
+  const rel = xmlElement(xmlElement(owner)?.reportingOwnerRelationship);
+  if (rel === undefined) return null;
 
   const parts: string[] = [];
 
   // officerTitle jest najdokładniejszy (np. "Chief Executive Officer")
-  if (rel.officerTitle) {
+  if (truthy(rel.officerTitle)) {
     parts.push(String(rel.officerTitle));
   } else if (String(rel.isOfficer) === '1' || rel.isOfficer === true) {
     parts.push('Officer');
