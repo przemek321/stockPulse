@@ -11,7 +11,7 @@ drugi przypadek LLM: klasyfikacja footnotów → `{ isOfferingParticipation: boo
 - `src/agents/auditor/llm-resolver.ts` — wstrzykuje **`AnthropicClientService`** bezpośrednio (nie alias
   `AzureOpenaiClientService`); prompt → `analyzeCustomPrompt()` → walidacja zod (`AuditorLlmResultSchema`, zod 3.25)
 - `src/agents/auditor/llm-budget.ts` — Redis `INCR auditor:llm:YYYY-MM-DD` TTL 48h, `AUDITOR_LLM_DAILY_MAX` (env, domyślnie 20);
-  **osobny klucz** od `DailyCapService` (`gpt:daily:<ticker>` — sprawdzić dokładny prefiks w `daily-cap.service.ts` przed implementacją, żeby nie kolidować)
+  **osobny klucz** od `DailyCapService` — **rozstrzygnięte 28.09**: DailyCap używa `gpt:daily:<ticker>:<date>` (`daily-cap.service.ts:62`); audytor używa `auditor:llm:<date>` — prefiksy rozłączne
 - `test/unit/auditor-llm-resolver.spec.ts` — mock klienta; test: przekroczony budżet → brak wywołania, finding `INFO LLM_BUDGET_EXHAUSTED`
 
 ## Inwarianty

@@ -31,7 +31,7 @@ w nowym module, skanujący `alerts` bez findingów. Wzorzec: `price-outcome.serv
 - Read-only na `alerts/sec_filings/insider_trades/tickers`; jedyny INSERT do `agent_findings`.
 - 0 importów `TelegramService`/formattera/pipeline'ów. `grep` w weryfikacji.
 - CRON nie może przekroczyć 60 s (50 alertów × czyste checki ≪ 1 s; 3 zapytania per alert).
-- `@Logged('agents')` — moduł `agents` musi być dopuszczony w `system_logs.module` (sprawdzić enum/typ w `system-log.entity.ts`; jeśli pg enum → NIE dodawać wartości (27.07), użyć istniejącego `'alerts'`? — **do rozstrzygnięcia odczytem przed implementacją**).
+- `@Logged('agents')` — **rozstrzygnięte 28.09**: `system_logs.module` to `varchar(50)` (`system-log.entity.ts:28`), nie pg enum; `Logged(moduleName: string)` (`logged.decorator.ts:213`) przyjmuje dowolny string → `'agents'` bez zmian schematu.
 
 ## Weryfikacja
 ```sql
