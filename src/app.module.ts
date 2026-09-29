@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AgentsModule } from './agents/agents.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { ApiModule } from './api/api.module';
 import { CollectorsModule } from './collectors/collectors.module';
@@ -32,6 +33,7 @@ import { SystemLogModule } from './system-log/system-log.module';
     OptionsFlowModule,
     AlertsModule,
     PriceOutcomeModule,
+    AgentsModule,
     ApiModule,
   ],
 })
