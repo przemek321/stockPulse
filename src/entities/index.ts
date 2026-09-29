@@ -10,3 +10,4 @@ export { PdufaCatalyst } from './pdufa-catalyst.entity';
 export { SystemLog } from './system-log.entity';
 export { OptionsFlow } from './options-flow.entity';
 export { OptionsVolumeBaseline } from './options-volume-baseline.entity';
+export { AgentFinding } from './agent-finding.entity';
