@@ -125,8 +125,8 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   insider_trades 14d / `collectedAt` 3h) i przepuszcza przez 13 czystych checków (`auditor/checks.ts`:
   PRICE_FROZEN, ENTRY_GAP_UNENTERABLE, POST_CLOSE_8K_ENTRY_PRICE, TRANSACTION_TYPE_MISMATCH, ESCAPE_MISSING…).
   **Jedyny zapis: tabela `agent_findings`** (varchar zamiast enumów, bez FK, unique `(alertId, checkId)`).
-  `AUDITOR_ENABLED=false` domyślnie (CRON loguje „disabled"); ręczny przebieg: `docker exec stockpulse-app node
-  dist/agents/cli/auditor-shadow-run.js --limit 30`. Zero Telegrama, zero LLM (etap 2 — MCP + LLM — po 01.11).
+  `AUDITOR_ENABLED=false` domyślnie (CRON loguje „disabled"); **na prod `true` od 29.09.2026** (decyzja usera).
+  Ręczny przebieg: `docker exec stockpulse-app node dist/agents/cli/auditor-shadow-run.js --limit 30`. Zero Telegrama, zero LLM (etap 2 — MCP + LLM — po 01.11).
   Ścieżka decyzyjna nietykalna: bug znaleziony przez audyt = raport, nie fix. Plan: `tasks-2026-09-27/`,
   raport #1: [doc/AUDITOR-SHADOW-RUN-2026-09-29.md](doc/AUDITOR-SHADOW-RUN-2026-09-29.md).
 - **Tier 1 observability**: `system_logs` z `trace_id`/`level`/`ticker`/`decision_reason`.
