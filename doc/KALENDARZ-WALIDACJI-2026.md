@@ -189,6 +189,17 @@ N≥10 ∧ hit ≥60% ∧ med α ≥+2 ∧ REAL>0) i wyjątek `ma` (N=2 <3, odł
   podejrzenie niezgodności definicji EPS, nie euforii.
 - **Kontekst**: [PLAN-EDGE-IMPROVEMENTS-2026-06-09.md](PLAN-EDGE-IMPROVEMENTS-2026-06-09.md) §2.P1, commit `44732fc`.
 
+## ~~2026-09-29 — audytor shadow-run #1 (etap 1 agentów)~~ ✅ WYKONANY 29.09 — WERDYKT (a)
+
+- **Nie jest gate'em systemu** (nie w `VALIDATION_CALENDAR` raportu 8h) — zapis dla porządku.
+- 61 alertów (#2452–#2512) + SEM #2441: **1 P1 TRUE** (SEM PRICE_FROZEN), **25 P2, FP-rate 0/25**
+  (20× gap — KURA/INBX/ATEC/RLMD z werdyktu 23.09 4/4, dostarczony PODD #2470 SHORT −18,4% nieosiągalny;
+  4× dostarczone 8-K z ceną wejścia = zamknięcie; ABBV „wcześniej zapowiedziane" M&A), 0 AMBIGUOUS.
+  Raport: [AUDITOR-SHADOW-RUN-2026-09-29.md](AUDITOR-SHADOW-RUN-2026-09-29.md).
+- Werdykt **(a)**: 02 MCP + 04 LLM **po 01.11** (dziś 0 przypadków dla LLM). `AUDITOR_ENABLED=false` do decyzji.
+- Obserwacje raport-only dla werdyktu #2: `price1h` alertów w sesji po ~15:00 NY = kurs następnej sesji (ELV
+  #2446/#2447 „+3.8% po 1h" to poniedziałek 10:00 NY); 8-K 48/53 poza sesją; wniosek GPT ucinany do 300 zn.
+
 ## Wcześniejsze gate'y (dla porządku)
 
 - ~~2026-05-25 — FIX-13 Faza 3 decision deadline~~ (osobny wątek, Plan v3)

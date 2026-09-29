@@ -120,6 +120,15 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   w Telegramie). CRON co 1h, sloty `price1h/4h/1d/3d/7d` + XBI/IBB benchmark (sector-adjusted alpha,
   beta=1.0). Hard timeout 11d. Sloty liczone od otwarcia NYSE (`getEffectiveStartTime` — alerty
   pre-market/nocne kotwiczone na 9:30 ET; S20-T06 fix dla okna 00-04 UTC).
+- **Agent-audytor (shadow-mode, od 29.09.2026)** — `src/agents/`: `AgentOrchestratorService` CRON `*/15`
+  UTC skanuje `alerts` bez markera `_AUDITED` (30d, `priceOutcomeDone`), buduje kontekst (filing wg reguły,
+  insider_trades 14d / `collectedAt` 3h) i przepuszcza przez 13 czystych checków (`auditor/checks.ts`:
+  PRICE_FROZEN, ENTRY_GAP_UNENTERABLE, POST_CLOSE_8K_ENTRY_PRICE, TRANSACTION_TYPE_MISMATCH, ESCAPE_MISSING…).
+  **Jedyny zapis: tabela `agent_findings`** (varchar zamiast enumów, bez FK, unique `(alertId, checkId)`).
+  `AUDITOR_ENABLED=false` domyślnie (CRON loguje „disabled"); ręczny przebieg: `docker exec stockpulse-app node
+  dist/agents/cli/auditor-shadow-run.js --limit 30`. Zero Telegrama, zero LLM (etap 2 — MCP + LLM — po 01.11).
+  Ścieżka decyzyjna nietykalna: bug znaleziony przez audyt = raport, nie fix. Plan: `tasks-2026-09-27/`,
+  raport #1: [doc/AUDITOR-SHADOW-RUN-2026-09-29.md](doc/AUDITOR-SHADOW-RUN-2026-09-29.md).
 - **Tier 1 observability**: `system_logs` z `trace_id`/`level`/`ticker`/`decision_reason`.
   `@Logged()` + `extractLogMeta()`. Tiered cleanup (debug 2d / info 7d / warn+error 30d) 03:00 UTC.
 

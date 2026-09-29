@@ -1,5 +1,12 @@
 # StockPulse — MCP server (read-only) + agent-audytor w shadow mode — PLAN (etap 1)
 
+> **Stan 29.09.2026 — etap 1 WYKONANY** (00 `a623d84`, 01 `f9b4f88`, 03 `f3b0ba2`, 05 `a1a2756`, 06 `4d8780c`,
+> raport [doc/AUDITOR-SHADOW-RUN-2026-09-29.md](../doc/AUDITOR-SHADOW-RUN-2026-09-29.md), werdykt **(a)**).
+> Rozjazdy z planem: 00 = tylko zakres w manifeście (lock miał 3.25.76 od marca); checków jest **13**, nie 11
+> (+`OUTCOME_DONE_EMPTY`, +`CONCLUSION_CUT_AT_300`; ENTRY_GAP także SHORT i AMBIGUOUS dla alertów w sesji;
+> POST_CLOSE P2 tylko delivered; TRANSACTION_TYPE_MISMATCH obie reguły Form 4, pre-backfill → INFO); trades
+> także po `collectedAt`; OSCR #2505 = pozytyw POST_CLOSE (06:05 NY, nie 14:05). 02 MCP i 04 LLM: po 01.11.
+
 > Status: **PLAN zatwierdzony do napisania 28.09.2026, implementacja czeka na „rób"**.
 > Decyzje właściciela (28.09): kolejność 00→01→03→05→06→02→04; checki wg §Checki; MCP = osobny kontener
 > z read-only rolą Postgresa; cache EDGAR na dysku (200 MB / 30 d); start TERAZ, ale 02/04 (MCP, LLM) dopiero
