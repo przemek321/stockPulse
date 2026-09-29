@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "source": "prod DB (Jetson) 2026-09-29 — SELECT row_to_json(alerts/sec_filings/insider_trades); jedyna modyfikacja: sufiks Z w alert.sentAt (kolumna timestamp bez strefy, DB=UTC)",
+    "alertId": 2478,
+    "symbol": "UHS",
+    "ruleName": "8-K Material Event GPT",
+    "sentAt": "2026-08-17T20:35:16.08678Z",
+    "filingWindow": "[sentAt−3d, sentAt], formType wg reguły (8-K% → 8-K, inaczej 4), preferencja gptAnalysis IS NOT NULL",
+    "tradesWindow": "[sentAt−14d, sentAt] po symbolu",
+    "expectedFindings": [
+      "POST_CLOSE_8K_ENTRY_PRICE"
+    ],
+    "notes": "8-K Item 2.03 wysłany 20:35 UTC = 16:35 ET (po zamknięciu), priceAtAlert=170.53 vs price1h=175.91. Brak insider_trades w oknie."
+  },
+  "alert": {
+    "id": 2478,
+    "symbol": "UHS",
+    "ruleName": "8-K Material Event GPT",
+    "priority": "HIGH",
+    "channel": "TELEGRAM",
+    "message": "🟠 *StockPulse Alert*\n*HIGH* — \\$UHS 8\\-K Item 2\\.03\n\n📄 *Universal Health Services* \\(UHS\\)\n• Katalizator: ma\n\n🔴 *Wniosek GPT:*\nPrzejęcie Talkspace przez UHS to strategiczny ruch w kierunku cyfrowej psychiatrii i telemedycyny, jednak wiąże się ze znaczącym wzrostem zadłużenia w momencie, gdy stopy procentowe pozostają podwyższone, co może wywierać presję na wyniki finansowe w krótkim terminie\\. Rynek prawdopodobnie zareaguje \n\n• UHS zaciągnął 400 mln USD z instrumentu DDTL w ramach istniejącego Credit Agreement z JPMorgan Chase\n• Dodatkowe środki zostały pobrane z linii kredytowej rewolwingowej \\(Revolving Credit Facility\\) – całk\n• Talkspace to platforma telemedyczna specjalizująca się w zdrowiu psychicznym, co wpisuje się w strat\n• Oba zobowiązania \\(DDTL i Revolving Credit Facility\\) stanowią bezpośrednie zobowiązania finansowe spó\n\n• Conviction: \\-1\\.40 \\| Wpływ: negative / medium\n📌 *Akcja: SHORT* \\| Horyzont: 1\\-3d \\| Wejście: $170\\.53\n⏰ 2026\\-08\\-17T20:35:15\\.828Z",
+    "delivered": true,
+    "sentAt": "2026-08-17T20:35:16.08678Z",
+    "catalystType": "ma",
+    "alertDirection": "negative",
+    "priceAtAlert": 170.53,
+    "price1h": 175.91,
+    "price4h": 175.63,
+    "price1d": 177.93,
+    "price3d": 174.47,
+    "priceOutcomeDone": true,
+    "nonDeliveryReason": null,
+    "archived": false,
+    "xbiAtAlert": 159.53,
+    "xbi1d": 166.51,
+    "xbi3d": 166.58,
+    "ibbAtAlert": 201.93,
+    "ibb1d": 213.24,
+    "ibb3d": 213.71,
+    "price7d": 175.52,
+    "xbi7d": 168.03,
+    "ibb7d": 215.57
+  },
+  "filing": {
+    "id": 3174,
+    "symbol": "UHS",
+    "cik": "0000352915",
+    "formType": "8-K",
+    "accessionNumber": "0001193125-26-354078",
+    "filingDate": "2026-08-17",
+    "description": "8-K",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/352915/000119312526354078/uhs-20260817.htm",
+    "collectedAt": "2026-08-17T20:35:02.969854",
+    "gptAnalysis": {
+      "summary": "Universal Health Services zaciągnął 400 mln USD z opóźnionego kredytu terminowego (DDTL) oraz dodatkowe środki z linii rewolwingowej w celu sfinansowania przejęcia platformy telemedycznej Talkspace.",
+      "key_facts": [
+        "UHS zaciągnął 400 mln USD z instrumentu DDTL w ramach istniejącego Credit Agreement z JPMorgan Chase jako agentem administracyjnym",
+        "Dodatkowe środki zostały pobrane z linii kredytowej rewolwingowej (Revolving Credit Facility) – całkowita kwota przejęcia Talkspace nie została ujawniona w tym zgłoszeniu",
+        "Talkspace to platforma telemedyczna specjalizująca się w zdrowiu psychicznym, co wpisuje się w strategię ekspansji UHS w segmencie psychiatrycznym, ale stanowi nowe ryzyko operacyjne i integracyjne",
+        "Oba zobowiązania (DDTL i Revolving Credit Facility) stanowią bezpośrednie zobowiązania finansowe spółki, zwiększając jej łączne zadłużenie",
+        "Warunki kredytu były wcześniej ujawnione w raporcie 10-Q za Q2 2026, co ogranicza element zaskoczenia dotyczący struktury finansowania"
+      ],
+      "conclusion": "Przejęcie Talkspace przez UHS to strategiczny ruch w kierunku cyfrowej psychiatrii i telemedycyny, jednak wiąże się ze znaczącym wzrostem zadłużenia w momencie, gdy stopy procentowe pozostają podwyższone, co może wywierać presję na wyniki finansowe w krótkim terminie. Rynek prawdopodobnie zareaguje sceptycznie ze względu na niepewność co do synergii oraz wzrost dźwigni finansowej spółki.",
+      "conviction": -1.4,
+      "price_impact": {
+        "direction": "negative",
+        "magnitude": "medium",
+        "confidence": 0.62,
+        "time_horizon": "short_term"
+      },
+      "catalyst_type": "ma",
+      "requires_immediate_attention": true
+    },
+    "priceImpactDirection": "negative"
+  },
+  "trades": []
+}

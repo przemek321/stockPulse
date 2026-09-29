@@ -1,0 +1,123 @@
+{
+  "_meta": {
+    "source": "prod DB (Jetson) 2026-09-29 — SELECT row_to_json(alerts/sec_filings/insider_trades); jedyna modyfikacja: sufiks Z w alert.sentAt (kolumna timestamp bez strefy, DB=UTC)",
+    "alertId": 2431,
+    "symbol": "VRTX",
+    "ruleName": "Form 4 Insider Signal",
+    "sentAt": "2026-06-09T20:35:23.236253Z",
+    "filingWindow": "[sentAt−3d, sentAt], formType wg reguły (8-K% → 8-K, inaczej 4), preferencja gptAnalysis IS NOT NULL",
+    "tradesWindow": "[sentAt−14d, sentAt] po symbolu",
+    "expectedFindings": [
+      "TRANSACTION_TYPE_MISMATCH"
+    ],
+    "notes": "Realny mismatch: wiadomość „Plan 10b5-1: NIE\" dla Bozic Carmen SELL, a w insider_trades oba SELL-e tej osoby w oknie 14d mają is10b51Plan=true (backfill aff10b5One 10.06 po wysłaniu alertu 09.06). Reguła „Form 4 Insider Signal\" (SELL, sell_no_edge)."
+  },
+  "alert": {
+    "id": 2431,
+    "symbol": "VRTX",
+    "ruleName": "Form 4 Insider Signal",
+    "priority": "HIGH",
+    "channel": "TELEGRAM",
+    "message": "🟠 *StockPulse Alert*\n*HIGH* — \\$VRTX Sygnał Insidera\n\n👤 *Bozic Carmen* \\(EVP and CMO\\)\n• Transakcja: SELL 1,745 akcji @ $785,250\n• Udziały po transakcji: 21,015 akcji\n• Plan 10b5\\-1: NIE\n\n🔴 *Wniosek GPT:*\nKlaster sprzedaży przez kilku członków kadry kierowniczej bez planów 10b5\\-1 generuje umiarkowany sygnał niedźwiedzi, jednak historyczny wskaźnik trafności dla VRTX wynosi zaledwie 40%, a dwa ostatnie sygnały sprzedaży zakończyły się wzrostem kursu, co znacząco obniża wiarygodność sygnału\\.\n\n• Sprzedaż bez planu 10b5\\-1 – transakcja ma charakter uznaniowy, co zwiększa jej wartość sygnałową\n• Klaster sprzedaży: Carmen Bozic sprzedała łącznie \\~12 061 akcji w ciągu ostatnich 30 dni \\(4 transakc\n• Po transakcji Bozic posiada 21 015 akcji – sprzedana pula 1 745 sztuk stanowi ok\\. 7,7% obecnych zaso\n\n• Conviction: \\-0\\.80 \\| Wpływ: negative / medium\n⏰ 2026\\-06\\-09T20:35:22\\.994Z",
+    "delivered": false,
+    "sentAt": "2026-06-09T20:35:23.236253Z",
+    "catalystType": "insider",
+    "alertDirection": "negative",
+    "priceAtAlert": 445.77,
+    "price1h": 441.53,
+    "price4h": 436.28,
+    "price1d": 436.98,
+    "price3d": 446.17,
+    "priceOutcomeDone": true,
+    "nonDeliveryReason": "sell_no_edge",
+    "archived": false,
+    "xbiAtAlert": 131.38,
+    "xbi1d": 130.65,
+    "xbi3d": 135.75,
+    "ibbAtAlert": 169.36,
+    "ibb1d": 167.94,
+    "ibb3d": 171.66,
+    "price7d": 458.25,
+    "xbi7d": 139.12,
+    "ibb7d": 174.2
+  },
+  "filing": {
+    "id": 2385,
+    "symbol": "VRTX",
+    "cik": "0000875320",
+    "formType": "4",
+    "accessionNumber": "0000875320-26-000233",
+    "filingDate": "2026-06-09",
+    "description": "FORM 4",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/875320/000087532026000233",
+    "collectedAt": "2026-06-09T20:35:11.235407",
+    "gptAnalysis": {
+      "summary": "Carmen Bozic (EVP i CMO) sprzedała 1 745 akcji VRTX za ~785 tys. USD bez planu 10b5-1, w ramach szerszego klastra sprzedaży przez wielu insiderów w ciągu ostatnich 30 dni.",
+      "key_facts": [
+        "Sprzedaż bez planu 10b5-1 – transakcja ma charakter uznaniowy, co zwiększa jej wartość sygnałową",
+        "Klaster sprzedaży: Carmen Bozic sprzedała łącznie ~12 061 akcji w ciągu ostatnich 30 dni (4 transakcje), a dodatkowo inni insiderzy (Liu Joy, Bunnage Mark) również sprzedawali akcje",
+        "Po transakcji Bozic posiada 21 015 akcji – sprzedana pula 1 745 sztuk stanowi ok. 7,7% obecnych zasobów, co jest umiarkowanym odsetkiem",
+        "Historyczny hit rate sygnałów Form 4 dla VRTX wynosi tylko 40% (poniżej progu), a dwa ostatnie sygnały niedźwiedzie zakończyły się wzrostami odpowiednio +4,3% i +4,0%",
+        "Łączna wartość sprzedaży Bozic w ostatnim miesiącu przekracza 5,4 mln USD, co wskazuje na systematyczną realizację zysków"
+      ],
+      "conclusion": "Klaster sprzedaży przez kilku członków kadry kierowniczej bez planów 10b5-1 generuje umiarkowany sygnał niedźwiedzi, jednak historyczny wskaźnik trafności dla VRTX wynosi zaledwie 40%, a dwa ostatnie sygnały sprzedaży zakończyły się wzrostem kursu, co znacząco obniża wiarygodność sygnału.",
+      "conviction": -0.8,
+      "price_impact": {
+        "direction": "negative",
+        "magnitude": "medium",
+        "confidence": 0.45,
+        "time_horizon": "short_term"
+      },
+      "catalyst_type": "insider",
+      "requires_immediate_attention": false
+    },
+    "priceImpactDirection": "negative"
+  },
+  "trades": [
+    {
+      "id": 3218,
+      "symbol": "VRTX",
+      "insiderName": "Bozic Carmen",
+      "insiderRole": "EVP and CMO",
+      "transactionType": "SELL",
+      "shares": 1974,
+      "pricePerShare": 450,
+      "totalValue": 888300,
+      "transactionDate": "2026-05-29",
+      "accessionNumber": "0000875320-26-000228_0",
+      "collectedAt": "2026-06-02T20:05:11.306918",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 22760
+    },
+    {
+      "id": 3363,
+      "symbol": "VRTX",
+      "insiderName": "Liu Joy",
+      "insiderRole": "EVP and Chief Legal Officer",
+      "transactionType": "SELL",
+      "shares": 828,
+      "pricePerShare": 439.91,
+      "totalValue": 364245.48,
+      "transactionDate": "2026-06-01",
+      "accessionNumber": "0000875320-26-000230_0",
+      "collectedAt": "2026-06-03T20:35:14.541562",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 19959
+    },
+    {
+      "id": 3416,
+      "symbol": "VRTX",
+      "insiderName": "Bozic Carmen",
+      "insiderRole": "EVP and CMO",
+      "transactionType": "SELL",
+      "shares": 1745,
+      "pricePerShare": 450,
+      "totalValue": 785250,
+      "transactionDate": "2026-06-05",
+      "accessionNumber": "0000875320-26-000233_0",
+      "collectedAt": "2026-06-09T20:35:11.502089",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 21015
+    }
+  ]
+}

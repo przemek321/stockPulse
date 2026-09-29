@@ -1,0 +1,89 @@
+{
+  "_meta": {
+    "source": "prod DB (Jetson) 2026-09-29 — SELECT row_to_json(alerts/sec_filings/insider_trades); jedyna modyfikacja: sufiks Z w alert.sentAt (kolumna timestamp bez strefy, DB=UTC)",
+    "alertId": 2511,
+    "symbol": "DMRA",
+    "ruleName": "Form 4 Insider BUY",
+    "sentAt": "2026-09-28T11:02:15.308839Z",
+    "filingWindow": "[sentAt−3d, sentAt], formType wg reguły (8-K% → 8-K, inaczej 4), preferencja gptAnalysis IS NOT NULL",
+    "tradesWindow": "[sentAt−14d, sentAt] po symbolu",
+    "expectedFindings": [],
+    "notes": "Najnowszy Form 4 Insider BUY (DMRA, discovery, obs). Wszystkie checki negatywne: gap −1%, insider Jarrett Jennifer BUY plan=false, message pełny ze stopką."
+  },
+  "alert": {
+    "id": 2511,
+    "symbol": "DMRA",
+    "ruleName": "Form 4 Insider BUY",
+    "priority": "CRITICAL",
+    "channel": "TELEGRAM",
+    "message": "🔴 *StockPulse Alert*\n*CRITICAL* — \\$DMRA Sygnał Insidera\n\n👤 *Jarrett Jennifer* \\(Director, President and CEO, Director\\)\n• Transakcja: BUY 12,500 akcji @ $252,875\n• Udziały po transakcji: 512,500 akcji\n• Plan 10b5\\-1: NIE\n\n🟢 *Wniosek GPT:*\nTransakcja ma umiarkowanie pozytywny sygnał cenowy — zakup przez CEO bez harmonogramu 10b5\\-1 świadczy o silnym przekonaniu wewnętrznym co do perspektyw spółki\\. Brak innych transakcji insiderów w ostatnich 30 dniach nie wzmacnia sygnału klasterowego, jednak pozycja kierownictwa nadaje mu istotną wagę\n\n• Zakup dokonany przez najwyższego rangą insidera \\(CEO i Prezes\\) — najsilniejszy możliwy sygnał z punk\n• Transakcja NIE jest częścią planu 10b5\\-1, co wskazuje na spontaniczną decyzję i wyższe przekonanie r\n• Po transakcji CEO posiada 512 500 akcji — zakup stanowi \\~2,4% jej całkowitego pakietu, co jest umiar\n\n• Conviction: 1\\.40 \\| Wpływ: positive / medium\n📌 *Akcja: LONG* \\| Horyzont: 3\\-7d \\| Wejście: $20\\.66\n⏰ 28\\.09, 13:02 PL \\(28\\.09, 07:02 NY\\)",
+    "delivered": false,
+    "sentAt": "2026-09-28T11:02:15.308839Z",
+    "catalystType": "insider",
+    "alertDirection": "positive",
+    "priceAtAlert": 20.66,
+    "price1h": 20.46,
+    "price4h": 20.39,
+    "price1d": null,
+    "price3d": null,
+    "priceOutcomeDone": false,
+    "nonDeliveryReason": "observation",
+    "archived": false,
+    "xbiAtAlert": 155.03,
+    "xbi1d": null,
+    "xbi3d": null,
+    "ibbAtAlert": 209.77,
+    "ibb1d": null,
+    "ibb3d": null,
+    "price7d": null,
+    "xbi7d": null,
+    "ibb7d": null
+  },
+  "filing": {
+    "id": 3758,
+    "symbol": "DMRA",
+    "cik": "0001800315",
+    "formType": "4",
+    "accessionNumber": "0001193125-26-403355",
+    "filingDate": "2026-09-28",
+    "description": "FORM 4 (discovery)",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/1800315/000119312526403355",
+    "collectedAt": "2026-09-28T11:02:04.788847",
+    "gptAnalysis": {
+      "summary": "CEO i Prezes Jennifer Jarrett dokonała osobistego zakupu 12 500 akcji DMRA za łączną kwotę ~252 875 USD po cenie 20,23 USD, bez planu 10b5-1.",
+      "key_facts": [
+        "Zakup dokonany przez najwyższego rangą insidera (CEO i Prezes) — najsilniejszy możliwy sygnał z punktu widzenia hierarchii ról",
+        "Transakcja NIE jest częścią planu 10b5-1, co wskazuje na spontaniczną decyzję i wyższe przekonanie rynkowe",
+        "Po transakcji CEO posiada 512 500 akcji — zakup stanowi ~2,4% jej całkowitego pakietu, co jest umiarkowanym, ale zauważalnym sygnałem zaangażowania"
+      ],
+      "conclusion": "Transakcja ma umiarkowanie pozytywny sygnał cenowy — zakup przez CEO bez harmonogramu 10b5-1 świadczy o silnym przekonaniu wewnętrznym co do perspektyw spółki. Brak innych transakcji insiderów w ostatnich 30 dniach nie wzmacnia sygnału klasterowego, jednak pozycja kierownictwa nadaje mu istotną wagę.",
+      "conviction": 0.9,
+      "price_impact": {
+        "direction": "positive",
+        "magnitude": "medium",
+        "confidence": 0.65,
+        "time_horizon": "short_term"
+      },
+      "catalyst_type": "insider",
+      "requires_immediate_attention": false
+    },
+    "priceImpactDirection": "positive"
+  },
+  "trades": [
+    {
+      "id": 7096,
+      "symbol": "DMRA",
+      "insiderName": "Jarrett Jennifer",
+      "insiderRole": "Director, President and CEO, Director",
+      "transactionType": "BUY",
+      "shares": 12500,
+      "pricePerShare": 20.23,
+      "totalValue": 252875,
+      "transactionDate": "2026-09-25",
+      "accessionNumber": "0001193125-26-403355_0",
+      "collectedAt": "2026-09-28T11:02:04.819315",
+      "is10b51Plan": false,
+      "sharesOwnedAfter": 512500
+    }
+  ]
+}

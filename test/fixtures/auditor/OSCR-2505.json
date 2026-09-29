@@ -1,0 +1,153 @@
+{
+  "_meta": {
+    "source": "prod DB (Jetson) 2026-09-29 — SELECT row_to_json(alerts/sec_filings/insider_trades); jedyna modyfikacja: sufiks Z w alert.sentAt (kolumna timestamp bez strefy, DB=UTC)",
+    "alertId": 2505,
+    "symbol": "OSCR",
+    "ruleName": "8-K Earnings Miss",
+    "sentAt": "2026-09-16T10:05:16.329475Z",
+    "filingWindow": "[sentAt−3d, sentAt], formType wg reguły (8-K% → 8-K, inaczej 4), preferencja gptAnalysis IS NOT NULL",
+    "tradesWindow": "[sentAt−14d, sentAt] po symbolu",
+    "expectedFindings": [
+      "POST_CLOSE_8K_ENTRY_PRICE"
+    ],
+    "notes": "KOREKTA planu 03: OSCR nie jest kontrprzykładem — stopka „16.09, 06:05 NY\" = pre-market, isNyseOpen=false → check odpala (cena wejścia = poprzednie zamknięcie). Kontrprzykład w sesji: SEM #2441."
+  },
+  "alert": {
+    "id": 2505,
+    "symbol": "OSCR",
+    "ruleName": "8-K Earnings Miss",
+    "priority": "HIGH",
+    "channel": "TELEGRAM",
+    "message": "🟠 *StockPulse Alert*\n*HIGH* — \\$OSCR 8\\-K Item 7\\.01\n\n📄 *Oscar Health* \\(OSCR\\)\n• Katalizator: earnings\n\n🟢 *Wniosek GPT:*\nPodniesienie prognozy zysku operacyjnego do przedziału 600\\-800 mln USD oraz poprawa wskaźnika Medical Loss Ratio sygnalizują lepszą efektywność kosztową i kontrolę wydatków medycznych, co powinno wywołać pozytywną reakcję rynku\\. Ogłoszenie to ma charakter istotny fundamentalnie, gdyż bezpośrednio po\n\n• Zysk operacyjny podniesiony do przedziału 600\\-800 mln USD \\(wzrost o 100 mln USD względem poprzedniej\n• Wskaźnik Medical Loss Ratio \\(MLR\\) poprawiony o 50 pb do przedziału 81,0%\\-82,0% \\(poprzednio 81,5%\\-82,\n• Prognoza przychodów całkowitych na 2026 rok potwierdzona na poziomie 18,7\\-19,0 mld USD bez zmian\n• Wskaźnik SG&A potwierdzony na poziomie 15,6%\\-16,1%\n\n• Conviction: 0\\.90 \\| Wpływ: positive / medium\n📌 *Akcja: LONG* \\| Horyzont: 3d \\| Wejście: $32\\.44\n⏰ 16\\.09, 12:05 PL \\(16\\.09, 06:05 NY\\)",
+    "delivered": false,
+    "sentAt": "2026-09-16T10:05:16.329475Z",
+    "catalystType": "earnings",
+    "alertDirection": "positive",
+    "priceAtAlert": 32.44,
+    "price1h": 32.06,
+    "price4h": 31.74,
+    "price1d": 32.07,
+    "price3d": 31.13,
+    "priceOutcomeDone": true,
+    "nonDeliveryReason": "bullish_8k_no_edge",
+    "archived": false,
+    "xbiAtAlert": 154.03,
+    "xbi1d": 158.31,
+    "xbi3d": 158.73,
+    "ibbAtAlert": 202,
+    "ibb1d": 206.28,
+    "ibb3d": 207.28,
+    "price7d": 29.87,
+    "xbi7d": 160.09,
+    "ibb7d": 210.6
+  },
+  "filing": {
+    "id": 3614,
+    "symbol": "OSCR",
+    "cik": "0001568651",
+    "formType": "8-K",
+    "accessionNumber": "0001568651-26-000074",
+    "filingDate": "2026-09-16",
+    "description": "8-K",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/1568651/000156865126000074/oscr-20260916.htm",
+    "collectedAt": "2026-09-16T10:05:05.978746",
+    "gptAnalysis": {
+      "summary": "Oscar Health podniósł prognozę wyników na 2026 rok, zwiększając oczekiwany zysk operacyjny o 100 mln USD oraz poprawiając wskaźnik MLR o 50 punktów bazowych.",
+      "key_facts": [
+        "Zysk operacyjny podniesiony do przedziału 600-800 mln USD (wzrost o 100 mln USD względem poprzedniej prognozy 500-700 mln USD)",
+        "Wskaźnik Medical Loss Ratio (MLR) poprawiony o 50 pb do przedziału 81,0%-82,0% (poprzednio 81,5%-82,5%)",
+        "Prognoza przychodów całkowitych na 2026 rok potwierdzona na poziomie 18,7-19,0 mld USD bez zmian",
+        "Wskaźnik SG&A potwierdzony na poziomie 15,6%-16,1%",
+        "Ogłoszenie nastąpiło w związku z Investor Day zaplanowanym na 16 września 2026 roku"
+      ],
+      "conclusion": "Podniesienie prognozy zysku operacyjnego do przedziału 600-800 mln USD oraz poprawa wskaźnika Medical Loss Ratio sygnalizują lepszą efektywność kosztową i kontrolę wydatków medycznych, co powinno wywołać pozytywną reakcję rynku. Ogłoszenie to ma charakter istotny fundamentalnie, gdyż bezpośrednio poprawia widoczność rentowności spółki na 2026 rok.",
+      "conviction": 0.9,
+      "price_impact": {
+        "direction": "positive",
+        "magnitude": "medium",
+        "confidence": 0.82,
+        "time_horizon": "immediate"
+      },
+      "catalyst_type": "earnings",
+      "requires_immediate_attention": true
+    },
+    "priceImpactDirection": "positive"
+  },
+  "trades": [
+    {
+      "id": 5621,
+      "symbol": "OSCR",
+      "insiderName": "Baltrus Victoria",
+      "insiderRole": "Chief Accounting Officer",
+      "transactionType": "SELL",
+      "shares": 958,
+      "pricePerShare": 31.45,
+      "totalValue": 30129.1,
+      "transactionDate": "2026-09-03",
+      "accessionNumber": "0001911946-26-000006_0",
+      "collectedAt": "2026-09-08T20:35:07.634544",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 213631
+    },
+    {
+      "id": 5622,
+      "symbol": "OSCR",
+      "insiderName": "Liang Janet",
+      "insiderRole": "President, Oscar Insurance",
+      "transactionType": "SELL",
+      "shares": 10360,
+      "pricePerShare": 31.45,
+      "totalValue": 325822,
+      "transactionDate": "2026-09-03",
+      "accessionNumber": "0001568651-26-000070_0",
+      "collectedAt": "2026-09-08T20:35:07.837303",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 248697
+    },
+    {
+      "id": 5623,
+      "symbol": "OSCR",
+      "insiderName": "Blackley Richard Scott",
+      "insiderRole": "Chief Financial Officer",
+      "transactionType": "SELL",
+      "shares": 28869,
+      "pricePerShare": 31.45,
+      "totalValue": 907930.05,
+      "transactionDate": "2026-09-03",
+      "accessionNumber": "0001525020-26-000015_0",
+      "collectedAt": "2026-09-08T20:35:08.037408",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 1046108
+    },
+    {
+      "id": 5624,
+      "symbol": "OSCR",
+      "insiderName": "McAnaney Adam",
+      "insiderRole": "Chief Legal Officer",
+      "transactionType": "SELL",
+      "shares": 9092,
+      "pricePerShare": 31.45,
+      "totalValue": 285943.4,
+      "transactionDate": "2026-09-03",
+      "accessionNumber": "0001842979-26-000005_0",
+      "collectedAt": "2026-09-08T20:35:08.236647",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 209004
+    },
+    {
+      "id": 5625,
+      "symbol": "OSCR",
+      "insiderName": "Schlosser Mario",
+      "insiderRole": "Director",
+      "transactionType": "SELL",
+      "shares": 31422,
+      "pricePerShare": 31.45,
+      "totalValue": 988221.9,
+      "transactionDate": "2026-09-03",
+      "accessionNumber": "0001844320-26-000018_0",
+      "collectedAt": "2026-09-08T20:35:08.436032",
+      "is10b51Plan": true,
+      "sharesOwnedAfter": 449444
+    }
+  ]
+}

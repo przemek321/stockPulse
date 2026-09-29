@@ -1,0 +1,137 @@
+{
+  "_meta": {
+    "source": "prod DB (Jetson) 2026-09-29 — SELECT row_to_json(alerts/sec_filings/insider_trades); jedyna modyfikacja: sufiks Z w alert.sentAt (kolumna timestamp bez strefy, DB=UTC)",
+    "alertId": 2509,
+    "symbol": "THC",
+    "ruleName": "8-K Material Event GPT",
+    "sentAt": "2026-09-22T20:35:10.408855Z",
+    "filingWindow": "[sentAt−3d, sentAt], formType wg reguły (8-K% → 8-K, inaczej 4), preferencja gptAnalysis IS NOT NULL",
+    "tradesWindow": "[sentAt−14d, sentAt] po symbolu",
+    "expectedFindings": [
+      "POST_CLOSE_8K_ENTRY_PRICE"
+    ],
+    "notes": "8-K Item 1.01 wysłany 22.09 20:35 UTC = 16:35 ET (po zamknięciu). priceOutcomeDone=false (price7d null) → PRICE_FROZEN nie może odpalić."
+  },
+  "alert": {
+    "id": 2509,
+    "symbol": "THC",
+    "ruleName": "8-K Material Event GPT",
+    "priority": "MEDIUM",
+    "channel": "TELEGRAM",
+    "message": "🟡 *StockPulse Alert*\n*MEDIUM* — \\$THC 8\\-K Item 1\\.01\n\n📄 *Tenet Healthcare* \\(THC\\)\n• Katalizator: contract\n\n🔴 *Wniosek GPT:*\nZe względu na brak szczegółów umowy nie można ocenić bezpośredniego wpływu na cenę akcji\\. Historyczny profil sygnałów THC wskazuje na dominujący trend niedźwiedzi \\(80% konsekwencji kierunkowej\\) z wysoką skutecznością krótkoterminową, co skłania do ostrożnej negatywnej korekty konwikcji\\.\n\n• Wartość kontraktu: nieznana – treść zgłoszenia jest niekompletna\n• Kontrahent: nieznany – brak danych w dostarczonej treści\n• Czas trwania: nieznany – brak informacji\n• Kluczowe warunki: niedostępne – formularz 8\\-K nie zawiera pełnej treści Item 1\\.01\n\n• Conviction: \\-0\\.30 \\| Wpływ: negative / low\n📌 *Akcja: SHORT* \\| Horyzont: 1\\-3d\n⏰ 22\\.09, 22:35 PL \\(22\\.09, 16:35 NY\\)",
+    "delivered": false,
+    "sentAt": "2026-09-22T20:35:10.408855Z",
+    "catalystType": "contract",
+    "alertDirection": "negative",
+    "priceAtAlert": 262.06,
+    "price1h": 261.03,
+    "price4h": 257.32,
+    "price1d": 257.95,
+    "price3d": 264.07,
+    "priceOutcomeDone": false,
+    "nonDeliveryReason": "gpt_missing_data",
+    "archived": false,
+    "xbiAtAlert": 161.87,
+    "xbi1d": 154.39,
+    "xbi3d": 154.21,
+    "ibbAtAlert": 210.81,
+    "ibb1d": 207.82,
+    "ibb3d": 208.59,
+    "price7d": null,
+    "xbi7d": null,
+    "ibb7d": null
+  },
+  "filing": {
+    "id": 3703,
+    "symbol": "THC",
+    "cik": "0000070318",
+    "formType": "8-K",
+    "accessionNumber": "0001193125-26-397901",
+    "filingDate": "2026-09-22",
+    "description": "8-K",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/70318/000119312526397901/d104323d8k.htm",
+    "collectedAt": "2026-09-22T20:35:02.416887",
+    "gptAnalysis": {
+      "summary": "Tenet Healthcare złożył formularz 8-K dotyczący wejścia w istotną umowę definitywną, jednak treść zgłoszenia jest niekompletna i nie zawiera szczegółów dotyczących kontraktu.",
+      "key_facts": [
+        "Wartość kontraktu: nieznana – treść zgłoszenia jest niekompletna",
+        "Kontrahent: nieznany – brak danych w dostarczonej treści",
+        "Czas trwania: nieznany – brak informacji",
+        "Kluczowe warunki: niedostępne – formularz 8-K nie zawiera pełnej treści Item 1.01"
+      ],
+      "conclusion": "Ze względu na brak szczegółów umowy nie można ocenić bezpośredniego wpływu na cenę akcji. Historyczny profil sygnałów THC wskazuje na dominujący trend niedźwiedzi (80% konsekwencji kierunkowej) z wysoką skutecznością krótkoterminową, co skłania do ostrożnej negatywnej korekty konwikcji.",
+      "conviction": -0.3,
+      "price_impact": {
+        "direction": "negative",
+        "magnitude": "low",
+        "confidence": 0.55,
+        "time_horizon": "short_term"
+      },
+      "catalyst_type": "contract",
+      "requires_immediate_attention": false
+    },
+    "priceImpactDirection": "negative"
+  },
+  "trades": [
+    {
+      "id": 6283,
+      "symbol": "THC",
+      "insiderName": "MARK RICHARD J",
+      "insiderRole": "Director",
+      "transactionType": "SELL",
+      "shares": 10000,
+      "pricePerShare": 263.42,
+      "totalValue": 2634200,
+      "transactionDate": "2026-09-10",
+      "accessionNumber": "0001193125-26-391004_0",
+      "collectedAt": "2026-09-15T00:05:02.3713",
+      "is10b51Plan": false,
+      "sharesOwnedAfter": 25121
+    },
+    {
+      "id": 6635,
+      "symbol": "THC",
+      "insiderName": "KERREY J ROBERT",
+      "insiderRole": "Director",
+      "transactionType": "SELL",
+      "shares": 5483,
+      "pricePerShare": 263.04,
+      "totalValue": 1442248.32,
+      "transactionDate": "2026-09-14",
+      "accessionNumber": "0001193125-26-393422_0",
+      "collectedAt": "2026-09-17T00:05:02.643055",
+      "is10b51Plan": false,
+      "sharesOwnedAfter": 11321
+    },
+    {
+      "id": 6636,
+      "symbol": "THC",
+      "insiderName": "KERREY J ROBERT",
+      "insiderRole": "Director",
+      "transactionType": "SELL",
+      "shares": 4025,
+      "pricePerShare": 264.1,
+      "totalValue": 1063002.5,
+      "transactionDate": "2026-09-14",
+      "accessionNumber": "0001193125-26-393422_1",
+      "collectedAt": "2026-09-17T00:05:02.654952",
+      "is10b51Plan": false,
+      "sharesOwnedAfter": 7296
+    },
+    {
+      "id": 6637,
+      "symbol": "THC",
+      "insiderName": "KERREY J ROBERT",
+      "insiderRole": "Director",
+      "transactionType": "SELL",
+      "shares": 2502,
+      "pricePerShare": 264.62,
+      "totalValue": 662079.24,
+      "transactionDate": "2026-09-14",
+      "accessionNumber": "0001193125-26-393422_2",
+      "collectedAt": "2026-09-17T00:05:02.664845",
+      "is10b51Plan": false,
+      "sharesOwnedAfter": 4794
+    }
+  ]
+}

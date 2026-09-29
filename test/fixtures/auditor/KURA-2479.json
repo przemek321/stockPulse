@@ -1,0 +1,93 @@
+{
+  "_meta": {
+    "source": "prod DB (Jetson) 2026-09-29 — SELECT row_to_json(alerts/sec_filings/insider_trades); jedyna modyfikacja: sufiks Z w alert.sentAt (kolumna timestamp bez strefy, DB=UTC)",
+    "alertId": 2479,
+    "symbol": "KURA",
+    "ruleName": "Form 4 Insider BUY",
+    "sentAt": "2026-08-17T20:47:19.836823Z",
+    "filingWindow": "[sentAt−3d, sentAt], formType wg reguły (8-K% → 8-K, inaczej 4), preferencja gptAnalysis IS NOT NULL",
+    "tradesWindow": "[sentAt−14d, sentAt] po symbolu",
+    "expectedFindings": [
+      "ENTRY_GAP_UNENTERABLE"
+    ],
+    "notes": "Realny gap +10.9% (11.28 → 12.51 po 1h) — przypadek KURA z werdyktu 23.09 (niewchodzalny). Insider WILSON TROY EDWARD BUY plan=false → mismatch negatywny."
+  },
+  "alert": {
+    "id": 2479,
+    "symbol": "KURA",
+    "ruleName": "Form 4 Insider BUY",
+    "priority": "CRITICAL",
+    "channel": "TELEGRAM",
+    "message": "🔴 *StockPulse Alert*\n*CRITICAL* — \\$KURA Sygnał Insidera\n\n👤 *WILSON TROY EDWARD* \\(President and CEO, Director\\)\n• Transakcja: BUY 100,000 akcji @ $1,112,000\n• Udziały po transakcji: 379,194 akcji\n• Plan 10b5\\-1: NIE\n\n🟢 *Wniosek GPT:*\nTransakcja ma wyraźny charakter byczej sygnalizacji insiderskiej — zakup o wartości ponad 1,1 mln USD przez CEO bez preharmonogramu 10b5\\-1 wskazuje na silne przekonanie kierownictwa co do niedowartościowania akcji lub zbliżającego się pozytywnego katalizatora\\. Brak innych transakcji insiderskich w o\n\n• Prezes i CEO zakupił 100 000 akcji za 1 112 000 USD — znacząca kwota zaangażowania osobistego kapita\n• Transakcja NIE jest częścią planu 10b5\\-1, co znacznie zwiększa wartość sygnału jako świadomej decyzj\n• Po transakcji CEO posiada łącznie 379 194 akcji, co oznacza wzrost zaangażowania o około 35,8% wzglę\n\n• Conviction: 1\\.56 \\| Wpływ: positive / medium\n📌 *Akcja: LONG* \\| Horyzont: 3\\-7d \\| Wejście: $11\\.28\n⏰ 2026\\-08\\-17T20:47:19\\.592Z",
+    "delivered": false,
+    "sentAt": "2026-08-17T20:47:19.836823Z",
+    "catalystType": "insider",
+    "alertDirection": "positive",
+    "priceAtAlert": 11.28,
+    "price1h": 12.51,
+    "price4h": 12.32,
+    "price1d": 12.77,
+    "price3d": 11.84,
+    "priceOutcomeDone": true,
+    "nonDeliveryReason": "observation",
+    "archived": false,
+    "xbiAtAlert": 159.53,
+    "xbi1d": 166.51,
+    "xbi3d": 166.58,
+    "ibbAtAlert": 201.93,
+    "ibb1d": 213.24,
+    "ibb3d": 213.71,
+    "price7d": 13.11,
+    "xbi7d": 168.03,
+    "ibb7d": 215.57
+  },
+  "filing": {
+    "id": 3176,
+    "symbol": "KURA",
+    "cik": "0001422143",
+    "formType": "4",
+    "accessionNumber": "0001193125-26-354201",
+    "filingDate": "2026-08-17",
+    "description": "FORM 4 (discovery)",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/1422143/000119312526354201",
+    "collectedAt": "2026-08-17T20:47:04.353265",
+    "gptAnalysis": {
+      "summary": "Prezes i dyrektor generalny Kura Oncology, Troy Edward Wilson, dokonał zakupu 100 000 akcji własnej spółki za łączną kwotę 1 112 000 USD po cenie 11,12 USD za akcję, bez planu 10b5-1.",
+      "key_facts": [
+        "Prezes i CEO zakupił 100 000 akcji za 1 112 000 USD — znacząca kwota zaangażowania osobistego kapitału",
+        "Transakcja NIE jest częścią planu 10b5-1, co znacznie zwiększa wartość sygnału jako świadomej decyzji inwestycyjnej",
+        "Po transakcji CEO posiada łącznie 379 194 akcji, co oznacza wzrost zaangażowania o około 35,8% względem poprzedniego stanu posiadania",
+        "Brak innych transakcji insiderskich w ostatnich 30 dniach — sygnał jednostkowy, ale silny ze względu na rolę i wartość zakupu",
+        "Cena zakupu 11,12 USD sugeruje, że CEO uważa obecny poziom cenowy za atrakcyjny punkt wejścia"
+      ],
+      "conclusion": "Transakcja ma wyraźny charakter byczej sygnalizacji insiderskiej — zakup o wartości ponad 1,1 mln USD przez CEO bez preharmonogramu 10b5-1 wskazuje na silne przekonanie kierownictwa co do niedowartościowania akcji lub zbliżającego się pozytywnego katalizatora. Brak innych transakcji insiderskich w ostatnich 30 dniach nie osłabia sygnału, ale też go nie wzmacnia klastrowaniem.",
+      "conviction": 1,
+      "price_impact": {
+        "direction": "positive",
+        "magnitude": "medium",
+        "confidence": 0.75,
+        "time_horizon": "short_term"
+      },
+      "catalyst_type": "insider",
+      "requires_immediate_attention": true
+    },
+    "priceImpactDirection": "positive"
+  },
+  "trades": [
+    {
+      "id": 4842,
+      "symbol": "KURA",
+      "insiderName": "WILSON TROY EDWARD",
+      "insiderRole": "President and CEO, Director",
+      "transactionType": "BUY",
+      "shares": 100000,
+      "pricePerShare": 11.12,
+      "totalValue": 1112000,
+      "transactionDate": "2026-08-17",
+      "accessionNumber": "0001193125-26-354201_0",
+      "collectedAt": "2026-08-17T20:47:04.364288",
+      "is10b51Plan": false,
+      "sharesOwnedAfter": 379194
+    }
+  ]
+}
