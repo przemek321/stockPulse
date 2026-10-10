@@ -1,8 +1,11 @@
-# StockPulse — Status projektu i plan działania
+# StockPulse — Status projektu i plan działania (ARCHIWUM do 23.05.2026)
 
-> **To jest główny plik śledzący postęp rozwoju projektu.** Każda faza, sprint i zadanie są tu dokumentowane z checkboxami `[x]` / `[ ]`.
+> **Ten plik NIE jest już aktualizowany** (ostatni wpis 23.05.2026). Od 15.06.2026 bieżący stan systemu
+> opisuje [CLAUDE.md](../CLAUDE.md) (sekcja „Stan obecny"), historia zmian — [CHANGELOG.md](CHANGELOG.md),
+> a gate'y i werdykty walidacji — [KALENDARZ-WALIDACJI-2026.md](KALENDARZ-WALIDACJI-2026.md).
+> Poniżej zachowana kronika sprintów 0–19 (faza budowy, luty–maj 2026).
 
-> Ostatnia aktualizacja: 2026-05-23
+> Ostatnia aktualizacja treści: 2026-05-23 · adnotacja archiwalna: 2026-10-11
 
 ## 23.05.2026 — APLS Faza 1+2 done + XBI MVP shipped
 

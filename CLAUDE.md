@@ -7,28 +7,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > Ten plik = **„jak system działa teraz"**. Historia „jak doszliśmy" (sprinty, FIX-XX,
 > TASK-XX, commit-by-commit): [doc/CHANGELOG.md](doc/CHANGELOG.md) + `git log` + pliki `doc/SESJA-*`.
 
-## Stan obecny (czerwiec 2026) — faza walidacji forward 7d
+## Stan obecny (październik 2026) — walidacja forward trwa, werdykt #2 01.11
 
-System przeszedł **Pakiet 1 + Pakiet 2** (09-15.06, edge fixes + discovery; szczegóły:
-[CHANGELOG](doc/CHANGELOG.md)). Forward-ocena 09.06 wykazała **netto 0% edge na alertach
-all-time**; jedyny potwierdzony edge to **Form 4 Insider BUY** (backtest V5 d=+0.92 C-suite 7d).
-Cel zrewidowany: **1 alert/tydzień z realnym edge** (precyzja > wolumen).
+Po **Pakiecie 1 + 2** (czerwiec; [CHANGELOG](doc/CHANGELOG.md)) system jest w pomiarze. **Werdykt #1
+(01.09): edge NIE wykazany (insufficient N)** — gra trwa jako pomiar; jedyna hipoteza wiodąca to
+**Form 4 Insider BUY C-suite**, ale sub-gate #1 (23.09) **bez promocji**: edge informacyjny, nie
+realizowalny (gap na otwarciu +7%). Cel bez zmian: **1 alert/tydzień z realnym edge**; realny strumień
+z rdzenia to **~1 dostarczony alert/miesiąc** (ostatni: PODD 24.08; od 17.07 dostarczonych 7).
 
-**TERAZ czekamy na dane** — okno obserwacyjne mierzy outcome na horyzoncie **7d** (na nim
-backtest pokazuje edge; pomiar 3d zaniżał). Nic do wdrażania bez nowych danych. Kalendarz
-decyzyjny (przypominany w raporcie 8h, `VALIDATION_CALENDAR` w summary-scheduler):
+**Stan 11.10**: ostatnie 30 dni = 17 alertów, **0 dostarczonych** (12 Form 4 BUY discovery → observation,
+4 stłumione 8-K, 1 SELL). Sub-gate C-suite #2 (zdarzenia ≥02.09): T1 N=5/10, T2 N=2/10 — oba poniżej
+progów REAL (`logs/csuite-gate.log`). Agent-audytor działa od 29.09 (63 alerty zaudytowane, 0 false
+positives w ręcznej weryfikacji; [raport](doc/AUDITOR-SHADOW-RUN-2026-09-29.md)).
+
+Kalendarz decyzyjny ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md), przypominany w raporcie 8h):
 
 | Data | Przegląd |
 |---|---|
-| 09.07 | APLS Faza 4 (≥6 BUY, hit 7d ≥60%, alpha ≥+2%) |
-| 25.07 | Okno obs discovery → decyzja delivery top-N |
-| 25.08 | FIX-16 shadow review (N≥3 would_uncap) |
-| ~01.09 | Werdykt „czy system ma edge" (~20-30 alertów z 7d) |
-| 07.09 | Bullish-8K gate revisit (90d) |
+| **01.11** | Werdykt #2 (mediana α, REAL>0) + przegląd discovery #2 + decyzje: poszerzyć rdzeń (typ PFE) vs ~1 sygnał/mies.; etap 2 agentów (MCP read-only + LLM); migracja stacku na Raspberry Pi 5 |
+| 15.11 | FIX-16 shadow review #2 + bullish-8K gate revisit #2 (po Q3) |
 
-Pierwsze obserwacje w toku: EYE, SMMT, COR (discovery) + 6 APLS — alerty DB-only, mierzone, NIE na
-Telegram. Wiążące definicje metryk (hit=raw, alpha osobno) pre-zarejestrowane 02.07 w
-[KALENDARZU](doc/KALENDARZ-WALIDACJI-2026.md).
+Wykonane przeglądy (wszystkie bez zmiany reguł): APLS Faza 4 10.07 (insufficient data), discovery 27.07
+(bez promocji), FIX-16 25.08 (1/6), werdykt #1 01.09, bullish-8K 07.09 (bez zawężenia), C-suite 23.09,
+audytor 29.09 (werdykt (a)). Wiążące definicje metryk pre-zarejestrowane 02.07 w KALENDARZU.
 
 ## Opis projektu
 
@@ -51,7 +52,7 @@ make shell-app / shell-db     # shell do kontenera / psql
 
 Dev (WSL): `wsl -d Ubuntu bash -c "cd /home/n1copl/stockPulse && docker compose up -d"`
 Jetson: `docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d`
-Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (~709), `npx tsc --noEmit`.
+Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (808 w 43 suitach, stan 11.10.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych).
 
 ## Setup
 
@@ -134,9 +135,9 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
 
 ### 3. Dane i dostarczanie
 
-- **PostgreSQL** 12 entities: `alerts` (price outcome 1h-7d + xbi/ibb + `archived` + `nonDeliveryReason`),
-  `insider_trades`, `sec_filings` (`gptAnalysis` JSONB), `tickers` (`sector`/`observationOnly`),
-  `system_logs` (5 kolumn Tier 1), `options_flow`. **Redis**: BullMQ + Sorted Sets (korelacje) +
+- **PostgreSQL** 13 entities: `alerts` (price outcome 1h-7d + xbi/ibb + `archived` + `nonDeliveryReason`),
+  `insider_trades`, `sec_filings` (`gptAnalysis` JSONB), `tickers` (`sector`/`observationOnly`/`isActive`),
+  `system_logs` (5 kolumn Tier 1), `options_flow`, `agent_findings` (od 29.09). **Redis**: BullMQ + Sorted Sets (korelacje) +
   namespace `disc:` (discovery seen/sic-cache). TypeORM `synchronize: true`.
 - **Dashboard React** (MUI 5) na :3001 — Tabs: Dashboard / Signal Timeline / System Logs / Słownik.
   PriceOutcomePanel z kolumnami +7d/α7d. Observation alerty przytłumione (`PriorityChip` outlined).
@@ -155,7 +156,7 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 
 ### Monitorowane sektory
 
-- **Healthcare** (core, delivery): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — 28 zwalidowanych tickerów. **SEM i WBA usunięte 01.09.2026** (delisting — brak w rejestrze SEC, Finnhub c=0; kopia wierszy `backups/tickers_SEM_WBA_deleted_20260901.json`). Guard `getQuote` odrzuca notowania starsze niż 7 dni.
+- **Healthcare** (core, delivery): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — **27 aktywnych tickerów** (28 zwalidowanych w Sprint 15 minus **SEM i WBA usunięte 01.09.2026**: delisting — brak w rejestrze SEC, Finnhub c=0; kopia wierszy `backups/tickers_SEM_WBA_deleted_20260901.json`). PUŁAPKA: w tabeli `tickers` jest też 8 wierszy `sector='healthcare'` z `isActive=false` (ALHC, CERT, CVS, CYH, DVA, GSK, HCAT, VEEV — seed z lutego 2026 sprzed walidacji); kolektor czyta tylko `isActive=true`, więc w analizach filtruj po `isActive`. Guard `getQuote` odrzuca notowania starsze niż 7 dni.
 - **biotech_apls** (observation): 6 tickerów (URGN/ARDX/MNKD/CRSP/AXSM/RCKT), [doc/stockpulse-biotech-apls.json](doc/stockpulse-biotech-apls.json).
 - **semi_supply_chain** (observation): 14 tickerów, [doc/stockpulse-semi-supply-chain.json](doc/stockpulse-semi-supply-chain.json).
 - **healthcare_discovery** (observation, auto-rejestracja Pakiet 2): rośnie z rynku (EYE, SMMT, COR...).
@@ -177,7 +178,11 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 ## Multi-środowisko: Laptop ↔ Jetson
 
 Kod wspólny (git), `.env` osobny per maszyna (gitignored). Laptop dev → `git push` → Jetson prod
-(`git pull` + `make up`, autostart @reboot). **Po commicie KODU na Jetsonie: `make rebuild-app`**
+(`git pull` + `make up`, autostart @reboot). Jetson od 03.10.2026 w trybie mocy **15W** (`nvpmodel -m 2`,
+4 rdzenie) — stack nie używa GPU od usunięcia FinBERT (22.04); migracja na Raspberry Pi 5 planowana po 01.11.
+PUŁAPKA: Jetson nie ma baterii RTC — po odcięciu zasilania startuje z zegarem 1970; `restart: unless-stopped`
+podnosi kontenery PRZED synchronizacją NTP (czekanie w `scripts/autostart.sh` tego nie obejmuje) → „Up 56 years"
+w `docker ps`, nieudany raport 8h przy starcie. Dane w DB nie ucierpiały (sprawdzone 04.10). **Po commicie KODU na Jetsonie: `make rebuild-app`**
 (commit ≠ produkcja). Transfer bazy: `make backup` + scp + `make restore`. Makefile sam wykrywa
 środowisko po `uname -m`. Pełny setup Jetsona: [doc/JETSON-SETUP.md](doc/JETSON-SETUP.md).
 

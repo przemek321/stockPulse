@@ -5,12 +5,12 @@
     "created": "2026-02-08",
     "author": "Przemek",
     "description": "Kompletna konfiguracja monitoringu healthcare sector dla StockPulse",
-    "total_tickers": 28,
+    "total_tickers": 27,
     "total_keywords": 180,
     "total_people": 65,
     "total_subreddits": 18,
     "total_regulatory_sources": 12,
-    "total_tickers_note": "28 zwalidowanych w Sprint 15 backteście (P0.5 fix 10.04.2026)"
+    "total_tickers_note": "28 zwalidowanych w Sprint 15 backteście (P0.5 fix 10.04.2026); SEM i WBA usunięte 01.09.2026 (delisting) → 27"
   },
   "tickers": {
     "managed_care_insurers": {

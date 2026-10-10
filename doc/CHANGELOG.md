@@ -8,6 +8,38 @@
 
 ---
 
+## Lipiec–październik 2026 — walidacja forward, przeglądy, agent-audytor
+
+Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i werdykty w
+[KALENDARZ-WALIDACJI-2026.md](KALENDARZ-WALIDACJI-2026.md). Hashe z `git log`:
+
+- **27.06** `c20e7de` autostart czeka na NTP (RTC bez baterii → 1970); `0b0bc8f` watcher discovery na cronie.
+- **02.07** `d1c1f73` `isCsuiteRole` role-only wszędzie („Harvard hole"); `19db864` znacznik 🎯 KWALIFIKUJE
+  dla delivered Form 4 Insider BUY (reguły gry real [REGULY-GRY-REAL-2026-07-02.md](REGULY-GRY-REAL-2026-07-02.md));
+  `5fa7eeb` backtest H7 cluster-BUY INSUFFICIENT_N.
+- **05–06.07** `b56b720` escapowanie MarkdownV2 w raporcie 8h; `bbbb597` wyszarzenie stłumionych na timeline.
+- **10.07** `97729df` APLS Faza 4 — INSUFFICIENT DATA. **27.07** `46ce4e0` przegląd discovery — bez promocji,
+  fix varchar insiderName (DATA GAP).
+- **01.08** `2bfd48f`/`2de090f` cotygodniowy backup (cron nd 03:15) + kopia off-site na Telegram (AES-256).
+- **10.08** `da4a052` filtr RULE + localStorage na Signal Timeline; `3acb8b7`/`4323fe7` porządki frontendu.
+- **01.09 — werdykt #1 (edge nie wykazany)**: `b8e79e6` 8-K Material Event GPT → observation
+  (`material_event_obs`); `f988c6c` `getQuote` odrzuca notowania >7d (SEM zamrożone sloty); `f95a3e0` sub-gate
+  C-suite BUY (licznik SQL + cron 23:45 + badge „C"); `25e783e` discovery tier-2 C-suite ≥$100K; `f420940` SEM i WBA
+  usunięte z `tickers` i JSON uniwersum (delisting). **02.09** `0352b34` jedna strefa czasu (PL) dla usera.
+- **23.09** `88f8188` sub-gate C-suite #1 — bez promocji (7/10 in-sample; forward REAL −7%, 0 wchodzalnych);
+  gate #2 od 02.09. **27.09** `bfd9f42` csuite-gate catch-up co godzinę.
+- **26–27.09 — ESLint strict + TS strict** (`98ded99`..`db87781`): flat config strict-type-checked BE+FE z baseline
+  suppressions (blokuje tylko NOWE błędy), `strict: true` w backendzie (159 pól encji `!`, `errMsg()/errCode()`),
+  frontend TS 4.9 → 5.9, CI GitHub (required checks backend+frontend), hook lint-changed.
+- **29.09 — agent-audytor shadow-mode (etap 1)**: `a623d84` zod manifest, `f9b4f88` encja `agent_findings`,
+  `f3b0ba2` 13 checków deterministycznych + fixture z 8 realnych alertów, `a1a2756` orkiestrator + CRON */15,
+  `4d8780c` CLI shadow-run; raport [AUDITOR-SHADOW-RUN-2026-09-29.md](AUDITOR-SHADOW-RUN-2026-09-29.md)
+  (61 alertów, P2 0/25 FP, werdykt (a)); `AUDITOR_ENABLED=true` na prod od 29.09 (decyzja usera). Etap 2
+  (MCP read-only + LLM) po 01.11. Plan: `tasks-2026-09-27/`.
+- **03.10** (host, bez commitu): Jetson `nvpmodel -m 2` (15W), usunięty obraz `stockpulse-finbert` (2.93 GB).
+  **04.10**: odcięcie zasilania → start kontenerów z zegarem 1970 mimo czekania w autostarcie (`restart:
+  unless-stopped` podnosi je przed NTP); dane nienaruszone.
+
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 
 Kronika: [SESJA-2026-06-09-PAKIET-1.md](SESJA-2026-06-09-PAKIET-1.md),
