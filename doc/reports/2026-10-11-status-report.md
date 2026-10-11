@@ -1,7 +1,7 @@
 # StockPulse — raport statusu 11.10.2026
 
 > Każda liczba poniżej pochodzi z zapytań do bazy prod (SELECT), logów kontenera lub `git log`
-> z 11.10.2026 ~23:00 UTC. Gdzie czegoś nie dało się zweryfikować, jest to napisane wprost.
+> z nocy 10/11.10.2026 (~23:00 UTC 10.10 = ~01:00 CEST 11.10). Gdzie czegoś nie dało się zweryfikować, jest to napisane wprost.
 > **To nie jest sygnał do gry.**
 
 ## 1. Gdzie jesteśmy
@@ -73,8 +73,11 @@ usera. Od 29.09 nie wystąpił ani jeden przypadek, który warstwa LLM miałaby 
 
 ## 5. Otwarte sprawy (nic nie robię bez decyzji)
 
-1. **Autostart vs zegar 1970** — propozycja: po synchronizacji NTP skrypt restartuje kontener `app`, jeśli jego
-   `StartedAt` jest sprzed 2000 r. Zmiana w `scripts/autostart.sh` (host), nie w aplikacji.
+1. ~~**Autostart vs zegar 1970**~~ — **ZROBIONE 11.10 (decyzja usera)**: `scripts/autostart.sh` po synchronizacji NTP
+   restartuje `app`, jeśli jego `StartedAt` jest sprzed 2000 r. (krok 3.5); health czekany w pętli do 90 s zamiast
+   stałych 15 s. Ścieżka przetestowana na prod na realnym stanie po 04.10 (app miał `StartedAt` 1970): restart → `healthy`
+   po 10 s, `AgentsModule: audytor AKTYWNY`, restarts=0. Postgres/Redis/frontend zostawione („Up 56 years" u nich to
+   tylko kosmetyka w `docker ps`, znika przy kolejnym reboocie). Pełna weryfikacja = następny reboot po odcięciu zasilania.
 2. **Sprzątanie Dockera**: ~10 GB (build cache 8,1 GB, nieotagowane obrazy 2,0 GB, wolumeny po FinBERT/pgAdmin 0,4 GB).
 3. **Na 01.11** razem z werdyktem #2: poszerzyć rdzeń o duże spółki spoza listy (typ PFE — dwa Director BUY ~$1M
    w sierpniu trafiły do discovery i zostały stłumione) vs zaakceptować ~1 sygnał/miesiąc; etap 2 agentów;

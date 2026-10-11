@@ -181,8 +181,9 @@ Kod wspólny (git), `.env` osobny per maszyna (gitignored). Laptop dev → `git 
 (`git pull` + `make up`, autostart @reboot). Jetson od 03.10.2026 w trybie mocy **15W** (`nvpmodel -m 2`,
 4 rdzenie) — stack nie używa GPU od usunięcia FinBERT (22.04); migracja na Raspberry Pi 5 planowana po 01.11.
 PUŁAPKA: Jetson nie ma baterii RTC — po odcięciu zasilania startuje z zegarem 1970; `restart: unless-stopped`
-podnosi kontenery PRZED synchronizacją NTP (czekanie w `scripts/autostart.sh` tego nie obejmuje) → „Up 56 years"
-w `docker ps`, nieudany raport 8h przy starcie. Dane w DB nie ucierpiały (sprawdzone 04.10). **Po commicie KODU na Jetsonie: `make rebuild-app`**
+podnosi kontenery PRZED synchronizacją NTP → „Up 56 years" w `docker ps`, nieudany raport 8h przy starcie
+(incydent 04.10; dane w DB nie ucierpiały). Od 11.10 `scripts/autostart.sh` po NTP restartuje `app`, jeśli jego
+`StartedAt` < 2000 (krok 3.5; postgres/redis/frontend celowo nie — u nich to kosmetyka). **Po commicie KODU na Jetsonie: `make rebuild-app`**
 (commit ≠ produkcja). Transfer bazy: `make backup` + scp + `make restore`. Makefile sam wykrywa
 środowisko po `uname -m`. Pełny setup Jetsona: [doc/JETSON-SETUP.md](doc/JETSON-SETUP.md).
 

@@ -39,6 +39,8 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
 - **03.10** (host, bez commitu): Jetson `nvpmodel -m 2` (15W), usunięty obraz `stockpulse-finbert` (2.93 GB).
   **04.10**: odcięcie zasilania → start kontenerów z zegarem 1970 mimo czekania w autostarcie (`restart:
   unless-stopped` podnosi je przed NTP); dane nienaruszone.
+- **11.10** `3ca5cbc` przegląd aktualności dokumentacji + [raport statusu](reports/2026-10-11-status-report.md);
+  autostart krok 3.5: po NTP restart `app`, jeśli `StartedAt` < 2000 (fix incydentu 04.10), health w pętli do 90 s.
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 

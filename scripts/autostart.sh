@@ -3,9 +3,11 @@
 # StockPulse — autostart po restarcie Jetsona
 #
 # Co robi:
-#   1. Czeka na Docker daemon
+#   1. Czeka na Docker daemon i na synchronizację zegara (NTP)
 #   2. git pull (pobiera zmiany z repo)
 #   3. make up (startuje stack z autodetekcją środowiska)
+#   3.5 restart app, jeśli Docker podniósł go sam przed NTP (zegar 1970)
+#   4. Czeka na health
 #
 # Instalacja (jednorazowo):
 #   crontab -e
@@ -49,7 +51,8 @@ for i in $(seq 1 30); do
     fi
     sleep 2
 done
-if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ]; then
+NTP_OK="$(timedatectl show -p NTPSynchronized --value 2>/dev/null)"
+if [ "$NTP_OK" != "yes" ]; then
     log "OSTRZEZENIE: zegar NIE zsynchronizowany po 60s — start mimo to (czas moze byc bledny)"
 fi
 
@@ -67,15 +70,32 @@ else
     make up >> "$LOG_FILE" 2>&1
 fi
 
-# 4. Czekaj na health
-sleep 15
-HEALTH=$(docker exec stockpulse-app node -e "
+# 3.5 Kontenery z `restart: unless-stopped` podnosi sam Docker — PRZED synchronizacja NTP,
+#     wiec czekanie w kroku 1.5 ich nie obejmuje (incydent 04.10.2026: app wystartowal z zegarem
+#     1970, "Up 56 years", nieudany raport 8h). Jesli app ma StartedAt sprzed 2000 r., a zegar
+#     jest juz poprawny — restart, zeby CRON-y i raport 8h liczyly od prawdziwego czasu.
+#     Postgres/Redis nie ruszamy (u nich zly StartedAt jest tylko kosmetyczny w `docker ps`).
+APP_STARTED=$(docker inspect -f '{{.State.StartedAt}}' stockpulse-app 2>/dev/null)
+APP_YEAR=${APP_STARTED:0:4}
+if [ "$NTP_OK" = "yes" ] && [[ "$APP_YEAR" =~ ^[0-9]{4}$ ]] && [ "$APP_YEAR" -lt 2000 ]; then
+    log "app wystartowal z zegarem $APP_STARTED (przed NTP) — restart kontenera"
+    docker restart stockpulse-app >> "$LOG_FILE" 2>&1
+    log "app po restarcie: StartedAt=$(docker inspect -f '{{.State.StartedAt}}' stockpulse-app 2>/dev/null)"
+fi
+
+# 4. Czekaj na health (max 90s — po restarcie app potrzebuje ~20-30s na start NestJS)
+HEALTH=""
+for i in $(seq 1 18); do
+    sleep 5
+    HEALTH=$(docker exec stockpulse-app node -e "
 const http = require('http');
 http.get('http://localhost:3000/api/health', res => {
     let d = '';
     res.on('data', c => d+=c);
     res.on('end', () => console.log(JSON.parse(d).status));
-});" 2>/dev/null)
+}).on('error', () => process.exit(1));" 2>/dev/null)
+    [ -n "$HEALTH" ] && break
+done
 
-log "Health: $HEALTH"
+log "Health: ${HEALTH:-brak odpowiedzi po 90s}"
 log "=== Autostart zakończony ==="
