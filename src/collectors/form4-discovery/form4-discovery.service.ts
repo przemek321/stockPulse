@@ -38,6 +38,8 @@ import { DISCOVERY_REDIS } from './redis.provider';
  *   4. AUTO-REJESTRACJA: tickers INSERT z observationOnly=true,
  *      sector='healthcare_discovery' → standardowy Form4Pipeline (GPT analiza,
  *      DB-only alert z nonDeliveryReason='observation', ZERO correlation legs).
+ *      Od 19.10.2026 („rdzeń+”): mcap >= DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN →
+ *      sector='healthcare', observationOnly=false (delivery, reguła rdzenia).
  *   5. RECONCILIATION: nightly daily-index form.YYYYMMDD.idx (łapie burst overflow
  *      ponad cap 100; ~1900 Form 4/dzień rynkowo).
  *
@@ -54,6 +56,15 @@ export const DISCOVERY_MIN_MCAP_MLN = 250;
 export const DISCOVERY_MIN_ADV_USD = 1_000_000;
 /** Cap rejestracji/dzień — bezpiecznik na pump-storm (oczekiwane 2-5/TYDZIEŃ) */
 export const DISCOVERY_MAX_REGISTRATIONS_PER_DAY = 5;
+/**
+ * „Rdzeń+” (19.10.2026, decyzja usera): kandydat o mcap >= tego progu (mln USD) jest
+ * rejestrowany jako DELIVERY (sector='healthcare', observationOnly=false — identyczna
+ * reguła jak 27 tickerów rdzenia), nie jako observation. Dane 19.10 (discovery, Form 4
+ * BUY z 7d): mcap >= $10B — 9 alertów, hit REAL 78%, med REAL +1.0%, med gap 1.6%;
+ * mcap < $10B — 29 alertów, hit 28%, med REAL −5.3%, med gap 3.5%. Próg dobrany
+ * post hoc → HIPOTEZA; pre-rejestracja przeglądu: KALENDARZ-WALIDACJI (N=10 lub 01.02.2027).
+ */
+export const DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN = 10_000;
 
 /**
  * SIC whitelist healthcare/biotech. Źródło: klasyfikacja SEC SIC.
@@ -483,18 +494,23 @@ export class Form4DiscoveryService {
         return false;
       }
 
-      // 6. Rejestracja tickera (observation mode, playbook Sprint 17/APLS)
+      // 6. Rejestracja tickera: observation mode (playbook Sprint 17/APLS) albo —
+      //    rdzeń+ (19.10.2026) — large-cap od razu jako delivery z regułą rdzenia.
+      //    Po rejestracji KOLEJNE filingi obsługuje core collector (isActive=true),
+      //    a Form4Pipeline czyta sector/observationOnly per event.
+      const isLargeCap = mcap >= DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN;
+      const today = new Date().toISOString().split('T')[0];
       const ticker = this.tickerRepo.create({
         symbol: meta.ticker,
         name: meta.name ?? meta.ticker,
         cik: cik.padStart(10, '0'),
         subsector: meta.sicDescription ?? `SIC ${meta.sic ?? '?'}`,
-        priority: 'LOW',
-        sector: 'healthcare_discovery',
-        observationOnly: true,
+        priority: isLargeCap ? 'MEDIUM' : 'LOW',
+        sector: isLargeCap ? 'healthcare' : 'healthcare_discovery',
+        observationOnly: !isLargeCap,
         isActive: true,
         notes:
-          `Auto-discovered ${new Date().toISOString().split('T')[0]} (Pakiet 2): ` +
+          `Auto-discovered ${today} (Pakiet 2${isLargeCap ? ', rdzeń+ large-cap delivery' : ''}): ` +
           `${pre.insiderName ?? '?'} BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}, ` +
           `mcap $${Math.round(mcap)}M, ADV $${Math.round(advUsd).toLocaleString('en-US')}`,
       });
@@ -502,7 +518,8 @@ export class Form4DiscoveryService {
 
       // 7. Filing + trades + eventy przez KANONICZNĄ ścieżkę core collectora
       //    (parseAndSaveForm4: agregacja TASK-03 + NEW_INSIDER_TRADE; Form4Pipeline
-      //    zobaczy sector='healthcare_discovery' → GPT + DB-only observation alert).
+      //    zobaczy sector='healthcare_discovery' → GPT + DB-only observation alert;
+      //    rdzeń+: sector='healthcare' → pełna reguła rdzenia, możliwa dostawa Telegram).
       //    XML przekazany jako preloaded (pobrany w kroku 3) — krok jest
       //    deterministyczny, bez drugiego fetchu który mógłby paść w połowie
       //    (weryfikacja 10.06: transient błąd w re-fetchu gubił trigger trade
@@ -554,8 +571,10 @@ export class Form4DiscoveryService {
       await this.redis.expire(regKey, 48 * 3600);
       await this.markSeen(accession);
       this.logger.log(
-        `Discovery ZAREJESTROWANY: ${meta.ticker} (${meta.name ?? '?'}) — observation mode, ` +
-          `przegląd okna obs ~25.07.2026`,
+        `Discovery ZAREJESTROWANY: ${meta.ticker} (${meta.name ?? '?'}) — ` +
+          (isLargeCap
+            ? `rdzeń+ DELIVERY (mcap ${Math.round(mcap)}M >= ${DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN}M), reguła rdzenia`
+            : 'observation mode, alerty DB-only'),
       );
 
       // 10.06.2026: ping na Telegram z metadanymi kandydata (prośba Przemka).
@@ -564,12 +583,16 @@ export class Form4DiscoveryService {
         const esc = (t: string) => t.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
         try {
           await this.telegram.sendMarkdown(
-            `🔭 *Discovery* — nowy ticker w obserwacji: \\$${esc(meta.ticker)}\n` +
+            (isLargeCap
+              ? `🎯 *Discovery rdzeń\\+* — nowy ticker DELIVERY: \\$${esc(meta.ticker)}\n`
+              : `🔭 *Discovery* — nowy ticker w obserwacji: \\$${esc(meta.ticker)}\n`) +
               `${esc(meta.name ?? '')} \\(SIC ${esc(meta.sic ?? '?')}\\)\n` +
               `Trigger: ${esc(pre.insiderName ?? '?')} \\(${esc(pre.insiderRole ?? '?')}\\) ` +
               `BUY $${esc(Math.round(pre.buyValue).toLocaleString('en-US'))}\n` +
               `mcap $${esc(String(Math.round(mcap)))}M \\| ADV $${esc(Math.round(advUsd).toLocaleString('en-US'))}\n` +
-              `_Observation mode — alerty DB\\-only, przegląd 25\\.07\\._`,
+              (isLargeCap
+                ? `_Large\\-cap ≥ $${esc(String(DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN / 1000))}B — reguła rdzenia, alerty mogą trafić na Telegram\\._`
+                : `_Observation mode — alerty DB\\-only\\._`),
           );
         } catch (err) {
           this.logger.warn(`Discovery ping Telegram failed: ${(err as Error).message}`);

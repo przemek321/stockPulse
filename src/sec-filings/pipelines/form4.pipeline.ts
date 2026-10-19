@@ -627,6 +627,8 @@ export class Form4Pipeline {
       // plan §2.P2 "bez nóg korelacji dla odkrytych tickerów (standalone Form4-BUY)"
       // ma obowiązywać także PO ewentualnej promocji do delivery (observationOnly=false),
       // inaczej promocja cicho przywróciłaby INSIDER_PLUS_8K dla discovery.
+      // Rdzeń+ (19.10.2026): large-capy promowane przez zmianę sector→'healthcare' ten guard
+      // ŚWIADOMIE omijają — mają pełną regułę rdzenia włącznie z korelacją (KALENDARZ 2027-02-01).
       if (this.correlation && !isSellNoEdgeSuppressed && !isObservationSuppressed && !isDiscoveryTicker) {
         try {
           const normalizedConviction = Math.max(-1.0, Math.min(1.0, analysis.conviction / 2.0));

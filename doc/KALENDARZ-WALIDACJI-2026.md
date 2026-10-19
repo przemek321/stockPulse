@@ -200,6 +200,29 @@ N≥10 ∧ hit ≥60% ∧ med α ≥+2 ∧ REAL>0) i wyjątek `ma` (N=2 <3, odł
 - Obserwacje raport-only dla werdyktu #2: `price1h` alertów w sesji po ~15:00 NY = kurs następnej sesji (ELV
   #2446/#2447 „+3.8% po 1h" to poniedziałek 10:00 NY); 8-K 48/53 poza sesją; wniosek GPT ucinany do 300 zn.
 
+## 2027-02-01 (lub N=10) — przegląd „rdzeń+" large-cap (pre-rejestracja 19.10.2026, WIĄŻĄCA)
+
+- **Decyzja usera 19.10.2026** (po tygodniu 11–18.10 z 0 dostarczonych; „poszerzenie rdzenia o duże spółki typu
+  PFE"): (1) 6 tickerów discovery o mcap ≥ $10 mld **przeniesione do rdzenia** (PFE, BSX, COR, ELAN, COO, SMMT —
+  `sector='healthcare'`, `observationOnly=false`, ta sama reguła co 27; UPDATE `tickers` 19.10, nota `rdzeń+`);
+  (2) discovery auto-rejestruje kandydata z mcap ≥ `DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN` (10 000) od razu jako
+  delivery. Rdzeń = **33** tickery. Zmiana PRZED werdyktem #2 — alerty rdzeń+ mają własną datę i listę symboli,
+  werdykt #2 liczy zdarzenia do 01.11 bez nich osobno (filtr: symbol w liście rdzeń+ lub `tickers.notes LIKE '%rdzeń+%'`).
+- **Dane in-sample, na których oparto decyzję** (alerty Form 4 BUY discovery z domkniętym 7d, 19.10): mcap ≥ $10B
+  **N=9** (7 zdarzeń): hit REAL 78%, med REAL +1,0%, med gap 1,6%, wchodzalne 78%; mcap < $10B N=29: hit 28%,
+  med REAL −5,3%, med gap 3,5%, wchodzalne 41%. Próg $10B dobrany PO obejrzeniu danych → to hipoteza, nie dowód.
+- **Metryka (wiążąca)**: dostarczone alerty `Form 4 Insider BUY` na tickerach rdzeń+ (lista + auto-promowane),
+  liczone od 19.10.2026, outcome 7d. **REAL = od `price1h` (pierwsza osiągalna cena), nie od `priceAtAlert`.**
+  Progi: **N ≥ 10**, hit REAL ≥ 60%, med REAL > 0, wchodzalne (gap ≤ 3%) ≥ 60%. Decyzja przy N=10 albo
+  **01.02.2027**, co pierwsze. Nie spełnione → 6 tickerów wraca do observation, auto-promocja off. N < 5 do
+  01.02 → INSUFFICIENT, bez promocji dalszej (nie przedłużać w nieskończoność).
+- **Koszt uboczny, przyjęty świadomie**: 8-K tych 6 spółek też lecą przez pełną regułę (2.02/5.02 z GPT, bullish
+  gate, material-event obs) — jak rdzeń; SELL C-suite/Director → GPT → `sell_no_edge` DB-only (jak rdzeń); nogi
+  korelacji (`storeSignal`) dla rdzeń+ AKTYWNE jak w rdzeniu (guard discovery w `form4.pipeline.ts` kluczowany na
+  sektorze `healthcare_discovery` — de facto martwe okno 24h, audyt 02.07). Świeża instalacja: seed czyta grupę
+  `rdzen_plus_largecap` z JSON (zweryfikowane `readUniverseTickers` 19.10). Discovery nadal pre-filtruje rejestrację (C-suite ≥ $100K / Director ≥ $500K),
+  po rejestracji obowiązują progi rdzenia (Director ≥ $100K).
+
 ## Wcześniejsze gate'y (dla porządku)
 
 - ~~2026-05-25 — FIX-13 Faza 3 decision deadline~~ (osobny wątek, Plan v3)

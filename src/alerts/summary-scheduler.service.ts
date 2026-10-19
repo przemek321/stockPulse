@@ -40,6 +40,8 @@ export const VALIDATION_CALENDAR: readonly { date: string; label: string }[] = [
   // doc/BULLISH-8K-GATE-REVIEW-2026-09-07.md. Przegląd #2 połączony z 15.11.
   { date: '2026-11-01', label: 'Werdykt #2 + discovery #2 (med α, REAL>0, sub-gate C-suite N≥10)' },
   { date: '2026-11-15', label: 'FIX-16 shadow #2 + bullish-8K #2 (po Q3; N≥3 would_uncap; sub-hip. no_consensus N≥10)' },
+  // 19.10.2026 rdzeń+ (large-cap ≥$10B delivery): pre-rejestracja w KALENDARZ-WALIDACJI; przegląd przy N=10 lub 01.02.2027.
+  { date: '2027-02-01', label: 'Rdzeń+ large-cap review (N≥10 delivered, hit REAL≥60%, med REAL>0, wchodzalne≥60%)' },
 ];
 
 /**

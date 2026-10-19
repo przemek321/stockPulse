@@ -15,10 +15,13 @@ Po **Pakiecie 1 + 2** (czerwiec; [CHANGELOG](doc/CHANGELOG.md)) system jest w po
 realizowalny (gap na otwarciu +7%). Cel bez zmian: **1 alert/tydzień z realnym edge**; realny strumień
 z rdzenia to **~1 dostarczony alert/miesiąc** (ostatni: PODD 24.08; od 17.07 dostarczonych 7).
 
-**Stan 11.10**: ostatnie 30 dni = 17 alertów, **0 dostarczonych** (12 Form 4 BUY discovery → observation,
-4 stłumione 8-K, 1 SELL). Sub-gate C-suite #2 (zdarzenia ≥02.09): T1 N=5/10, T2 N=2/10 — oba poniżej
-progów REAL (`logs/csuite-gate.log`). Agent-audytor działa od 29.09 (63 alerty zaudytowane, 0 false
-positives w ręcznej weryfikacji; [raport](doc/AUDITOR-SHADOW-RUN-2026-09-29.md)).
+**Stan 19.10**: ostatnie 30 dni = 10 alertów, **0 dostarczonych** (ostatni dostarczony PODD 24.08). Sub-gate
+C-suite #2 (zdarzenia ≥02.09): T1 N=5/10, T2 N=2/10 — oba poniżej progów REAL (`logs/csuite-gate.log`).
+Agent-audytor działa od 29.09 (65 alertów, 0 false positives; [raport](doc/AUDITOR-SHADOW-RUN-2026-09-29.md)).
+**„Rdzeń+" od 19.10.2026 (decyzja usera)**: 6 large-capów z discovery (PFE, BSX, COR, ELAN, COO, SMMT; mcap ≥ $10B)
+przeniesione do rdzenia (delivery), a discovery auto-rejestruje kolejne large-capy od razu jako delivery
+(`DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN`). Hipoteza in-sample (N=9: hit REAL 78%, med REAL +1,0% vs small-cap 28% / −5,3%);
+przegląd wiążący **01.02.2027 lub N=10** ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md)).
 
 Kalendarz decyzyjny ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md), przypominany w raporcie 8h):
 
@@ -26,6 +29,7 @@ Kalendarz decyzyjny ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md), przypominany 
 |---|---|
 | **01.11** | Werdykt #2 (mediana α, REAL>0) + przegląd discovery #2 + decyzje: poszerzyć rdzeń (typ PFE) vs ~1 sygnał/mies.; etap 2 agentów (MCP read-only + LLM); migracja stacku na Raspberry Pi 5 |
 | 15.11 | FIX-16 shadow review #2 + bullish-8K gate revisit #2 (po Q3) |
+| 01.02.2027 (lub N=10) | Przegląd rdzeń+ large-cap: hit REAL ≥60%, med REAL >0, wchodzalne ≥60% |
 
 Wykonane przeglądy (wszystkie bez zmiany reguł): APLS Faza 4 10.07 (insufficient data), discovery 27.07
 (bez promocji), FIX-16 25.08 (1/6), werdykt #1 01.09, bullish-8K 07.09 (bez zawężenia), C-suite 23.09,
@@ -72,7 +76,8 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   stagger +2 min vs core :05/:35) + nightly reconciliation daily-index 22:40 ET. Pre-filter:
   SIC healthcare/biotech → discretionary BUY C-suite **≥$100K** (tier-2 od 01.09, `ok_csuite_t2`) /
   Director ≥$500K (role-only) → mcap ≥$250M + ADV ≥$1M → auto-rejestracja
-  `sector='healthcare_discovery'`, observation mode. Sub-gate C-suite: `scripts/csuite-gate.sh` (T1/T2).
+  `sector='healthcare_discovery'`, observation mode; **od 19.10 mcap ≥ $10B → `sector='healthcare'`,
+  `observationOnly=false` (rdzeń+, delivery, ping 🎯)**. Sub-gate C-suite: `scripts/csuite-gate.sh` (T1/T2).
 - **PDUFA.bio** — **WYŁĄCZONY 21.06** (c65a7cb): upstream przepisany na client-side render →
   HTTP 404 dla scrapera. Dane `pdufa_catalysts` nieodświeżane od 19.06 (ostatnia przyszła
   data: VERA 07.07 — potem sekcja PDUFA w raporcie 8h pusta). Decyzja do podjęcia:
@@ -156,10 +161,10 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 
 ### Monitorowane sektory
 
-- **Healthcare** (core, delivery): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — **27 aktywnych tickerów** (28 zwalidowanych w Sprint 15 minus **SEM i WBA usunięte 01.09.2026**: delisting — brak w rejestrze SEC, Finnhub c=0; kopia wierszy `backups/tickers_SEM_WBA_deleted_20260901.json`). PUŁAPKA: w tabeli `tickers` jest też 8 wierszy `sector='healthcare'` z `isActive=false` (ALHC, CERT, CVS, CYH, DVA, GSK, HCAT, VEEV — seed z lutego 2026 sprzed walidacji); kolektor czyta tylko `isActive=true`, więc w analizach filtruj po `isActive`. Guard `getQuote` odrzuca notowania starsze niż 7 dni.
+- **Healthcare** (core, delivery): [doc/stockpulse-healthcare-universe.json](doc/stockpulse-healthcare-universe.json) — **33 aktywne tickery** = 27 zwalidowanych (28 ze Sprint 15 minus **SEM i WBA usunięte 01.09.2026**: delisting — brak w rejestrze SEC, Finnhub c=0; kopia wierszy `backups/tickers_SEM_WBA_deleted_20260901.json`) + **6 rdzeń+ od 19.10.2026** (PFE BSX COR ELAN COO SMMT — promocja z discovery, `notes LIKE '%rdzeń+%'`, NIE w backteście Sprint 15; w analizach werdyktu #2 wydzielaj je po liście/nocie). Kolejne large-capy (mcap ≥ $10B) dochodzą automatycznie z discovery. PUŁAPKA: w tabeli `tickers` jest też 8 wierszy `sector='healthcare'` z `isActive=false` (ALHC, CERT, CVS, CYH, DVA, GSK, HCAT, VEEV — seed z lutego 2026 sprzed walidacji); kolektor czyta tylko `isActive=true`, więc w analizach filtruj po `isActive`. Guard `getQuote` odrzuca notowania starsze niż 7 dni.
 - **biotech_apls** (observation): 6 tickerów (URGN/ARDX/MNKD/CRSP/AXSM/RCKT), [doc/stockpulse-biotech-apls.json](doc/stockpulse-biotech-apls.json).
 - **semi_supply_chain** (observation): 14 tickerów, [doc/stockpulse-semi-supply-chain.json](doc/stockpulse-semi-supply-chain.json).
-- **healthcare_discovery** (observation, auto-rejestracja Pakiet 2): rośnie z rynku (EYE, SMMT, COR...).
+- **healthcare_discovery** (observation, auto-rejestracja Pakiet 2): rośnie z rynku (24 tickery na 19.10: EYE, INBX, KOD...); large-capy ≥ $10B omijają obserwację (rdzeń+).
 
 ## Ważne konwencje danych (PUŁAPKI — czytaj przed pisaniem kodu)
 

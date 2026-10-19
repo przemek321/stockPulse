@@ -5,12 +5,12 @@
     "created": "2026-02-08",
     "author": "Przemek",
     "description": "Kompletna konfiguracja monitoringu healthcare sector dla StockPulse",
-    "total_tickers": 27,
+    "total_tickers": 33,
     "total_keywords": 180,
     "total_people": 65,
     "total_subreddits": 18,
     "total_regulatory_sources": 12,
-    "total_tickers_note": "28 zwalidowanych w Sprint 15 backteście (P0.5 fix 10.04.2026); SEM i WBA usunięte 01.09.2026 (delisting) → 27"
+    "total_tickers_note": "28 zwalidowanych w Sprint 15 backteście (P0.5 fix 10.04.2026); SEM i WBA usunięte 01.09.2026 (delisting) → 27; +6 rdzeń+ large-cap (promocja z discovery 19.10.2026, przegląd 01.02.2027 lub N=10) → 33"
   },
   "tickers": {
     "managed_care_insurers": {
@@ -596,6 +596,84 @@
           "ceo": "Chris Viehbacher",
           "cfo": "Mike McDonnell",
           "notes": "Alzheimer's (Leqembi). MS franchise. Rare disease (Skyclarys)."
+        }
+      ]
+    },
+    "rdzen_plus_largecap": {
+      "description": "Rdzeń+ (19.10.2026): spółki o mcap ≥ $10 mld promowane z healthcare_discovery do delivery — identyczna reguła jak rdzeń. HIPOTEZA (dane in-sample N=9: hit REAL 78%, med REAL +1,0%); przegląd 01.02.2027 lub N=10 (KALENDARZ-WALIDACJI). Nie są w backteście Sprint 15. Kolejne large-capy dochodzą automatycznie (DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN) — ta lista to stan na 19.10.",
+      "priority": "MEDIUM",
+      "companies": [
+        {
+          "ticker": "PFE",
+          "name": "Pfizer Inc.",
+          "cik": "0000078003",
+          "subsector": "Pharmaceutical Preparations",
+          "market_cap_tier": "mega",
+          "aliases": [],
+          "key_metrics": [],
+          "ceo": "",
+          "cfo": "",
+          "notes": "Auto-discovered 2026-08-05 (Pakiet 2); rdzeń+ od 2026-10-19 (ceo/cfo nieuzupełnione — metadane, seed nie wymaga wartości)"
+        },
+        {
+          "ticker": "BSX",
+          "name": "Boston Scientific Corp.",
+          "cik": "0000885725",
+          "subsector": "Surgical & Medical Instruments & Apparatus",
+          "market_cap_tier": "large",
+          "aliases": [],
+          "key_metrics": [],
+          "ceo": "",
+          "cfo": "",
+          "notes": "Auto-discovered 2026-08-05 (Pakiet 2); rdzeń+ od 2026-10-19 (ceo/cfo nieuzupełnione — metadane, seed nie wymaga wartości)"
+        },
+        {
+          "ticker": "COR",
+          "name": "Cencora, Inc.",
+          "cik": "0001140859",
+          "subsector": "Wholesale-Drugs (dystrybucja)",
+          "market_cap_tier": "large",
+          "aliases": [],
+          "key_metrics": [],
+          "ceo": "",
+          "cfo": "",
+          "notes": "Auto-discovered 2026-06-22 (Pakiet 2); rdzeń+ od 2026-10-19 (ceo/cfo nieuzupełnione — metadane, seed nie wymaga wartości)"
+        },
+        {
+          "ticker": "ELAN",
+          "name": "Elanco Animal Health Inc.",
+          "cik": "0001739104",
+          "subsector": "Pharmaceutical Preparations (animal health)",
+          "market_cap_tier": "mid-large",
+          "aliases": [],
+          "key_metrics": [],
+          "ceo": "",
+          "cfo": "",
+          "notes": "Auto-discovered 2026-08-21 (Pakiet 2); rdzeń+ od 2026-10-19 (ceo/cfo nieuzupełnione — metadane, seed nie wymaga wartości)"
+        },
+        {
+          "ticker": "COO",
+          "name": "Cooper Companies, Inc.",
+          "cik": "0000711404",
+          "subsector": "Ophthalmic Goods",
+          "market_cap_tier": "mid-large",
+          "aliases": [],
+          "key_metrics": [],
+          "ceo": "",
+          "cfo": "",
+          "notes": "Auto-discovered 2026-09-15 (Pakiet 2); rdzeń+ od 2026-10-19 (ceo/cfo nieuzupełnione — metadane, seed nie wymaga wartości)"
+        },
+        {
+          "ticker": "SMMT",
+          "name": "Summit Therapeutics Inc.",
+          "cik": "0001599298",
+          "subsector": "Pharmaceutical Preparations (biotech)",
+          "market_cap_tier": "mid-large",
+          "aliases": [],
+          "key_metrics": [],
+          "ceo": "",
+          "cfo": "",
+          "notes": "Auto-discovered 2026-06-12 (Pakiet 2); rdzeń+ od 2026-10-19 (ceo/cfo nieuzupełnione — metadane, seed nie wymaga wartości)"
         }
       ]
     }

@@ -40,7 +40,14 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   **04.10**: odcięcie zasilania → start kontenerów z zegarem 1970 mimo czekania w autostarcie (`restart:
   unless-stopped` podnosi je przed NTP); dane nienaruszone.
 - **11.10** `3ca5cbc` przegląd aktualności dokumentacji + [raport statusu](reports/2026-10-11-status-report.md);
-  autostart krok 3.5: po NTP restart `app`, jeśli `StartedAt` < 2000 (fix incydentu 04.10), health w pętli do 90 s.
+  `9417240` autostart krok 3.5: po NTP restart `app`, jeśli `StartedAt` < 2000 (fix incydentu 04.10), health w pętli do 90 s.
+  **18.10** `16c2f42` [podsumowanie tygodnia](reports/2026-10-18-weekly-report.md) (2 alerty, 0 dostarczonych).
+- **19.10 — „rdzeń+" large-cap (decyzja usera, pierwsza zmiana reguł od 01.09)**: 6 tickerów discovery o mcap ≥ $10B
+  (PFE, BSX, COR, ELAN, COO, SMMT) → rdzeń delivery (UPDATE `tickers`: `sector='healthcare'`, `observationOnly=false`,
+  nota `rdzeń+`); discovery rejestruje kandydata z mcap ≥ `DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN` (10 000) od razu jako
+  delivery (ping 🎯). Podstawa: alerty discovery Form 4 BUY z 7d — large-cap N=9 hit REAL 78% / med +1,0% vs small-cap
+  N=29 28% / −5,3% (in-sample). Pre-rejestracja przeglądu 01.02.2027 lub N=10 w KALENDARZU + `VALIDATION_CALENDAR`.
+  Rdzeń = 33 tickery.
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 

@@ -227,9 +227,9 @@ describe('upcomingValidationEvents — kalendarz walidacji', () => {
     expect(ev[0].date).toBe('2026-07-25');
   });
 
-  it('produkcyjny kalendarz ma 2 daty decyzyjne (APLS, discovery, FIX-16 #1, werdykt #1, bullish #1 wykonane)', () => {
+  it('produkcyjny kalendarz ma 3 daty decyzyjne (werdykt #2, FIX-16/bullish #2, rdzeń+ 19.10.2026)', () => {
     expect(VALIDATION_CALENDAR.map((e) => e.date)).toEqual([
-      '2026-11-01', '2026-11-15',
+      '2026-11-01', '2026-11-15', '2027-02-01',
     ]);
   });
 });

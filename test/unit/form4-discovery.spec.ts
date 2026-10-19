@@ -7,6 +7,7 @@ import {
   DISCOVERY_MIN_BUY_VALUE,
   DISCOVERY_MIN_MCAP_MLN,
   DISCOVERY_MAX_REGISTRATIONS_PER_DAY,
+  DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN,
 } from '../../src/collectors/form4-discovery/form4-discovery.service';
 import { Form4Transaction } from '../../src/collectors/sec-edgar/form4-parser';
 
@@ -251,10 +252,11 @@ describe('prefilterForm4Buy (Pakiet 2)', () => {
     expect(r.insiderName).toBe('Jones Mary');
   });
 
-  it('stałe: $500K / $250M mcap / 5 rejestracji per dzień', () => {
+  it('stałe: $500K / $250M mcap / 5 rejestracji per dzień / $10B rdzeń+', () => {
     expect(DISCOVERY_MIN_BUY_VALUE).toBe(500_000);
     expect(DISCOVERY_MIN_MCAP_MLN).toBe(250);
     expect(DISCOVERY_MAX_REGISTRATIONS_PER_DAY).toBe(5);
+    expect(DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN).toBe(10_000);
   });
 });
 
@@ -391,6 +393,44 @@ describe('Form4DiscoveryService.processAccession (Pakiet 2)', () => {
       expect.stringContaining('Discovery'),
     );
     expect((mocks.telegram.sendMarkdown).mock.calls[0][0]).toContain('TSTX');
+  });
+
+  it('rdzeń+ (19.10.2026): mcap $12B >= $10B → rejestracja jako DELIVERY (sector=healthcare, observationOnly=false)', async () => {
+    const { svc, mocks } = buildService({ sic: '2834', ticker: 'BIGX', mcapMln: 12_000 });
+
+    const registered = await (svc as any).processAccession(ACC, CIK, new AbortController().signal);
+
+    expect(registered).toBe(true);
+    expect(mocks.tickerRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'BIGX',
+        sector: 'healthcare',
+        observationOnly: false,
+        priority: 'MEDIUM',
+        notes: expect.stringContaining('rdzeń+'),
+      }),
+    );
+    // kanoniczny persist bez zmian — ten sam flow, inna flaga tickera
+    expect(mocks.secEdgar.parseAndSaveForm4).toHaveBeenCalledWith(
+      'BIGX', ACC, expect.stringContaining('form4.xml'), expect.any(String), expect.any(String),
+    );
+    expect(mocks.redisStore.has(`seen:${ACC}`)).toBe(true);
+    expect((mocks.telegram.sendMarkdown).mock.calls[0][0]).toContain('DELIVERY');
+  });
+
+  it('rdzeń+: mcap dokładnie na progu $10B → delivery; $9 999M → observation', async () => {
+    const atThreshold = buildService({ sic: '2834', ticker: 'EDGE', mcapMln: 10_000 });
+    await (atThreshold.svc as any).processAccession(ACC, CIK, new AbortController().signal);
+    expect(atThreshold.mocks.tickerRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ sector: 'healthcare', observationOnly: false }),
+    );
+
+    const below = buildService({ sic: '2834', ticker: 'SMAL', mcapMln: 9_999 });
+    await (below.svc as any).processAccession(ACC, CIK, new AbortController().signal);
+    expect(below.mocks.tickerRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ sector: 'healthcare_discovery', observationOnly: true, priority: 'LOW' }),
+    );
+    expect((below.mocks.telegram.sendMarkdown).mock.calls[0][0]).toContain('obserwacji');
   });
 
   it('non-healthcare SIC (semis 3674) → skip PRZED fetchem XML', async () => {
