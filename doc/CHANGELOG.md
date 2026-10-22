@@ -48,6 +48,10 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   delivery (ping 🎯). Podstawa: alerty discovery Form 4 BUY z 7d — large-cap N=9 hit REAL 78% / med +1,0% vs small-cap
   N=29 28% / −5,3% (in-sample). Pre-rejestracja przeglądu 01.02.2027 lub N=10 w KALENDARZU + `VALIDATION_CALENDAR`.
   Rdzeń = 33 tickery.
+- **22.10 — teczka „wejście nocne" zamknięta NEGATYWNIE** ([raport](reports/2026-10-22-after-hours-check.md)): Polygon
+  minute aggs (sesja rozszerzona) dla 8 zdarzeń gate'u C-suite #2 — gap powstaje natychmiast po filingu (1. print
+  mediana +3,4% = gap na open +3,0%), płynność symboliczna (0–739 szt.), REAL 7d przy wejściu na 1. princie −8,2% vs
+  obecne −8,1%. Moment wejścia nie jest problemem; bez zmian w regułach.
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 
