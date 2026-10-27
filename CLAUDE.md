@@ -210,3 +210,4 @@ Patrz `.env.example` (gitignored). Główne:
 - **Plan edge + walidacja**: [doc/PLAN-EDGE-IMPROVEMENTS-2026-06-09.md](doc/PLAN-EDGE-IMPROVEMENTS-2026-06-09.md) · [doc/KALENDARZ-WALIDACJI-2026.md](doc/KALENDARZ-WALIDACJI-2026.md)
 - **Backtest**: `scripts/backtest/` (6 hipotez, 3 lata Form 4) · ściąga [doc/STOCKPULSE-CHEATSHEET-2026-04-17.md](doc/STOCKPULSE-CHEATSHEET-2026-04-17.md)
 - **Raporty tygodniowe**: [doc/reports/](doc/reports/)
+- **Dip research (POZA aplikacją, od 27.10.2026)**: `~/dip-research/` — osobny skrypt Pythona + cron 15:00 PL + `claude -p`; codzienny raport top-10 spadków na Telegram (NIE-sygnał); przegląd 01.02.2027/N=20 w KALENDARZU. Nie integrować z kodem StockPulse (decyzja usera).

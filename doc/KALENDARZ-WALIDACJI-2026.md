@@ -200,6 +200,14 @@ N≥10 ∧ hit ≥60% ∧ med α ≥+2 ∧ REAL>0) i wyjątek `ma` (N=2 <3, odł
 - Obserwacje raport-only dla werdyktu #2: `price1h` alertów w sesji po ~15:00 NY = kurs następnej sesji (ELV
   #2446/#2447 „+3.8% po 1h" to poniedziałek 10:00 NY); 8-K 48/53 poza sesją; wniosek GPT ucinany do 300 zn.
 
+## 2027-02-01 (lub N=20) — przegląd „dip research" (pre-rejestracja 27.10.2026, WIĄŻĄCA; narzędzie POZA aplikacją)
+
+Osobna odnoga (decyzja usera 27.10): `~/dip-research/dip_research.py` (Python stdlib, własny SQLite, cron 15:00 PL,
+LLM przez `claude -p`). Codzienny top-10 spadków poprzedniej sesji + rekomendacja ⭐ 0–3 tickerów. **NIE-sygnał wg
+REGUŁ GRY.** Metryka (szczegóły w `~/dip-research/README.md`): rekomendowane ⭐, wejście open(+1 sesja), koszt 1%:
+mediana REAL 3d i 7d > +2%, hit 7d ≥ 60%, N ≥ 20; kontrola = cały top-10 i outlook HIGH. N < 10 do 01.02 → INSUFFICIENT.
+Niespełnione → narzędzie bez rekomendacji „co kupić" albo sunset. Liczenie: `dip_research.py --review`.
+
 ## 2027-02-01 (lub N=10) — przegląd „rdzeń+" large-cap (pre-rejestracja 19.10.2026, WIĄŻĄCA)
 
 - **Decyzja usera 19.10.2026** (po tygodniu 11–18.10 z 0 dostarczonych; „poszerzenie rdzenia o duże spółki typu
