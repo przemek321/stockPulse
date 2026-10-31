@@ -34,6 +34,9 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   klasa Form 4 BUY bez FUND N=29, hit 62%, med REAL −1.37% (forward ≥01.09: 42% / −5.7%); discovery #2 bez promocji;
   sub-gate C-suite #2 T1 6/10 FAIL 4/5; fix licznika (escapy MarkdownV2 w nazwisku — `csuite-gate.cte.sql`); pre-rejestracja
   werdyktu #3 core+rdzeń+ na 01.02.2027; skrypt `scripts/analysis/werdykt-2026-11-01.py`. Reguły sygnałowe bez zmian.
+- **01.11** instrumentacja z werdyktów: capture **XLV** (4 kolumny nullable w `alerts`, snapshot + sloty Price Outcome);
+  liczniki `W3` (werdykt #3 core+rdzeń+, progi na NET) i `ME8K` (Material Event po `ruleName`) w `csuite-gate.sh`;
+  raport 8h bez wpisu 01.11; REGUŁY §5 dopisek STOP GRY. Zachowanie sygnałowe bez zmian.
 - **26–27.09 — ESLint strict + TS strict** (`98ded99`..`db87781`): flat config strict-type-checked BE+FE z baseline
   suppressions (blokuje tylko NOWE błędy), `strict: true` w backendzie (159 pól encji `!`, `errMsg()/errCode()`),
   frontend TS 4.9 → 5.9, CI GitHub (required checks backend+frontend), hook lint-changed.

@@ -175,7 +175,12 @@ agenci etap 2, Pi 5, API A/B.
   (podaż ~1/mies. nie wystarcza na pomiar — kontynuacja bez końca jest anty-wzorcem).
 - **Sub-gate C-suite #2** (T1 forward ≥02.09) trwa równolegle do N=10, własne progi z 23.09; T2 osobno (licznik po fixie escapów).
 - **Teczki**: gap-band (N≥10 w paśmie >7%), Form 4 SELL jako short (N≥20 zdarzeń → ocena informacyjna, nie gra), FUND (N≥10).
-- **Instrumentacja dozwolona**: licznik „werdykt #3" w `scripts/csuite-gate.sh` (osobna linia logu), capture XLV (zaległe z 01.09).
+- **Doprecyzowanie 01.11.2026 (przy N=0, przed jakimikolwiek danymi)**: „REAL" w progach werdyktu #3 = **NET** (price1h→7d
+  minus 1% kosztów), jak trzeci warunek każdej promocji z 01.09 — zdjęcie stopu gry to promocja. Licznik pokazuje obie wartości.
+- **Instrumentacja WDROŻONA 01.11.2026**: linia `W3` w `logs/csuite-gate.log` (`scripts/sql/werdykt3-gates.sql`, jednorazowy ping
+  przy N≥10); linia `ME8K` = 8-K Material Event GPT od 01.09 liczony po `ruleName` (stan 01.11: N=5/10 zdarzeń, hit 60%, med NET −1.05,
+  wszystkie stłumione jako `bullish_8k_no_edge`/`gpt_missing_data`); capture **XLV** (`xlvAtAlert` + sloty 1d/3d/7d) od 01.11 —
+  alerty sprzed wdrożenia mają null. Reguła benchmarku (SIC 283x → XBI, reszta → XLV) obowiązuje dopiero od werdyktu #3.
 
 ## ~~2026-09-07 — bullish-8K gate revisit (90d od P1-02)~~ ✅ WYKONANY 07.09 — BEZ ZAWĘŻENIA
 

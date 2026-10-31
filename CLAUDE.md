@@ -80,7 +80,7 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   SIC healthcare/biotech → discretionary BUY C-suite **≥$100K** (tier-2 od 01.09, `ok_csuite_t2`) /
   Director ≥$500K (role-only) → mcap ≥$250M + ADV ≥$1M → auto-rejestracja
   `sector='healthcare_discovery'`, observation mode; **od 19.10 mcap ≥ $10B → `sector='healthcare'`,
-  `observationOnly=false` (rdzeń+, delivery, ping 🎯)**. Sub-gate C-suite: `scripts/csuite-gate.sh` (T1/T2).
+  `observationOnly=false` (rdzeń+, delivery, ping 🎯)**. Sub-gate C-suite: `scripts/csuite-gate.sh` (T1/T2 + od 01.11 liczniki `W3` werdyktu #3 i `ME8K` 8-K Material Event, `logs/csuite-gate.log`).
 - **PDUFA.bio** — **WYŁĄCZONY 21.06** (c65a7cb): upstream przepisany na client-side render →
   HTTP 404 dla scrapera. Dane `pdufa_catalysts` nieodświeżane od 19.06 (ostatnia przyszła
   data: VERA 07.07 — potem sekcja PDUFA w raporcie 8h pusta). Decyzja do podjęcia:
@@ -127,7 +127,7 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   Ping Telegram dla `observation` (krótka notka, alert zostaje DB-only).
 - **Price Outcome Tracker** (`src/price-outcome/`) — `priceAtAlert` PRZED dispatch (cena wejścia
   w Telegramie). CRON co 1h, sloty `price1h/4h/1d/3d/7d` + XBI/IBB benchmark (sector-adjusted alpha,
-  beta=1.0). Hard timeout 11d. Sloty liczone od otwarcia NYSE (`getEffectiveStartTime` — alerty
+  beta=1.0); **od 01.11.2026 także XLV** (`xlvAtAlert`/`xlv1d/3d/7d` — benchmark healthcare spoza biotechu, tylko dla nowych alertów). Hard timeout 11d. Sloty liczone od otwarcia NYSE (`getEffectiveStartTime` — alerty
   pre-market/nocne kotwiczone na 9:30 ET; S20-T06 fix dla okna 00-04 UTC).
 - **Agent-audytor (shadow-mode, od 29.09.2026)** — `src/agents/`: `AgentOrchestratorService` CRON `*/15`
   UTC skanuje `alerts` bez markera `_AUDITED` (30d, `priceOutcomeDone`), buduje kontekst (filing wg reguły,

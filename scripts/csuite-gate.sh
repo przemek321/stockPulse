@@ -10,6 +10,10 @@
 # zdarzeń wchodzalnych wg chase guardu (+3%) — gate na medianie przeszedł 18.09 przy średniej REAL ujemnej.
 # Atrybucja roli = transakcja wyzwalająca alert (fix fantomowych zdarzeń, patrz csuite-gate.cte.sql).
 #
+# 01.11.2026 (werdykt #2): ten sam przebieg dopisuje do logu dwa liczniki pre-zarejestrowane przy werdykcie #2
+# (scripts/sql/werdykt3-gates.sql): W3 = werdykt #3 „core + rdzeń+" (Form 4 BUY sector='healthcare' od 01.11) i
+# ME8K = 8-K Material Event GPT od 01.09 liczony po ruleName. Każdy z jednorazowym pingiem przy N>=10.
+#
 # Użycie:  csuite-gate.sh            (tryb cron: log + ping Telegram per tier gdy N>=10, ponawiany aż ok:true)
 #          csuite-gate.sh --print    (pełna tabela zdarzeń na stdout)
 # Cron:    45 23 * * 1-5 /home/n1copl/stockPulse/scripts/csuite-gate.sh   (po ostatnim slocie price outcome)
@@ -26,6 +30,20 @@ POS_PLN=2200
 # Sekcja „historia" w --print pokazuje pełną kohortę dla porównania.
 GATE2_FROM="2026-09-02"
 mkdir -p "$STATE_DIR"
+SQL_W3="$REPO_DIR/scripts/sql/werdykt3-gates.sql"
+
+# Liczniki werdyktu #3 / 8-K Material Event: tag|zdarzenia|alerty|hit%|med_alpha|med_real|med_net|mean_net|pln|wchodzalne
+W3_SUMMARY=$(docker exec -i stockpulse-postgres psql -U stockpulse -d stockpulse -t -A -F'|' -v pos_pln="$POS_PLN" \
+  < "$SQL_W3" 2>&1)
+w3_line() {  # $1..$10 = pola W3_SUMMARY
+  case "$1" in
+    W3)   echo "W3 core+rdzeń+ (od 01.11) N=$2/$GATE_N (alertów $3) hit=$4% medα=$5pp medREAL=$6% medNET=$7% (śr NET $8, suma $9 PLN @${POS_PLN}) wchodzalne=${10}/$2" ;;
+    ME8K) echo "ME8K 8-K Material Event (od 01.09, po ruleName) N=$2/$GATE_N (alertów $3) hit=$4% medα=$5pp medREAL=$6% (śr NET $8) wchodzalne=${10}/$2" ;;
+  esac
+}
+w3_progi() {  # werdykt #3: hit>=60 ∧ med NET>0 ∧ śr NET>0 ∧ wchodzalne>=50%
+  python3 -c "n=$2; ok=[$4>=60, $7>0, $8>0, n>0 and ${10}/n>=0.5]; print('progi: hit=%d NET_med=%d NET_śr=%d wchodz=%d' % tuple(ok))"
+}
 
 psql_q() { docker exec -i stockpulse-postgres psql -U stockpulse -d stockpulse -t -A -F'|' 2>&1; }
 
@@ -70,6 +88,12 @@ SELECT CASE WHEN first_at >= '$GATE2_FROM' THEN 'GATE2' ELSE 'hist' END AS okres
 FROM events ORDER BY okres, tier, first_at;
 EOSQL
   } | docker exec -i stockpulse-postgres psql -U stockpulse -d stockpulse 2>&1
+  echo
+  echo "LICZNIKI WERDYKTU #2 (01.11.2026; progi W3 na NET = REAL − 1%, jak warunek promocji z 01.09)"
+  echo "$W3_SUMMARY" | while IFS='|' read -r A B C D E F G H I J; do
+    [ "$A" = "W3" ] && echo "  $(w3_line "$A" "$B" "$C" "$D" "$E" "$F" "$G" "$H" "$I" "$J") | $(w3_progi "$A" "$B" "$C" "$D" "$E" "$F" "$G" "$H" "$I" "$J")"
+    [ "$A" = "ME8K" ] && echo "  $(w3_line "$A" "$B" "$C" "$D" "$E" "$F" "$G" "$H" "$I" "$J") | decyzja obs/sunset przy N>=$GATE_N"
+  done
   exit 0
 fi
 
@@ -102,6 +126,33 @@ echo "$SUMMARY" | while IFS='|' read -r TIER N HIT MA MEANA MR MEANR PLN ENT RAW
       echo "$(date '+%F %T') PING $TIER wysłany OK (N=$N)" >> "$LOG_FILE"
     else
       echo "$(date '+%F %T') PING $TIER BŁĄD: $(echo "$RESP" | tr '\n' ' ' | head -c 300) — ponowię jutro" >> "$LOG_FILE"
+    fi
+  fi
+done
+
+# ── Liczniki werdyktu #2 (01.11.2026): W3 + ME8K — log + jednorazowy ping przy N>=10 ──────────────────
+if ! [[ "$W3_SUMMARY" =~ ^W3\| ]]; then
+  echo "$(date '+%F %T') BŁĄD SQL (werdykt3-gates): ${W3_SUMMARY:0:300}" >> "$LOG_FILE"; exit 1
+fi
+echo "$W3_SUMMARY" | while IFS='|' read -r TAG N ALERTS HIT MA MR MNET MEANNET PLN ENT; do
+  LINE="$(w3_line "$TAG" "$N" "$ALERTS" "$HIT" "$MA" "$MR" "$MNET" "$MEANNET" "$PLN" "$ENT")"
+  [ "$TAG" = "W3" ] && LINE="$LINE | $(w3_progi "$TAG" "$N" "$ALERTS" "$HIT" "$MA" "$MR" "$MNET" "$MEANNET" "$PLN" "$ENT")"
+  echo "$(date '+%F %T') $LINE" >> "$LOG_FILE"
+  STATE_FILE="$STATE_DIR/csuite-gate.$TAG.state"
+  if [ "$N" -ge "$GATE_N" ] && [ ! -f "$STATE_FILE" ]; then
+    TG_TOKEN=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$REPO_DIR/.env" | cut -d= -f2-)
+    TG_CHAT=$(grep -E '^TELEGRAM_CHAT_ID=' "$REPO_DIR/.env" | cut -d= -f2-)
+    case "$TAG" in
+      W3)   HEAD="📐 Werdykt #3 core+rdzeń+: N=$N osiągnięte → przegląd wcześniej niż 01.02.2027 (KALENDARZ). To NIE sygnał." ;;
+      ME8K) HEAD="📐 8-K Material Event GPT: N=$N osiągnięte → decyzja obs/sunset (KALENDARZ, teczka z 01.09). To NIE sygnał." ;;
+    esac
+    RESP=$(curl -s -m 30 -w '\nHTTP:%{http_code}' -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${TG_CHAT}" --data-urlencode "text=${HEAD} ${LINE}. Szczegóły: scripts/csuite-gate.sh --print")
+    if echo "$RESP" | grep -q '"ok":true'; then
+      echo "PINGED $(date '+%F %T') N=$N" > "$STATE_FILE"
+      echo "$(date '+%F %T') PING $TAG wysłany OK (N=$N)" >> "$LOG_FILE"
+    else
+      echo "$(date '+%F %T') PING $TAG BŁĄD: $(echo "$RESP" | tr '\n' ' ' | head -c 300) — ponowię jutro" >> "$LOG_FILE"
     fi
   fi
 done
