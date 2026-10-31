@@ -76,6 +76,10 @@
   Licznik serii prowadzony jawnie w kolumnie **„seria"** dziennika (0/1/2/3 — po każdej zamkniętej transakcji).
 - Werdykt 01.09 „system bez edge" → koniec gry realnej, powrót do walidacji.
   *(Werdykt 01.09: edge NIE wykazany, ale system ≠ „bez edge" — gra trwa jako pomiar; następny werdykt 01.11.)*
+  **Dopisek 01.11.2026 — werdykt #2: „BEZ EDGE" (kryterium pre-zarejestrowane 01.09 spełnione: klasa Form 4 BUY bez FUND
+  N=29, hit 62%, mediana REAL −1.37% ≤ −1%) → KONIEC GRY REALNEJ od 01.11.2026, powrót do walidacji (pomiar bez kapitału).**
+  Ewentualne 🎯 → dziennik jako `SKIPPED_STOP`. Zdjęcie stopu wyłącznie przez werdykt #3 (01.02.2027, tylko 🎯 z rdzenia; progi
+  w KALENDARZ-WALIDACJI) albo datowany dopisek właściciela. Szczegóły: [WERDYKT-EDGE-2026-11-01.md](WERDYKT-EDGE-2026-11-01.md).
 - Każda transakcja niezgodna z regułami (wejście z emocji, brak wpisu w dzienniku,
   przetrzymanie po 7d) → tygodniowa pauza, niezależnie od wyniku.
 
