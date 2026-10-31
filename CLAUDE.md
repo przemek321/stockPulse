@@ -7,13 +7,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > Ten plik = **„jak system działa teraz"**. Historia „jak doszliśmy" (sprinty, FIX-XX,
 > TASK-XX, commit-by-commit): [doc/CHANGELOG.md](doc/CHANGELOG.md) + `git log` + pliki `doc/SESJA-*`.
 
-## Stan obecny (październik 2026) — walidacja forward trwa, werdykt #2 01.11
+## Stan obecny (listopad 2026) — WERDYKT #2: BEZ EDGE → stop gry real; system = pomiar bez kapitału
 
-Po **Pakiecie 1 + 2** (czerwiec; [CHANGELOG](doc/CHANGELOG.md)) system jest w pomiarze. **Werdykt #1
-(01.09): edge NIE wykazany (insufficient N)** — gra trwa jako pomiar; jedyna hipoteza wiodąca to
-**Form 4 Insider BUY C-suite**, ale sub-gate #1 (23.09) **bez promocji**: edge informacyjny, nie
-realizowalny (gap na otwarciu +7%). Cel bez zmian: **1 alert/tydzień z realnym edge**; realny strumień
-z rdzenia to **~1 dostarczony alert/miesiąc** (ostatni: PODD 24.08; od 17.07 dostarczonych 7).
+Po **Pakiecie 1 + 2** (czerwiec; [CHANGELOG](doc/CHANGELOG.md)) system był w pomiarze. **Werdykt #1 (01.09): edge NIE
+wykazany (insufficient N)**; sub-gate C-suite #1 (23.09) bez promocji (gap na otwarciu +7%). **Werdykt #2 (01.11.2026,
+[WERDYKT-EDGE-2026-11-01.md](doc/WERDYKT-EDGE-2026-11-01.md)): kryterium „bez edge" SPEŁNIONE** — klasa Form 4 BUY bez FUND
+N=29 zdarzeń, hit 62%, **mediana REAL −1.37% ≤ −1%**; forward ≥01.09 hit 42%, med REAL −5.7%. **REGUŁY §5 → stop gry real od
+01.11.2026** (0 🎯 od PODD 24.08 i tak). Jedyny dodatni segment: core+rdzeń+ (8 zdarzeń, hit 88%, med REAL +0.69, N<20) →
+**werdykt #3 01.02.2027** (KALENDARZ: N≥10 forward, hit ≥60%, med+śr REAL >0, ≥50% wchodzalnych → zdjęcie stopu; N<5 → sunset gry).
+Otwarte decyzje usera: pomiar vs sunset, wyłączenie Director-only w discovery, agenci etap 2 (rekomendacja: odłożyć), Pi 5,
+API Anthropic (bez kredytów od 27.10 — pipeline GPT ślepy).
 
 **Stan 19.10**: ostatnie 30 dni = 10 alertów, **0 dostarczonych** (ostatni dostarczony PODD 24.08). Sub-gate
 C-suite #2 (zdarzenia ≥02.09): T1 N=5/10, T2 N=2/10 — oba poniżej progów REAL (`logs/csuite-gate.log`).
@@ -27,13 +30,13 @@ Kalendarz decyzyjny ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md), przypominany 
 
 | Data | Przegląd |
 |---|---|
-| **01.11** | Werdykt #2 (mediana α, REAL>0) + przegląd discovery #2 + decyzje: poszerzyć rdzeń (typ PFE) vs ~1 sygnał/mies.; etap 2 agentów (MCP read-only + LLM); migracja stacku na Raspberry Pi 5 |
-| 15.11 | FIX-16 shadow review #2 + bullish-8K gate revisit #2 (po Q3) |
-| 01.02.2027 (lub N=10) | Przegląd rdzeń+ large-cap: hit REAL ≥60%, med REAL >0, wchodzalne ≥60% |
+| 15.11 | FIX-16 shadow review #2 + bullish-8K gate revisit #2 (po Q3; stan 01.11: pełne query hit 48% → bez zawężenia) |
+| **01.02.2027** (lub N=10) | **Werdykt #3 core+rdzeń+** (N≥10 forward od 01.11, hit ≥60%, med+śr REAL >0, ≥50% wchodzalnych → zdjęcie stopu gry; N<5 → sunset gry) + przegląd rdzeń+ large-cap; sub-gate C-suite #2 trwa równolegle (T1 6/10 FAIL 4/5) |
 
-Wykonane przeglądy (wszystkie bez zmiany reguł): APLS Faza 4 10.07 (insufficient data), discovery 27.07
-(bez promocji), FIX-16 25.08 (1/6), werdykt #1 01.09, bullish-8K 07.09 (bez zawężenia), C-suite 23.09,
-audytor 29.09 (werdykt (a)). Wiążące definicje metryk pre-zarejestrowane 02.07 w KALENDARZU.
+Wykonane przeglądy (wszystkie bez zmiany reguł sygnałowych): APLS Faza 4 10.07 (insufficient data), discovery 27.07
+(bez promocji), FIX-16 25.08 (1/6), werdykt #1 01.09, bullish-8K 07.09 (bez zawężenia), C-suite 23.09, audytor 29.09
+(werdykt (a)), **werdykt #2 + discovery #2 01.11 (BEZ EDGE → stop gry; discovery bez promocji)**. Wiążące definicje metryk
+pre-zarejestrowane 02.07 w KALENDARZU. Narzędzie werdyktu: `scripts/analysis/werdykt-2026-11-01.py <katalog z CSV>`.
 
 ## Opis projektu
 

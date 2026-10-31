@@ -113,7 +113,18 @@ REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; na
 
 </details>
 
-## 2026-11-01 — werdykt #2 + przegląd discovery #2 (pre-rejestracja 01.09, WIĄŻĄCA)
+## ~~2026-11-01 — werdykt #2 + przegląd discovery #2~~ ✅ WYKONANY 31.10/01.11 — **BEZ EDGE (kryterium spełnione) → STOP GRY (REGUŁY §5)**
+
+**Werdykt** ([WERDYKT-EDGE-2026-11-01.md](WERDYKT-EDGE-2026-11-01.md), 92 alerty / ślepe przeliczenie SQL zgodne): klasa Form 4 BUY
+bez FUND **N=29 zdarzeń, hit 62%, mediana REAL −1.37% ≤ −1%** → pre-zarejestrowane kryterium „bez edge" odpala (odporne na
+warianty: bez sklejania, z FUND, bez PRE, tylko T1). Forward ≥01.09: hit 42%, med REAL −5.7% — każdy podsegment ujemny.
+Discovery bez promocji (med α +0.03, med REAL −5.3; Director-only CI REAL cały <0). Sub-gate C-suite #2: T1 6/10 FAIL 4/5
+(med REAL −8.1), T2 4/10 (bug licznika — escapy MarkdownV2 w nazwisku — naprawiony). Jedyny plus: core+rdzeń+ (8 zdarzeń, hit 88%,
+med REAL +0.69, N<20) → to mierzy przegląd rdzeń+. Teczki zamknięte: stale-filing (0), reżim IX–X (α −1.1). API Anthropic bez
+kredytów od 27.10 (20 8-K + SRRK/RAPP Form 4 bez analizy). Decyzje usera otwarte: pomiar vs sunset, Director-only w discovery,
+agenci etap 2, Pi 5, API A/B.
+
+<details><summary>Oryginalny zapis gate'u (01.09 + 23.09)</summary>
 
 - **Statystyka alpha = MEDIANA** (oryginalny zapis APLS); średnia obok. Bramka: hit 7d ≥60% ∧ med α ≥+2pp.
 - **Trzeci warunek każdej promocji: REAL** — mediana `price1h → price7d` po 1% kosztów > 0.
@@ -150,6 +161,21 @@ REAL −0.7%. 8-K Material Event GPT 1/7. Wpis zdjęty z VALIDATION_CALENDAR; na
   med ≥+2pp przy N≥12); 8-K Material Event GPT (1/7) — N≥10 → decyzja obs/sunset.
 - **Werdykt systemowy #2**: „bez edge" (stop gry, REGUŁY §5) tylko gdy klasa Form 4 BUY bez FUND: hit <60%
   LUB mediana REAL ≤ −1% przy N≥20 zdarzeń. Inaczej: kontynuacja / promocja wg sub-gate'ów.
+
+</details>
+
+## 2027-02-01 — werdykt #3 „core + rdzeń+" (pre-rejestracja 01.11.2026, WIĄŻĄCA; łączony z przeglądem rdzeń+)
+
+- **Stan wyjściowy**: stop gry real (REGUŁY §5) od 01.11.2026; system = pomiar bez kapitału (jeśli user wybierze „pomiar", nie sunset).
+- **Klasa**: Form 4 Insider BUY bez FUND na tickerach `sector='healthcare'` (core zwalidowany + rdzeń+, w tym auto-promowane large-capy);
+  zdarzenia symbol+kierunek ≤7d; rola z transakcji wyzwalającej; metryki jak 01.09 (hit raw, α med vs XBI, REAL = price1h→7d, NET −1%).
+- **Zdjęcie stopu gry** (tylko dla 🎯 z rdzenia): **N ≥ 10 zdarzeń forward (sentAt ≥ 01.11.2026) ∧ hit ≥60% ∧ med REAL >0 ∧ śr REAL >0
+  ∧ ≥50% wchodzalnych (gap ≤3%)**. Stan 01.11: N=0 forward (in-sample 8 zdarzeń: hit 88%, med REAL +0.69 — NIE liczą się).
+- **Sunset gry** (system zostaje jako research albo wyłączony — decyzja usera): N ≥ 10 i którykolwiek próg ✗, **albo N < 5 do 01.02.2027**
+  (podaż ~1/mies. nie wystarcza na pomiar — kontynuacja bez końca jest anty-wzorcem).
+- **Sub-gate C-suite #2** (T1 forward ≥02.09) trwa równolegle do N=10, własne progi z 23.09; T2 osobno (licznik po fixie escapów).
+- **Teczki**: gap-band (N≥10 w paśmie >7%), Form 4 SELL jako short (N≥20 zdarzeń → ocena informacyjna, nie gra), FUND (N≥10).
+- **Instrumentacja dozwolona**: licznik „werdykt #3" w `scripts/csuite-gate.sh` (osobna linia logu), capture XLV (zaległe z 01.09).
 
 ## ~~2026-09-07 — bullish-8K gate revisit (90d od P1-02)~~ ✅ WYKONANY 07.09 — BEZ ZAWĘŻENIA
 

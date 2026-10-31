@@ -16,7 +16,9 @@
 WITH buy_alerts AS (
   SELECT a.id, a.symbol, a."sentAt", a.delivered, t.sector,
          a."priceAtAlert", a."price1h", a."price7d", a."xbiAtAlert", a."xbi7d",
-         substring(a.message from '👤 \*([^*]+)\*') AS trigger_insider
+         -- 01.11.2026 (werdykt #2): nazwisko w wiadomości ma escapy MarkdownV2 („Davidson Michael H\.”) — bez ich
+         -- usunięcia insiderzy z kropką nie łączyli się z insider_trades (NAMS #2503, RAPP #2522 wypadały z T2).
+         replace(substring(a.message from '👤 \*([^*]+)\*'), '\', '') AS trigger_insider
   FROM alerts a
   JOIN tickers t ON t.symbol = a.symbol
   WHERE a."ruleName" = 'Form 4 Insider BUY'

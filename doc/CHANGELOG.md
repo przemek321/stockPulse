@@ -28,6 +28,12 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   usunięte z `tickers` i JSON uniwersum (delisting). **02.09** `0352b34` jedna strefa czasu (PL) dla usera.
 - **23.09** `88f8188` sub-gate C-suite #1 — bez promocji (7/10 in-sample; forward REAL −7%, 0 wchodzalnych);
   gate #2 od 02.09. **27.09** `bfd9f42` csuite-gate catch-up co godzinę.
+- **19.10** `81c4ea1` rdzeń+ (large-cap ≥ $10B z discovery → delivery; 6 tickerów promowanych). **22.10** `6e01038` sprawdzenie
+  wejścia nocnego (Polygon after-hours) — negatywne. **27.10** `4300b5a` dip research POZA aplikacją (`~/dip-research/`).
+- **01.11 — werdykt #2: BEZ EDGE → stop gry real (REGUŁY §5)** ([WERDYKT-EDGE-2026-11-01.md](WERDYKT-EDGE-2026-11-01.md)):
+  klasa Form 4 BUY bez FUND N=29, hit 62%, med REAL −1.37% (forward ≥01.09: 42% / −5.7%); discovery #2 bez promocji;
+  sub-gate C-suite #2 T1 6/10 FAIL 4/5; fix licznika (escapy MarkdownV2 w nazwisku — `csuite-gate.cte.sql`); pre-rejestracja
+  werdyktu #3 core+rdzeń+ na 01.02.2027; skrypt `scripts/analysis/werdykt-2026-11-01.py`. Reguły sygnałowe bez zmian.
 - **26–27.09 — ESLint strict + TS strict** (`98ded99`..`db87781`): flat config strict-type-checked BE+FE z baseline
   suppressions (blokuje tylko NOWE błędy), `strict: true` w backendzie (159 pól encji `!`, `errMsg()/errCode()`),
   frontend TS 4.9 → 5.9, CI GitHub (required checks backend+frontend), hook lint-changed.

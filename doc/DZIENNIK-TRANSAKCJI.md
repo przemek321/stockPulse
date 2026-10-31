@@ -17,7 +17,13 @@ Seria = 3 → pauza do 01.11. Aktualny licznik serii: **0** (żadna transakcja z
 
 ## Bilans
 - Kwalifikujące sygnały 02.07–01.09: **2 zdarzenia** (ELV, PODD); zagrany 1 (ELV, wynik do uzupełnienia).
-- Częstotliwość: ~1 sygnał/miesiąc. Otwarte pozycje na 01.09: brak.
+- 01.09–01.11: **0 sygnałów 🎯**, 0 transakcji, seria 0.
+- Częstotliwość: ~1 sygnał/miesiąc. Otwarte pozycje na 01.11: brak.
+
+## ⛔ STOP GRY od 01.11.2026 (REGUŁY §5 — werdykt systemowy „bez edge")
+Werdykt #2 ([WERDYKT-EDGE-2026-11-01.md](WERDYKT-EDGE-2026-11-01.md)): klasa Form 4 BUY bez FUND N=29, hit 62%, **mediana REAL
+−1.37% ≤ −1%** → pre-zarejestrowane kryterium „bez edge" spełnione → **brak nowych pozycji z alertów StockPulse**. Ewentualne 🎯
+zapisywać tu jako `SKIPPED_STOP` (pomiar trwa). Zdjęcie stopu: werdykt #3 01.02.2027 (KALENDARZ) albo datowany dopisek właściciela w REGUŁACH.
 
 ## Korekty reguł
 Sizing przy drogich akcjach, chase guard intraday, tie-break slotów i stop dyscyplinarny na NETTO —
