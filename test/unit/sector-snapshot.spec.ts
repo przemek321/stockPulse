@@ -2,7 +2,7 @@ import { captureAlertSnapshot } from '../../src/price-outcome/sector-snapshot.he
 
 /**
  * Testy helpera `captureAlertSnapshot`.
- * Single source of truth dla 3 parallel quotes (ticker + XBI + IBB).
+ * Single source of truth dla 4 parallel quotes (ticker + XBI + IBB + XLV od 01.11.2026).
  * Patrz `doc/FOLLOWUP-XBI-ADJUSTMENT.md`.
  */
 
@@ -29,6 +29,7 @@ describe('captureAlertSnapshot', () => {
       priceAtAlert: null,
       xbiAtAlert: null,
       ibbAtAlert: null,
+      xlvAtAlert: null,
     });
   });
 
@@ -38,27 +39,39 @@ describe('captureAlertSnapshot', () => {
       priceAtAlert: null,
       xbiAtAlert: null,
       ibbAtAlert: null,
+      xlvAtAlert: null,
     });
   });
 
-  it('happy path: wszystkie 3 fetches succeed', async () => {
+  it('happy path: wszystkie 4 fetches succeed', async () => {
     const finnhub = new FakeFinnhubService();
-    finnhub.quotes = { BIIB: 204.53, XBI: 80.12, IBB: 120.45 };
+    finnhub.quotes = { BIIB: 204.53, XBI: 80.12, IBB: 120.45, XLV: 145.2 };
 
     const result = await captureAlertSnapshot(finnhub as any, 'BIIB');
 
     expect(result.priceAtAlert).toBe(204.53);
     expect(result.xbiAtAlert).toBe(80.12);
     expect(result.ibbAtAlert).toBe(120.45);
-    expect(finnhub.callCount).toBe(3);
-    expect(new Set(finnhub.callOrder)).toEqual(new Set(['BIIB', 'XBI', 'IBB']));
+    expect(result.xlvAtAlert).toBe(145.2);
+    expect(finnhub.callCount).toBe(4);
+    expect(new Set(finnhub.callOrder)).toEqual(new Set(['BIIB', 'XBI', 'IBB', 'XLV']));
   });
 
-  it('parallel execution — sortowanie callOrder nie deterministyczne, ale wszystkie 3 startują', async () => {
+  it('parallel execution — sortowanie callOrder nie deterministyczne, ale wszystkie 4 startują', async () => {
     const finnhub = new FakeFinnhubService();
     finnhub.quotes = { MRNA: 150, XBI: 80, IBB: 120 };
     await captureAlertSnapshot(finnhub as any, 'MRNA');
-    expect(finnhub.callOrder).toHaveLength(3);
+    expect(finnhub.callOrder).toHaveLength(4);
+  });
+
+  it('XLV failure (01.11.2026) NIE blokuje ticker/XBI/IBB', async () => {
+    const finnhub = new FakeFinnhubService();
+    finnhub.quotes = { HUM: 250, XBI: 80, IBB: 120 };
+    finnhub.errorFor.add('XLV');
+
+    const result = await captureAlertSnapshot(finnhub as any, 'HUM');
+
+    expect(result).toEqual({ priceAtAlert: 250, xbiAtAlert: 80, ibbAtAlert: 120, xlvAtAlert: null });
   });
 
   it('jeden fetch failure NIE blokuje innych (XBI throws, ticker + IBB OK)', async () => {

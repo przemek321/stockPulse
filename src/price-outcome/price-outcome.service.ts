@@ -53,6 +53,8 @@ export class PriceOutcomeService {
   /** Symbole sektorowe — biotech ETF benchmark (XBI mid-cap, IBB large-cap weighted) */
   private readonly XBI_SYMBOL = 'XBI';
   private readonly IBB_SYMBOL = 'IBB';
+  /** XLV od 01.11.2026 (instrumentacja z pre-rejestracji 01.09) — sloty tylko dla alertów z xlvAtAlert */
+  private readonly XLV_SYMBOL = 'XLV';
 
   /** Max zapytań Finnhub na cykl CRON (free tier = 60/min) */
   private readonly MAX_QUOTES_PER_CYCLE = 30;
@@ -107,6 +109,7 @@ export class PriceOutcomeService {
     // throw nie blokuje IBB (inconsistent z `captureAlertSnapshot` helper pre-fix).
     let xbiQuote: number | null = null;
     let ibbQuote: number | null = null;
+    let xlvQuote: number | null = null;
     const needsSectorAnyAlert = alerts.some((alert) => {
       const effectiveStart = getEffectiveStartTime(new Date(alert.sentAt)).getTime();
       return (
@@ -116,11 +119,12 @@ export class PriceOutcomeService {
       );
     });
     if (needsSectorAnyAlert) {
-      [xbiQuote, ibbQuote] = await Promise.all([
+      [xbiQuote, ibbQuote, xlvQuote] = await Promise.all([
         this.finnhub.getQuote(this.XBI_SYMBOL).catch(() => null),
         this.finnhub.getQuote(this.IBB_SYMBOL).catch(() => null),
+        this.finnhub.getQuote(this.XLV_SYMBOL).catch(() => null),
       ]);
-      quotesUsed += 2;
+      quotesUsed += 3;
     }
 
     // Grupuj alerty per symbol — 1 zapytanie API per symbol zamiast per alert
@@ -192,6 +196,10 @@ export class PriceOutcomeService {
             alert.ibb1d = ibbQuote;
             changed = true;
           }
+          if (alert.xlvAtAlert != null && alert.xlv1d == null && xlvQuote != null) {
+            alert.xlv1d = xlvQuote;
+            changed = true;
+          }
         }
         if (now >= effectiveStart + this.SLOT_3D_DELAY_MS) {
           if (alert.xbi3d == null && xbiQuote != null) {
@@ -202,6 +210,10 @@ export class PriceOutcomeService {
             alert.ibb3d = ibbQuote;
             changed = true;
           }
+          if (alert.xlvAtAlert != null && alert.xlv3d == null && xlvQuote != null) {
+            alert.xlv3d = xlvQuote;
+            changed = true;
+          }
         }
         if (now >= effectiveStart + this.SLOT_7D_DELAY_MS) {
           if (alert.xbi7d == null && xbiQuote != null) {
@@ -210,6 +222,10 @@ export class PriceOutcomeService {
           }
           if (alert.ibb7d == null && ibbQuote != null) {
             alert.ibb7d = ibbQuote;
+            changed = true;
+          }
+          if (alert.xlvAtAlert != null && alert.xlv7d == null && xlvQuote != null) {
+            alert.xlv7d = xlvQuote;
             changed = true;
           }
         }

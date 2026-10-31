@@ -127,6 +127,23 @@ export class Alert {
   @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
   ibb7d!: number | null;
 
+  // ── XLV (Health Care Select Sector SPDR) — od 01.11.2026 ──────────
+  // Instrumentacja z pre-rejestracji werdyktu #1 (01.09): benchmark dla healthcare spoza biotechu
+  // klinicznego (SIC ≠ 283x). Alerty sprzed 01.11 mają null (oceniane nadal vs XBI/IBB).
+  // Nowe kolumny nullable → synchronize robi zwykłe ADD COLUMN (bez ryzyka crash-loopu z 27.07).
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xlvAtAlert!: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xlv1d!: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xlv3d!: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  xlv7d!: number | null;
+
   /**
    * Soft delete flag — alert ukryty z dashboardu/API ale zachowany w DB.
    * Używaj zamiast DELETE — historia outcomes jest kluczowa do walidacji forward.

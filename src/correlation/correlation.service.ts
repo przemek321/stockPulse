@@ -720,6 +720,7 @@ export class CorrelationService implements OnModuleDestroy {
         priceAtAlert: snapshot.priceAtAlert,
         xbiAtAlert: snapshot.xbiAtAlert,
         ibbAtAlert: snapshot.ibbAtAlert,
+        xlvAtAlert: snapshot.xlvAtAlert,
       }),
     );
 

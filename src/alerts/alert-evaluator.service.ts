@@ -151,6 +151,7 @@ export class AlertEvaluatorService {
       priceAtAlert: snapshot.priceAtAlert,
       xbiAtAlert: snapshot.xbiAtAlert,
       ibbAtAlert: snapshot.ibbAtAlert,
+      xlvAtAlert: snapshot.xlvAtAlert,
     });
 
     await this.alertRepo.save(alert);

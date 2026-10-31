@@ -593,6 +593,7 @@ export class Form4Pipeline {
             priceAtAlert: snapshot.priceAtAlert,
             xbiAtAlert: snapshot.xbiAtAlert,
             ibbAtAlert: snapshot.ibbAtAlert,
+            xlvAtAlert: snapshot.xlvAtAlert,
           }),
         );
       } catch (err) {
