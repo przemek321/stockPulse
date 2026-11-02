@@ -133,6 +133,8 @@ Historycznie 9 alertów / 6 zdarzeń na tych tickerach (in-sample): hit 83%, med
    → zdjęcie stopu gry wyłącznie dla 🎯 z rdzenia; inaczej sunset gry (system może zostać jako research).
 6. **Discovery Director-only ($500K, role-only)**: generuje tylko stratne obserwacje i zużywa GPT. *Rekomendacja: wyłączyć ścieżkę
    Director w discovery (C-suite T1/T2 zostają do końca gate'u #2). Zmiana reguły → osobny commit po decyzji, nie dziś.*
+   **→ DECYZJA USERA 02.11.2026: WYŁĄCZONY** (prefilter discovery: Director-only rejestruje tylko rdzeń+ ≥$10B — klasa werdyktu #3;
+   Form4Pipeline: `SKIP_DISCOVERY_DIRECTOR_ONLY` przed GPT dla tickerów `healthcare_discovery`; APLS i rdzeń bez zmian).
 7. **Etap 2 agentów (MCP read-only + LLM)**: *odłożyć — przy braku edge do ochrony to koszt bez zwrotu; audytor etap 1 zostaje
    (0 false positives, 0 kosztu).*
 8. **Migracja na Raspberry Pi 5**: decyzja techniczna niezależna od edge; *ma sens tylko przy wyborze „pomiar" w pkt 5 (po 01.11

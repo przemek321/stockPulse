@@ -152,9 +152,25 @@ describe('prefilterForm4Buy (Pakiet 2)', () => {
     expect(r.buyValue).toBe(600_000);
   });
 
-  it('Director BUY $501K → pass (rola Director wystarcza)', () => {
+  it('Director BUY $501K → pass warunkowy ok_director_largecap (od 02.11.2026 tylko rdzeń+ ≥$10B)', () => {
     const r = prefilterForm4Buy([txn({ insiderRole: 'Director', totalValue: 501_000 })]);
     expect(r.pass).toBe(true);
+    expect(r.reason).toBe('ok_director_largecap');
+  });
+
+  it('Director $2M + CEO $600K w jednym filingu → wyzwalacz C-suite (reason ok), nie większy Director', () => {
+    const r = prefilterForm4Buy([
+      txn({ insiderName: 'Big Director', insiderRole: 'Director', totalValue: 2_000_000 }),
+      txn({ insiderName: 'Smith John', insiderRole: 'Chief Executive Officer', totalValue: 600_000 }),
+    ]);
+    expect(r.reason).toBe('ok');
+    expect(r.insiderName).toBe('Smith John');
+    expect(r.buyValue).toBe(600_000);
+  });
+
+  it('rola mieszana „Director, President and CEO" = C-suite → reason ok (nie Director-only)', () => {
+    const r = prefilterForm4Buy([txn({ insiderRole: 'Director, President and CEO', totalValue: 700_000 })]);
+    expect(r.reason).toBe('ok');
   });
 
   // Werdykt 01.09.2026 (tier-2): C-suite ≥$100K przechodzi jako 'ok_csuite_t2', Director nadal ≥$500K
@@ -249,6 +265,7 @@ describe('prefilterForm4Buy (Pakiet 2)', () => {
       txn({ insiderName: 'Jones Mary', insiderRole: 'Director', totalValue: 600_000 }),
     ]);
     expect(r.pass).toBe(true);
+    expect(r.reason).toBe('ok_director_largecap');
     expect(r.insiderName).toBe('Jones Mary');
   });
 
@@ -431,6 +448,33 @@ describe('Form4DiscoveryService.processAccession (Pakiet 2)', () => {
       expect.objectContaining({ sector: 'healthcare_discovery', observationOnly: true, priority: 'LOW' }),
     );
     expect((below.mocks.telegram.sendMarkdown).mock.calls[0][0]).toContain('obserwacji');
+  });
+
+  // Werdykt #2 (decyzja usera 02.11.2026): Director-only nie rejestruje small/mid-capów; large-cap → rdzeń+.
+  const DIRECTOR_XML = VALID_FORM4_XML.replace(
+    '<officerTitle>Chief Executive Officer</officerTitle>',
+    '<isDirector>1</isDirector>',
+  );
+
+  it('Director-only BUY przy mcap $2B (< $10B) → odrzucony z markSeen, bez rejestracji', async () => {
+    const { svc, mocks } = buildService({ sic: '2834', ticker: 'DIRS', mcapMln: 2_000, xml: DIRECTOR_XML });
+
+    const registered = await (svc as any).processAccession(ACC, CIK, new AbortController().signal);
+
+    expect(registered).toBe(false);
+    expect(mocks.tickerRepo.save).not.toHaveBeenCalled();
+    expect(mocks.redisStore.has(`seen:${ACC}`)).toBe(true);
+  });
+
+  it('Director-only BUY przy mcap $15B → rejestracja jako rdzeń+ DELIVERY (klasa werdyktu #3)', async () => {
+    const { svc, mocks } = buildService({ sic: '2834', ticker: 'DIRL', mcapMln: 15_000, xml: DIRECTOR_XML });
+
+    const registered = await (svc as any).processAccession(ACC, CIK, new AbortController().signal);
+
+    expect(registered).toBe(true);
+    expect(mocks.tickerRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'DIRL', sector: 'healthcare', observationOnly: false }),
+    );
   });
 
   it('non-healthcare SIC (semis 3674) → skip PRZED fetchem XML', async () => {

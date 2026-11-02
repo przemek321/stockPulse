@@ -183,7 +183,9 @@ export interface PrefilterResult {
  *   - agregacja per insider w obrębie filingu (semantyka TASK-03),
  *   - max grupa >= DISCOVERY_MIN_BUY_VALUE,
  *   - rola: C-suite LUB Director; czyści 10% ownerzy bez roli wykonawczej
- *     odrzucani (badanie 09.06: 86% all-market BUY to 10% ownerzy = szum).
+ *     odrzucani (badanie 09.06: 86% all-market BUY to 10% ownerzy = szum),
+ *   - od 02.11.2026 (werdykt #2): sam Director → reason 'ok_director_largecap' (collector rejestruje
+ *     go tylko jako rdzeń+ przy mcap >= $10B; poniżej odrzut).
  */
 export function prefilterForm4Buy(transactions: Form4Transaction[]): PrefilterResult {
   const buys = transactions.filter(
@@ -207,6 +209,7 @@ export function prefilterForm4Buy(transactions: Form4Transaction[]): PrefilterRe
 
   let best: { name: string; value: number; role: string | null } | null = null;
   let bestPassing: { name: string; value: number; role: string | null } | null = null;
+  let bestPassingCsuite: { name: string; value: number; role: string | null } | null = null;
   for (const [name, v] of byInsider) {
     // ROLA-only (bez insiderName!): isCsuiteRole z name matchowałby wzorce na
     // nazwie entity ("PRESIDENT AND FELLOWS OF HARVARD COLLEGE", "CSO CAPITAL LP"
@@ -217,6 +220,10 @@ export function prefilterForm4Buy(transactions: Form4Transaction[]): PrefilterRe
     if (!best || v.value > best.value) best = { name, value: v.value, role: v.role };
     if (v.value >= thresholdFor(v.role) && (!bestPassing || v.value > bestPassing.value)) {
       bestPassing = { name, value: v.value, role: v.role };
+    }
+    if (isCsuiteRole(v.role ?? '') && v.value >= thresholdFor(v.role)
+        && (!bestPassingCsuite || v.value > bestPassingCsuite.value)) {
+      bestPassingCsuite = { name, value: v.value, role: v.role };
     }
   }
 
@@ -232,13 +239,26 @@ export function prefilterForm4Buy(transactions: Form4Transaction[]): PrefilterRe
       insiderRole: best.role,
     };
   }
+  // Werdykt #2 (01.11.2026, decyzja usera 02.11): Director-only wyłączony z obserwacji discovery. Gdy w filingu
+  // przechodzi C-suite, wyzwalaczem jest C-suite (nawet jeśli Director kupił więcej). Sam Director → 'ok_director_largecap':
+  // pass tylko warunkowo — collector przepuści go WYŁĄCZNIE do rejestracji rdzeń+ (mcap >= DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN),
+  // bo large-capy z Director BUY należą do klasy werdyktu #3 (core + rdzeń+); small/mid-cap → odrzut.
+  if (!bestPassingCsuite) {
+    return {
+      pass: true,
+      reason: 'ok_director_largecap',
+      buyValue: bestPassing.value,
+      insiderName: bestPassing.name,
+      insiderRole: bestPassing.role,
+    };
+  }
   // 'ok_csuite_t2' = przeszło tylko dzięki progowi C-suite (< $500K) — osobna kohorta w analizach
   return {
     pass: true,
-    reason: bestPassing.value < DISCOVERY_MIN_BUY_VALUE ? 'ok_csuite_t2' : 'ok',
-    buyValue: bestPassing.value,
-    insiderName: bestPassing.name,
-    insiderRole: bestPassing.role,
+    reason: bestPassingCsuite.value < DISCOVERY_MIN_BUY_VALUE ? 'ok_csuite_t2' : 'ok',
+    buyValue: bestPassingCsuite.value,
+    insiderName: bestPassingCsuite.name,
+    insiderRole: bestPassingCsuite.role,
   };
 }
 
@@ -442,7 +462,8 @@ export class Form4DiscoveryService {
       this.logger.log(
         `Discovery kandydat: ${meta.ticker} (${meta.name ?? cik}, SIC ${meta.sic ?? '?'}) — ` +
           `${pre.insiderName ?? '?'} (${pre.insiderRole ?? '?'}) BUY $${Math.round(pre.buyValue).toLocaleString('en-US')}` +
-          (pre.reason === 'ok_csuite_t2' ? ' [tier-2 C-suite ≥$100K]' : ''),
+          (pre.reason === 'ok_csuite_t2' ? ' [tier-2 C-suite ≥$100K]' : '') +
+          (pre.reason === 'ok_director_largecap' ? ' [Director-only — tylko rdzeń+ ≥$10B]' : ''),
       );
 
       // 4. Finnhub: mcap + ADV (3 calls per kandydat — kandydatów 2-5/tydzień).
@@ -459,6 +480,14 @@ export class Form4DiscoveryService {
       if (mcap < DISCOVERY_MIN_MCAP_MLN) {
         this.logger.log(
           `Discovery odrzucony: ${meta.ticker} mcap ${Math.round(mcap)}M < ${DISCOVERY_MIN_MCAP_MLN}M`,
+        );
+        await this.markSeen(accession);
+        return false;
+      }
+      // Werdykt #2 (decyzja usera 02.11.2026): Director-only tylko dla rdzeń+ (large-cap delivery).
+      if (pre.reason === 'ok_director_largecap' && mcap < DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN) {
+        this.logger.log(
+          `Discovery odrzucony: ${meta.ticker} Director-only BUY przy mcap ${Math.round(mcap)}M < ${DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN}M (werdykt #2)`,
         );
         await this.markSeen(accession);
         return false;

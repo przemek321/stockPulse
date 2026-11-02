@@ -37,6 +37,8 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
 - **01.11** instrumentacja z werdyktów: capture **XLV** (4 kolumny nullable w `alerts`, snapshot + sloty Price Outcome);
   liczniki `W3` (werdykt #3 core+rdzeń+, progi na NET) i `ME8K` (Material Event po `ruleName`) w `csuite-gate.sh`;
   raport 8h bez wpisu 01.11; REGUŁY §5 dopisek STOP GRY. Zachowanie sygnałowe bez zmian.
+- **02.11** decyzja usera po werdykcie #2: **Director-only w discovery wyłączony** — prefilter `ok_director_largecap`
+  (rejestracja tylko jako rdzeń+ przy mcap ≥ $10B), Form4Pipeline `SKIP_DISCOVERY_DIRECTOR_ONLY` przed GPT; C-suite T1/T2, APLS, rdzeń bez zmian.
 - **26–27.09 — ESLint strict + TS strict** (`98ded99`..`db87781`): flat config strict-type-checked BE+FE z baseline
   suppressions (blokuje tylko NOWE błędy), `strict: true` w backendzie (159 pól encji `!`, `errMsg()/errCode()`),
   frontend TS 4.9 → 5.9, CI GitHub (required checks backend+frontend), hook lint-changed.

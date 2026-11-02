@@ -190,6 +190,7 @@ export class Form4Pipeline {
     //        Fazy 4 wymaga danych GPT w DB)
     //   5c. APLS Faza 3 (09.06.2026): biotech_apls               → SKIP_APLS_NON_BUY
     //       tylko BUY >= $500K                                    → SKIP_APLS_BELOW_THRESHOLD
+    //   5d. Discovery: Director-only BUY (od 02.11.2026)          → SKIP_DISCOVERY_DIRECTOR_ONLY
     //   6. GPT analysis + priority scoring
     //   7. Rule boosts (C-suite BUY ×1.3, Dir BUY ×1.15, healthcare/biotech_apls BUY ×1.2,
     //      APLS strict tier ×1.1)
@@ -313,6 +314,16 @@ export class Form4Pipeline {
             symbol: payload.symbol,
             traceId: payload.traceId,
           };
+        }
+        // Werdykt #2 (01.11.2026, decyzja usera 02.11): Director-only BUY w discovery → skip PRZED GPT.
+        // Dane: discovery Director-only 12 alertów, hit 36%, med REAL −5.3%; cała próbka Director-only
+        // med REAL −3.5% z CI [−6.4, −0.7] w całości poniżej zera (doc/WERDYKT-EDGE-2026-11-01.md §4).
+        // Role mieszane („Director, CEO”) to C-suite → przechodzą. APLS i rdzeń bez zmian.
+        if (isDiscoveryTicker && isDirectorRole(payload.insiderRole) && !isCsuiteRole(payload.insiderRole)) {
+          this.logger.debug(
+            `Form4 DISCOVERY skip: ${payload.symbol} ${payload.insiderName ?? '?'} (${payload.insiderRole ?? '?'}) — Director-only wyłączony (werdykt #2)`,
+          );
+          return { action: 'SKIP_DISCOVERY_DIRECTOR_ONLY', symbol: payload.symbol, traceId: payload.traceId };
         }
         // Werdykt 01.09.2026: discovery C-suite BUY ≥$100K (tier-2), Director ≥$500K; APLS bez zmian.
         const obsMinValue = isDiscoveryTicker && isCsuiteRole(payload.insiderRole)

@@ -15,7 +15,7 @@ wykazany (insufficient N)**; sub-gate C-suite #1 (23.09) bez promocji (gap na ot
 N=29 zdarzeń, hit 62%, **mediana REAL −1.37% ≤ −1%**; forward ≥01.09 hit 42%, med REAL −5.7%. **REGUŁY §5 → stop gry real od
 01.11.2026** (0 🎯 od PODD 24.08 i tak). Jedyny dodatni segment: core+rdzeń+ (8 zdarzeń, hit 88%, med REAL +0.69, N<20) →
 **werdykt #3 01.02.2027** (KALENDARZ: N≥10 forward, hit ≥60%, med+śr REAL >0, ≥50% wchodzalnych → zdjęcie stopu; N<5 → sunset gry).
-Otwarte decyzje usera: pomiar vs sunset, wyłączenie Director-only w discovery, agenci etap 2 (rekomendacja: odłożyć), Pi 5,
+Decyzja 02.11: **Director-only w discovery WYŁĄCZONY** (wyjątek: rdzeń+ ≥$10B). Otwarte decyzje usera: pomiar vs sunset, agenci etap 2 (rekomendacja: odłożyć), migracja (NAS UGREEN / Pi),
 API Anthropic (bez kredytów od 27.10 — pipeline GPT ślepy).
 
 **Stan 19.10**: ostatnie 30 dni = 10 alertów, **0 dostarczonych** (ostatni dostarczony PODD 24.08). Sub-gate
@@ -78,7 +78,8 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   (`src/collectors/form4-discovery/`). Poll atom getcurrent co 5 min (`2-57/5 6-22 ET pn-pt`,
   stagger +2 min vs core :05/:35) + nightly reconciliation daily-index 22:40 ET. Pre-filter:
   SIC healthcare/biotech → discretionary BUY C-suite **≥$100K** (tier-2 od 01.09, `ok_csuite_t2`) /
-  Director ≥$500K (role-only) → mcap ≥$250M + ADV ≥$1M → auto-rejestracja
+  Director ≥$500K (role-only) **tylko przy mcap ≥ $10B (rdzeń+) — od 02.11.2026 Director-only nie rejestruje
+  small/mid-capów** (`ok_director_largecap`, werdykt #2) → mcap ≥$250M + ADV ≥$1M → auto-rejestracja
   `sector='healthcare_discovery'`, observation mode; **od 19.10 mcap ≥ $10B → `sector='healthcare'`,
   `observationOnly=false` (rdzeń+, delivery, ping 🎯)**. Sub-gate C-suite: `scripts/csuite-gate.sh` (T1/T2 + od 01.11 liczniki `W3` werdyktu #3 i `ME8K` 8-K Material Event, `logs/csuite-gate.log`).
 - **PDUFA.bio** — **WYŁĄCZONY 21.06** (c65a7cb): upstream przepisany na client-side render →
@@ -100,7 +101,8 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   `biotech_apls` + `healthcare_discovery` przechodzą przez GPT, BUY-only ≥$500K, dispatch
   DB-only observation, storeSignal skip na sektorze; `semi_supply_chain` = skip PRZED GPT
   **bez wiersza w alerts** — ta kohorta nie gromadzi danych obserwacyjnych); KAŻDY SELL
-  (w tym C-suite) → `sell_no_edge` (enum `csuite_sell_no_edge` jest martwy — flaga
+  (w tym C-suite) → `sell_no_edge`; **discovery Director-only BUY → `SKIP_DISCOVERY_DIRECTOR_ONLY` PRZED GPT
+  (od 02.11.2026, werdykt #2 — bez wiersza w alerts; role mieszane „Director, CEO" = C-suite)** (enum `csuite_sell_no_edge` jest martwy — flaga
   `isCsuiteSellObservation` w dispatcherze nie ma settera; audyt 02.07).
   **BUY boosty** (backtest-backed): C-suite ×1.3 / Director ×1.15, healthcare/apls/discovery ×1.2,
   apls strict ×1.1. Floor priority MEDIUM dla Director BUY ≥$100K (GPT nie wetuje). Multi-tx

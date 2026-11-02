@@ -170,17 +170,28 @@ describe('Form4Pipeline — healthcare_discovery (Pakiet 2)', () => {
     expect(mocks.azureOpenai.analyzeCustomPrompt).not.toHaveBeenCalled();
   });
 
-  // Werdykt 01.09.2026 (tier-2): discovery C-suite ≥$100K przechodzi, Director nadal ≥$500K
-  it('discovery Director BUY $300K < $500K → SKIP_DISCOVERY_BELOW_THRESHOLD bez GPT', async () => {
+  // Werdykt #2 (decyzja usera 02.11.2026): Director-only w discovery → skip PRZED GPT, niezależnie od kwoty
+  it.each([300_000, 2_000_000])('discovery Director BUY $%d → SKIP_DISCOVERY_DIRECTOR_ONLY bez GPT i bez alertu', async (value) => {
     const { pipeline, mocks } = buildPipelineWithMocks();
-    mocks.tradeRepo.findOne.mockResolvedValue(buyTrade({ insiderRole: 'Director', totalValue: 300_000 }));
+    mocks.tradeRepo.findOne.mockResolvedValue(buyTrade({ insiderRole: 'Director', totalValue: value }));
 
     const result = await pipeline.onInsiderTrade(
-      buyPayload({ insiderRole: 'Director', totalValue: 300_000 }),
+      buyPayload({ insiderRole: 'Director', totalValue: value }),
     );
 
-    expect(result.action).toBe('SKIP_DISCOVERY_BELOW_THRESHOLD');
+    expect(result.action).toBe('SKIP_DISCOVERY_DIRECTOR_ONLY');
     expect(mocks.azureOpenai.analyzeCustomPrompt).not.toHaveBeenCalled();
+    expect(mocks.alertRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('discovery rola mieszana „Director, CEO" BUY $600K → C-suite, GPT + observation (nie Director-only)', async () => {
+    const { pipeline, mocks } = buildPipelineWithMocks();
+    mocks.tradeRepo.findOne.mockResolvedValue(buyTrade({ insiderRole: 'Director, CEO', totalValue: 600_000 }));
+
+    const result = await pipeline.onInsiderTrade(buyPayload({ insiderRole: 'Director, CEO', totalValue: 600_000 }));
+
+    expect(result.action).not.toBe('SKIP_DISCOVERY_DIRECTOR_ONLY');
+    expect(mocks.azureOpenai.analyzeCustomPrompt).toHaveBeenCalled();
   });
 
   it('discovery CEO BUY $300K (tier-2 ≥$100K) → GPT + observation alert DB-only', async () => {
