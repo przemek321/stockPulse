@@ -39,6 +39,9 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   raport 8h bez wpisu 01.11; REGUŁY §5 dopisek STOP GRY. Zachowanie sygnałowe bez zmian.
 - **02.11** decyzja usera po werdykcie #2: **Director-only w discovery wyłączony** — prefilter `ok_director_largecap`
   (rejestracja tylko jako rdzeń+ przy mcap ≥ $10B), Form4Pipeline `SKIP_DISCOVERY_DIRECTOR_ONLY` przed GPT; C-suite T1/T2, APLS, rdzeń bez zmian.
+- **05.11** decyzja usera: **bez doładowania API — GPT przez most `claude -p`** (`~/claude-bridge/`, osobne repo, Python stdlib;
+  emuluje `POST /v1/messages`, model z żądania, pusty katalog roboczy bez kontekstu projektu). W StockPulse tylko `.env`
+  (`ANTHROPIC_BASE_URL`, `ANTHROPIC_TIMEOUT_MS`), kod bez zmian. Luka GPT 27.10–05.11.
 - **26–27.09 — ESLint strict + TS strict** (`98ded99`..`db87781`): flat config strict-type-checked BE+FE z baseline
   suppressions (blokuje tylko NOWE błędy), `strict: true` w backendzie (159 pól encji `!`, `errMsg()/errCode()`),
   frontend TS 4.9 → 5.9, CI GitHub (required checks backend+frontend), hook lint-changed.

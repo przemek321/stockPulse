@@ -177,6 +177,10 @@ agenci etap 2, Pi 5, API A/B.
 - **Teczki**: gap-band (N≥10 w paśmie >7%), Form 4 SELL jako short (N≥20 zdarzeń → ocena informacyjna, nie gra), FUND (N≥10).
 - **Doprecyzowanie 01.11.2026 (przy N=0, przed jakimikolwiek danymi)**: „REAL" w progach werdyktu #3 = **NET** (price1h→7d
   minus 1% kosztów), jak trzeci warunek każdej promocji z 01.09 — zdjęcie stopu gry to promocja. Licznik pokazuje obie wartości.
+- **Zmiana warunków 05.11.2026 (odnotowana, nie zmienia progów)**: backend GPT pipeline'u Form 4 / 8-K przeniesiony z Messages API
+  na most `claude -p` (`~/claude-bridge/`, decyzja usera — bez doładowania kredytów). Model ten sam (`claude-sonnet-4-6`), ścieżka
+  inna (Claude Code dokłada własny kontekst). **Luka danych 27.10 11:35 UTC – 05.11 ~17:50 PL**: filingi bez analizy GPT
+  (8-K → `gpt_missing_data`, Form 4 discovery/rdzeń bez wiersza w alerts). Przy werdykcie #3 raportować alerty sprzed/po 05.11 osobno.
 - **Instrumentacja WDROŻONA 01.11.2026**: linia `W3` w `logs/csuite-gate.log` (`scripts/sql/werdykt3-gates.sql`, jednorazowy ping
   przy N≥10); linia `ME8K` = 8-K Material Event GPT od 01.09 liczony po `ruleName` (stan 01.11: N=5/10 zdarzeń, hit 60%, med NET −1.05,
   wszystkie stłumione jako `bullish_8k_no_edge`/`gpt_missing_data`); capture **XLV** (`xlvAtAlert` + sloty 1d/3d/7d) od 01.11 —

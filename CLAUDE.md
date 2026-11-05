@@ -15,8 +15,8 @@ wykazany (insufficient N)**; sub-gate C-suite #1 (23.09) bez promocji (gap na ot
 N=29 zdarzeń, hit 62%, **mediana REAL −1.37% ≤ −1%**; forward ≥01.09 hit 42%, med REAL −5.7%. **REGUŁY §5 → stop gry real od
 01.11.2026** (0 🎯 od PODD 24.08 i tak). Jedyny dodatni segment: core+rdzeń+ (8 zdarzeń, hit 88%, med REAL +0.69, N<20) →
 **werdykt #3 01.02.2027** (KALENDARZ: N≥10 forward, hit ≥60%, med+śr REAL >0, ≥50% wchodzalnych → zdjęcie stopu; N<5 → sunset gry).
-Decyzja 02.11: **Director-only w discovery WYŁĄCZONY** (wyjątek: rdzeń+ ≥$10B). Otwarte decyzje usera: pomiar vs sunset, agenci etap 2 (rekomendacja: odłożyć), migracja (NAS UGREEN / Pi),
-API Anthropic (bez kredytów od 27.10 — pipeline GPT ślepy).
+Decyzja 02.11: **Director-only w discovery WYŁĄCZONY** (wyjątek: rdzeń+ ≥$10B). Otwarte decyzje usera: pomiar vs sunset, agenci etap 2 (rekomendacja: odłożyć), migracja (NAS UGREEN / Pi).
+**05.11: GPT przywrócony przez most `claude -p`** (`~/claude-bridge/`, decyzja usera — bez doładowania API; luka 27.10–05.11).
 
 **Stan 19.10**: ostatnie 30 dni = 10 alertów, **0 dostarczonych** (ostatni dostarczony PODD 24.08). Sub-gate
 C-suite #2 (zdarzenia ≥02.09): T1 N=5/10, T2 N=2/10 — oba poniżej progów REAL (`logs/csuite-gate.log`).
@@ -201,6 +201,9 @@ podnosi kontenery PRZED synchronizacją NTP → „Up 56 years" w `docker ps`, n
 
 Patrz `.env.example` (gitignored). Główne:
 - **Anthropic**: `ANTHROPIC_API_KEY` (wymagany), `ANTHROPIC_MODEL` (domyślnie `claude-sonnet-4-6`), `ANTHROPIC_TIMEOUT_MS`.
+  **Od 05.11.2026 (decyzja usera) bez kredytów API — GPT idzie przez most `claude -p`** (`~/claude-bridge/`, poza aplikacją):
+  `ANTHROPIC_BASE_URL=http://172.17.0.1:8787` + `ANTHROPIC_TIMEOUT_MS=240000` w `.env`; most (cron watchdog `*/5`) emuluje
+  `POST /v1/messages` i woła `claude -p --model <ANTHROPIC_MODEL>`. Kod aplikacji bez zmian; powrót do API = usunąć te 2 linie.
 - **SEC EDGAR**: `SEC_USER_AGENT` (email, bez klucza, 10 req/s).
 - **Finnhub**: klucz API (free 60 req/min) — `/quote` price outcome + discovery mcap/ADV.
 - **Alpha Vantage**: `ALPHA_VANTAGE_API_KEY` (free 25/dzień — consensus FIX-12), `CONSENSUS_TIMEOUT_MS`.
