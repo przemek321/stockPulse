@@ -59,7 +59,7 @@ make shell-app / shell-db     # shell do kontenera / psql
 
 Dev (WSL): `wsl -d Ubuntu bash -c "cd /home/n1copl/stockPulse && docker compose up -d"`
 Jetson: `docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d`
-Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (808 w 43 suitach, stan 11.10.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych).
+Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (839 w 45 suitach, stan 05.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych).
 
 ## Setup
 
@@ -108,7 +108,7 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   apls strict ×1.1. Floor priority MEDIUM dla Director BUY ≥$100K (GPT nie wetuje). Multi-tx
   aggregation (TASK-03). `sell_no_edge` → SKIP storeSignal (correlation backdoor FIX-07).
 - **Form8kPipeline** — GPT per-Item (1.01/2.02/5.02/other). Item 1.03 Bankruptcy → CRITICAL bez GPT.
-  Item 2.02: fetch Exhibit 99.1 + doklejenie PO `extractItemText` (FIX-10b boundary), consensus
+  Item 2.02: fetch Exhibit 99.1 (wybór pliku `selectExhibit991`: numer 99.1 → goły ex99 → fallback największy press-release-podobny .htm poza wrapperem; fix 05.11.2026) + doklejenie PO `extractItemText` (FIX-10b boundary), consensus
   injection + gap guard (FIX-12), missing-data guard (FIX-01), FIX-16 shadow, **bullish gate**
   (P1-02: bullish poza udokumentowanym beatem 2.02-R4 → observation), **material-event obs**
   (werdykt 01.09: reguła `8-K Material Event GPT` 1/7 hit → oba kierunki DB-only

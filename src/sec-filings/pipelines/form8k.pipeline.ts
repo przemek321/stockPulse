@@ -43,6 +43,7 @@ import {
 import { buildFix16Shadow } from '../utils/fix16-shadow';
 import { detectMissingDataFacts } from '../utils/missing-data-detector';
 import { parseEdgarIndexItems } from './edgar-filing-index.types';
+import { selectExhibit991 } from './exhibit-991-selector';
 
 /**
  * Pipeline analizy GPT dla filingów 8-K.
@@ -777,20 +778,22 @@ export class Form8kPipeline {
    * ścieżką (linia 521-523, .htm endswith) pomijaliśmy index.json i nie
    * trafialiśmy do exhibit.
    *
-   * Naming variants spotykane w SEC: `exhibit991.htm`, `ex991.htm`,
-   * `ex-99-1.htm`, `ex99-1.htm`, `abbv-20260331xexhibit991.htm`,
-   * `cmpny_ex991.htm`. Regex łapie wszystkie.
+   * Wybór pliku: `selectExhibit991` (exhibit-991-selector.ts) — numer 99.1 w dowolnym
+   * zapisie → goły ex99 → fallback (największy press-release-podobny .htm poza wrapperem).
+   * Fix 05.11.2026: dawny regex gubił 59 historycznych 2.02 (LLY, ELV, VRTX, ISRG, MOH…).
    *
    * Zwraca null gdy brak exhibit lub HTTP error → caller dołącza sam wrapper
    * i polega na missing-data guard (FIX-01) jako fallback.
    */
   private async fetchExhibit991(documentUrl: string): Promise<string | null> {
     let dirUrl: string;
+    let mainName: string | null = null;
     const lower = documentUrl.toLowerCase();
     if (lower.endsWith('.htm') || lower.endsWith('.html')) {
       const lastSlash = documentUrl.lastIndexOf('/');
       if (lastSlash < 0) return null;
       dirUrl = documentUrl.substring(0, lastSlash);
+      mainName = documentUrl.substring(lastSlash + 1);
     } else {
       dirUrl = documentUrl.replace(/\/$/, '');
     }
@@ -809,15 +812,11 @@ export class Form8kPipeline {
       const items = parseEdgarIndexItems(indexData);
       if (!items) return null;
 
-      const exhibit = items.find(entry => {
-        const name = entry.name.toLowerCase();
-        if (!name.endsWith('.htm') && !name.endsWith('.html')) return false;
-        // Match: ex(hibit)?[-_]?99[-_.]?1 — łapie ex991, ex-99-1, exhibit99.1, etc.
-        return /ex(hibit)?[-_]?99[-_.]?1\b/.test(name) || /ex(hibit)?991/.test(name);
-      });
-      // Dopasowany wpis ma z definicji niepusty `name` (regex wymaga "ex…") — dawne
-      // `!exhibit?.name` sprowadza się do braku dopasowania.
+      const exhibit = selectExhibit991(items, mainName);
       if (!exhibit) return null;
+      if (exhibit.tier !== 'ex991') {
+        this.logger.log(`Exhibit 99.1 wybrany progiem '${exhibit.tier}': ${exhibit.name} (${dirUrl})`);
+      }
 
       const docRes = await fetch(`${dirUrl}/${exhibit.name}`, {
         headers: {

@@ -42,6 +42,14 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
 - **05.11** decyzja usera: **bez doładowania API — GPT przez most `claude -p`** (`~/claude-bridge/`, osobne repo, Python stdlib;
   emuluje `POST /v1/messages`, model z żądania, pusty katalog roboczy bez kontekstu projektu). W StockPulse tylko `.env`
   (`ANTHROPIC_BASE_URL`, `ANTHROPIC_TIMEOUT_MS`), kod bez zmian. Luka GPT 27.10–05.11.
+- **05.11 — fix wyboru Exhibit 99.1 dla 8-K Item 2.02** (bugfix, kategoria „KORYGOWAĆ" z werdyktu #1): nowy
+  `selectExhibit991` (`src/sec-filings/pipelines/exhibit-991-selector.ts`) — progi `ex991` (numer 99.1 w każdym zapisie:
+  `ex-991_q…`, `xexx991`, `ex99x1`…) → `ex99` (goły numer) → `fallback` (największy .htm poza wrapperem, `R*.htm`, `*index*`
+  i exhibitami z innym numerem; najpierw nazwy earn/relea/result/quarter/_er). Dawny regex gubił press release w **59 z 571**
+  8-K w `sec_filings` (wszystkie z Item 2.02 wg `ITEM INFORMATION` w nagłówkach EDGAR): LLY, ELV (każdy kwartał), MOH, AMGN,
+  UNH, VRTX, ISRG, HUM, TDOC, GDRX, PFE, BSX, OSCR, HIMS, STX, COO… — GPT dostawał sam wrapper (`SKIP_INVALID_JSON` /
+  `gpt_missing_data`; 13 z nich ma alert `gpt_missing_data`/`bullish_no_consensus_data`/`consensus_miss`). Bez backfillu.
+  Trigger: LLY 29.10 (filing 4081), [replay 8-K z luki](reports/2026-11-05-replay-8k-gpt.md).
 - **26–27.09 — ESLint strict + TS strict** (`98ded99`..`db87781`): flat config strict-type-checked BE+FE z baseline
   suppressions (blokuje tylko NOWE błędy), `strict: true` w backendzie (159 pól encji `!`, `errMsg()/errCode()`),
   frontend TS 4.9 → 5.9, CI GitHub (required checks backend+frontend), hook lint-changed.

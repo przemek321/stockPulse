@@ -105,8 +105,9 @@ describe('Form8kPipeline.fetchExhibit991 — naming variants (S19-FIX-10)', () =
     );
 
     const svc = buildPipeline();
+    // Fix 05.11.2026: wrapper (= plik z documentUrl) i R*.htm nigdy nie są kandydatami fallbacku.
     const result = await (svc as any).fetchExhibit991(
-      'https://www.sec.gov/Archives/edgar/data/x/y/main-8k.htm',
+      'https://www.sec.gov/Archives/edgar/data/x/y/abbv-20260429.htm',
     );
     expect(result).toBeNull();
   });
@@ -176,27 +177,35 @@ describe('Form8kPipeline.fetchExhibit991 — naming variants (S19-FIX-10)', () =
     );
   });
 
-  it('NIE łapie main 8-K wrapper jako exhibit (bez ex/exhibit prefix)', async () => {
-    global.fetch = mockFetch(
-      {
-        directory: {
-          item: [
-            { name: 'abbv-20260429.htm' }, // wrapper
-            { name: 'R1.htm' },
-            { name: 'abbv-20260429-991.htm' }, // mylące "991" ale bez ex/exhibit
-          ],
-        },
-      },
-      '<p>Exhibit text</p>',
-    );
+  it('fix 05.11.2026: brak numeru 99.1 → fallback bierze pozostały .htm, nigdy wrapper', async () => {
+    let fetchedDoc: string | undefined;
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/index.json')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            directory: {
+              item: [
+                { name: 'lly-20261029.htm', size: '47525' }, // wrapper
+                { name: 'R1.htm', size: '58681' },
+                { name: 'q326lillysalesandearningsp.htm', size: '224998' },
+              ],
+            },
+          }),
+        });
+      }
+      fetchedDoc = url;
+      return Promise.resolve({ ok: true, text: () => Promise.resolve('<p>Revenue $17.6 billion, EPS $7.02</p>') });
+    });
 
     const svc = buildPipeline();
     const result = await (svc as any).fetchExhibit991(
-      'https://www.sec.gov/Archives/edgar/data/x/y/abbv-20260429.htm',
+      'https://www.sec.gov/Archives/edgar/data/59478/000005947826000104/lly-20261029.htm',
     );
-    // "abbv-20260429-991.htm" nie powinien matchować — brak "ex" prefix.
-    // Regex /ex(hibit)?[-_]?99[-_.]?1\b/ albo /ex(hibit)?991/ wymaga "ex".
-    expect(result).toBeNull();
+    expect(fetchedDoc).toBe(
+      'https://www.sec.gov/Archives/edgar/data/59478/000005947826000104/q326lillysalesandearningsp.htm',
+    );
+    expect(result).toContain('EPS $7.02');
   });
 });
 

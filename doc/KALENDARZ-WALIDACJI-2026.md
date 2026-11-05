@@ -181,6 +181,10 @@ agenci etap 2, Pi 5, API A/B.
   na most `claude -p` (`~/claude-bridge/`, decyzja usera — bez doładowania kredytów). Model ten sam (`claude-sonnet-4-6`), ścieżka
   inna (Claude Code dokłada własny kontekst). **Luka danych 27.10 11:35 UTC – 05.11 ~17:50 PL**: filingi bez analizy GPT
   (8-K → `gpt_missing_data`, Form 4 discovery/rdzeń bez wiersza w alerts). Przy werdykcie #3 raportować alerty sprzed/po 05.11 osobno.
+- **Bugfix 05.11.2026 (odnotowany, nie zmienia progów)**: wybór Exhibit 99.1 dla 8-K Item 2.02 (`selectExhibit991`). Przed fixem
+  59 historycznych 2.02 (LLY, ELV, MOH, AMGN, UNH, VRTX, ISRG, HUM…) szło do GPT bez press release → `gpt_missing_data`/brak alertu.
+  Skutek dla pomiaru: od 06.11 więcej 8-K Earnings z realną analizą GPT — przy przeglądach bullish-8K / FIX-16 (15.11) i ME8K
+  porównywać alerty 2.02 sprzed/po fixie osobno (wcześniejsza cisza tych tickerów to artefakt, nie brak zdarzeń).
 - **Instrumentacja WDROŻONA 01.11.2026**: linia `W3` w `logs/csuite-gate.log` (`scripts/sql/werdykt3-gates.sql`, jednorazowy ping
   przy N≥10); linia `ME8K` = 8-K Material Event GPT od 01.09 liczony po `ruleName` (stan 01.11: N=5/10 zdarzeń, hit 60%, med NET −1.05,
   wszystkie stłumione jako `bullish_8k_no_edge`/`gpt_missing_data`); capture **XLV** (`xlvAtAlert` + sloty 1d/3d/7d) od 01.11 —
