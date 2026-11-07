@@ -15,7 +15,7 @@ wykazany (insufficient N)**; sub-gate C-suite #1 (23.09) bez promocji (gap na ot
 N=29 zdarzeń, hit 62%, **mediana REAL −1.37% ≤ −1%**; forward ≥01.09 hit 42%, med REAL −5.7%. **REGUŁY §5 → stop gry real od
 01.11.2026** (0 🎯 od PODD 24.08 i tak). Jedyny dodatni segment: core+rdzeń+ (8 zdarzeń, hit 88%, med REAL +0.69, N<20) →
 **werdykt #3 01.02.2027** (KALENDARZ: N≥10 forward, hit ≥60%, med+śr REAL >0, ≥50% wchodzalnych → zdjęcie stopu; N<5 → sunset gry).
-Decyzja 02.11: **Director-only w discovery WYŁĄCZONY** (wyjątek: rdzeń+ ≥$10B). Otwarte decyzje usera: pomiar vs sunset, agenci etap 2 (rekomendacja: odłożyć), migracja (NAS UGREEN / Pi).
+Decyzja 02.11: **Director-only w discovery WYŁĄCZONY** (wyjątek: rdzeń+ ≥$10B). Otwarte decyzje usera: pomiar vs sunset, agenci etap 2 (rekomendacja: odłożyć). **07.11: migracja prod Jetson → Raspberry Pi 5 WYKONANA.**
 **05.11: GPT przywrócony przez most `claude -p`** (`~/claude-bridge/`, decyzja usera — bez doładowania API; luka 27.10–05.11).
 
 **Stan 19.10**: ostatnie 30 dni = 10 alertów, **0 dostarczonych** (ostatni dostarczony PODD 24.08). Sub-gate
@@ -43,7 +43,7 @@ pre-zarejestrowane 02.07 w KALENDARZU. Narzędzie werdyktu: `scripts/analysis/we
 StockPulse wykrywa edge na rynku akcji healthcare z alertami Telegram. Monitoruje insiderów
 (SEC EDGAR Form 4), zdarzenia korporacyjne (8-K), daty FDA (PDUFA.bio). Koreluje sygnały
 (insider×8-K) i alertuje tylko przy realnym edge. Działa end-to-end w kontenerach Docker
-na serwerze produkcyjnym (Jetson Orin NX, autostart z git pull) + laptop dev.
+na serwerze produkcyjnym (**Raspberry Pi 5 od 07.11.2026**, wcześniej Jetson Orin NX; autostart z git pull) + laptop dev.
 
 ## Komendy (Makefile — autodetekcja środowiska jetson/gpu/cpu)
 
@@ -58,7 +58,7 @@ make shell-app / shell-db     # shell do kontenera / psql
 ```
 
 Dev (WSL): `wsl -d Ubuntu bash -c "cd /home/n1copl/stockPulse && docker compose up -d"`
-Jetson: `docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d`
+Prod (Pi 5 / Jetson, aarch64): `docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d`
 Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (839 w 45 suitach, stan 05.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych).
 
 ## Setup
@@ -185,17 +185,26 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 - **`strict: true` w tsconfig (od 27.09.2026)**: pola encji mają `!` (TypeORM hydruje — NIE dawać wartości domyślnych, zmieniłyby INSERT-y przy synchronize); `catch (err)` = `unknown` → używać `errMsg(err)` / `errCode(err)` z `src/common/utils/error-message.util.ts`, nie `err.message`.
 - **TypeORM `synchronize:true` + zmiana długości kolumny = CRASH-LOOP** (incydent 27.07.2026, 676 restartów): schema sync robi DROP+ADD NOT NULL zamiast `ALTER TYPE` i pada na niepustej tabeli (transakcja rollbackuje → pętla). Przy zmianie typu/długości kolumny encji: NAJPIERW ręczny `ALTER TABLE ... ALTER COLUMN ... TYPE ...` na prod, POTEM deploy kodu.
 
-## Multi-środowisko: Laptop ↔ Jetson
+## Multi-środowisko: PROD = Raspberry Pi 5 (od 07.11.2026), Jetson = zapas
 
-Kod wspólny (git), `.env` osobny per maszyna (gitignored). Laptop dev → `git push` → Jetson prod
-(`git pull` + `make up`, autostart @reboot). Jetson od 03.10.2026 w trybie mocy **15W** (`nvpmodel -m 2`,
-4 rdzenie) — stack nie używa GPU od usunięcia FinBERT (22.04); migracja na Raspberry Pi 5 planowana po 01.11.
-PUŁAPKA: Jetson nie ma baterii RTC — po odcięciu zasilania startuje z zegarem 1970; `restart: unless-stopped`
-podnosi kontenery PRZED synchronizacją NTP → „Up 56 years" w `docker ps`, nieudany raport 8h przy starcie
-(incydent 04.10; dane w DB nie ucierpiały). Od 11.10 `scripts/autostart.sh` po NTP restartuje `app`, jeśli jego
-`StartedAt` < 2000 (krok 3.5; postgres/redis/frontend celowo nie — u nich to kosmetyka). **Po commicie KODU na Jetsonie: `make rebuild-app`**
-(commit ≠ produkcja). Transfer bazy: `make backup` + scp + `make restore`. Makefile sam wykrywa
-środowisko po `uname -m`. Pełny setup Jetsona: [doc/JETSON-SETUP.md](doc/JETSON-SETUP.md).
+**Produkcja od 07.11.2026: Raspberry Pi 5 8 GB**, Debian 12 arm64, NVMe 500 GB, kabel eth0 (+ stały adres Wi-Fi
+używany przez inne urządzenia usera — adresy w pamięci Claude'a, nie w repo). User `n1copl`, te same ścieżki `/home/n1copl/...`.
+Na malinie działają też PRYWATNE usługi usera (m.in. kontener `weather-station`, porty 80/8080–8082) — **nie ruszać
+sieci, silnika Dockera, UFW (poza regułą niżej) ani tych usług**. Docker 20.10 z Debiana + plugin
+`docker compose` v2.24.5 (`/usr/local/lib/docker/cli-plugins/`). Repo sklonowane po **HTTPS** (publiczne — `git pull`
+bez klucza; push tylko z maszyny dev). Makefile: `aarch64` → wariant `jetson` (pgAdmin off, bind /proc,/sys) — pasuje też na Pi.
+**Firewall UFW (default deny IN)** — reguła `172.16.0.0/12 → 172.17.0.1:8787/tcp` (kontenery → claude-bridge), bez niej
+GPT pada timeoutem. Claude Code na Pi: `~/.local/bin/claude` (crontab ustawia `BRIDGE_CLAUDE_BIN`/`DIP_CLAUDE_BIN`).
+Pi 5 ma RTC (bez baterii nie trzyma czasu po odcięciu zasilania — autostart i tak czeka na NTP, krok 3.5 zostaje).
+
+**Jetson Orin NX (prod do 07.11.2026)** — zatrzymany jako zapas: kontenery `stop` (wolumeny z danymi na 07.11 10:36 zostają),
+crontab zdjęty (kopia `backups/migracja-2026-11-07/crontab-jetson.txt`). Powrót = `crontab <kopia>` + `make up` (dane sprzed migracji!).
+PUŁAPKA Jetsona: brak RTC → zegar 1970 po odcięciu zasilania.
+
+Kod wspólny (git), `.env` osobny per maszyna (gitignored). Dev → `git push` → **na Pi: `git pull` + `make rebuild-app`**
+(commit ≠ produkcja; autostart @reboot robi pull + `make up`). Transfer bazy: `make backup` + scp + `make restore`
+(migracja 07.11: `pg_restore --exit-on-error` + `dump.rdb` Redisa wgrany przed pierwszym startem; obrazy postgres/redis przypięte
+digestem do wersji z Jetsona). Pełny setup Jetsona (historyczny): [doc/JETSON-SETUP.md](doc/JETSON-SETUP.md).
 
 ## Zmienne środowiskowe
 
