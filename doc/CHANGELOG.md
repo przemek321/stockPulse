@@ -43,7 +43,7 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   emuluje `POST /v1/messages`, model z żądania, pusty katalog roboczy bez kontekstu projektu). W StockPulse tylko `.env`
   (`ANTHROPIC_BASE_URL`, `ANTHROPIC_TIMEOUT_MS`), kod bez zmian. Luka GPT 27.10–05.11.
 - **07.11 — migracja produkcji Jetson → Raspberry Pi 5** (decyzja usera, weekend): Pi 5 8 GB / NVMe / Debian 12 arm64,
-  po kablu. Przerwa ~2 min (10:35:41 stop app na Jetsonie → 10:37:42 healthy na Pi, między cyklami SEC).
+  docelowo Wi-Fi (kabel tylko na migrację). Przerwa ~2 min (10:35:41 stop app na Jetsonie → 10:37:42 healthy na Pi, między cyklami SEC).
   Baza `pg_dump -Fc` → `pg_restore --exit-on-error` (liczby wierszy 9/9 tabel zgodne), Redis `dump.rdb` (5418/5425 kluczy —
   różnica = klucze z TTL), obrazy postgres/redis po digeście z Jetsona, app/frontend zbudowane na Pi. Most GPT + dip-research +
   crontab przeniesione; reguła UFW dla kontenery → most. Jetson zatrzymany jako zapas. Szczegóły: CLAUDE.md „Multi-środowisko".

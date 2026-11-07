@@ -187,8 +187,10 @@ NestJS API `:3000` · Frontend `:3001` · pgAdmin `:5050` · PostgreSQL `:5432` 
 
 ## Multi-środowisko: PROD = Raspberry Pi 5 (od 07.11.2026), Jetson = zapas
 
-**Produkcja od 07.11.2026: Raspberry Pi 5 8 GB**, Debian 12 arm64, NVMe 500 GB, kabel eth0 (+ stały adres Wi-Fi
-używany przez inne urządzenia usera — adresy w pamięci Claude'a, nie w repo). User `n1copl`, te same ścieżki `/home/n1copl/...`.
+**Produkcja od 07.11.2026: Raspberry Pi 5 8 GB**, Debian 12 arm64, NVMe 500 GB, **sieć: Wi-Fi ze stałym adresem**
+(kabel eth0 tylko tymczasowo na czas migracji; adresy w pamięci Claude'a, nie w repo). Od 07.11 profil NetworkManagera
+`tplink-5g` (wzmacniacz 5 GHz, priorytet 10, ~15 MB/s) z tym samym stałym adresem; dawny profil `preconfigured`
+(2,4 GHz, ~50–100 KB/s) zostaje jako zapas (priorytet 0). Powrót: `sudo nmcli c up preconfigured`. User `n1copl`, te same ścieżki `/home/n1copl/...`.
 Na malinie działają też PRYWATNE usługi usera (m.in. kontener `weather-station`, porty 80/8080–8082) — **nie ruszać
 sieci, silnika Dockera, UFW (poza regułą niżej) ani tych usług**. Docker 20.10 z Debiana + plugin
 `docker compose` v2.24.5 (`/usr/local/lib/docker/cli-plugins/`). Repo sklonowane po **HTTPS** (publiczne — `git pull`
