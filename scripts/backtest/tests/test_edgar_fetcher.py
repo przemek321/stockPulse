@@ -315,3 +315,49 @@ def test_filter_keeps_4_and_4a_only_in_range(monkeypatch):
           {"form": "8-K", "date": "2024-01-02"}, {"form": "4", "date": "2019-01-01"},
           {"form": "__BATCH_FAILED__", "date": ""}]
     assert [f["form"] for f in ef._filter_form4_in_range(fl)] == ["4", "4/A"]
+
+
+class TestUniverseSwitch:
+    """BT_UNIVERSE=semi: osobne uniwersum, osobny plik transakcji i mapa CIK (teczka SEKTOR-VS-SYGNAL)."""
+
+    def _load(self, monkeypatch, env):
+        import importlib
+        import config
+        for k in ("BT_UNIVERSE", "BT_TX_FILE"):
+            monkeypatch.delenv(k, raising=False)
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+        return importlib.reload(config)
+
+    def teardown_method(self):
+        import importlib
+        import os
+        import config
+        os.environ.pop("BT_UNIVERSE", None)
+        importlib.reload(config)
+
+    def test_default_unchanged(self, monkeypatch):
+        c = self._load(monkeypatch, {})
+        assert c.ALL_TICKERS == c.HEALTHCARE_TICKERS + c.CONTROL_TICKERS
+        assert c.CIK_CACHE_FILE.endswith("cik_map.json")
+        assert c.TRANSACTIONS_FILE.endswith("form4_transactions.csv")
+
+    def test_semi_separate_files(self, monkeypatch):
+        c = self._load(monkeypatch, {"BT_UNIVERSE": "semi"})
+        assert c.ALL_TICKERS == c.SEMI_TICKERS and len(c.SEMI_TICKERS) == 14
+        assert not set(c.SEMI_TICKERS) & set(c.HEALTHCARE_TICKERS + c.CONTROL_TICKERS)
+        assert c.CIK_CACHE_FILE.endswith("cik_map_semi.json")
+        assert c.TRANSACTIONS_FILE.endswith("form4_transactions_semi.csv")
+
+    def test_semi_matches_universe_json(self, monkeypatch):
+        import json
+        from pathlib import Path
+        c = self._load(monkeypatch, {})
+        d = json.loads((Path(__file__).resolve().parents[3] / "doc/stockpulse-semi-supply-chain.json").read_text())
+        tickers = {x["ticker"] for g in d["tickers"].values() for x in g["companies"]}
+        assert tickers == set(c.SEMI_TICKERS)
+
+    def test_unknown_universe_rejected(self, monkeypatch):
+        import pytest
+        with pytest.raises(ValueError):
+            self._load(monkeypatch, {"BT_UNIVERSE": "xyz"})

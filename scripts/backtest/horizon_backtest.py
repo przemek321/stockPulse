@@ -141,9 +141,23 @@ def close_on_or_before(px: pd.DataFrame, d) -> float | None:
     return float(px["Close"].iloc[i]) if i >= 0 else None
 
 
+def split_factor(splits: list[tuple[pd.Timestamp, float]], d) -> float:
+    """Iloczyn współczynników splitów PO dniu d (cena z Form 4 jest nominalna, ceny yfinance — skorygowane)."""
+    f = 1.0
+    for when, ratio in splits:
+        if pd.Timestamp(when) > pd.Timestamp(d) and ratio > 0:
+            f *= ratio
+    return f
+
+
 def clean_transactions(tx: pd.DataFrame, cik_map: dict[str, str],
-                       prices: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, dict]:
-    """Krok po kroku wg teczki; zwraca (czyste BUY, liczniki odrzuceń)."""
+                       prices: dict[str, pd.DataFrame],
+                       splits: dict[str, list[tuple[pd.Timestamp, float]]] | None = None) -> tuple[pd.DataFrame, dict]:
+    """Krok po kroku wg teczki; zwraca (czyste BUY, liczniki odrzuceń).
+
+    splits (teczka SEKTOR-VS-SYGNAL, 08.11.2026): gdy podane, cena/ilość z Form 4 są przeliczane na bazę
+    skorygowaną o splity PRZED regułą ceny (wartość transakcji bez zmian). None = zachowanie HORYZONT 1:1.
+    """
     log: dict[str, int] = {"rows_in": len(tx)}
     expected = tx["symbol"].map(cik_map).fillna("")
     issuer_ok = (tx["issuer_cik"] != "") & (tx["issuer_cik"] == expected)
@@ -169,6 +183,13 @@ def clean_transactions(tx: pd.DataFrame, cik_map: dict[str, str],
     dup = t.duplicated(subset=["symbol", "transaction_date", "shares", "price_per_share"], keep="first")
     log["drop_content_duplicates"] = int(dup.sum())
     t = t[~dup].copy()
+
+    if splits is not None:
+        f = np.array([split_factor(splits.get(sym, []), d) if pd.notna(d) else 1.0
+                      for sym, d in zip(t["symbol"], t["transaction_date"])], dtype=float)
+        log["split_adjusted"] = int((f != 1.0).sum())
+        t["price_per_share"] = t["price_per_share"] / f
+        t["shares"] = t["shares"] * f
 
     # reguła wiarygodności ceny (teczka): r = cena z Form 4 / Close z dnia transakcji (lub ostatniej sesji przed)
     values, status = [], []

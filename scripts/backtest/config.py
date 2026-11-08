@@ -73,14 +73,32 @@ CONTROL_TICKERS = [
     "CAT", "DE", "HON", "GE",
 ]
 
-ALL_TICKERS = HEALTHCARE_TICKERS + CONTROL_TICKERS
+# --- Semi supply chain (14 — doc/stockpulse-semi-supply-chain.json; teczka SEKTOR-VS-SYGNAL 08.11.2026) ---
+SEMI_TICKERS = [
+    "MU", "WDC", "STX",                    # pamięć
+    "KLIC", "ONTO", "CAMT", "NVMI",        # sprzęt
+    "AMKR", "ASX",                         # packaging (OSAT)
+    "DELL", "HPQ", "HPE", "SMCI", "NTAP",  # OEM
+]
+
+# BT_UNIVERSE=semi → fetcher pobiera TYLKO semi (osobny plik transakcji i osobna mapa CIK — nie rusza v6
+# ani cik_map.json teczki HORYZONT). Domyślnie zachowanie bez zmian (healthcare + kontrola).
+UNIVERSE = os.environ.get("BT_UNIVERSE", "default")
+if UNIVERSE not in ("default", "semi"):
+    raise ValueError(f"BT_UNIVERSE: nieznane uniwersum {UNIVERSE!r}")
+ALL_TICKERS = SEMI_TICKERS if UNIVERSE == "semi" else HEALTHCARE_TICKERS + CONTROL_TICKERS
 
 # --- Ścieżki danych ---
 DATA_DIR = "data"
 # BT_TX_FILE nadpisuje plik transakcji (08.11.2026: v6 z kolumnami form/table/issuer/acceptance — teczka HORYZONT)
-TRANSACTIONS_FILE = os.environ.get("BT_TX_FILE", f"{DATA_DIR}/form4_transactions.csv")
+TRANSACTIONS_FILE = os.environ.get(
+    "BT_TX_FILE",
+    f"{DATA_DIR}/form4_transactions_semi.csv" if UNIVERSE == "semi" else f"{DATA_DIR}/form4_transactions.csv")
+SEMI_TRANSACTIONS_FILE = f"{DATA_DIR}/form4_transactions_semi.csv"
 PRICES_DIR = f"{DATA_DIR}/prices"
-CIK_CACHE_FILE = f"{DATA_DIR}/cik_map.json"
+CIK_CACHE_FILE_DEFAULT = f"{DATA_DIR}/cik_map.json"
+CIK_CACHE_FILE_SEMI = f"{DATA_DIR}/cik_map_semi.json"
+CIK_CACHE_FILE = CIK_CACHE_FILE_SEMI if UNIVERSE == "semi" else CIK_CACHE_FILE_DEFAULT
 RESULTS_DIR = f"{DATA_DIR}/results"
 
 # --- Kolumny transakcji CSV ---

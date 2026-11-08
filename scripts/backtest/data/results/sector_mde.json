@@ -1,0 +1,84 @@
+{
+  "generated": "2026-11-08",
+  "cleaning": {
+    "rows_in": 60195,
+    "drop_foreign_or_missing_issuer": 1982,
+    "buy_rows": 223,
+    "drop_derivative_table": 0,
+    "drop_10b51_plan": 5,
+    "drop_fund_only": 15,
+    "drop_no_price_or_shares": 0,
+    "drop_content_duplicates": 14,
+    "split_adjusted": 5,
+    "price_fixed": 1,
+    "price_excluded": 0,
+    "price_no_close": 15,
+    "rows_out": 189
+  },
+  "groups": {
+    "HC": {
+      "episodes": 48,
+      "with_full_90d": 47,
+      "per_ticker_full_90d": {
+        "PODD": 7,
+        "BMY": 5,
+        "CNC": 4,
+        "ELV": 4,
+        "BIIB": 3,
+        "HIMS": 3,
+        "TDOC": 3,
+        "HUM": 3,
+        "GDRX": 2,
+        "MOH": 2,
+        "OSCR": 2,
+        "UNH": 2,
+        "ENSG": 1,
+        "LLY": 1,
+        "MRNA": 1,
+        "DXCM": 1,
+        "CI": 1,
+        "UHS": 1,
+        "VRTX": 1
+      },
+      "perm_sd_pp": 4.635296733179834,
+      "mde_pp": 11.527982975418247
+    },
+    "CTRL": {
+      "episodes": 27,
+      "with_full_90d": 25,
+      "per_ticker_full_90d": {
+        "CAT": 6,
+        "COP": 3,
+        "GS": 3,
+        "MCD": 2,
+        "MSFT": 2,
+        "TSLA": 2,
+        "WFC": 2,
+        "AMZN": 1,
+        "BAC": 1,
+        "DE": 1,
+        "KO": 1,
+        "WMT": 1
+      },
+      "perm_sd_pp": 2.7865794385733045,
+      "mde_pp": 6.930223063731808,
+      "D_vs_HC_null_sd_pp": 4.979376313205578,
+      "D_vs_HC_mde_pp": 13.95221242960203
+    },
+    "SEMI": {
+      "episodes": 8,
+      "with_full_90d": 8,
+      "per_ticker_full_90d": {
+        "SMCI": 3,
+        "AMKR": 2,
+        "KLIC": 1,
+        "MU": 1,
+        "NTAP": 1
+      },
+      "perm_sd_pp": 16.65901386647739,
+      "mde_pp": 41.43096748592927,
+      "D_vs_HC_null_sd_pp": 18.62895834776317,
+      "D_vs_HC_mde_pp": 52.1983412904324
+    }
+  }
+}

@@ -1,0 +1,872 @@
+{
+  "generated": "2026-11-08",
+  "criteria": {
+    "primary": [
+      "SEMI",
+      "90d"
+    ],
+    "min_n_primary": 15,
+    "alpha": 0.05,
+    "negative_upper_pp": 3.0,
+    "cost_pp": 1.0,
+    "b_perm": 10000,
+    "b_boot": 10000,
+    "benchmark_map": {
+      "UNH": "IHF",
+      "ELV": "IHF",
+      "HUM": "IHF",
+      "CNC": "IHF",
+      "MOH": "IHF",
+      "CI": "IHF",
+      "OSCR": "IHF",
+      "HCA": "IHF",
+      "THC": "IHF",
+      "UHS": "IHF",
+      "ENSG": "IHF",
+      "SEM": "IHF",
+      "ISRG": "IHI",
+      "DXCM": "IHI",
+      "PODD": "IHI",
+      "GILD": "IBB",
+      "AMGN": "IBB",
+      "REGN": "IBB",
+      "VRTX": "IBB",
+      "BIIB": "IBB",
+      "MRNA": "IBB",
+      "LLY": "XLV",
+      "ABBV": "XLV",
+      "BMY": "XLV",
+      "HIMS": "XLV",
+      "TDOC": "XLV",
+      "DOCS": "XLV",
+      "GDRX": "XLV",
+      "AAPL": "XLK",
+      "MSFT": "XLK",
+      "NVDA": "XLK",
+      "GOOGL": "XLC",
+      "META": "XLC",
+      "AMZN": "XLY",
+      "TSLA": "XLY",
+      "MCD": "XLY",
+      "JPM": "XLF",
+      "GS": "XLF",
+      "BAC": "XLF",
+      "MS": "XLF",
+      "WFC": "XLF",
+      "WMT": "XLP",
+      "COST": "XLP",
+      "PG": "XLP",
+      "KO": "XLP",
+      "PEP": "XLP",
+      "XOM": "XLE",
+      "CVX": "XLE",
+      "COP": "XLE",
+      "CAT": "XLI",
+      "DE": "XLI",
+      "HON": "XLI",
+      "GE": "XLI",
+      "MU": "SOXX",
+      "AMKR": "SOXX",
+      "KLIC": "SOXX",
+      "ONTO": "SOXX",
+      "CAMT": "SOXX",
+      "NVMI": "SOXX",
+      "ASX": "SOXX",
+      "DELL": "XLK",
+      "HPE": "XLK",
+      "HPQ": "XLK",
+      "NTAP": "XLK",
+      "SMCI": "XLK",
+      "STX": "XLK",
+      "WDC": "XLK"
+    },
+    "wdc_spinoff_unadjusted": false
+  },
+  "data": {
+    "calendar": [
+      "2023-03-15",
+      "2026-11-06"
+    ],
+    "cleaning": {
+      "rows_in": 60195,
+      "drop_foreign_or_missing_issuer": 1982,
+      "buy_rows": 223,
+      "drop_derivative_table": 0,
+      "drop_10b51_plan": 5,
+      "drop_fund_only": 15,
+      "drop_no_price_or_shares": 0,
+      "drop_content_duplicates": 14,
+      "split_adjusted": 5,
+      "price_fixed": 1,
+      "price_excluded": 0,
+      "price_no_close": 15,
+      "rows_out": 189
+    },
+    "episodes": {
+      "HC": 48,
+      "CTRL": 27,
+      "SEMI": 8
+    }
+  },
+  "groups": {
+    "sector": {
+      "HC": {
+        "7d": {
+          "episodes": 48,
+          "n": 48,
+          "mean": 1.655346800001814,
+          "median": 0.3618095874013636,
+          "hit": 54.166666666666664,
+          "winsorized_mean": 1.5864350244225627,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.16666666666666666,
+            "flag": false
+          }
+        },
+        "30d": {
+          "episodes": 48,
+          "n": 48,
+          "mean": 4.065670012070902,
+          "median": 1.041993355849403,
+          "hit": 52.083333333333336,
+          "winsorized_mean": 3.937703689210528,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.16666666666666666,
+            "flag": false
+          }
+        },
+        "60d": {
+          "episodes": 48,
+          "n": 48,
+          "mean": 6.286144846564263,
+          "median": 5.2170997596743,
+          "hit": 64.58333333333334,
+          "winsorized_mean": 6.107777351572668,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.16666666666666666,
+            "flag": false
+          }
+        },
+        "90d": {
+          "episodes": 48,
+          "n": 47,
+          "mean": 12.854573370798917,
+          "median": 4.874582800446615,
+          "hit": 61.702127659574465,
+          "winsorized_mean": 11.666949344783273,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.14893617021276595,
+            "flag": false
+          },
+          "p_perm": 9.999000099990002e-05,
+          "ci95": [
+            3.4495188512546995,
+            25.5996744061758
+          ],
+          "loto": {
+            "BIIB": 13.61647486844454,
+            "BMY": 14.943196466208835,
+            "CI": 12.87538948394746,
+            "CNC": 13.426272755492146,
+            "DXCM": 12.582943115417981,
+            "ELV": 13.054420731716327,
+            "ENSG": 12.936305230999837,
+            "GDRX": 12.936769459005328,
+            "HIMS": 8.72278596567895,
+            "HUM": 11.987697578671403,
+            "LLY": 12.357057125798155,
+            "MOH": 13.196801858296407,
+            "MRNA": 13.317226841875536,
+            "OSCR": 11.264909809330286,
+            "PODD": 16.0321413849201,
+            "TDOC": 11.518166873421466,
+            "UHS": 12.821907154481664,
+            "UNH": 13.683466029629587,
+            "VRTX": 13.359740833197925
+          }
+        }
+      },
+      "CTRL": {
+        "7d": {
+          "episodes": 27,
+          "n": 26,
+          "mean": -0.2840478025830215,
+          "median": 0.08379781988721668,
+          "hit": 57.692307692307686,
+          "winsorized_mean": -0.2896719590725694,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.23076923076923078,
+            "flag": false
+          }
+        },
+        "30d": {
+          "episodes": 27,
+          "n": 25,
+          "mean": 2.029880942063568,
+          "median": 1.4514190498446942,
+          "hit": 64.0,
+          "winsorized_mean": 2.0366753550863255,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.24,
+            "flag": false
+          }
+        },
+        "60d": {
+          "episodes": 27,
+          "n": 25,
+          "mean": 1.754028311134544,
+          "median": 1.1955279109206138,
+          "hit": 60.0,
+          "winsorized_mean": 1.7882563238360933,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.24,
+            "flag": false
+          }
+        },
+        "90d": {
+          "episodes": 27,
+          "n": 25,
+          "mean": 0.8112541296893322,
+          "median": 0.39779958842443364,
+          "hit": 56.00000000000001,
+          "winsorized_mean": 0.77758572266794,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.24,
+            "flag": false
+          },
+          "p_perm": 0.5911408859114089,
+          "ci95": [
+            -3.436808670073672,
+            3.814972278814859
+          ],
+          "loto": {
+            "AMZN": 0.8460747965723364,
+            "BAC": 0.8284814022420365,
+            "CAT": 0.5054691080388451,
+            "COP": 1.2340664921009588,
+            "DE": 0.7199146199590386,
+            "GS": -0.014610451986334453,
+            "KO": 0.8920914232926869,
+            "MCD": 0.5629978467539718,
+            "MSFT": 2.4046842573364016,
+            "TSLA": 0.6047258873705827,
+            "WFC": 0.3505135692151398,
+            "WMT": 0.731593751007086
+          }
+        }
+      },
+      "SEMI": {
+        "7d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 3.132228670669364,
+          "median": -0.23055422431542016,
+          "hit": 50.0,
+          "winsorized_mean": 3.1217856619441253,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          }
+        },
+        "30d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 14.94319166151131,
+          "median": 4.0871287976027135,
+          "hit": 62.5,
+          "winsorized_mean": 14.99673529826331,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          }
+        },
+        "60d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 21.479849910443946,
+          "median": 15.79418601460919,
+          "hit": 62.5,
+          "winsorized_mean": 21.038856365458056,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          }
+        },
+        "90d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 14.953141179879035,
+          "median": 3.238357691256579,
+          "hit": 50.0,
+          "winsorized_mean": 14.551974087341048,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          },
+          "p_perm": 0.2672732726727327,
+          "ci95": [
+            -4.879639259835392,
+            28.148654338178535
+          ],
+          "loto": {
+            "AMKR": 16.126840644706135,
+            "KLIC": 19.077587495006576,
+            "MU": 16.112193888250744,
+            "NTAP": 17.33230438189222,
+            "SMCI": 2.8169747063691064
+          }
+        }
+      }
+    },
+    "spy": {
+      "HC": {
+        "7d": {
+          "episodes": 48,
+          "n": 48,
+          "mean": 1.6105043466348896,
+          "median": 1.0062415194964656,
+          "hit": 58.333333333333336,
+          "winsorized_mean": 1.5439968827892303,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.16666666666666666,
+            "flag": false
+          }
+        },
+        "30d": {
+          "episodes": 48,
+          "n": 48,
+          "mean": 3.6025849362720126,
+          "median": 0.5815416294374334,
+          "hit": 54.166666666666664,
+          "winsorized_mean": 3.52558624931323,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.16666666666666666,
+            "flag": false
+          }
+        },
+        "60d": {
+          "episodes": 48,
+          "n": 48,
+          "mean": 4.953194199226363,
+          "median": 5.0436079121408195,
+          "hit": 62.5,
+          "winsorized_mean": 4.787797861725337,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.16666666666666666,
+            "flag": false
+          }
+        },
+        "90d": {
+          "episodes": 48,
+          "n": 47,
+          "mean": 11.029123497640223,
+          "median": 3.238027696675495,
+          "hit": 55.319148936170215,
+          "winsorized_mean": 9.972125962535083,
+          "max_ticker": {
+            "symbol": "PODD",
+            "share": 0.14893617021276595,
+            "flag": false
+          },
+          "p_perm": 9.999000099990002e-05,
+          "ci95": [
+            0.3234462481560063,
+            25.321776720007332
+          ],
+          "loto": {
+            "BIIB": 12.220544080051129,
+            "BMY": 13.566536538448238,
+            "CI": 11.19849514548728,
+            "CNC": 10.756283759932503,
+            "DXCM": 10.877529447381269,
+            "ELV": 10.673643533174026,
+            "ENSG": 10.980891626342892,
+            "GDRX": 10.971793157659445,
+            "HIMS": 6.415668026513679,
+            "HUM": 10.419519675348727,
+            "LLY": 10.338029337120666,
+            "MOH": 10.966105104206477,
+            "MRNA": 11.684229511566118,
+            "OSCR": 9.170989069680207,
+            "PODD": 15.043894915434105,
+            "TDOC": 10.545832698380062,
+            "UHS": 11.093370324736865,
+            "UNH": 11.897064738605682,
+            "VRTX": 11.215815343845494
+          }
+        }
+      },
+      "CTRL": {
+        "7d": {
+          "episodes": 27,
+          "n": 26,
+          "mean": -0.8986809955240701,
+          "median": 0.30042647258505895,
+          "hit": 53.84615384615385,
+          "winsorized_mean": -0.8692360656575755,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.23076923076923078,
+            "flag": false
+          }
+        },
+        "30d": {
+          "episodes": 27,
+          "n": 25,
+          "mean": 1.4985912090042068,
+          "median": 2.3631594441467128,
+          "hit": 64.0,
+          "winsorized_mean": 1.4501867207115107,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.24,
+            "flag": false
+          }
+        },
+        "60d": {
+          "episodes": 27,
+          "n": 25,
+          "mean": 1.095292830850898,
+          "median": -0.5837931275693533,
+          "hit": 48.0,
+          "winsorized_mean": 1.1313803929123913,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.24,
+            "flag": false
+          }
+        },
+        "90d": {
+          "episodes": 27,
+          "n": 25,
+          "mean": 2.4923923193493196,
+          "median": 2.5121442160435556,
+          "hit": 64.0,
+          "winsorized_mean": 2.4863423768792416,
+          "max_ticker": {
+            "symbol": "CAT",
+            "share": 0.24,
+            "flag": false
+          },
+          "p_perm": 0.3735626437356264,
+          "ci95": [
+            -0.4242959393656946,
+            4.733855528658435
+          ],
+          "loto": {
+            "AMZN": 2.49209707368364,
+            "BAC": 2.524841265123012,
+            "CAT": 2.5535505614597396,
+            "COP": 2.0162849100315134,
+            "DE": 2.4912016408754947,
+            "GS": 1.8506939785330265,
+            "KO": 2.491569323653726,
+            "MCD": 2.6415176012508326,
+            "MSFT": 3.5847417611284045,
+            "TSLA": 2.630683711185339,
+            "WFC": 2.2354104771158516,
+            "WMT": 2.362489027466546
+          }
+        }
+      },
+      "SEMI": {
+        "7d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 3.9361246219382804,
+          "median": 1.8245978620885899,
+          "hit": 50.0,
+          "winsorized_mean": 3.9267615066643233,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          }
+        },
+        "30d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 16.832840235920113,
+          "median": 5.097864876435388,
+          "hit": 75.0,
+          "winsorized_mean": 16.791188075355088,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          }
+        },
+        "60d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 25.737464919901694,
+          "median": 23.887346769693522,
+          "hit": 75.0,
+          "winsorized_mean": 25.1901551808311,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          }
+        },
+        "90d": {
+          "episodes": 8,
+          "n": 8,
+          "mean": 21.06596400306622,
+          "median": 13.395329821489835,
+          "hit": 75.0,
+          "winsorized_mean": 20.82347263697388,
+          "max_ticker": {
+            "symbol": "SMCI",
+            "share": 0.375,
+            "flag": true
+          },
+          "p_perm": 0.2605739426057394,
+          "ci95": [
+            -1.3009114668532753,
+            32.26851599301304
+          ],
+          "loto": {
+            "AMKR": 21.26650869511748,
+            "KLIC": 26.843966110554895,
+            "MU": 20.46435269342764,
+            "NTAP": 22.73166977591585,
+            "SMCI": 11.246375173625106
+          }
+        }
+      }
+    }
+  },
+  "diff_in_diff": {
+    "sector": {
+      "CTRL": {
+        "D": -14.313170072042414,
+        "p_two_sided": 9.999000099990002e-05,
+        "ci95": [
+          -27.583883588847897,
+          -4.315541977501257
+        ],
+        "null_mean_x": 1.6688165750997506,
+        "null_mean_h": -0.6010342558330801,
+        "n_x": 25,
+        "n_h": 47,
+        "d_null_sd": 5.015092656117433
+      },
+      "SEMI": {
+        "D": -4.526267527545091,
+        "p_two_sided": 0.8311168883111689,
+        "ci95": [
+          -28.618788971989858,
+          12.312734318751069
+        ],
+        "null_mean_x": 6.023801080792129,
+        "null_mean_h": -0.6010342558330801,
+        "n_x": 8,
+        "n_h": 47,
+        "d_null_sd": 18.28875546406207
+      }
+    },
+    "spy": {
+      "CTRL": {
+        "D": -13.347234324286962,
+        "p_two_sided": 0.0110988901109889,
+        "ci95": [
+          -28.077877044203827,
+          -2.4420115487127982
+        ],
+        "null_mean_x": 1.0780954593827006,
+        "null_mean_h": -3.732407686613359,
+        "n_x": 25,
+        "n_h": 47,
+        "d_null_sd": 6.251226181209039
+      },
+      "SEMI": {
+        "D": -4.1571926761530875,
+        "p_two_sided": 0.844015598440156,
+        "ci95": [
+          -29.783072544652335,
+          12.477979872693757
+        ],
+        "null_mean_x": 10.461625494965727,
+        "null_mean_h": -3.732407686613359,
+        "n_x": 8,
+        "n_h": 47,
+        "d_null_sd": 19.610015799722156
+      }
+    }
+  },
+  "primary_verdict": {
+    "verdict": "INSUFFICIENT_N",
+    "n": 8,
+    "min_n": 15
+  },
+  "ctrl_verdict_partially_unblinded": {
+    "verdict": "NIEROZSTRZYGNIĘTY",
+    "checks": {
+      "p_lt_alpha": false,
+      "mean_gt_0": true,
+      "median_gt_0": true,
+      "loto_same_sign": false
+    },
+    "negative_rule": "CI95 hi < 3.0 pp",
+    "ci_hi": 3.814972278814859
+  },
+  "interpretation_rule": "R3",
+  "semi_filing_lag_days": {
+    "AMKR": [
+      2,
+      4
+    ],
+    "KLIC": [
+      2
+    ],
+    "MU": [
+      2,
+      1,
+      1
+    ],
+    "NTAP": [
+      4,
+      3,
+      3
+    ],
+    "SMCI": [
+      2,
+      4,
+      0,
+      0,
+      4
+    ]
+  },
+  "episodes_list": {
+    "CTRL": [
+      {
+        "symbol": "AMZN",
+        "first_filing": "2023-05-26",
+        "value": 115,
+        "n_filings": 1
+      },
+      {
+        "symbol": "BAC",
+        "first_filing": "2023-11-03",
+        "value": 656250,
+        "n_filings": 1
+      },
+      {
+        "symbol": "CAT",
+        "first_filing": "2024-02-26",
+        "value": 113180,
+        "n_filings": 1
+      },
+      {
+        "symbol": "CAT",
+        "first_filing": "2024-05-06",
+        "value": 168695,
+        "n_filings": 1
+      },
+      {
+        "symbol": "CAT",
+        "first_filing": "2024-05-22",
+        "value": 35640,
+        "n_filings": 1
+      },
+      {
+        "symbol": "CAT",
+        "first_filing": "2025-05-08",
+        "value": 120262,
+        "n_filings": 1
+      },
+      {
+        "symbol": "CAT",
+        "first_filing": "2025-11-06",
+        "value": 170658,
+        "n_filings": 1
+      },
+      {
+        "symbol": "CAT",
+        "first_filing": "2026-05-05",
+        "value": 219210,
+        "n_filings": 1
+      },
+      {
+        "symbol": "CAT",
+        "first_filing": "2026-11-03",
+        "value": 620390,
+        "n_filings": 1
+      },
+      {
+        "symbol": "COP",
+        "first_filing": "2024-12-18",
+        "value": 1256835,
+        "n_filings": 2
+      },
+      {
+        "symbol": "COP",
+        "first_filing": "2025-06-17",
+        "value": 499472,
+        "n_filings": 1
+      },
+      {
+        "symbol": "COP",
+        "first_filing": "2025-11-10",
+        "value": 500000,
+        "n_filings": 1
+      },
+      {
+        "symbol": "DE",
+        "first_filing": "2023-06-07",
+        "value": 250459,
+        "n_filings": 1
+      },
+      {
+        "symbol": "GS",
+        "first_filing": "2024-10-09",
+        "value": 29545,
+        "n_filings": 1
+      },
+      {
+        "symbol": "GS",
+        "first_filing": "2025-01-21",
+        "value": 1485648,
+        "n_filings": 1
+      },
+      {
+        "symbol": "GS",
+        "first_filing": "2025-04-17",
+        "value": 1997584,
+        "n_filings": 1
+      },
+      {
+        "symbol": "KO",
+        "first_filing": "2025-10-27",
+        "value": 998676,
+        "n_filings": 1
+      },
+      {
+        "symbol": "MCD",
+        "first_filing": "2023-08-04",
+        "value": 10679,
+        "n_filings": 1
+      },
+      {
+        "symbol": "MCD",
+        "first_filing": "2025-02-14",
+        "value": 40074,
+        "n_filings": 1
+      },
+      {
+        "symbol": "MSFT",
+        "first_filing": "2025-12-12",
+        "value": 1450221,
+        "n_filings": 1
+      },
+      {
+        "symbol": "MSFT",
+        "first_filing": "2026-02-18",
+        "value": 1986750,
+        "n_filings": 1
+      },
+      {
+        "symbol": "PEP",
+        "first_filing": "2026-10-16",
+        "value": 17904168,
+        "n_filings": 1
+      },
+      {
+        "symbol": "TSLA",
+        "first_filing": "2025-04-28",
+        "value": 1025232,
+        "n_filings": 1
+      },
+      {
+        "symbol": "TSLA",
+        "first_filing": "2025-09-15",
+        "value": 999959042,
+        "n_filings": 1
+      },
+      {
+        "symbol": "WFC",
+        "first_filing": "2023-04-27",
+        "value": 8590,
+        "n_filings": 1
+      },
+      {
+        "symbol": "WFC",
+        "first_filing": "2023-11-09",
+        "value": 144270,
+        "n_filings": 1
+      },
+      {
+        "symbol": "WMT",
+        "first_filing": "2024-11-29",
+        "value": 499997,
+        "n_filings": 1
+      }
+    ],
+    "SEMI": [
+      {
+        "symbol": "AMKR",
+        "first_filing": "2025-02-26",
+        "value": 18999995,
+        "n_filings": 1
+      },
+      {
+        "symbol": "AMKR",
+        "first_filing": "2025-08-05",
+        "value": 9648720,
+        "n_filings": 1
+      },
+      {
+        "symbol": "KLIC",
+        "first_filing": "2024-05-08",
+        "value": 47510,
+        "n_filings": 1
+      },
+      {
+        "symbol": "MU",
+        "first_filing": "2026-01-15",
+        "value": 7821723,
+        "n_filings": 1
+      },
+      {
+        "symbol": "NTAP",
+        "first_filing": "2025-03-31",
+        "value": 499597,
+        "n_filings": 1
+      },
+      {
+        "symbol": "SMCI",
+        "first_filing": "2023-05-12",
+        "value": 534730,
+        "n_filings": 2
+      },
+      {
+        "symbol": "SMCI",
+        "first_filing": "2023-08-11",
+        "value": 1062280,
+        "n_filings": 1
+      },
+      {
+        "symbol": "SMCI",
+        "first_filing": "2024-02-05",
+        "value": 1136000,
+        "n_filings": 1
+      }
+    ]
+  }
+}

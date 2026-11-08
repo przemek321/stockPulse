@@ -58,9 +58,22 @@ if [ -s "$PASS_FILE" ] && [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ]; then
   for f in "stockpulse_${STAMP}.dump" "env_${STAMP}.bak" "claude-memory_${STAMP}.tar.gz" "backtest-data_${STAMP}.tar.gz"; do
     [ -f "$BACKUP_DIR/$f" ] && SET_FILES="$SET_FILES $f"
   done
-  if [ -n "$SET_FILES" ] && tar -czf - -C "$BACKUP_DIR" $SET_FILES 2>>"$LOG_FILE" \
-      | openssl enc -aes-256-cbc -pbkdf2 -salt -pass "file:$PASS_FILE" -out "$BUNDLE" 2>>"$LOG_FILE"; then
+  make_bundle() {  # $@ = pliki zestawu
+    tar -czf - -C "$BACKUP_DIR" "$@" 2>>"$LOG_FILE" \
+      | openssl enc -aes-256-cbc -pbkdf2 -salt -pass "file:$PASS_FILE" -out "$BUNDLE" 2>>"$LOG_FILE"
+  }
+  # shellcheck disable=SC2086
+  if [ -n "$SET_FILES" ] && make_bundle $SET_FILES; then
     SIZE_B=$(stat -c%s "$BUNDLE")
+    # 08.11.2026: dane backtestu urosły (13D ~440 MB) — zamiast pomijać CAŁY off-site (z bazą!), drugi bundle bez nich
+    # (zostają w lokalnym backtest-data_*.tar.gz).
+    if [ "$SIZE_B" -gt 47185920 ] && [[ "$SET_FILES" == *backtest-data_* ]]; then
+      log "OFF-SITE: bundle $(du -h "$BUNDLE" | cut -f1) > 45 MB — ponawiam BEZ danych backtestu (zostają lokalnie)"
+      SET_FILES="${SET_FILES/ backtest-data_${STAMP}.tar.gz/}"
+      # shellcheck disable=SC2086
+      make_bundle $SET_FILES || log "TELEGRAM BŁĄD: pakowanie bundle bez danych backtestu"
+      SIZE_B=$(stat -c%s "$BUNDLE")
+    fi
     if [ "$SIZE_B" -gt 47185920 ]; then  # 45 MB — margines pod limit bota 50 MB
       log "TELEGRAM POMINIĘTY: bundle $(du -h "$BUNDLE" | cut -f1) przekracza 45 MB"
     else
