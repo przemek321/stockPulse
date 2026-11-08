@@ -1,7 +1,11 @@
 """
 Pobieranie i parsowanie Form 4 z SEC EDGAR.
 Obsługuje: CIK lookup, submissions.json (recent + starsze batche), XML parsing.
-Cache na dysk — nie pobiera ponownie już ściągniętych danych.
+Cache tylko dla mapy CIK i gotowego CSV (XML NIE jest cache'owany — ponowne pobranie = pełny przebieg).
+
+08.11.2026 (recenzja teczki HORYZONT): ponawianie zapytań z backoffem (429/5xx/wyjątki), zapis nieudanych
+accession do pliku, zapis CSV przyrostowo (po każdym tickerze), nowe kolumny form/table/issuer/acceptance,
+statystyki per ticker (Form 4 w zakresie vs sparsowane) do walidacji.
 """
 from __future__ import annotations
 
@@ -34,6 +38,28 @@ SESSION.headers.update({
 def _rate_limit():
     """Prosty rate limiter — czeka SEC_RATE_LIMIT sekund między requestami."""
     time.sleep(SEC_RATE_LIMIT)
+
+
+RETRY_STATUS = {429, 500, 502, 503, 504}
+MAX_TRIES = 5
+
+
+def _get(url: str, sleep=time.sleep):
+    """GET z rate limitem i ponawianiem (429/5xx/wyjątek sieci): backoff 2, 4, 8, 16 s.
+
+    Zwraca Response (także 404 — bez ponawiania) albo None, gdy wszystkie próby padły.
+    """
+    for attempt in range(MAX_TRIES):
+        try:
+            resp = SESSION.get(url, timeout=30)
+            _rate_limit()
+            if resp.status_code not in RETRY_STATUS:
+                return resp
+        except requests.RequestException:
+            _rate_limit()
+        if attempt < MAX_TRIES - 1:
+            sleep(2 ** (attempt + 1))
+    return None
 
 
 # =============================================================================
@@ -82,9 +108,10 @@ def _fetch_submissions(cik: str) -> list[dict]:
     """Pobiera listę filingów z submissions.json (recent + older batches)."""
     cik_padded = cik.zfill(10)
     url = f"{SEC_BASE_URL}/submissions/CIK{cik_padded}.json"
-    resp = SESSION.get(url)
+    resp = _get(url)
+    if resp is None:
+        raise RuntimeError(f"submissions niedostępne po {MAX_TRIES} próbach: {url}")
     resp.raise_for_status()
-    _rate_limit()
     data = resp.json()
 
     filings = []
@@ -94,12 +121,14 @@ def _fetch_submissions(cik: str) -> list[dict]:
         dates = recent.get("filingDate", [])
         accessions = recent.get("accessionNumber", [])
         doc_urls = recent.get("primaryDocument", [])
+        accepted = recent.get("acceptanceDateTime", [])
         for i in range(len(forms)):
             filings.append({
                 "form": forms[i],
                 "date": dates[i],
                 "accession": accessions[i],
                 "primary_doc": doc_urls[i] if i < len(doc_urls) else "",
+                "acceptance": accepted[i] if i < len(accepted) else "",
             })
 
     # Starsze batche (jeśli firma ma >1000 filingów)
@@ -107,23 +136,29 @@ def _fetch_submissions(cik: str) -> list[dict]:
     for file_ref in older_files:
         file_url = f"{SEC_BASE_URL}/submissions/{file_ref['name']}"
         try:
-            resp2 = SESSION.get(file_url)
+            resp2 = _get(file_url)
+            if resp2 is None:
+                raise RuntimeError(f"niedostępne po {MAX_TRIES} próbach")
             resp2.raise_for_status()
-            _rate_limit()
             batch = resp2.json()
             forms = batch.get("form", [])
             dates = batch.get("filingDate", [])
             accessions = batch.get("accessionNumber", [])
             doc_urls = batch.get("primaryDocument", [])
+            accepted = batch.get("acceptanceDateTime", [])
             for i in range(len(forms)):
                 filings.append({
                     "form": forms[i],
                     "date": dates[i],
                     "accession": accessions[i],
                     "primary_doc": doc_urls[i] if i < len(doc_urls) else "",
+                    "acceptance": accepted[i] if i < len(accepted) else "",
                 })
         except Exception as e:
+            # Brak starszego batcha = brak części historii tickera → głośno (walidacja per ticker to wyłapie)
             print(f"  [WARN] Nie udało się pobrać {file_ref['name']}: {e}")
+            filings.append({"form": "__BATCH_FAILED__", "date": "", "accession": file_ref["name"],
+                            "primary_doc": "", "acceptance": ""})
 
     return filings
 
@@ -306,12 +341,19 @@ def _merge_reporting_owners(root) -> dict:
 
 
 def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
-                     accession: str) -> list[dict]:
-    """Parsuje Form 4 XML → lista transakcji."""
+                     accession: str, form: str = "", acceptance: str = "") -> list[dict]:
+    """Parsuje Form 4 XML → lista transakcji.
+
+    08.11.2026: dodatkowo form, table (ND/D), issuer_cik/issuer_symbol (z <issuer>) i acceptance_datetime.
+    Odrzucanie wierszy z cudzym emitentem robi analiza (horizon_backtest), nie parser — CSV zostaje kompletny.
+    """
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
         return []
+
+    issuer_cik = _safe_text(root, ".//issuer/issuerCik").lstrip("0")
+    issuer_symbol = _safe_text(root, ".//issuer/issuerTradingSymbol").upper()
 
     is_hc = symbol in HEALTHCARE_TICKERS
 
@@ -330,7 +372,7 @@ def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
 
     # Parsowanie transakcji (nonDerivative + derivative)
     transactions = []
-    for tx_path in [".//nonDerivativeTransaction", ".//derivativeTransaction"]:
+    for tx_path, table in [(".//nonDerivativeTransaction", "ND"), (".//derivativeTransaction", "D")]:
         for tx in root.findall(tx_path):
             tx_date = _safe_text(tx, ".//transactionDate/value")
             if not tx_date:
@@ -388,6 +430,11 @@ def _parse_form4_xml(xml_text: str, symbol: str, filing_date: str,
                 "is_csuite": csuite,
                 "is_healthcare": is_hc,
                 "accession_number": accession,
+                "form": form,
+                "table": table,
+                "issuer_cik": issuer_cik,
+                "issuer_symbol": issuer_symbol,
+                "acceptance_datetime": acceptance,
             })
 
     return transactions
@@ -411,30 +458,22 @@ def _fetch_form4_xml(accession: str, primary_doc: str, cik: str) -> Optional[str
     # Próba 1: surowy XML (bez XSLT prefixu)
     if xml_filename:
         url = f"{base_url}/Archives/edgar/data/{cik}/{accession_clean}/{xml_filename}"
-        try:
-            resp = SESSION.get(url)
-            _rate_limit()
-            if resp.status_code == 200 and "<ownershipDocument" in resp.text:
-                return resp.text
-        except Exception:
-            pass
+        resp = _get(url)
+        if resp is not None and resp.status_code == 200 and "<ownershipDocument" in resp.text:
+            return resp.text
 
     # Próba 2: filing index → szukaj linku do .xml
     index_url = f"{base_url}/Archives/edgar/data/{cik}/{accession_clean}/"
-    try:
-        resp = SESSION.get(index_url)
-        _rate_limit()
-        if resp.status_code == 200:
-            xml_match = re.search(r'href="([^"]*\.xml)"', resp.text, re.IGNORECASE)
-            if xml_match:
-                found_xml = xml_match.group(1).lstrip("/")
-                xml_url = f"{base_url}/Archives/edgar/data/{cik}/{accession_clean}/{found_xml}"
-                resp2 = SESSION.get(xml_url)
-                _rate_limit()
-                if resp2.status_code == 200 and "<ownershipDocument" in resp2.text:
-                    return resp2.text
-    except Exception:
-        pass
+    resp = _get(index_url)
+    if resp is not None and resp.status_code == 200:
+        xml_match = re.search(r'href="([^"]*\.xml)"', resp.text, re.IGNORECASE)
+        if xml_match:
+            found_xml = xml_match.group(1).lstrip("/")
+            if not found_xml.startswith("Archives/"):
+                found_xml = f"Archives/edgar/data/{cik}/{accession_clean}/{found_xml}"
+            resp2 = _get(f"{base_url}/{found_xml}")
+            if resp2 is not None and resp2.status_code == 200 and "<ownershipDocument" in resp2.text:
+                return resp2.text
 
     return None
 
@@ -445,8 +484,9 @@ def _fetch_form4_xml(accession: str, primary_doc: str, cik: str) -> Optional[str
 
 def fetch_all_form4(force_refetch: bool = False) -> str:
     """
-    Pobiera wszystkie Form 4 dla tickerów z config.
-    Zapisuje do CSV. Zwraca ścieżkę do pliku.
+    Pobiera wszystkie Form 4 dla tickerów z config. Zapisuje CSV przyrostowo (po każdym tickerze),
+    nieudane accession do <plik>.failed.txt, statystyki per ticker do <plik>.stats.json.
+    Zwraca ścieżkę do CSV.
     """
     if os.path.exists(TRANSACTIONS_FILE) and not force_refetch:
         with open(TRANSACTIONS_FILE) as f:
@@ -458,56 +498,73 @@ def fetch_all_form4(force_refetch: bool = False) -> str:
 
     cik_map = fetch_cik_map()
     os.makedirs(DATA_DIR, exist_ok=True)
+    base = os.path.splitext(TRANSACTIONS_FILE)[0]
+    tmp_file = TRANSACTIONS_FILE + ".partial"
+    failed_file = base + ".failed.txt"
+    stats_file = base + ".stats.json"
 
-    all_transactions = []
+    total_rows = 0
     total_filings = 0
     errors = 0
+    stats: dict[str, dict] = {}
 
-    for i, symbol in enumerate(ALL_TICKERS):
-        cik = cik_map.get(symbol)
-        if not cik:
-            print(f"[{i+1}/{len(ALL_TICKERS)}] {symbol}: brak CIK — pomijam")
-            continue
-
-        print(f"[{i+1}/{len(ALL_TICKERS)}] {symbol} (CIK {cik})...", end=" ", flush=True)
-
-        try:
-            filings = _fetch_submissions(cik)
-            form4s = _filter_form4_in_range(filings)
-            print(f"{len(form4s)} Form 4 w zakresie", end="", flush=True)
-
-            ticker_tx = 0
-            for j, filing in enumerate(form4s):
-                xml = _fetch_form4_xml(filing["accession"], filing["primary_doc"], cik)
-                if xml:
-                    txs = _parse_form4_xml(
-                        xml, symbol, filing["date"], filing["accession"]
-                    )
-                    all_transactions.extend(txs)
-                    ticker_tx += len(txs)
-                else:
-                    errors += 1
-
-                # Progress co 50 filingów
-                if (j + 1) % 50 == 0:
-                    print(f" [{j+1}]", end="", flush=True)
-
-            total_filings += len(form4s)
-            print(f" → {ticker_tx} transakcji")
-
-        except Exception as e:
-            print(f" BŁĄD: {e}")
-            errors += 1
-
-    # Zapis do CSV
-    with open(TRANSACTIONS_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=TX_COLUMNS)
+    with open(tmp_file, "w", newline="", encoding="utf-8") as out, \
+            open(failed_file, "w", encoding="utf-8") as failed:
+        writer = csv.DictWriter(out, fieldnames=TX_COLUMNS)
         writer.writeheader()
-        writer.writerows(all_transactions)
 
-    print(f"\n[EDGAR] GOTOWE: {len(all_transactions)} transakcji z {total_filings} "
+        for i, symbol in enumerate(ALL_TICKERS):
+            cik = cik_map.get(symbol)
+            if not cik:
+                print(f"[{i+1}/{len(ALL_TICKERS)}] {symbol}: brak CIK — pomijam")
+                stats[symbol] = {"cik": None}
+                continue
+
+            print(f"[{i+1}/{len(ALL_TICKERS)}] {symbol} (CIK {cik})...", end=" ", flush=True)
+            st = {"cik": cik, "form4_in_range": 0, "parsed_filings": 0, "failed_filings": 0,
+                  "rows": 0, "batch_failed": 0, "ticker_error": None}
+            try:
+                filings = _fetch_submissions(cik)
+                st["batch_failed"] = sum(1 for f in filings if f["form"] == "__BATCH_FAILED__")
+                form4s = _filter_form4_in_range(filings)
+                st["form4_in_range"] = len(form4s)
+                print(f"{len(form4s)} Form 4 w zakresie", end="", flush=True)
+
+                for j, filing in enumerate(form4s):
+                    xml = _fetch_form4_xml(filing["accession"], filing["primary_doc"], cik)
+                    if xml:
+                        txs = _parse_form4_xml(xml, symbol, filing["date"], filing["accession"],
+                                               form=filing["form"], acceptance=filing.get("acceptance", ""))
+                        writer.writerows(txs)
+                        st["parsed_filings"] += 1
+                        st["rows"] += len(txs)
+                    else:
+                        errors += 1
+                        st["failed_filings"] += 1
+                        failed.write(f"{symbol}\t{filing['accession']}\t{filing['date']}\n")
+                        failed.flush()
+                    if (j + 1) % 50 == 0:
+                        print(f" [{j+1}]", end="", flush=True)
+
+                total_filings += len(form4s)
+                print(f" → {st['rows']} transakcji ({st['failed_filings']} nieudanych filingów)")
+
+            except Exception as e:
+                print(f" BŁĄD: {e}")
+                errors += 1
+                st["ticker_error"] = str(e)
+
+            out.flush()
+            total_rows += st["rows"]
+            stats[symbol] = st
+
+    os.replace(tmp_file, TRANSACTIONS_FILE)
+    with open(stats_file, "w") as f:
+        json.dump(stats, f, indent=2)
+
+    print(f"\n[EDGAR] GOTOWE: {total_rows} transakcji z {total_filings} "
           f"filingów ({errors} błędów)")
-    print(f"        Zapisano: {TRANSACTIONS_FILE}")
+    print(f"        Zapisano: {TRANSACTIONS_FILE}, {stats_file}, {failed_file}")
     return TRANSACTIONS_FILE
 
 

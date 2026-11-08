@@ -1,0 +1,79 @@
+{
+  "generated": "2026-11-08",
+  "cleaning": {
+    "rows_in": 45230,
+    "drop_foreign_or_missing_issuer": 1977,
+    "buy_rows": 201,
+    "drop_derivative_table": 0,
+    "drop_10b51_plan": 5,
+    "drop_fund_only": 13,
+    "drop_no_price_or_shares": 0,
+    "drop_content_duplicates": 8,
+    "price_fixed": 1,
+    "price_excluded": 0,
+    "price_no_close": 15,
+    "rows_out": 175
+  },
+  "groups": {
+    "G1_hc_all": {
+      "30d": {
+        "episodes": 48,
+        "with_full_horizon": 48,
+        "perm_sd_pp": 2.2092489863704037,
+        "mde_pp": 5.494402229103194
+      },
+      "60d": {
+        "episodes": 48,
+        "with_full_horizon": 48,
+        "perm_sd_pp": 3.5449652655485426,
+        "mde_pp": 8.816328615419225
+      },
+      "90d": {
+        "episodes": 48,
+        "with_full_horizon": 47,
+        "perm_sd_pp": 4.635296733179834,
+        "mde_pp": 11.527982975418247
+      }
+    },
+    "G2_hc_csuite": {
+      "30d": {
+        "episodes": 21,
+        "with_full_horizon": 21,
+        "perm_sd_pp": 3.3825434151755247,
+        "mde_pp": 8.41238547354153
+      },
+      "60d": {
+        "episodes": 21,
+        "with_full_horizon": 21,
+        "perm_sd_pp": 5.780085328225545,
+        "mde_pp": 14.375072211296931
+      },
+      "90d": {
+        "episodes": 21,
+        "with_full_horizon": 20,
+        "perm_sd_pp": 7.8110754153706905,
+        "mde_pp": 19.42614455802691
+      }
+    },
+    "G3_hc_100k": {
+      "30d": {
+        "episodes": 40,
+        "with_full_horizon": 40,
+        "perm_sd_pp": 2.3433406426251584,
+        "mde_pp": 5.827888178208769
+      },
+      "60d": {
+        "episodes": 40,
+        "with_full_horizon": 40,
+        "perm_sd_pp": 3.7248673314931566,
+        "mde_pp": 9.26374505342348
+      },
+      "90d": {
+        "episodes": 40,
+        "with_full_horizon": 39,
+        "perm_sd_pp": 4.743131409688934,
+        "mde_pp": 11.79616781589638
+      }
+    }
+  }
+}

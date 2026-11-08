@@ -6,6 +6,8 @@
 #   1. baza PostgreSQL (pg_dump -Fc)      → stockpulse_<data>.dump
 #   2. .env (klucze API, token Telegram)  → env_<data>.bak
 #   3. pamięć projektowa Claude           → claude-memory_<data>.tar.gz
+#   4. dane backtestu (CSV Form 4 + ceny) → backtest-data_<data>.tar.gz
+#      (08.11.2026: przy migracji Jetson → Pi zginęły — są poza gitem, a ich ponowne pobranie trwa godziny)
 # Retencja: 8 ostatnich zestawów (~2 miesiące).
 #
 # Off-site: zestaw pakowany w tar.gz, szyfrowany AES-256 (hasło:
@@ -41,6 +43,11 @@ fi
 # 3. Pamięć projektowa Claude
 [ -d "$MEMORY_DIR" ] && tar -czf "$BACKUP_DIR/claude-memory_${STAMP}.tar.gz" -C "$(dirname "$MEMORY_DIR")" memory 2>>"$LOG_FILE" && log "MEMORY OK"
 
+# 3b. Dane backtestu (gitignored: form4_transactions*.csv, prices/, prices_ohlc/, cik_map.json, …)
+BT_DATA="$REPO_DIR/scripts/backtest/data"
+[ -d "$BT_DATA" ] && tar -czf "$BACKUP_DIR/backtest-data_${STAMP}.tar.gz" -C "$REPO_DIR/scripts/backtest" data 2>>"$LOG_FILE" \
+  && log "BACKTEST DATA OK: backtest-data_${STAMP}.tar.gz ($(du -h "$BACKUP_DIR/backtest-data_${STAMP}.tar.gz" | cut -f1))"
+
 # 4. Off-site: zaszyfrowany bundle na Telegram (caption jawnie mówi, że to NIE sygnał)
 PASS_FILE="/home/n1copl/.stockpulse-backup-pass"
 TG_TOKEN=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$REPO_DIR/.env" | cut -d= -f2-)
@@ -48,7 +55,7 @@ TG_CHAT=$(grep -E '^TELEGRAM_CHAT_ID=' "$REPO_DIR/.env" | cut -d= -f2-)
 if [ -s "$PASS_FILE" ] && [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ]; then
   BUNDLE="$BACKUP_DIR/stockpulse-offsite_${STAMP}.tar.gz.enc"
   SET_FILES=""
-  for f in "stockpulse_${STAMP}.dump" "env_${STAMP}.bak" "claude-memory_${STAMP}.tar.gz"; do
+  for f in "stockpulse_${STAMP}.dump" "env_${STAMP}.bak" "claude-memory_${STAMP}.tar.gz" "backtest-data_${STAMP}.tar.gz"; do
     [ -f "$BACKUP_DIR/$f" ] && SET_FILES="$SET_FILES $f"
   done
   if [ -n "$SET_FILES" ] && tar -czf - -C "$BACKUP_DIR" $SET_FILES 2>>"$LOG_FILE" \
@@ -61,7 +68,7 @@ if [ -s "$PASS_FILE" ] && [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ]; then
       HTTP=$(curl -s -m 120 -o "$RESP" -w '%{http_code}' \
         -F chat_id="$TG_CHAT" \
         -F document=@"$BUNDLE" \
-        -F caption="💾 Backup tygodniowy StockPulse (${STAMP}) — to NIE sygnał. Kopia off-site: baza + .env + pamięć. Odzysk: openssl enc -d -aes-256-cbc -pbkdf2 -in <plik> | tar -xz (hasło z Twoich notatek)" \
+        -F caption="💾 Backup tygodniowy StockPulse (${STAMP}) — to NIE sygnał. Kopia off-site: baza + .env + pamięć + dane backtestu. Odzysk: openssl enc -d -aes-256-cbc -pbkdf2 -in <plik> | tar -xz (hasło z Twoich notatek)" \
         "https://api.telegram.org/bot${TG_TOKEN}/sendDocument")
       if [ "$HTTP" = "200" ]; then
         log "TELEGRAM OK: $(basename "$BUNDLE") ($(du -h "$BUNDLE" | cut -f1))"
@@ -79,7 +86,7 @@ else
 fi
 
 # Retencja: zostaw 8 najnowszych z każdego typu
-for pattern in 'stockpulse_*.dump' 'env_*.bak' 'claude-memory_*.tar.gz'; do
+for pattern in 'stockpulse_*.dump' 'env_*.bak' 'claude-memory_*.tar.gz' 'backtest-data_*.tar.gz'; do
   ls -t $BACKUP_DIR/$pattern 2>/dev/null | tail -n +9 | xargs -r rm -f
 done
 log "retencja OK (8 zestawów)"

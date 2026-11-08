@@ -52,7 +52,8 @@ azure-api/
 
 # Backtest re-run artefakty (V4/V5 data files — generated, nie commitowane)
 scripts/backtest/data/cik_map.json
-scripts/backtest/data/form4_transactions*.csv
+scripts/backtest/data/form4_transactions*
+scripts/backtest/data/prices_ohlc/
 scripts/backtest/data/prices/
 scripts/backtest/data/results/backtest_v2_summary.txt
 scripts/backtest/data/results/survivorship_check.json

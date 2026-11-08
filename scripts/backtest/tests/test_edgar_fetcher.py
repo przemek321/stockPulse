@@ -215,3 +215,103 @@ class TestDocLevelAff10b5One:
         )
         txns = _parse_form4_xml(xml, "TEST", "2026-03-01", "001")
         assert txns[0]["is_10b51_plan"] is True
+
+
+# ── 08.11.2026: kolumny form/table/issuer/acceptance + ponawianie zapytań (teczka HORYZONT) ──────────
+
+import edgar_fetcher as ef
+from config import TX_COLUMNS
+
+ISSUER = "<issuer><issuerCik>0000882095</issuerCik><issuerTradingSymbol>gild</issuerTradingSymbol></issuer>"
+DERIV = """
+        <derivativeTable>
+            <derivativeTransaction>
+                <transactionDate><value>2026-03-02</value></transactionDate>
+                <transactionCoding><transactionCode>P</transactionCode></transactionCoding>
+                <transactionAmounts>
+                    <transactionShares><value>500</value></transactionShares>
+                    <transactionPricePerShare><value>0.53</value></transactionPricePerShare>
+                </transactionAmounts>
+            </derivativeTransaction>
+        </derivativeTable>"""
+
+
+def _xml_with(issuer: str = ISSUER, derivative: bool = False) -> str:
+    xml = _make_xml([{"name": "Doe", "officer_title": "CEO", "is_officer": True}], doc_extra=issuer)
+    if derivative:
+        xml = xml.replace("</ownershipDocument>", DERIV + "\n    </ownershipDocument>")
+    return xml
+
+
+class TestNewColumns:
+    def test_issuer_parsed_and_normalized(self):
+        t = _parse_form4_xml(_xml_with(), "GILD", "2026-03-03", "acc", form="4", acceptance="2026-03-03T18:01:02.000Z")[0]
+        assert t["issuer_cik"] == "882095"            # bez zer wiodących — porównywalne z cik_map
+        assert t["issuer_symbol"] == "GILD"
+        assert t["form"] == "4"
+        assert t["acceptance_datetime"] == "2026-03-03T18:01:02.000Z"
+
+    def test_table_marks_derivative_rows(self):
+        txs = _parse_form4_xml(_xml_with(derivative=True), "GILD", "2026-03-03", "acc")
+        assert [t["table"] for t in txs] == ["ND", "D"]
+        assert txs[1]["transaction_type"] == "BUY"     # kod P w derivative — analiza musi go odrzucić po table
+
+    def test_amendment_form_passed_through(self):
+        assert _parse_form4_xml(_xml_with(), "GILD", "2026-03-03", "acc", form="4/A")[0]["form"] == "4/A"
+
+    def test_missing_issuer_gives_empty_strings(self):
+        t = _parse_form4_xml(_xml_with(issuer=""), "GILD", "2026-03-03", "acc")[0]
+        assert t["issuer_cik"] == "" and t["issuer_symbol"] == ""
+
+    def test_rows_have_exactly_tx_columns(self):
+        t = _parse_form4_xml(_xml_with(), "GILD", "2026-03-03", "acc")[0]
+        assert set(t) == set(TX_COLUMNS)
+
+    def test_old_call_signature_still_works(self):
+        assert len(_parse_form4_xml(_xml_with(), "GILD", "2026-03-03", "acc")) == 1
+
+
+class _Resp:
+    def __init__(self, code):
+        self.status_code = code
+
+
+class TestGetRetry:
+    def _run(self, monkeypatch, codes):
+        calls, sleeps = [], []
+        seq = iter(codes)
+
+        def fake_get(url, timeout=None):
+            calls.append(url)
+            c = next(seq)
+            if isinstance(c, Exception):
+                raise c
+            return _Resp(c)
+
+        monkeypatch.setattr(ef.SESSION, "get", fake_get)
+        monkeypatch.setattr(ef, "_rate_limit", lambda: None)
+        r = ef._get("u", sleep=sleeps.append)
+        return r, calls, sleeps
+
+    def test_retries_429_then_ok(self, monkeypatch):
+        r, calls, sleeps = self._run(monkeypatch, [429, 503, 200])
+        assert r.status_code == 200 and len(calls) == 3 and sleeps == [2, 4]
+
+    def test_404_not_retried(self, monkeypatch):
+        r, calls, _ = self._run(monkeypatch, [404])
+        assert r.status_code == 404 and len(calls) == 1
+
+    def test_network_error_retried(self, monkeypatch):
+        r, calls, _ = self._run(monkeypatch, [ef.requests.ConnectionError("x"), 200])
+        assert r.status_code == 200 and len(calls) == 2
+
+    def test_gives_up_after_max_tries(self, monkeypatch):
+        r, calls, sleeps = self._run(monkeypatch, [503] * ef.MAX_TRIES)
+        assert r is None and len(calls) == ef.MAX_TRIES and sleeps == [2, 4, 8, 16]
+
+
+def test_filter_keeps_4_and_4a_only_in_range(monkeypatch):
+    fl = [{"form": "4", "date": "2024-01-02"}, {"form": "4/A", "date": "2024-01-03"},
+          {"form": "8-K", "date": "2024-01-02"}, {"form": "4", "date": "2019-01-01"},
+          {"form": "__BATCH_FAILED__", "date": ""}]
+    assert [f["form"] for f in ef._filter_form4_in_range(fl)] == ["4", "4/A"]

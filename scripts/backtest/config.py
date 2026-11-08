@@ -4,11 +4,14 @@ Tickery healthcare (42) + control group large-cap (25).
 Zakres: 3 lata wstecz (kwiecień 2023 – kwiecień 2026).
 """
 
+import os
 from datetime import date
 
 # --- Zakres czasowy ---
+# BT_END_DATE (ISO) nadpisuje koniec zakresu bez zmiany domyślnego (Sprint 15) — 08.11.2026 dla backtestu
+# horyzontów 30/60/90d (scripts/backtest/horizon_backtest.py), który potrzebuje Form 4 do listopada 2026.
 START_DATE = date(2023, 4, 1)
-END_DATE = date(2026, 4, 5)
+END_DATE = date.fromisoformat(os.environ.get("BT_END_DATE", "2026-04-05"))
 
 # --- SEC EDGAR ---
 SEC_USER_AGENT = "StockPulse Backtest research@stockpulse.local"
@@ -74,7 +77,8 @@ ALL_TICKERS = HEALTHCARE_TICKERS + CONTROL_TICKERS
 
 # --- Ścieżki danych ---
 DATA_DIR = "data"
-TRANSACTIONS_FILE = f"{DATA_DIR}/form4_transactions.csv"
+# BT_TX_FILE nadpisuje plik transakcji (08.11.2026: v6 z kolumnami form/table/issuer/acceptance — teczka HORYZONT)
+TRANSACTIONS_FILE = os.environ.get("BT_TX_FILE", f"{DATA_DIR}/form4_transactions.csv")
 PRICES_DIR = f"{DATA_DIR}/prices"
 CIK_CACHE_FILE = f"{DATA_DIR}/cik_map.json"
 RESULTS_DIR = f"{DATA_DIR}/results"
@@ -86,4 +90,8 @@ TX_COLUMNS = [
     "is_ten_pct_owner", "transaction_type", "shares", "price_per_share",
     "total_value", "shares_owned_after", "is_10b51_plan",
     "is_csuite", "is_healthcare", "accession_number",
+    # 08.11.2026 (recenzja teczki HORYZONT): typ formularza (4 / 4/A), tabela (ND = non-derivative,
+    # D = derivative), emitent z XML (odrzucanie filingów, w których spółka jest ownerem CUDZYCH akcji)
+    # i godzina akceptacji EDGAR (wariant wejścia informacyjny).
+    "form", "table", "issuer_cik", "issuer_symbol", "acceptance_datetime",
 ]
