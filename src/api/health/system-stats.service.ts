@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -13,7 +18,7 @@ const HOST_SYS = '/host/sys';
 const THERMAL_BASE = `${HOST_SYS}/devices/virtual/thermal`;
 const GPU_LOAD_PATH = `${HOST_SYS}/devices/gpu.0/load`;
 
-interface CpuTimes {
+export interface CpuTimes {
   user: number;
   nice: number;
   system: number;
@@ -23,17 +28,60 @@ interface CpuTimes {
   softirq: number;
 }
 
+/** Co ile ms próbkujemy /proc/stat w tle (okno pomiaru CPU). */
+export const CPU_SAMPLE_INTERVAL_MS = 5_000;
+
+/**
+ * Zajętość CPU (%) z dwóch odczytów /proc/stat. iowait liczony jako bezczynność
+ * (jak w top/htop). Zwraca null, gdy okno jest puste (brak tyknięć).
+ */
+export function computeCpuPercent(
+  prev: CpuTimes,
+  current: CpuTimes,
+): number | null {
+  const d = (k: keyof CpuTimes) => current[k] - prev[k];
+  const idle = d('idle') + d('iowait');
+  const total =
+    d('user') + d('nice') + d('system') + d('irq') + d('softirq') + idle;
+  if (total <= 0) return null;
+  return Math.round(((total - idle) / total) * 1000) / 10;
+}
+
 /**
  * Serwis odczytujący statystyki systemowe z Jetson Orin NX.
  * Czyta z bind-mountowanych ścieżek /host/proc i /host/sys.
  * Graceful degradation — na dev zwraca { available: false }.
  */
 @Injectable()
-export class SystemStatsService {
+export class SystemStatsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SystemStatsService.name);
 
-  /** Cache poprzedniego odczytu CPU do obliczenia delty */
+  /** Poprzednia próbka /proc/stat (z samplera w tle). */
   private prevCpuTimes: CpuTimes | null = null;
+  /** Ostatnia zmierzona zajętość CPU (null do pierwszego pełnego okna). */
+  private lastCpuPercent: number | null = null;
+  private cpuCores = 0;
+  private sampler: NodeJS.Timeout | null = null;
+
+  /**
+   * Zajętość CPU mierzymy w tle w stałym oknie CPU_SAMPLE_INTERVAL_MS.
+   * Wcześniej delta była liczona między kolejnymi ZAPYTANIAMI HTTP — przy kilku
+   * otwartych dashboardach okno miało milisekundy i wskaźnik pokazywał szum
+   * (fix 08.11.2026).
+   */
+  onModuleInit(): void {
+    if (!this.isAvailable()) return;
+    this.sampleCpu();
+    this.sampler = setInterval(() => {
+      this.sampleCpu();
+    }, CPU_SAMPLE_INTERVAL_MS);
+    this.sampler.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sampler) clearInterval(this.sampler);
+    this.sampler = null;
+  }
 
   /**
    * Sprawdza czy host paths są zamontowane (= jesteśmy na Jetsonie).
@@ -151,16 +199,13 @@ export class SystemStatsService {
   }
 
   /**
-   * Oblicza zajętość CPU z /proc/stat (delta od ostatniego odczytu).
+   * Jedna próbka /proc/stat → aktualizuje lastCpuPercent (delta od poprzedniej próbki).
    */
-  private async readCpu(): Promise<{
-    percent: number;
-    cores: number;
-  } | null> {
+  private sampleCpu(): void {
     try {
       const stat = fs.readFileSync(`${HOST_PROC}/stat`, 'utf8');
       const cpuLine = stat.split('\n').find((l) => l.startsWith('cpu '));
-      if (!cpuLine) return null;
+      if (!cpuLine) return;
 
       const parts = cpuLine.split(/\s+/).slice(1).map(Number);
       const current: CpuTimes = {
@@ -173,37 +218,29 @@ export class SystemStatsService {
         softirq: parts[6] || 0,
       };
 
-      // Liczba rdzeni z /proc/stat (linie cpu0, cpu1, ...)
       const coreLines = stat.split('\n').filter((l) => /^cpu\d+/.test(l));
-      const cores = coreLines.length || os.cpus().length;
-
-      let percent: number | null = null;
+      this.cpuCores = coreLines.length || os.cpus().length;
 
       if (this.prevCpuTimes) {
-        const prev = this.prevCpuTimes;
-        const dUser = current.user - prev.user;
-        const dNice = current.nice - prev.nice;
-        const dSys = current.system - prev.system;
-        const dIdle = current.idle - prev.idle;
-        const dIo = current.iowait - prev.iowait;
-        const dIrq = current.irq - prev.irq;
-        const dSirq = current.softirq - prev.softirq;
-
-        const total = dUser + dNice + dSys + dIdle + dIo + dIrq + dSirq;
-        if (total > 0) {
-          percent = Math.round(((total - dIdle) / total) * 1000) / 10;
-        }
+        const percent = computeCpuPercent(this.prevCpuTimes, current);
+        if (percent !== null) this.lastCpuPercent = percent;
       }
-
       this.prevCpuTimes = current;
-
-      return {
-        percent: percent ?? 0,
-        cores,
-      };
-    } catch {
-      return null;
+    } catch (err) {
+      this.logger.debug(`Błąd odczytu /proc/stat: ${String(err)}`);
     }
+  }
+
+  /**
+   * Ostatnia zmierzona zajętość CPU (null przed pierwszym pełnym oknem —
+   * frontend wtedy nie pokazuje chipa zamiast fałszywego 0%).
+   */
+  private async readCpu(): Promise<{
+    percent: number;
+    cores: number;
+  } | null> {
+    if (this.lastCpuPercent === null) return null;
+    return { percent: this.lastCpuPercent, cores: this.cpuCores };
   }
 
   /**
