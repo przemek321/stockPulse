@@ -1,0 +1,467 @@
+{
+  "rules_hash": "476e48f47001",
+  "sessions": [
+    "2024-11-08",
+    "2026-11-06"
+  ],
+  "filings_after_sic": 1941,
+  "population_reasons": {
+    "B": {
+      "mcap < $250M": 337,
+      "OK": 166,
+      "giełda OTC": 43,
+      "brak tickera z notowaniem w dniu zdarzenia": 231,
+      "brak mcap (shares)": 116,
+      "ADV < $1M": 22,
+      "poza kalendarzem": 3
+    },
+    "C": {
+      "OK": 130,
+      "brak tickera z notowaniem w dniu zdarzenia": 295,
+      "mcap < $250M": 317,
+      "brak mcap (shares)": 129,
+      "ADV < $1M": 22,
+      "giełda OTC": 30,
+      "giełda TXSE": 2,
+      "poza kalendarzem": 5
+    },
+    "A": {
+      "OK": 27,
+      "mcap < $250M": 42,
+      "brak mcap (shares)": 12,
+      "ADV < $1M": 3,
+      "brak tickera z notowaniem w dniu zdarzenia": 9
+    }
+  },
+  "by_class": {
+    "A": {
+      "episodes_all": 26,
+      "episodes_full_horizon": 23,
+      "enterable": 14,
+      "enterable_share": 0.6086956521739131,
+      "series_ends_before_horizon_share": 0.043478260869565216,
+      "later_13d_flag": 1,
+      "large_cap": 1,
+      "acc_in_session_9_16": 4,
+      "gap": {
+        "n": 23,
+        "median": 0.010704225352112795,
+        "mean": 0.034946042275489135,
+        "p25": 0.004979288588092601,
+        "p75": 0.04681139755766617
+      },
+      "runup_log": {
+        "n": 23,
+        "median": 0.0445088439975044,
+        "mean": 0.03809975595485243,
+        "p25": -0.07363198195668012,
+        "p75": 0.13538776680896653
+      },
+      "random_net_sd": 0.30439697738171734,
+      "random_net_n": 431,
+      "mde_pp_enterable": 22.791878510641457,
+      "mde_pp_all": 17.781984244702812,
+      "gate": {
+        "n": false,
+        "enterable_share": true,
+        "mde": false,
+        "no_exit_upper_bound": true
+      },
+      "episodes": [
+        {
+          "issuer": "106640",
+          "ticker": "WHR",
+          "acc": "2026-03-03T21:00:08",
+          "mcap": 3410903484.65,
+          "adv": 156808143.755,
+          "gap": 0.006628003314001596,
+          "enterable": "True",
+          "runup_log": -0.41234555358113156,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001493152-26-008749"
+          ]
+        },
+        {
+          "issuer": "1338940",
+          "ticker": "PERI",
+          "acc": "2025-04-21T14:00:09",
+          "mcap": 397822345.375,
+          "adv": 2967290.75,
+          "gap": 0.010704225352112795,
+          "enterable": "True",
+          "runup_log": 0.1871784026206945,
+          "horizon": "pełny",
+          "later_13d": true,
+          "members": [
+            "0001178913-25-001368"
+          ]
+        },
+        {
+          "issuer": "1345126",
+          "ticker": "CODI",
+          "acc": "2026-02-25T16:24:59",
+          "mcap": 617687280.86,
+          "adv": 8122588.635,
+          "gap": 0.004872107186357999,
+          "enterable": "True",
+          "runup_log": 0.18110427119020314,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001193125-26-071713"
+          ]
+        },
+        {
+          "issuer": "1464591",
+          "ticker": "GPRK",
+          "acc": "2025-10-29T18:27:51",
+          "mcap": 338232094.2,
+          "adv": 7645646.82,
+          "gap": 0.22272727272727288,
+          "enterable": "False",
+          "runup_log": 0.019893540519570572,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001104659-25-103842"
+          ]
+        },
+        {
+          "issuer": "1482541",
+          "ticker": "BNC",
+          "acc": "2025-11-26T20:36:28",
+          "mcap": 257205999.54,
+          "adv": 3132447.12,
+          "gap": 0.055276381909547645,
+          "enterable": "False",
+          "runup_log": 0.0533230351894191,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000921895-25-003215"
+          ]
+        },
+        {
+          "issuer": "1503274",
+          "ticker": "QTRX",
+          "acc": "2025-02-13T13:45:18",
+          "mcap": 300874986.06,
+          "adv": 7120101.33,
+          "gap": 0.03841229193341866,
+          "enterable": "False",
+          "runup_log": -0.20322824161326844,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001539497-25-000510"
+          ]
+        },
+        {
+          "issuer": "1597033",
+          "ticker": "SABR",
+          "acc": "2026-03-05T18:52:28",
+          "mcap": 640167353.46,
+          "adv": 17805281.592037812,
+          "gap": 0.024691358024691246,
+          "enterable": "True",
+          "runup_log": 0.424157241120317,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000921895-26-000627"
+          ]
+        },
+        {
+          "issuer": "1597672",
+          "ticker": "RYAM",
+          "acc": "2026-02-25T08:22:22",
+          "mcap": 480430101.81,
+          "adv": 4909014.109999999,
+          "gap": 0.1743375174337518,
+          "enterable": "False",
+          "runup_log": -0.10326627405471152,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000950103-26-002612"
+          ]
+        },
+        {
+          "issuer": "1655759",
+          "ticker": "ARVN",
+          "acc": "2025-06-16T18:10:01",
+          "mcap": 537946544.3,
+          "adv": 13498073.535,
+          "gap": 0.03934871099050197,
+          "enterable": "False",
+          "runup_log": 0.12407824998076732,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000935836-25-000426"
+          ]
+        },
+        {
+          "issuer": "1664710",
+          "ticker": "KROS",
+          "acc": "2025-04-11T20:32:02",
+          "mcap": 494045732.46,
+          "adv": 11322455.75,
+          "gap": 0.03284072249589487,
+          "enterable": "False",
+          "runup_log": 0.08209736218720061,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001104659-25-034310"
+          ]
+        },
+        {
+          "issuer": "1704720",
+          "ticker": "CNNE",
+          "acc": "2025-06-09T17:27:35",
+          "mcap": 1235001899.66,
+          "adv": 13164927.735,
+          "gap": 0.0050864699898272026,
+          "enterable": "True",
+          "runup_log": 0.06623545010408066,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000921895-25-001728"
+          ]
+        },
+        {
+          "issuer": "1725057",
+          "ticker": "DAY",
+          "acc": "2025-10-08T06:17:41",
+          "mcap": 11017187644.699999,
+          "adv": 92057887.84,
+          "gap": 0.001594433975938614,
+          "enterable": "True",
+          "runup_log": 0.0023218701477444197,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000080255-25-000627"
+          ]
+        },
+        {
+          "issuer": "1786352",
+          "ticker": "BILL",
+          "acc": "2025-09-04T17:01:49",
+          "mcap": 4745039847.59,
+          "adv": 171225067.2,
+          "gap": 0.07324908974084399,
+          "enterable": "False",
+          "runup_log": 0.1677357944175649,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000921895-25-002532"
+          ]
+        },
+        {
+          "issuer": "1839341",
+          "ticker": "CORZ",
+          "acc": "2025-08-08T09:40:15",
+          "mcap": 4273743332.25,
+          "adv": 184143896.175,
+          "gap": -0.004041811846689836,
+          "enterable": "True",
+          "runup_log": 0.047084302905272685,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001315863-25-000581"
+          ]
+        },
+        {
+          "issuer": "1846510",
+          "ticker": "SHCO",
+          "acc": "2025-01-29T07:19:41",
+          "mcap": 1447650090.59,
+          "adv": 1605264.72,
+          "gap": 0.05427408412483037,
+          "enterable": "False",
+          "runup_log": -0.03335866349730965,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000950170-25-010206"
+          ]
+        },
+        {
+          "issuer": "1992243",
+          "ticker": "FREY",
+          "acc": "2024-12-27T19:00:12",
+          "mcap": 425685930.17999995,
+          "adv": 3999908.085,
+          "gap": -0.0462046204620461,
+          "enterable": "True",
+          "runup_log": 0.5207759546191586,
+          "horizon": "seria_kończy_się",
+          "later_13d": false,
+          "members": [
+            "0001140361-24-050502"
+          ]
+        },
+        {
+          "issuer": "708821",
+          "ticker": "PAR",
+          "acc": "2026-03-04T20:19:24",
+          "mcap": 768319639.44,
+          "adv": 26229561.00002741,
+          "gap": 0.005356186395286455,
+          "enterable": "True",
+          "runup_log": -0.15085502633656914,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000921895-26-000616"
+          ]
+        },
+        {
+          "issuer": "718937",
+          "ticker": "STAA",
+          "acc": "2025-09-22T07:24:44",
+          "mcap": 1349824673.3999999,
+          "adv": 19484594.9,
+          "gap": 0.0036710719530104186,
+          "enterable": "True",
+          "runup_log": -0.0253728725475042,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001193125-25-210003"
+          ]
+        },
+        {
+          "issuer": "769520",
+          "ticker": "MIDD",
+          "acc": "2025-05-16T21:55:09",
+          "mcap": 8101915616.290001,
+          "adv": 129591265.0,
+          "gap": -0.0104957422932207,
+          "enterable": "True",
+          "runup_log": 0.14669728363716572,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001213900-25-045048"
+          ]
+        },
+        {
+          "issuer": "807882",
+          "ticker": "JACK",
+          "acc": "2025-11-18T20:02:56",
+          "mcap": 269075853.0,
+          "adv": 17293897.13,
+          "gap": 0.006315789473684275,
+          "enterable": "True",
+          "runup_log": -0.11520662013120328,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000902664-25-005102"
+          ]
+        },
+        {
+          "issuer": "814586",
+          "ticker": "LWAY",
+          "acc": "2024-12-30T16:23:13",
+          "mcap": 345223751.0,
+          "adv": 1608103.74,
+          "gap": 0.014163090128755274,
+          "enterable": "True",
+          "runup_log": -0.04817685534922614,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0000950170-24-141152"
+          ]
+        },
+        {
+          "issuer": "832988",
+          "ticker": "SIG",
+          "acc": "2025-02-27T21:13:41",
+          "mcap": 2162827172.81,
+          "adv": 72103026.03,
+          "gap": 0.08425497687512573,
+          "enterable": "False",
+          "runup_log": -0.09908710856413411,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001104659-25-018553"
+          ]
+        },
+        {
+          "issuer": "896156",
+          "ticker": "ETD",
+          "acc": "2026-08-05T09:19:35",
+          "mcap": 607913038.71,
+          "adv": 9499949.220098205,
+          "gap": 0.006697362913352878,
+          "enterable": "True",
+          "runup_log": 0.0445088439975044,
+          "horizon": "pełny",
+          "later_13d": false,
+          "members": [
+            "0001193805-26-001025"
+          ]
+        }
+      ]
+    },
+    "B": {
+      "episodes_all": 159,
+      "episodes_full_horizon": 138,
+      "enterable": 126,
+      "enterable_share": 0.9130434782608695,
+      "series_ends_before_horizon_share": 0.043478260869565216,
+      "later_13d_flag": 3,
+      "large_cap": 10,
+      "acc_in_session_9_16": 25,
+      "gap": {
+        "n": 138,
+        "median": 0.0018815016630104875,
+        "mean": 0.003930475510161729,
+        "p25": -0.003489590427830258,
+        "p75": 0.008642849249100915
+      },
+      "runup_log": {
+        "n": 133,
+        "median": 0.013905206667612188,
+        "mean": 0.05562378656023444,
+        "p25": -0.060925760354019066,
+        "p75": 0.10590153665490813
+      }
+    },
+    "C": {
+      "episodes_all": 121,
+      "episodes_full_horizon": 110,
+      "enterable": 94,
+      "enterable_share": 0.8545454545454545,
+      "series_ends_before_horizon_share": 0.10909090909090909,
+      "later_13d_flag": 1,
+      "large_cap": 9,
+      "acc_in_session_9_16": 15,
+      "gap": {
+        "n": 110,
+        "median": 0.001362493958433908,
+        "mean": 0.020210854531863283,
+        "p25": -0.003926423710584326,
+        "p75": 0.014115865357752833
+      },
+      "runup_log": {
+        "n": 105,
+        "median": 0.028811697238545597,
+        "mean": 0.09379733115290412,
+        "p25": -0.05034175486085082,
+        "p75": 0.13250417116799243
+      }
+    }
+  }
+}
