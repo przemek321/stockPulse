@@ -59,7 +59,7 @@ make shell-app / shell-db     # shell do kontenera / psql
 
 Dev (WSL): `wsl -d Ubuntu bash -c "cd /home/n1copl/stockPulse && docker compose up -d"`
 Prod (Pi 5 / Jetson, aarch64): `docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d`
-Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (839 w 45 suitach, stan 05.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych).
+Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (843 w 46 suitach, stan 10.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych); backtest: `scripts/backtest/.venv/bin/pytest -q` (200). Na Pi brak `node_modules` na hoście — jest/tsc: `docker exec stockpulse-app npx jest test/unit`.
 
 ## Setup
 
@@ -230,3 +230,5 @@ Patrz `.env.example` (gitignored). Główne:
 - **Backtest**: `scripts/backtest/` (6 hipotez, 3 lata Form 4) · ściąga [doc/STOCKPULSE-CHEATSHEET-2026-04-17.md](doc/STOCKPULSE-CHEATSHEET-2026-04-17.md)
 - **Raporty tygodniowe**: [doc/reports/](doc/reports/)
 - **Dip research (POZA aplikacją, od 27.10.2026)**: `~/dip-research/` — osobny skrypt Pythona + cron 15:00 PL + `claude -p`; codzienny raport top-10 spadków na Telegram (NIE-sygnał); przegląd 01.02.2027/N=20 w KALENDARZU. Nie integrować z kodem StockPulse (decyzja usera).
+- **Uptime Kuma (POZA aplikacją, od 07.11.2026)**: `~/uptime-kuma/` — panel `:3002`, 11 monitorów (API `/api/health`, most `:8787`, kontenery przez docker.sock, NAS, pogodynka), alerty botem StockPulse; nowe monitory dopisywać w `setup_monitors.py`. Nie zaalarmuje, gdy padnie cała malina (brak monitora z zewnątrz).
+- **Backup tygodniowy**: `scripts/backup-weekly.sh` (cron nd 03:15) — baza + `.env` + pamięć Claude'a + dane backtestu lokalnie w `backups/` (retencja 8); off-site (AES-256, Telegram, limit 45 MB): baza + `.env` + pamięć zawsze, dane backtestu tylko gdy się mieszczą. Kontrola: `logs/backup-weekly.log` (`TELEGRAM OK`).

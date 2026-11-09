@@ -8,7 +8,7 @@
 
 ---
 
-## Lipiec–październik 2026 — walidacja forward, przeglądy, agent-audytor
+## Lipiec–listopad 2026 — walidacja forward, przeglądy, agent-audytor, werdykt #2, migracja na Pi 5
 
 Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i werdykty w
 [KALENDARZ-WALIDACJI-2026.md](KALENDARZ-WALIDACJI-2026.md). Hashe z `git log`:
@@ -30,31 +30,6 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   gate #2 od 02.09. **27.09** `bfd9f42` csuite-gate catch-up co godzinę.
 - **19.10** `81c4ea1` rdzeń+ (large-cap ≥ $10B z discovery → delivery; 6 tickerów promowanych). **22.10** `6e01038` sprawdzenie
   wejścia nocnego (Polygon after-hours) — negatywne. **27.10** `4300b5a` dip research POZA aplikacją (`~/dip-research/`).
-- **01.11 — werdykt #2: BEZ EDGE → stop gry real (REGUŁY §5)** ([WERDYKT-EDGE-2026-11-01.md](WERDYKT-EDGE-2026-11-01.md)):
-  klasa Form 4 BUY bez FUND N=29, hit 62%, med REAL −1.37% (forward ≥01.09: 42% / −5.7%); discovery #2 bez promocji;
-  sub-gate C-suite #2 T1 6/10 FAIL 4/5; fix licznika (escapy MarkdownV2 w nazwisku — `csuite-gate.cte.sql`); pre-rejestracja
-  werdyktu #3 core+rdzeń+ na 01.02.2027; skrypt `scripts/analysis/werdykt-2026-11-01.py`. Reguły sygnałowe bez zmian.
-- **01.11** instrumentacja z werdyktów: capture **XLV** (4 kolumny nullable w `alerts`, snapshot + sloty Price Outcome);
-  liczniki `W3` (werdykt #3 core+rdzeń+, progi na NET) i `ME8K` (Material Event po `ruleName`) w `csuite-gate.sh`;
-  raport 8h bez wpisu 01.11; REGUŁY §5 dopisek STOP GRY. Zachowanie sygnałowe bez zmian.
-- **02.11** decyzja usera po werdykcie #2: **Director-only w discovery wyłączony** — prefilter `ok_director_largecap`
-  (rejestracja tylko jako rdzeń+ przy mcap ≥ $10B), Form4Pipeline `SKIP_DISCOVERY_DIRECTOR_ONLY` przed GPT; C-suite T1/T2, APLS, rdzeń bez zmian.
-- **05.11** decyzja usera: **bez doładowania API — GPT przez most `claude -p`** (`~/claude-bridge/`, osobne repo, Python stdlib;
-  emuluje `POST /v1/messages`, model z żądania, pusty katalog roboczy bez kontekstu projektu). W StockPulse tylko `.env`
-  (`ANTHROPIC_BASE_URL`, `ANTHROPIC_TIMEOUT_MS`), kod bez zmian. Luka GPT 27.10–05.11.
-- **07.11 — migracja produkcji Jetson → Raspberry Pi 5** (decyzja usera, weekend): Pi 5 8 GB / NVMe / Debian 12 arm64,
-  docelowo Wi-Fi (kabel tylko na migrację). Przerwa ~2 min (10:35:41 stop app na Jetsonie → 10:37:42 healthy na Pi, między cyklami SEC).
-  Baza `pg_dump -Fc` → `pg_restore --exit-on-error` (liczby wierszy 9/9 tabel zgodne), Redis `dump.rdb` (5418/5425 kluczy —
-  różnica = klucze z TTL), obrazy postgres/redis po digeście z Jetsona, app/frontend zbudowane na Pi. Most GPT + dip-research +
-  crontab przeniesione; reguła UFW dla kontenery → most. Jetson zatrzymany jako zapas. Szczegóły: CLAUDE.md „Multi-środowisko".
-- **05.11 — fix wyboru Exhibit 99.1 dla 8-K Item 2.02** (bugfix, kategoria „KORYGOWAĆ" z werdyktu #1): nowy
-  `selectExhibit991` (`src/sec-filings/pipelines/exhibit-991-selector.ts`) — progi `ex991` (numer 99.1 w każdym zapisie:
-  `ex-991_q…`, `xexx991`, `ex99x1`…) → `ex99` (goły numer) → `fallback` (największy .htm poza wrapperem, `R*.htm`, `*index*`
-  i exhibitami z innym numerem; najpierw nazwy earn/relea/result/quarter/_er). Dawny regex gubił press release w **59 z 571**
-  8-K w `sec_filings` (wszystkie z Item 2.02 wg `ITEM INFORMATION` w nagłówkach EDGAR): LLY, ELV (każdy kwartał), MOH, AMGN,
-  UNH, VRTX, ISRG, HUM, TDOC, GDRX, PFE, BSX, OSCR, HIMS, STX, COO… — GPT dostawał sam wrapper (`SKIP_INVALID_JSON` /
-  `gpt_missing_data`; 13 z nich ma alert `gpt_missing_data`/`bullish_no_consensus_data`/`consensus_miss`). Bez backfillu.
-  Trigger: LLY 29.10 (filing 4081), [replay 8-K z luki](reports/2026-11-05-replay-8k-gpt.md).
 - **26–27.09 — ESLint strict + TS strict** (`98ded99`..`db87781`): flat config strict-type-checked BE+FE z baseline
   suppressions (blokuje tylko NOWE błędy), `strict: true` w backendzie (159 pól encji `!`, `errMsg()/errCode()`),
   frontend TS 4.9 → 5.9, CI GitHub (required checks backend+frontend), hook lint-changed.
@@ -79,6 +54,54 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   minute aggs (sesja rozszerzona) dla 8 zdarzeń gate'u C-suite #2 — gap powstaje natychmiast po filingu (1. print
   mediana +3,4% = gap na open +3,0%), płynność symboliczna (0–739 szt.), REAL 7d przy wejściu na 1. princie −8,2% vs
   obecne −8,1%. Moment wejścia nie jest problemem; bez zmian w regułach.
+- **01.11 — werdykt #2: BEZ EDGE → stop gry real (REGUŁY §5)** ([WERDYKT-EDGE-2026-11-01.md](WERDYKT-EDGE-2026-11-01.md)):
+  klasa Form 4 BUY bez FUND N=29, hit 62%, med REAL −1.37% (forward ≥01.09: 42% / −5.7%); discovery #2 bez promocji;
+  sub-gate C-suite #2 T1 6/10 FAIL 4/5; fix licznika (escapy MarkdownV2 w nazwisku — `csuite-gate.cte.sql`); pre-rejestracja
+  werdyktu #3 core+rdzeń+ na 01.02.2027; skrypt `scripts/analysis/werdykt-2026-11-01.py`. Reguły sygnałowe bez zmian.
+- **01.11** instrumentacja z werdyktów: capture **XLV** (4 kolumny nullable w `alerts`, snapshot + sloty Price Outcome);
+  liczniki `W3` (werdykt #3 core+rdzeń+, progi na NET) i `ME8K` (Material Event po `ruleName`) w `csuite-gate.sh`;
+  raport 8h bez wpisu 01.11; REGUŁY §5 dopisek STOP GRY. Zachowanie sygnałowe bez zmian.
+- **02.11** decyzja usera po werdykcie #2: **Director-only w discovery wyłączony** — prefilter `ok_director_largecap`
+  (rejestracja tylko jako rdzeń+ przy mcap ≥ $10B), Form4Pipeline `SKIP_DISCOVERY_DIRECTOR_ONLY` przed GPT; C-suite T1/T2, APLS, rdzeń bez zmian.
+- **05.11** decyzja usera: **bez doładowania API — GPT przez most `claude -p`** (`~/claude-bridge/`, osobne repo, Python stdlib;
+  emuluje `POST /v1/messages`, model z żądania, pusty katalog roboczy bez kontekstu projektu). W StockPulse tylko `.env`
+  (`ANTHROPIC_BASE_URL`, `ANTHROPIC_TIMEOUT_MS`), kod bez zmian. Luka GPT 27.10–05.11.
+- **05.11 — fix wyboru Exhibit 99.1 dla 8-K Item 2.02** (bugfix, kategoria „KORYGOWAĆ" z werdyktu #1): nowy
+  `selectExhibit991` (`src/sec-filings/pipelines/exhibit-991-selector.ts`) — progi `ex991` (numer 99.1 w każdym zapisie:
+  `ex-991_q…`, `xexx991`, `ex99x1`…) → `ex99` (goły numer) → `fallback` (największy .htm poza wrapperem, `R*.htm`, `*index*`
+  i exhibitami z innym numerem; najpierw nazwy earn/relea/result/quarter/_er). Dawny regex gubił press release w **59 z 571**
+  8-K w `sec_filings` (wszystkie z Item 2.02 wg `ITEM INFORMATION` w nagłówkach EDGAR): LLY, ELV (każdy kwartał), MOH, AMGN,
+  UNH, VRTX, ISRG, HUM, TDOC, GDRX, PFE, BSX, OSCR, HIMS, STX, COO… — GPT dostawał sam wrapper (`SKIP_INVALID_JSON` /
+  `gpt_missing_data`; 13 z nich ma alert `gpt_missing_data`/`bullish_no_consensus_data`/`consensus_miss`). Bez backfillu.
+  Trigger: LLY 29.10 (filing 4081), [replay 8-K z luki](reports/2026-11-05-replay-8k-gpt.md).
+- **07.11 — migracja produkcji Jetson → Raspberry Pi 5** (decyzja usera, weekend): Pi 5 8 GB / NVMe / Debian 12 arm64,
+  docelowo Wi-Fi (kabel tylko na migrację). Przerwa ~2 min (10:35:41 stop app na Jetsonie → 10:37:42 healthy na Pi, między cyklami SEC).
+  Baza `pg_dump -Fc` → `pg_restore --exit-on-error` (liczby wierszy 9/9 tabel zgodne), Redis `dump.rdb` (5418/5425 kluczy —
+  różnica = klucze z TTL), obrazy postgres/redis po digeście z Jetsona, app/frontend zbudowane na Pi. Most GPT + dip-research +
+  crontab przeniesione; reguła UFW dla kontenery → most. Jetson zatrzymany jako zapas. Szczegóły: CLAUDE.md „Multi-środowisko".
+- **07.11** (host, bez commitu): Uptime Kuma 1.23.16 POZA aplikacją (`~/uptime-kuma/`, panel `:3002`, 11 monitorów,
+  alerty botem StockPulse); 08.11 reguła UFW `172.16.0.0/12 → 172.17.0.1:8080/tcp` (monitor pogodynki, zgoda usera).
+- **08.11 — backtest horyzontów 30/60/90d** `73f524a` ([raport](BACKTEST-HORYZONT-30-60-90-2026-11.md),
+  [teczka](TECZKA-HORYZONT-30-60-90-2026-11-08.md)): healthcare Form 4 BUY, 47 epizodów, 90d mediana NET +4,9 pp vs ETF
+  podsektora (7d ≈ 0) → hipoteza do forward-testu, NIE zmiana reguł; backtest Sprint 15 BUY skażony (BUY cudzych emitentów).
+  `scripts/backtest/horizon_backtest.py`, rozbudowany `edgar_fetcher.py`. W tym samym commicie: `backup-weekly.sh` pakuje dane
+  backtestu (gitignored — zginęły przy migracji Jetson → Pi).
+- **08.11 — „sektor czy sygnał"** `b560a04` ([raport](BACKTEST-SEKTOR-VS-SYGNAL-2026-11.md),
+  [teczka](TECZKA-SEKTOR-VS-SYGNAL-2026-11-08.md)): semi 8 epizodów BUY w 3,5 roku → insufficient N; kontrola large-cap vs
+  swoje ETF ≈ 0 → efekt specyficzny dla HC/small-mid capów, bez rozszerzania na inne sektory. `sector_backtest.py`.
+- **08.11** `08515e7` fix CPU% na dashboardzie: próbkowanie `/proc/stat` w tle w stałym oknie 5 s (wcześniej delta między
+  zapytaniami HTTP — przy kilku otwartych dashboardach/monitorze okno miało milisekundy i wskaźnik pokazywał szum).
+- **08–09.11 — HORYZONT forward** `1d08c80` ([teczka](TECZKA-HORYZONT-FORWARD-2026-11-08.md)): pomiar w przód hipotezy HC 90d
+  offline (`horizon_forward.py`, kod zamrożony, sha256 w teczce) — kwartalnie ślepy `status` (tylko N) od 01.02.2027,
+  spojrzenie 1 przy N≥20 epizodów z pełnym 63 sesji; przypomnienia 01.02 i 01.05.2027 w `VALIDATION_CALENDAR` (raport 8h).
+- **08–09.11 — teczka 13D (aktywiści) ZAMKNIĘTA** `fc42bc2` ([teczka](TECZKA-13D-2026-11-08.md)): klasyfikator 2× niezaliczony
+  (runda 2: precyzja 92,5%, czułość 49% < 75%), Faza 0 jako udokumentowane odstępstwo: 14 wchodzalnych kampanii (próg 30),
+  MDE 22,8 pp (próg 6) → niewykonalne; zwrotów nie liczono. Kod `schedule13d_*.py` zostaje, dane (~0,5 GB) poza gitem.
+- **10.11 — porządki po sesjach 08–09.11**: `backup-weekly.sh` — off-site z 08.11 został POMINIĘTY w całości (bundle 48 MB
+  z danymi backtestu > limit 45 MB, razem z bazą); teraz baza + .env + pamięć idą zawsze, a dane backtestu tylko gdy zestaw
+  mieści się w limicie (inaczej zostają w lokalnym `backtest-data_*.tar.gz`); błąd `tar` oblewa pakowanie (pipefail).
+  Test na sucho (curl podmieniony): bundle 4,8 MB, odszyfrowanie + lista plików OK. Uzupełniony CHANGELOG (wpisy listopadowe
+  przeniesione na koniec sekcji) i CLAUDE.md (liczba testów, Uptime Kuma, backup).
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 

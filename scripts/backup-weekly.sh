@@ -12,7 +12,9 @@
 #
 # Off-site: zestaw pakowany w tar.gz, szyfrowany AES-256 (hasło:
 # ~/.stockpulse-backup-pass — ZAPISZ JE POZA SERWEREM!) i wysyłany
-# botem na Telegram (limit 50 MB). Odzysk po padzie serwera:
+# botem na Telegram (limit 50 MB). Baza + .env + pamięć idą zawsze; dane
+# backtestu tylko, gdy zestaw mieści się w 45 MB (inaczej zostają lokalnie).
+# Odzysk po padzie serwera:
 #   openssl enc -d -aes-256-cbc -pbkdf2 -in <plik.enc> | tar -xz
 # Fallback ręczny z laptopa: scp -r jetson:~/stockPulse/backups ~/stockpulse-backups
 #
@@ -54,37 +56,41 @@ TG_TOKEN=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$REPO_DIR/.env" | cut -d= -f2-)
 TG_CHAT=$(grep -E '^TELEGRAM_CHAT_ID=' "$REPO_DIR/.env" | cut -d= -f2-)
 if [ -s "$PASS_FILE" ] && [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ]; then
   BUNDLE="$BACKUP_DIR/stockpulse-offsite_${STAMP}.tar.gz.enc"
+  LIMIT_B=47185920  # 45 MB — margines pod limit bota 50 MB
   SET_FILES=""
-  for f in "stockpulse_${STAMP}.dump" "env_${STAMP}.bak" "claude-memory_${STAMP}.tar.gz" "backtest-data_${STAMP}.tar.gz"; do
-    [ -f "$BACKUP_DIR/$f" ] && SET_FILES="$SET_FILES $f"
+  SET_B=0
+  for f in "stockpulse_${STAMP}.dump" "env_${STAMP}.bak" "claude-memory_${STAMP}.tar.gz"; do
+    [ -f "$BACKUP_DIR/$f" ] && SET_FILES="$SET_FILES $f" && SET_B=$((SET_B + $(stat -c%s "$BACKUP_DIR/$f")))
   done
-  make_bundle() {  # $@ = pliki zestawu
-    tar -czf - -C "$BACKUP_DIR" "$@" 2>>"$LOG_FILE" \
-      | openssl enc -aes-256-cbc -pbkdf2 -salt -pass "file:$PASS_FILE" -out "$BUNDLE" 2>>"$LOG_FILE"
-  }
-  # shellcheck disable=SC2086
-  if [ -n "$SET_FILES" ] && make_bundle $SET_FILES; then
-    SIZE_B=$(stat -c%s "$BUNDLE")
-    # 08.11.2026: dane backtestu urosły (13D ~440 MB) — zamiast pomijać CAŁY off-site (z bazą!), drugi bundle bez nich
-    # (zostają w lokalnym backtest-data_*.tar.gz).
-    if [ "$SIZE_B" -gt 47185920 ] && [[ "$SET_FILES" == *backtest-data_* ]]; then
-      log "OFF-SITE: bundle $(du -h "$BUNDLE" | cut -f1) > 45 MB — ponawiam BEZ danych backtestu (zostają lokalnie)"
-      SET_FILES="${SET_FILES/ backtest-data_${STAMP}.tar.gz/}"
-      # shellcheck disable=SC2086
-      make_bundle $SET_FILES || log "TELEGRAM BŁĄD: pakowanie bundle bez danych backtestu"
-      SIZE_B=$(stat -c%s "$BUNDLE")
+  # Dane backtestu dokładamy off-site tylko wtedy, gdy cały zestaw zmieści się w limicie (pliki są już
+  # skompresowane, więc bundle ≈ suma rozmiarów; 1 MB zapasu). Inaczej zostają w lokalnym backtest-data_*.tar.gz,
+  # a baza + .env + pamięć idą ZAWSZE. (08.11.2026: bundle 48 MB z danymi backtestu = pominięty CAŁY off-site, z bazą.)
+  CONTENT="baza + .env + pamięć"
+  BT_FILE="backtest-data_${STAMP}.tar.gz"
+  if [ -f "$BACKUP_DIR/$BT_FILE" ]; then
+    if [ $((SET_B + $(stat -c%s "$BACKUP_DIR/$BT_FILE"))) -le $((LIMIT_B - 1048576)) ]; then
+      SET_FILES="$SET_FILES $BT_FILE"
+      CONTENT="$CONTENT + dane backtestu"
+    else
+      log "OFF-SITE: dane backtestu ($(du -h "$BACKUP_DIR/$BT_FILE" | cut -f1)) nie mieszczą się w limicie — zostają lokalnie"
     fi
-    if [ "$SIZE_B" -gt 47185920 ]; then  # 45 MB — margines pod limit bota 50 MB
+  fi
+  # pipefail w podpowłoce: błąd tar-a też ma oblać pakowanie (bez tego liczył się tylko kod openssl)
+  # shellcheck disable=SC2086
+  if [ -n "$SET_FILES" ] && ( set -o pipefail; tar -czf - -C "$BACKUP_DIR" $SET_FILES 2>>"$LOG_FILE" \
+      | openssl enc -aes-256-cbc -pbkdf2 -salt -pass "file:$PASS_FILE" -out "$BUNDLE" 2>>"$LOG_FILE" ); then
+    SIZE_B=$(stat -c%s "$BUNDLE")
+    if [ "$SIZE_B" -gt "$LIMIT_B" ]; then
       log "TELEGRAM POMINIĘTY: bundle $(du -h "$BUNDLE" | cut -f1) przekracza 45 MB"
     else
       RESP=$(mktemp)
       HTTP=$(curl -s -m 120 -o "$RESP" -w '%{http_code}' \
         -F chat_id="$TG_CHAT" \
         -F document=@"$BUNDLE" \
-        -F caption="💾 Backup tygodniowy StockPulse (${STAMP}) — to NIE sygnał. Kopia off-site: baza + .env + pamięć + dane backtestu. Odzysk: openssl enc -d -aes-256-cbc -pbkdf2 -in <plik> | tar -xz (hasło z Twoich notatek)" \
+        -F caption="💾 Backup tygodniowy StockPulse (${STAMP}) — to NIE sygnał. Kopia off-site: ${CONTENT}. Odzysk: openssl enc -d -aes-256-cbc -pbkdf2 -in <plik> | tar -xz (hasło z Twoich notatek)" \
         "https://api.telegram.org/bot${TG_TOKEN}/sendDocument")
       if [ "$HTTP" = "200" ]; then
-        log "TELEGRAM OK: $(basename "$BUNDLE") ($(du -h "$BUNDLE" | cut -f1))"
+        log "TELEGRAM OK: $(basename "$BUNDLE") ($(du -h "$BUNDLE" | cut -f1); ${CONTENT})"
       else
         log "TELEGRAM BŁĄD: HTTP $HTTP $(head -c 300 "$RESP")"
       fi
