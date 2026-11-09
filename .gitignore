@@ -54,6 +54,7 @@ azure-api/
 scripts/backtest/data/cik_map.json
 scripts/backtest/data/form4_transactions*
 scripts/backtest/data/prices_ohlc/
+scripts/backtest/data/prices_ohlc_fwd/
 scripts/backtest/data/prices/
 scripts/backtest/data/results/backtest_v2_summary.txt
 scripts/backtest/data/results/survivorship_check.json

@@ -73,6 +73,8 @@ traktować jako nieważne; ten backtest je zastępuje.
 2. Zgodnie z pre-rejestracją to **hipoteza do forward-testu, nie zmiana reguł gry**. Decyzja najwcześniej przy
    werdykcie #3 (01.02.2027). Naturalny krok: dodać do produkcji pomiar 30/60/90 dni (sloty price outcome kończą
    się na 7d, hard timeout 11d) — osobna teczka z kryteriami.
+   **→ Wybrano drogę offline (08.11): [TECZKA-HORYZONT-FORWARD](TECZKA-HORYZONT-FORWARD-2026-11-08.md)** — kwartalne
+   ponowne uruchomienie zamrożonego kodu, bez zmian w produkcji.
 3. Pytanie „sektor czy sygnał" (kontrola: 90d mediana +2,51 pp vs SPY, N = 25, bez testu) rozstrzyga zadanie 2
    ([TECZKA-SEKTOR-VS-SYGNAL-2026-11-08.md](TECZKA-SEKTOR-VS-SYGNAL-2026-11-08.md)) — nie wyciągać wniosku z tej
    tabeli.

@@ -10,13 +10,15 @@ from datetime import date
 # --- Zakres czasowy ---
 # BT_END_DATE (ISO) nadpisuje koniec zakresu bez zmiany domyślnego (Sprint 15) — 08.11.2026 dla backtestu
 # horyzontów 30/60/90d (scripts/backtest/horizon_backtest.py), który potrzebuje Form 4 do listopada 2026.
-START_DATE = date(2023, 4, 1)
+# BT_START_DATE — teczka HORYZONT-FORWARD (08.11.2026): okno pobierania dla pomiaru w przód (domyślnie bez zmian).
+START_DATE = date.fromisoformat(os.environ.get("BT_START_DATE", "2023-04-01"))
 END_DATE = date.fromisoformat(os.environ.get("BT_END_DATE", "2026-04-05"))
 
 # --- SEC EDGAR ---
 SEC_USER_AGENT = "StockPulse Backtest research@stockpulse.local"
 SEC_BASE_URL = "https://data.sec.gov"
-SEC_RATE_LIMIT = 0.12  # ~8 req/sec (bezpieczny margines pod limit 10/s)
+# BT_SEC_RATE_LIMIT — na malinie (IP produkcji, limit SEC 10 req/s współdzielony z kolektorami) używać ≥ 0.5
+SEC_RATE_LIMIT = float(os.environ.get("BT_SEC_RATE_LIMIT", "0.12"))  # ~8 req/sec (bezpieczny margines pod limit 10/s)
 
 # --- Horyzonty cenowe (dni handlowe) ---
 HORIZONS = {

@@ -43,6 +43,10 @@ export const VALIDATION_CALENDAR: readonly { date: string; label: string }[] = [
   { date: '2026-11-15', label: 'FIX-16 shadow #2 + bullish-8K #2 (po Q3; N≥3 would_uncap; sub-hip. no_consensus N≥10)' },
   // 19.10.2026 rdzeń+ (large-cap ≥$10B delivery) + 01.11.2026 werdykt #3: pre-rejestracja w KALENDARZ-WALIDACJI.
   { date: '2027-02-01', label: 'Werdykt #3 core+rdzeń+ (N≥10 fwd, hit≥60%, med+śr REAL>0, wchodzalne≥50%; N<5 → sunset) + rdzeń+ review' },
+  // 08.11.2026 HORYZONT forward (doc/TECZKA-HORYZONT-FORWARD-2026-11-08.md): kwartalny przebieg ŚLEPY offline
+  // (tylko liczności; spojrzenie 1 przy N≥20 z pełnym 63 sesji). Kolejne kwartały dopisywać po każdym przebiegu.
+  { date: '2027-02-01', label: 'HORYZONT forward — przebieg ślepy #1 (horizon_forward.py status; tylko N, bez zwrotów)' },
+  { date: '2027-05-01', label: 'HORYZONT forward — przebieg ślepy #2 (horizon_forward.py status)' },
 ];
 
 /**

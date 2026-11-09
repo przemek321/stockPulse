@@ -190,6 +190,14 @@ agenci etap 2, Pi 5, API A/B.
   wszystkie stłumione jako `bullish_8k_no_edge`/`gpt_missing_data`); capture **XLV** (`xlvAtAlert` + sloty 1d/3d/7d) od 01.11 —
   alerty sprzed wdrożenia mają null. Reguła benchmarku (SIC 283x → XBI, reszta → XLV) obowiązuje dopiero od werdyktu #3.
 
+## Co kwartał od 2027-02-01 (01.02 / 01.05 / 01.08 / 01.11) — HORYZONT forward, przebieg ŚLEPY (pre-rejestracja 08.11.2026, WIĄŻĄCA)
+
+Teczka: [TECZKA-HORYZONT-FORWARD-2026-11-08.md](TECZKA-HORYZONT-FORWARD-2026-11-08.md). Backtest offline (zero zmian
+w produkcji): pobranie Form 4 + cen, `horizon_forward.py status` → **tylko liczności epizodów forward** (pierwszy
+filing ≥ 08.11.2026, 28 tickerów G1) do dziennika teczki. **Spojrzenie 1 przy N ≥ 20 z pełnym 63 sesji**
+(realnie ~połowa 2028), spojrzenie 2 przy N ≥ 40 lub 01.05.2030; α 0,025 na spojrzenie; POTWIERDZONA / OBALONA /
+NIEROZSTRZYGNIĘTA wg teczki. **Nie wpływa na werdykt #3** (01.02.2027 będzie 0–2 pełnych epizodów). NIE sygnał.
+
 ## ~~2026-09-07 — bullish-8K gate revisit (90d od P1-02)~~ ✅ WYKONANY 07.09 — BEZ ZAWĘŻENIA
 
 **Werdykt** ([BULLISH-8K-GATE-REVIEW-2026-09-07.md](BULLISH-8K-GATE-REVIEW-2026-09-07.md)): pełne query
