@@ -106,6 +106,7 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   zamiast `setInterval` 8 h + wysyłki 15 s po każdym starcie ma `@Cron('0 18 * * 0', Europe/Warsaw)` i okno 7 dni; start/rebuild
   aplikacji nie wysyła nic. Kalendarz walidacji w raporcie: 14 dni przed terminem / 7 dni po (min. 2 przypomnienia przed, 1 po).
   Od 08.11 wieczorem do 14.11 raport 8h wyszedł 19 razy, z czego 4 razy z jakimkolwiek alertem (logi kontenera).
+  [Podsumowanie tygodnia 07–14.11](reports/2026-11-14-weekly-report.md): 4 alerty, 0 dostarczonych; MRNA 06.11 (dostarczony 8-K) REAL −11,4%.
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 
