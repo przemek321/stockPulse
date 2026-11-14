@@ -1,8 +1,8 @@
 # Kalendarz walidacji 2026 (utworzony 10.06.2026)
 
 > Daty decyzyjne z planu [PLAN-EDGE-IMPROVEMENTS-2026-06-09.md](PLAN-EDGE-IMPROVEMENTS-2026-06-09.md).
-> **Mechanizm przypomnienia**: raport 8h na Telegramie pokazuje sekcję
-> „📅 Kalendarz walidacji" od 7 dni przed terminem do 3 dni po (flaga ZALEGŁY) —
+> **Mechanizm przypomnienia**: raport tygodniowy na Telegramie (niedziela 18:00 PL; do 14.11.2026 raport 8h) pokazuje sekcję
+> „📅 Kalendarz walidacji" od 14 dni przed terminem do 7 dni po (flaga ZALEGŁY) —
 > źródło: `VALIDATION_CALENDAR` w `src/alerts/summary-scheduler.service.ts`.
 > Po wykonaniu przeglądu usuń wpis z tablicy (i odhacz tutaj).
 

@@ -13,7 +13,7 @@ import { TelegramModule } from './telegram/telegram.module';
 /**
  * Moduł alertów.
  * Ewaluacja reguł, throttling, wysyłka przez Telegram.
- * Cykliczny raport systemowy co 8h (alerty, insider trades, PDUFA).
+ * Raport tygodniowy na Telegram, niedziela 18:00 PL (alerty, insider trades, kalendarz walidacji).
  */
 @Module({
   imports: [

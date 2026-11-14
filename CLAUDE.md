@@ -26,7 +26,7 @@ przeniesione do rdzenia (delivery), a discovery auto-rejestruje kolejne large-ca
 (`DISCOVERY_LARGECAP_DELIVERY_MCAP_MLN`). Hipoteza in-sample (N=9: hit REAL 78%, med REAL +1,0% vs small-cap 28% / −5,3%);
 przegląd wiążący **01.02.2027 lub N=10** ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md)).
 
-Kalendarz decyzyjny ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md), przypominany w raporcie 8h):
+Kalendarz decyzyjny ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md), przypominany w raporcie tygodniowym na Telegramie — niedziela 18:00 PL):
 
 | Data | Przegląd |
 |---|---|
@@ -59,7 +59,7 @@ make shell-app / shell-db     # shell do kontenera / psql
 
 Dev (WSL): `wsl -d Ubuntu bash -c "cd /home/n1copl/stockPulse && docker compose up -d"`
 Prod (Pi 5 / Jetson, aarch64): `docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d`
-Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (843 w 46 suitach, stan 10.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych); backtest: `scripts/backtest/.venv/bin/pytest -q` (200). Na Pi brak `node_modules` na hoście — jest/tsc: `docker exec stockpulse-app npx jest test/unit`.
+Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (849 w 46 suitach, stan 14.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych); backtest: `scripts/backtest/.venv/bin/pytest -q` (200). Na Pi brak `node_modules` na hoście — jest/tsc: `docker exec stockpulse-app npx jest test/unit`.
 
 ## Setup
 
@@ -84,7 +84,7 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   `observationOnly=false` (rdzeń+, delivery, ping 🎯)**. Sub-gate C-suite: `scripts/csuite-gate.sh` (T1/T2 + od 01.11 liczniki `W3` werdyktu #3 i `ME8K` 8-K Material Event, `logs/csuite-gate.log`).
 - **PDUFA.bio** — **WYŁĄCZONY 21.06** (c65a7cb): upstream przepisany na client-side render →
   HTTP 404 dla scrapera. Dane `pdufa_catalysts` nieodświeżane od 19.06 (ostatnia przyszła
-  data: VERA 07.07 — potem sekcja PDUFA w raporcie 8h pusta). Decyzja do podjęcia:
+  data: VERA 07.07 — potem sekcja PDUFA w raporcie pusta). Decyzja do podjęcia:
   nowy parser (headless/API) albo sunset.
 - **WYŁĄCZONE**: Options Flow (CRON off 10.06 — 6h zombie cycle/dzień, noga korelacyjna
   redundantna; kod/dane/API zostają, odwracalne. Scoring uśpiony, przy re-enable pamiętaj:
@@ -152,8 +152,10 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
 - **Dashboard React** (MUI 5) na :3001 — Tabs: Dashboard / Signal Timeline / System Logs / Słownik.
   PriceOutcomePanel z kolumnami +7d/α7d. Observation alerty przytłumione (`PriorityChip` outlined).
   **REST API ~31 endpointów** na :3000 (3 za `ApiTokenGuard`). Alerty Telegram po polsku.
-- **Raport 8h** (SummaryScheduler): breakdown alertów + `nonDeliveryReason` PL + sekcja
-  „🔭 Nowe obserwacje" + „📅 Kalendarz walidacji".
+- **Raport tygodniowy** (SummaryScheduler, `@Cron` niedziela 18:00 PL, okno 7 dni; **od 14.11.2026 zamiast raportu 8h** —
+  decyzja usera, 3 wiadomości dziennie z „0 alertów" działały jak healthcheck): breakdown alertów + `nonDeliveryReason` PL +
+  „🔭 Nowe obserwacje" + „📅 Kalendarz walidacji" (od 14 dni przed terminem do 7 dni po). Start/rebuild aplikacji NIE wysyła raportu.
+  Stan zdrowia pilnuje Uptime Kuma (alert tylko przy zmianie statusu).
 
 ### Stack
 

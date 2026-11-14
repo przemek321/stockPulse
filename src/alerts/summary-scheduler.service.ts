@@ -1,4 +1,5 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { PdufaBioService } from '../collectors/pdufa-bio/pdufa-bio.service';
@@ -15,15 +16,18 @@ import { TelegramFormatterService } from './telegram/telegram-formatter.service'
 import { TelegramService } from './telegram/telegram.service';
 
 /**
- * Raport statusu systemu wysyłany na Telegram co 8 godzin.
- * Agreguje: alerty, insider trades, options flow, nadchodzące PDUFA.
- * Sprint 15: usunięto sentyment (wyłączony od Sprint 11, zero danych).
+ * Raport tygodniowy systemu na Telegram — niedziela 18:00 czasu polskiego.
+ * Agreguje 7 dni: alerty, insider trades, nowe obserwacje, kalendarz walidacji, PDUFA.
+ * Do 14.11.2026 był to „raport 8h" (co 8 godzin + przy każdym starcie aplikacji) —
+ * przy 0–1 alertach na okno działał jak healthcheck 3× dziennie; decyzja usera:
+ * wyłączyć i zostawić podsumowanie tygodnia. Stan zdrowia pilnuje Uptime Kuma.
  */
 
 /**
  * Kalendarz walidacji (10.06.2026, prośba Przemka o przypomnienia) — daty
- * decyzyjne z planu doc/PLAN-EDGE-IMPROVEMENTS-2026-06-09.md. Raport 8h
- * pokazuje zdarzenie od 7 dni PRZED terminem do 3 dni PO (z flagą ZALEGŁY).
+ * decyzyjne z planu doc/PLAN-EDGE-IMPROVEMENTS-2026-06-09.md. Raport tygodniowy
+ * pokazuje zdarzenie od 14 dni PRZED terminem do 7 dni PO (z flagą ZALEGŁY) —
+ * przy wysyłce raz w tygodniu to co najmniej 2 przypomnienia przed i 1 po.
  * Szczegóły kryteriów per data: doc/KALENDARZ-WALIDACJI-2026.md.
  * Po wykonaniu przeglądu — usuń wpis z tej tablicy.
  */
@@ -49,13 +53,20 @@ export const VALIDATION_CALENDAR: readonly { date: string; label: string }[] = [
   { date: '2027-05-01', label: 'HORYZONT forward — przebieg ślepy #2 (horizon_forward.py status)' },
 ];
 
+/** Okno kalendarza w raporcie tygodniowym: 14 dni przed terminem, 7 dni po. */
+export const WEEKLY_CALENDAR_AHEAD_DAYS = 14;
+export const WEEKLY_CALENDAR_OVERDUE_DAYS = 7;
+
 /**
- * Zdarzenia do pokazania w raporcie 8h: due za <=7 dni LUB zaległe <=3 dni.
+ * Zdarzenia do pokazania w raporcie: due za <=aheadDays LUB zaległe <=overdueDays
+ * (domyślnie 7 / 3 — okno dawnego raportu 8h; raport tygodniowy podaje 14 / 7).
  * Pure function — testowalna bez NestJS.
  */
 export function upcomingValidationEvents(
   now: Date,
   calendar: readonly { date: string; label: string }[] = VALIDATION_CALENDAR,
+  aheadDays = 7,
+  overdueDays = 3,
 ): { date: string; label: string; daysLeft: number }[] {
   const DAY = 24 * 3600_000;
   const today = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z').getTime();
@@ -64,21 +75,16 @@ export function upcomingValidationEvents(
       ...e,
       daysLeft: Math.round((new Date(e.date + 'T00:00:00Z').getTime() - today) / DAY),
     }))
-    .filter((e) => e.daysLeft <= 7 && e.daysLeft >= -3)
+    .filter((e) => e.daysLeft <= aheadDays && e.daysLeft >= -overdueDays)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 }
 
 @Injectable()
-export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
+export class SummarySchedulerService implements OnModuleInit {
   private readonly logger = new Logger(SummarySchedulerService.name);
-  private intervalRef: ReturnType<typeof setInterval> | null = null;
-  private timeoutRef: ReturnType<typeof setTimeout> | null = null;
 
-  /** Interwał raportu: 8 godzin */
-  private readonly INTERVAL_MS = 8 * 60 * 60 * 1000;
-
-  /** Opóźnienie pierwszego raportu po starcie */
-  private readonly INITIAL_DELAY_MS = 15_000;
+  /** Okno raportu: 7 dni */
+  private readonly WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
   constructor(
     @InjectRepository(Alert)
@@ -90,32 +96,28 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly pdufaBio: PdufaBioService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     if (!this.telegram.isConfigured()) {
-      this.logger.warn('Telegram nie skonfigurowany — raport 8h wyłączony');
+      this.logger.warn('Telegram nie skonfigurowany — raport tygodniowy wyłączony');
       return;
     }
-
-    // Pierwszy raport po krótkim opóźnieniu (żeby system zdążył wystartować)
-    this.timeoutRef = setTimeout(() => this.sendSummary(), this.INITIAL_DELAY_MS);
-
-    // Powtarzalny raport co 8h
-    this.intervalRef = setInterval(() => this.sendSummary(), this.INTERVAL_MS);
-
-    this.logger.log('Zaplanowano raport systemowy co 8h na Telegram');
+    // Celowo BEZ wysyłki przy starcie: restart/rebuild aplikacji nie generuje wiadomości.
+    this.logger.log('Raport tygodniowy na Telegram: niedziela 18:00 PL (bez raportu przy starcie)');
   }
 
-  onModuleDestroy(): void {
-    if (this.intervalRef) clearInterval(this.intervalRef);
-    if (this.timeoutRef) clearTimeout(this.timeoutRef);
+  /** Niedziela 18:00 czasu polskiego — tydzień giełdowy zamknięty, przed poniedziałkową sesją. */
+  @Cron('0 18 * * 0', { timeZone: 'Europe/Warsaw' })
+  async weeklyReport(): Promise<void> {
+    if (!this.telegram.isConfigured()) return;
+    await this.sendSummary();
   }
 
   /**
-   * Zbiera dane z ostatnich 8h i wysyła podsumowanie na Telegram.
+   * Zbiera dane z ostatnich 7 dni i wysyła podsumowanie na Telegram.
    */
   async sendSummary(): Promise<void> {
     try {
-      const since = new Date(Date.now() - this.INTERVAL_MS);
+      const since = new Date(Date.now() - this.WINDOW_MS);
 
       // Alerty per typ (kształty wierszy: summary-scheduler-rows.types.ts —
       // COUNT/SUM przychodzą z pg jako STRING, stąd parseInt poniżej)
@@ -132,7 +134,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       const totalDelivered = alerts.reduce((sum, r) => sum + parseInt(r.delivered ?? '0', 10), 0);
 
       // Breakdown suppressed — grupuj nonDeliveryReason (TASK-07, 23.04.2026).
-      // Raport 8h pokazywał "Łącznie: 2 (dostarczono: 0)" bez kontekstu, wyglądało
+      // Raport pokazywał "Łącznie: 2 (dostarczono: 0)" bez kontekstu, wyglądało
       // jak alarm. Po audycie: suppressed to observation (semi) / sell_no_edge /
       // csuite_sell_no_edge — poprawne zachowanie, nie bug. Breakdown daje wgląd.
       const reasons = await this.alertRepo
@@ -158,7 +160,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
         .getRawMany<TradesByTypeRow>();
 
       // Nowe obserwacje (10.06.2026, prośba Przemka „daj znać jak coś wpadnie"):
-      // konkretne alerty obserwacyjne z okna 8h (nie tylko licznik w breakdownie).
+      // konkretne alerty obserwacyjne z okna raportu (nie tylko licznik w breakdownie).
       // LEFT JOIN tickers → sektor (apls/discovery/semi) bez nowego DI.
       const obsAlerts = await this.alertRepo
         .createQueryBuilder('a')
@@ -188,11 +190,11 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       const sent = await this.telegram.sendMarkdown(message);
 
       if (sent) {
-        this.logger.log(`Raport 8h wysłany (${totalAlerts} alertów)`);
+        this.logger.log(`Raport tygodniowy wysłany (${totalAlerts} alertów)`);
       } else {
-        this.logger.error('TELEGRAM FAILED: raport 8h nie wysłany');
+        this.logger.error('TELEGRAM FAILED: raport tygodniowy nie wysłany');
         // Tier 1: porażka wysyłki musi trafić do system_logs — TelegramService
-        // zwraca false zamiast rzucać, więc @Logged widzi sukces (02-05.07 raport
+        // zwraca false zamiast rzucać, więc @Logged widzi sukces (02-05.07 raport 8h
         // padał 3 dni niewidocznie dla observability; błąd był tylko w konsoli).
         SystemLogService.getInstance()?.log({
           module: 'alerts',
@@ -201,7 +203,7 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
           status: 'error',
           durationMs: 0,
           level: 'error',
-          errorMessage: 'TELEGRAM FAILED: raport 8h nie wysłany (sendMarkdown=false)',
+          errorMessage: 'TELEGRAM FAILED: raport tygodniowy nie wysłany (sendMarkdown=false)',
           decisionReason: 'telegram_failed',
         });
       }
@@ -211,13 +213,13 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Mapuje `nonDeliveryReason` na polskie etykiety dla raportu 8h.
+   * Mapuje `nonDeliveryReason` na polskie etykiety dla raportu tygodniowego.
    * Wartości pokrywają się z AlertDispatcherService.dispatch() suppression values
    * (observation, sell_no_edge, csuite_sell_no_edge, cluster_sell_no_edge,
    * silent_rule, daily_limit, telegram_failed, dispatcher_unavailable)
    * + legacy silent_hour. FOLLOW-1 (23.04.2026): dispatcher_unavailable dodany
    * jako defensive label — w produkcji AlertsModule eksportuje dispatcher, ale
-   * gdyby future refactor rozłączył moduły, raport 8h pokaże czytelną etykietę.
+   * gdyby future refactor rozłączył moduły, raport pokaże czytelną etykietę.
    */
   private static readonly REASON_LABELS: Record<string, string> = {
     observation: 'Obserwacja',
@@ -261,12 +263,12 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
       : `$${(v / 1_000).toFixed(0)}K`;
 
     const lines: string[] = [
-      '📋 *StockPulse — Raport 8h*',
+      '📋 *StockPulse — Raport tygodniowy*',
       '',
     ];
 
     // Alerty
-    lines.push(`🔔 *Alerty \\(ostatnie 8h\\):*`);
+    lines.push(`🔔 *Alerty \\(ostatnie 7 dni\\):*`);
     if (totalAlerts === 0) {
       lines.push('  Brak alertów w tym okresie');
     } else {
@@ -318,7 +320,12 @@ export class SummarySchedulerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Kalendarz walidacji — przypomnienia o nadchodzących przeglądach decyzyjnych
-    const events = upcomingValidationEvents(new Date());
+    const events = upcomingValidationEvents(
+      new Date(),
+      VALIDATION_CALENDAR,
+      WEEKLY_CALENDAR_AHEAD_DAYS,
+      WEEKLY_CALENDAR_OVERDUE_DAYS,
+    );
     if (events.length > 0) {
       lines.push('');
       lines.push('📅 *Kalendarz walidacji:*');

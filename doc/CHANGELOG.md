@@ -102,6 +102,10 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   mieści się w limicie (inaczej zostają w lokalnym `backtest-data_*.tar.gz`); błąd `tar` oblewa pakowanie (pipefail).
   Test na sucho (curl podmieniony): bundle 4,8 MB, odszyfrowanie + lista plików OK. Uzupełniony CHANGELOG (wpisy listopadowe
   przeniesione na koniec sekcji) i CLAUDE.md (liczba testów, Uptime Kuma, backup).
+- **14.11 — raport 8h → raport tygodniowy** (decyzja usera: „healthchecki co parę godzin" do wyłączenia): `SummarySchedulerService`
+  zamiast `setInterval` 8 h + wysyłki 15 s po każdym starcie ma `@Cron('0 18 * * 0', Europe/Warsaw)` i okno 7 dni; start/rebuild
+  aplikacji nie wysyła nic. Kalendarz walidacji w raporcie: 14 dni przed terminem / 7 dni po (min. 2 przypomnienia przed, 1 po).
+  Od 08.11 wieczorem do 14.11 raport 8h wyszedł 19 razy, z czego 4 razy z jakimkolwiek alertem (logi kontenera).
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 

@@ -126,7 +126,7 @@ export class AlertDispatcherService {
       // S19-FIX-12: PODD-class — raport vs analyst consensus mismatch.
       // consensusGapReason daje dokładny sub-reason (consensus_miss /
       // consensus_in_line / consensus_mixed) — używamy go jako suppressedBy
-      // żeby raport 8h pokazywał breakdown granularnie.
+      // żeby raport tygodniowy pokazywał breakdown granularnie.
       suppressedBy = params.consensusGapReason || 'consensus_gap';
     } else if (params.isBullish8kGate) {
       // Pakiet 1 fix #2: bullish 8-K bez udokumentowanego beatu → DB only.

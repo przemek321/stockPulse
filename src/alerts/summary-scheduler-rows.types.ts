@@ -1,5 +1,5 @@
 /**
- * Kształty wierszy `getRawMany()` w `SummarySchedulerService` (raport 8h) — DOKŁADNIE
+ * Kształty wierszy `getRawMany()` w `SummarySchedulerService` (raport tygodniowy) — DOKŁADNIE
  * tak, jak zwraca je driver `pg` 8.x z domyślnymi parserami `pg-types` 2.x (projekt nie
  * rejestruje własnych `setTypeParser`, TypeORM 0.3 dla Postgresa też nie); reguły jak w
  * `src/api/alerts/alerts-timeline-rows.types.ts`:
@@ -24,7 +24,7 @@
 /** Kolumna/wyrażenie `numeric` lub `bigint` z pg — tekstowa reprezentacja liczby (np. `"271.2800"`, `"2"`). */
 export type PgNumeric = string;
 
-/** Alerty per reguła z okna 8h: `GROUP BY a.ruleName`. */
+/** Alerty per reguła z okna raportu (7 dni): `GROUP BY a.ruleName`. */
 export interface AlertsByRuleRow {
   /** `a.ruleName` — varchar(100) NOT NULL. */
   rule: string;
@@ -42,7 +42,7 @@ export interface ReasonBreakdownRow {
   count: PgNumeric;
 }
 
-/** Insider trades BUY/SELL z okna 8h: `GROUP BY t.transactionType`. */
+/** Insider trades BUY/SELL z okna raportu (7 dni): `GROUP BY t.transactionType`. */
 export interface TradesByTypeRow {
   /** `t.transactionType` — pełne słowo (`BUY` / `SELL`), varchar(20) NOT NULL. */
   type: string;

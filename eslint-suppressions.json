@@ -32,14 +32,8 @@
     }
   },
   "src/alerts/summary-scheduler.service.ts": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 2
-    },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
     },
     "@typescript-eslint/strict-boolean-expressions": {
       "count": 1

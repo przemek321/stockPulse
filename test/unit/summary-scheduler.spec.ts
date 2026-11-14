@@ -195,6 +195,8 @@ describe('SummarySchedulerService.sendSummary — breakdown nonDeliveryReason', 
 import {
   upcomingValidationEvents,
   VALIDATION_CALENDAR,
+  WEEKLY_CALENDAR_AHEAD_DAYS,
+  WEEKLY_CALENDAR_OVERDUE_DAYS,
 } from '../../src/alerts/summary-scheduler.service';
 
 describe('upcomingValidationEvents — kalendarz walidacji', () => {
@@ -225,6 +227,31 @@ describe('upcomingValidationEvents — kalendarz walidacji', () => {
     // 09.07 zaległy -11d → poza oknem; 25.07 za 5d → widoczny
     expect(ev).toHaveLength(1);
     expect(ev[0].date).toBe('2026-07-25');
+  });
+
+  it('okno raportu tygodniowego (14 dni przed / 7 dni po) → min. 2 przypomnienia przed i 1 po przy wysyłce co 7 dni', () => {
+    const at = (d: string) =>
+      upcomingValidationEvents(
+        new Date(d),
+        CAL,
+        WEEKLY_CALENDAR_AHEAD_DAYS,
+        WEEKLY_CALENDAR_OVERDUE_DAYS,
+      ).find((e) => e.date === '2026-07-09');
+    expect(at('2026-06-25T12:00:00Z')).toMatchObject({ daysLeft: 14 });
+    expect(at('2026-06-24T12:00:00Z')).toBeUndefined();
+    expect(at('2026-07-16T12:00:00Z')).toMatchObject({ daysLeft: -7 });
+    expect(at('2026-07-17T12:00:00Z')).toBeUndefined();
+    // Każde przesunięcie dnia wysyłki: w oknie mieszczą się 2 wysyłki przed terminem i 1 po.
+    for (let offset = 0; offset < 7; offset++) {
+      const days = [-21, -14, -7, 0, 7, 14].map((d) => d + offset - 6);
+      const shown = days.filter((d) => {
+        const now = new Date(Date.UTC(2026, 6, 9 + d, 12));
+        return upcomingValidationEvents(now, CAL, WEEKLY_CALENDAR_AHEAD_DAYS, WEEKLY_CALENDAR_OVERDUE_DAYS)
+          .some((e) => e.date === '2026-07-09');
+      });
+      expect(shown.filter((d) => d < 0).length).toBeGreaterThanOrEqual(2);
+      expect(shown.filter((d) => d >= 0).length).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it('produkcyjny kalendarz: FIX-16/bullish #2, werdykt #3 + rdzeń+, HORYZONT forward kwartalnie', () => {
@@ -337,5 +364,70 @@ describe('sendSummary — inwariant escapowania MarkdownV2 (05.07.2026)', () => 
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+// ── Raport tygodniowy zamiast raportu 8h (14.11.2026, decyzja usera) ──────────
+describe('SummarySchedulerService — rytm tygodniowy (14.11.2026)', () => {
+  it('start aplikacji NIE wysyła raportu ani nie ustawia timerów (restart/rebuild = cisza)', () => {
+    jest.useFakeTimers();
+    try {
+      const { scheduler, telegram } = buildScheduler({ alertsByRule: [], reasons: [], trades: [] });
+      scheduler.onModuleInit();
+      expect(jest.getTimerCount()).toBe(0);
+      jest.advanceTimersByTime(9 * 3600_000);
+      expect(telegram.sendMarkdown).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('CRON: niedziela 18:00 Europe/Warsaw', () => {
+    // Metadane dekoratora @Cron z @nestjs/schedule (klucze SCHEDULE_CRON_OPTIONS / SCHEDULER_TYPE).
+    const handler = Object.getOwnPropertyDescriptor(
+      SummarySchedulerService.prototype,
+      'weeklyReport',
+    )?.value as object;
+    const keys = Reflect.getMetadataKeys(handler);
+    const meta = keys.map((k) => Reflect.getMetadata(k, handler));
+    expect(JSON.stringify(meta)).toContain('0 18 * * 0');
+    expect(JSON.stringify(meta)).toContain('Europe/Warsaw');
+  });
+
+  it('weeklyReport wysyła raport z oknem 7 dni i tytułem „Raport tygodniowy"', async () => {
+    const { scheduler, telegram } = buildScheduler({ alertsByRule: [], reasons: [], trades: [] });
+    await scheduler.weeklyReport();
+    expect(telegram.sendMarkdown).toHaveBeenCalledTimes(1);
+    const msg = telegram.sendMarkdown.mock.calls[0][0] as string;
+    expect(msg).toContain('Raport tygodniowy');
+    expect(msg).toContain('ostatnie 7 dni');
+    expect(msg).not.toContain('8h');
+  });
+
+  it('okno zapytań = 7 dni wstecz', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-15T17:00:00Z') });
+    try {
+      const qb = makeQb([]);
+      const alertRepo = { createQueryBuilder: jest.fn().mockReturnValue(qb) };
+      const scheduler = new SummarySchedulerService(
+        alertRepo as any,
+        { createQueryBuilder: jest.fn().mockReturnValue(makeQb([])) } as any,
+        { isConfigured: () => true, sendMarkdown: jest.fn().mockResolvedValue(true) } as any,
+        { formatPdufaSummarySection: jest.fn().mockReturnValue('') } as any,
+        { getAllUpcoming: jest.fn().mockResolvedValue([]) } as any,
+      );
+      await scheduler.sendSummary();
+      const since = qb.where.mock.calls[0][1].since as Date;
+      expect(since.toISOString()).toBe('2026-11-08T17:00:00.000Z');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Telegram nie skonfigurowany → weeklyReport nic nie robi', async () => {
+    const { scheduler, telegram } = buildScheduler({ alertsByRule: [], reasons: [], trades: [] });
+    telegram.isConfigured.mockReturnValue(false);
+    await scheduler.weeklyReport();
+    expect(telegram.sendMarkdown).not.toHaveBeenCalled();
   });
 });

@@ -919,7 +919,7 @@ AppModule
 │   └── OptionsFlowAlertService    (@OnEvent NEW_OPTIONS_FLOW → scoring → correlation → Telegram)
 ├── AlertsModule
 │   ├── AlertEvaluatorService    (7 aktywnych reguł, early return Sprint 11, cache TTL 5min)
-│   └── SummarySchedulerService  (raport co 8h na Telegram)
+│   └── SummarySchedulerService  (raport tygodniowy na Telegram, nd 18:00 PL)
 └── ApiModule
     ├── HealthController       (/health, /health/stats, /health/system-overview, /health/weekly-report, /health/system-stats)
     ├── TickersController      (/tickers, /tickers/:symbol)
