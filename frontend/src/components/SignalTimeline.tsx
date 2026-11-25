@@ -42,11 +42,38 @@ const fmtTzHint = (v: string): string => {
 
 const fmtGap = (hours: number | null): string => {
   if (hours == null) return '';
-  if (hours < 1) return `${Math.round(hours * 60)}m`;
-  if (hours < 24) return `${Math.round(hours)}h`;
-  const d = Math.floor(hours / 24);
-  const h = Math.round(hours % 24);
+  // Zaokrąglamy CAŁOŚĆ, potem dzielimy — zaokrąglanie reszty dawało „1d24h" dla 47,6h.
+  const totalMin = Math.round(hours * 60);
+  if (totalMin < 60) return `${totalMin}m`;
+  const totalH = Math.round(hours);
+  if (totalH < 24) return `${totalH}h`;
+  const d = Math.floor(totalH / 24);
+  const h = totalH % 24;
   return h === 0 ? `${d}d` : `${d}d${h}h`;
+};
+
+/**
+ * Podsumowanie liczone z wierszy widocznych w tabeli — używane, gdy aktywny jest filtr RULE
+ * (podsumowanie z API obejmuje wszystkie reguły tickera). Definicje jak w backendzie
+ * (alerts.controller.ts getTimeline); AVG GAP = średni odstęp między kolejnymi widocznymi wierszami.
+ */
+const summarizeRows = (rows: TimelineAlert[]): TimelineSummary => {
+  const pos = rows.filter(a => a.alertDirection === 'positive').length;
+  const neg = rows.filter(a => a.alertDirection === 'negative').length;
+  const evaluated = rows.filter(a => a.directionCorrect1d != null);
+  const times = rows.map(a => new Date(a.sentAt).getTime()).sort((a, b) => a - b);
+  const gaps = times.slice(1).map((t, i) => (t - times[i]) / 3_600_000);
+  return {
+    totalAlerts: rows.length,
+    avgHoursBetween: gaps.length > 0
+      ? Math.round(gaps.reduce((s, v) => s + v, 0) / gaps.length * 10) / 10
+      : null,
+    directionConsistency: pos + neg > 0 ? Math.round(Math.max(pos, neg) / (pos + neg) * 100) : null,
+    hitRate1d: evaluated.length > 0
+      ? Math.round(evaluated.filter(a => a.directionCorrect1d === true).length / evaluated.length * 100)
+      : null,
+    dominantDirection: pos > neg ? 'positive' : neg > pos ? 'negative' : 'mixed',
+  };
 };
 
 /**
@@ -668,7 +695,7 @@ export default function SignalTimeline() {
     try {
       const data = selected
         ? await fetchTimeline(selected, days)
-        : await fetchRecentTimeline(days, 30);
+        : await fetchRecentTimeline(days, 500); // bez ucinania: 90D ma dziś 59 alertów, limit 30 gubił połowę
       setAlerts(data.alerts || []);
       setSummary(data.summary);
     } catch {
@@ -853,7 +880,7 @@ export default function SignalTimeline() {
       {/* Summary bar gdy wybrany ticker */}
       {summary && selected && (
         <Box sx={{ px: 1.5, pt: 1 }}>
-          <SummaryBar selected={selected} summary={summary} />
+          <SummaryBar selected={selected} summary={ruleFilter != null && ruleFilter !== '' ? summarizeRows(visibleAlerts) : summary} />
         </Box>
       )}
 

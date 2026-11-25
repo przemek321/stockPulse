@@ -257,7 +257,10 @@ export class AlertsController {
 
     // Typ wiersza: kolumny numeric/decimal przychodzą z pg jako STRING (patrz
     // alerts-timeline-rows.types.ts) — stąd Number() w mapowaniu poniżej.
+    // Okno LAG liczone po CAŁEJ historii tickera (podzapytanie), filtr `days` dopiero na zewnątrz —
+    // inaczej najstarszy wiersz okresu nie widział poprzednika sprzed okna (brak odstępu, zaniżony AVG GAP).
     const rows = await this.dataSource.query<SymbolTimelineRow[]>(`
+      SELECT * FROM (
       SELECT
         id,
         symbol,
@@ -300,9 +303,10 @@ export class AlertsController {
       WHERE symbol = $1
         AND "priceAtAlert" IS NOT NULL
         AND archived = false
-        AND "sentAt" > NOW() - INTERVAL '1 day' * $2
       WINDOW w AS (PARTITION BY symbol ORDER BY "sentAt")
-      ORDER BY "sentAt" DESC
+      ) t
+      WHERE t."sentAt" > NOW() - INTERVAL '1 day' * $2
+      ORDER BY t."sentAt" DESC
       LIMIT $3
     `, [sym, days, limit]);
 
@@ -377,7 +381,9 @@ export class AlertsController {
    */
   private async getRecentTimeline(daysParam?: string, limitParam?: string) {
     const days = Math.max(1, Math.min(parseInt(daysParam || '7', 10) || 7, 90));
-    const limit = Math.max(1, Math.min(parseInt(limitParam || '30', 10) || 30, 100));
+    // Sufit 500 (było 100): widok „wszystkie" przy 60D/90D ma dziś 38/59 alertów i rośnie; limit ucinał
+    // dane PRZED filtrem reguły w przeglądarce.
+    const limit = Math.max(1, Math.min(parseInt(limitParam || '30', 10) || 30, 500));
 
     const rows = await this.dataSource.query<RecentTimelineRow[]>(`
       SELECT

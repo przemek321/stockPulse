@@ -113,6 +113,12 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   `bullish_no_consensus_data` zamknięta (N=9, med α −0,6 pp; przy N=10 maksymalnie +1,3). Przegląd #3: 15.03.2027. Znalezione, NIE
   naprawione (decyzja usera): `extractRevenue` łapie prognozę całoroczną (HIMS +329%, UHS +304%), Finnhub przy opóźnionym raporcie
   zwraca poprzedni kwartał (GDRX 24.11). Kod: wpis 15.11 zdjęty z `VALIDATION_CALENDAR` (+15.03.2027), ping „FIX-16 shadow" bez daty 25.08.
+- **25.11 — Signal Timeline „źle liczy"** (zgłoszenie usera; 4 błędy widoku, ścieżka decyzyjna nietknięta): (1) widok „wszystkie" pobierał
+  sztywno 30 wierszy — 60D i 90D pokazywały to samo (30 zamiast 38/59), a filtr RULE działał już po ucięciu → limit 500 (front + sufit API);
+  (2) pasek podsumowania po wybraniu tickera ignorował filtr RULE (ELV + „Form4 BUY": 1 wiersz, a pasek SIGNALS 3 / HIT 33%) → przy
+  aktywnym filtrze liczony z widocznych wierszy; (3) `LAG` liczony po filtrze okresu — najstarszy wiersz bez odstępu, AVG GAP zależny od
+  okna (ELV 7D „—" przy poprzedniku 27 dni wcześniej) → okno po całej historii tickera, filtr `days` na zewnątrz; (4) `fmtGap` „1d24h" → „2d".
+  Bez zmian (do decyzji): pasek wlicza alerty stłumione do SIGNALS / HIT RATE 1D.
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 
