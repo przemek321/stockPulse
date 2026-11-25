@@ -30,12 +30,15 @@ Kalendarz decyzyjny ([KALENDARZ](doc/KALENDARZ-WALIDACJI-2026.md), przypominany 
 
 | Data | Przegląd |
 |---|---|
-| 15.11 | FIX-16 shadow review #2 + bullish-8K gate revisit #2 (po Q3; stan 01.11: pełne query hit 48% → bez zawężenia) |
 | **01.02.2027** (lub N=10) | **Werdykt #3 core+rdzeń+** (N≥10 forward od 01.11, hit ≥60%, med+śr REAL >0, ≥50% wchodzalnych → zdjęcie stopu gry; N<5 → sunset gry) + przegląd rdzeń+ large-cap; sub-gate C-suite #2 trwa równolegle (T1 6/10 FAIL 4/5) |
+| 15.03.2027 | FIX-16 shadow #3 + bullish-8K #3 (po Q4; N≥3 `would_uncap`; wyjątek `ma` N≥3; beaty >+100% N≥3) |
 
 Wykonane przeglądy (wszystkie bez zmiany reguł sygnałowych): APLS Faza 4 10.07 (insufficient data), discovery 27.07
 (bez promocji), FIX-16 25.08 (1/6), werdykt #1 01.09, bullish-8K 07.09 (bez zawężenia), C-suite 23.09, audytor 29.09
-(werdykt (a)), **werdykt #2 + discovery #2 01.11 (BEZ EDGE → stop gry; discovery bez promocji)**. Wiążące definicje metryk
+(werdykt (a)), **werdykt #2 + discovery #2 01.11 (BEZ EDGE → stop gry; discovery bez promocji)**, FIX-16 #2 + bullish-8K #2
+25.11 ([raport](doc/FIX-16-BULLISH-8K-REVIEW-2026-11-25.md): FIX-16 2/9 `would_uncap` — insufficient N; bullish N=30 hit 43% → bez
+zawężenia; sub-hip. `bullish_no_consensus_data` zamknięta; znalezione 2 błędy danych konsensusu — `extractRevenue` bierze prognozę
+całoroczną, Finnhub zwraca poprzedni kwartał przy opóźnionym raporcie — NIE naprawione, decyzja usera). Wiążące definicje metryk
 pre-zarejestrowane 02.07 w KALENDARZU. Narzędzie werdyktu: `scripts/analysis/werdykt-2026-11-01.py <katalog z CSV>`.
 
 ## Opis projektu

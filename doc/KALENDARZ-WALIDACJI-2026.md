@@ -75,6 +75,12 @@ N=1 `would_uncap` (HIMS 10.08, kierunek potwierdzony −10.8% 7d) < gate 3 → c
 shadow przedłużony, **review #2: 2026-11-15** (po Q3 earnings; wcześniej przy N≥3).
 Niuans: HIMS i tak stłumiony przez `gpt_missing_data` — uncap sam nie dostarczyłby shorta.
 
+**Review #2 ✅ WYKONANY 25.11 (termin 15.11) — INSUFFICIENT N (2/9)**
+([FIX-16-BULLISH-8K-REVIEW-2026-11-25.md](FIX-16-BULLISH-8K-REVIEW-2026-11-25.md)): 2 `would_uncap`, oba HIMS (10.08 i 09.11),
+kierunek potwierdzony także od ceny 1h (short +10,2% / +7,3% brutto) → cap zostaje, shadow dalej. Interakcja z tłumieniem:
+dispatcher tłumi każdy `isConsensusGap` niezależnie od conviction, więc sama drabinka nie dostarczy alertu — ewentualny deploy
+wymaga osobno pre-zarejestrowanego wyjątku w dispatcherze. **Review #3: 2027-03-15** (po Q4; wcześniej przy N≥3).
+
 - **Co**: czy asymetryczny cap R1 (extreme miss bez capu) ma poparcie w danych.
 - **Query**: `SELECT "gptAnalysis"->'fix16_shadow' FROM sec_filings WHERE "gptAnalysis" ? 'fix16_shadow'`.
 - **Gate**: N≥3 `would_uncap=true` z kierunkiem zgodnym (stock spadł po extreme missie —
@@ -190,6 +196,20 @@ agenci etap 2, Pi 5, API A/B.
   wszystkie stłumione jako `bullish_8k_no_edge`/`gpt_missing_data`); capture **XLV** (`xlvAtAlert` + sloty 1d/3d/7d) od 01.11 —
   alerty sprzed wdrożenia mają null. Reguła benchmarku (SIC 283x → XBI, reszta → XLV) obowiązuje dopiero od werdyktu #3.
 
+## 2027-03-15 — FIX-16 shadow #3 + bullish-8K gate #3 (po Q4 earnings; zapis 25.11.2026)
+
+Kryteria bez zmian wobec poprzednich przeglądów ([raport #2](FIX-16-BULLISH-8K-REVIEW-2026-11-25.md)):
+
+- **FIX-16**: N≥3 `would_uncap=true` z kierunkiem zgodnym (stan 25.11: 2/9, oba HIMS). Query:
+  `SELECT "gptAnalysis"->'fix16_shadow' FROM sec_filings WHERE "gptAnalysis" ? 'fix16_shadow'`. Samo spełnienie progu nie
+  wystarcza do deployu — drabinka nie zmienia dostarczania bez wyjątku w dispatcherze (do osobnej pre-rejestracji).
+- **Bullish-8K**: pełne query 4 powodów (`alertDirection='positive'`); zawęzić tylko gdy hit 7d >55% ORAZ średnia dodatnia
+  (stan 25.11: N=30, hit 43%).
+- **Wyjątek `ma`** (`bullish_8k_no_edge`, `catalystType='ma'`): przy N≥3 hit ≥2/3 → rozważyć (stan: ABBV ✅, ABBV ✗, UHS #2545 w pomiarze).
+- **Beaty EPS >+100%** (byczy 2.02): przy N≥3 i ≥2/3 z REAL 7d <0 → rozważyć kierowanie do DB-only (stan: 2/2 przeciw callowi).
+- Alerty 2.02 sprzed i po 06.11 (fix Exhibit 99.1) raportować osobno. Dwa znane błędy danych konsensusu (prognoza całoroczna
+  w `extractRevenue`, poprzedni kwartał z Finnhub) — jeśli do tego czasu zostaną naprawione, dzielić próbkę także po dacie poprawki.
+
 ## Co kwartał od 2027-02-01 (01.02 / 01.05 / 01.08 / 01.11) — HORYZONT forward, przebieg ŚLEPY (pre-rejestracja 08.11.2026, WIĄŻĄCA)
 
 Teczka: [TECZKA-HORYZONT-FORWARD-2026-11-08.md](TECZKA-HORYZONT-FORWARD-2026-11-08.md). Backtest offline (zero zmian
@@ -204,6 +224,13 @@ NIEROZSTRZYGNIĘTA wg teczki. **Nie wpływa na werdykt #3** (01.02.2027 będzie 
 N=16, hit **50%** (≤55%), signed +0.95%, α med −4.0, REAL med −0.1% → gate zawężenia NIE odpala, bramka
 zostaje. Teczka: sub-hipoteza `bullish_no_consensus_data` (6: hit 83%, +6.4%, ale THC-outlier; kryterium
 N≥10 ∧ hit ≥60% ∧ med α ≥+2 ∧ REAL>0) i wyjątek `ma` (N=2 <3, odłożone). **Przegląd #2: 15.11** (z FIX-16 #2).
+
+**Przegląd #2 ✅ WYKONANY 25.11 (termin 15.11) — BEZ ZAWĘŻENIA**
+([FIX-16-BULLISH-8K-REVIEW-2026-11-25.md](FIX-16-BULLISH-8K-REVIEW-2026-11-25.md)): pełne query N=30, hit **43%** (≤55%),
+signed −0,88%, α med −4,0, REAL med −1,0% netto; nowe od 01.09: N=14, hit 36%. **Sub-hipoteza `bullish_no_consensus_data`
+ZAMKNIĘTA** (N=9, hit 78%, REAL +2,6% netto, ale med α −0,6 pp; przy N=10 maksymalnie +1,3 <+2). Wyjątek `ma`: N=2 (1/2),
+UHS #2545 w pomiarze do ~03.12 → przegląd #3. Nowa obserwacja do przeglądu #3: byczy 2.02 z beatem EPS >+100% (OSCR 06.08,
+MRNA 06.11 — oba przeciw callowi; kryterium: N≥3 i ≥2/3 z REAL 7d <0 → rozważyć DB-only). **Przegląd #3: 2027-03-15.**
 
 - **Wynik pełnego query na 01.09** (4 powody, positive, 7d): N=16, hit **50%**, signed +0.95%, α −2.32pp ·
   med −4.0, REAL +1.0% → gate zawężenia NIE odpala. Sub-hipoteza `bullish_no_consensus_data` (6: hit 83%,

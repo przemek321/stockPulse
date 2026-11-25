@@ -358,13 +358,13 @@ export class Form8kPipeline {
                 `proposed_cap=${shadow.proposed_cap ?? 'none'})`,
             );
             // 10.06.2026: ping na Telegram (prośba Przemka) — szczególnie cenne
-            // przy would_uncap=true (kandydat do review FIX-16 25.08). Fire-and-forget.
+            // przy would_uncap=true (kandydat do przeglądu FIX-16 — termin w KALENDARZU). Fire-and-forget.
             try {
               await this.telegram.sendMarkdown(
                 `📊 *FIX\\-16 shadow* — \\$${payload.symbol} ` +
                   `would\\_uncap\\=${shadow.would_uncap ? 'TAK 🔥' : 'nie'} ` +
                   `\\(precap ${String(shadow.conviction_precap.toFixed(2)).replace(/([.\-])/g, '\\$1')}, ` +
-                  `cap ${String(decision.cap).replace(/\./g, '\\.')}\\)\n_Zapis do shadow logu — review 25\\.08\\._`,
+                  `cap ${String(decision.cap).replace(/\./g, '\\.')}\\)\n_Zapis do shadow logu, to NIE sygnał — przegląd wg kalendarza walidacji\\._`,
               );
             } catch (err) {
               this.logger.warn(`FIX-16 shadow ping Telegram failed: ${(err as Error).message}`);

@@ -107,6 +107,12 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   aplikacji nie wysyła nic. Kalendarz walidacji w raporcie: 14 dni przed terminem / 7 dni po (min. 2 przypomnienia przed, 1 po).
   Od 08.11 wieczorem do 14.11 raport 8h wyszedł 19 razy, z czego 4 razy z jakimkolwiek alertem (logi kontenera).
   [Podsumowanie tygodnia 07–14.11](reports/2026-11-14-weekly-report.md): 4 alerty, 0 dostarczonych; MRNA 06.11 (dostarczony 8-K) REAL −11,4%.
+- **25.11 — przegląd FIX-16 shadow #2 + bullish-8K #2** (termin 15.11; [raport](FIX-16-BULLISH-8K-REVIEW-2026-11-25.md)): bez zmian reguł.
+  FIX-16: 2/9 `would_uncap` (oba HIMS, kierunek potwierdzony także od ceny 1h) → insufficient N; sama drabinka i tak nie dostarczyłaby
+  alertu, bo dispatcher tłumi każdy `isConsensusGap`. Bullish-8K: N=30, hit 43%, signed −0,88% → bez zawężenia; sub-hipoteza
+  `bullish_no_consensus_data` zamknięta (N=9, med α −0,6 pp; przy N=10 maksymalnie +1,3). Przegląd #3: 15.03.2027. Znalezione, NIE
+  naprawione (decyzja usera): `extractRevenue` łapie prognozę całoroczną (HIMS +329%, UHS +304%), Finnhub przy opóźnionym raporcie
+  zwraca poprzedni kwartał (GDRX 24.11). Kod: wpis 15.11 zdjęty z `VALIDATION_CALENDAR` (+15.03.2027), ping „FIX-16 shadow" bez daty 25.08.
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 

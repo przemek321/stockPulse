@@ -44,12 +44,15 @@ export const VALIDATION_CALENDAR: readonly { date: string; label: string }[] = [
   // doc/BULLISH-8K-GATE-REVIEW-2026-09-07.md. Przegląd #2 połączony z 15.11.
   // 2026-11-01 werdykt #2: WYKONANY 01.11 — BEZ EDGE (Form 4 BUY bez FUND N=29, hit 62%, med REAL −1.37%) →
   // stop gry real (REGUŁY §5); discovery #2 bez promocji; doc/WERDYKT-EDGE-2026-11-01.md.
-  { date: '2026-11-15', label: 'FIX-16 shadow #2 + bullish-8K #2 (po Q3; N≥3 would_uncap; sub-hip. no_consensus N≥10)' },
+  // 2026-11-15 FIX-16 shadow #2 + bullish-8K #2: WYKONANY 25.11 — FIX-16 insufficient N (2/9 would_uncap, oba HIMS),
+  // bullish-8K N=30 hit 43% ≤55% → bez zawężenia; sub-hip. no_consensus ZAMKNIĘTA (med α −0.6);
+  // doc/FIX-16-BULLISH-8K-REVIEW-2026-11-25.md. Przegląd #3: 15.03.2027 (po Q4).
   // 19.10.2026 rdzeń+ (large-cap ≥$10B delivery) + 01.11.2026 werdykt #3: pre-rejestracja w KALENDARZ-WALIDACJI.
   { date: '2027-02-01', label: 'Werdykt #3 core+rdzeń+ (N≥10 fwd, hit≥60%, med+śr REAL>0, wchodzalne≥50%; N<5 → sunset) + rdzeń+ review' },
   // 08.11.2026 HORYZONT forward (doc/TECZKA-HORYZONT-FORWARD-2026-11-08.md): kwartalny przebieg ŚLEPY offline
   // (tylko liczności; spojrzenie 1 przy N≥20 z pełnym 63 sesji). Kolejne kwartały dopisywać po każdym przebiegu.
   { date: '2027-02-01', label: 'HORYZONT forward — przebieg ślepy #1 (horizon_forward.py status; tylko N, bez zwrotów)' },
+  { date: '2027-03-15', label: 'FIX-16 shadow #3 + bullish-8K #3 (po Q4; N≥3 would_uncap; wyjątek ma N≥3; beaty >+100% N≥3)' },
   { date: '2027-05-01', label: 'HORYZONT forward — przebieg ślepy #2 (horizon_forward.py status)' },
 ];
 
