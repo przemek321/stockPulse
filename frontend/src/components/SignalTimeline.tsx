@@ -637,8 +637,14 @@ const fmtHitRate = (rate: number | null | undefined, n: number | undefined): str
   return n != null ? `${rate}% (${n})` : `${rate}%`;
 };
 
-const SummaryBar = ({ selected, summary }: {
-  selected: string; summary: TimelineSummary;
+/** Dostarczony na Telegram = brak powodu tłumienia (konwencja `alerts.nonDeliveryReason`). */
+const isDeliveredAlert = (a: TimelineAlert): boolean => a.nonDeliveryReason == null;
+
+const SummaryBar = ({ selected, summary, delivered }: {
+  selected: string;
+  summary: TimelineSummary;
+  /** Podsumowanie tylko alertów dostarczonych — stłumione (DB-only, „NIE sygnał") nie mieszają się z sygnałami. */
+  delivered: TimelineSummary;
 }) => {
   const dominantColor =
     summary.dominantDirection === 'positive' ? COLORS.up
@@ -669,7 +675,11 @@ const SummaryBar = ({ selected, summary }: {
       overflowX: 'auto',
     }}>
       <SummaryCell label="TICKER" value={selected} color={COLORS.text.accent} />
-      <SummaryCell label="SIGNALS" value={String(summary.totalAlerts)} />
+      <SummaryCell
+        label="SIGNALS"
+        value={`${summary.totalAlerts} · ${delivered.totalAlerts} dostarcz.`}
+        title="Wszystkie alerty w widoku · w tym dostarczone na Telegram (reszta to DB-only, NIE sygnał)"
+      />
       <SummaryCell
         label="DOMINANT"
         value={summary.directionConsistency != null
@@ -686,6 +696,12 @@ const SummaryBar = ({ selected, summary }: {
           title={`Trafność kierunku po ${h.label}: % alertów, w których surowa cena poszła w kierunku alertu; w nawiasie liczba ocenionych (z wypełnionym slotem ${h.label})`}
         />
       ))}
+      <SummaryCell
+        label="DOSTARCZ. HIT 1D·7D"
+        value={`${fmtHitRate(delivered.hitRate1d, delivered.evaluated1d)} · ${fmtHitRate(delivered.hitRate7d, delivered.evaluated7d)}`}
+        color={hitRateColor(delivered.hitRate7d ?? delivered.hitRate1d)}
+        title="Trafność tylko alertów dostarczonych na Telegram (1D · 7D); HIT 1D/3D/7D obok liczą wszystkie alerty, także stłumione"
+      />
       <SummaryCell
         label="AVG GAP"
         value={summary.avgHoursBetween != null ? fmtGap(summary.avgHoursBetween) : '—'}
@@ -914,10 +930,23 @@ export default function SignalTimeline() {
         </ToggleButtonGroup>
       </Box>
 
-      {/* Summary bar gdy wybrany ticker */}
-      {summary && selected && (
+      {/* Summary bar: per ticker (z API, przy filtrze RULE z widocznych wierszy) albo dla widoku „wszystkie" */}
+      {selected != null && summary != null && (
         <Box sx={{ px: 1.5, pt: 1 }}>
-          <SummaryBar selected={selected} summary={ruleFilter != null && ruleFilter !== '' ? summarizeRows(visibleAlerts) : summary} />
+          <SummaryBar
+            selected={selected}
+            summary={ruleFilter != null && ruleFilter !== '' ? summarizeRows(visibleAlerts) : summary}
+            delivered={summarizeRows(visibleAlerts.filter(isDeliveredAlert))}
+          />
+        </Box>
+      )}
+      {selected == null && visibleAlerts.length > 0 && (
+        <Box sx={{ px: 1.5, pt: 1 }}>
+          <SummaryBar
+            selected="WSZYSTKIE"
+            summary={summarizeRows(visibleAlerts)}
+            delivered={summarizeRows(visibleAlerts.filter(isDeliveredAlert))}
+          />
         </Box>
       )}
 
