@@ -26,7 +26,48 @@ import { extractRevenue } from '../utils/extract-reported-numbers';
  * Graceful degradation: Promise.allSettled — jeśli któreś źródło zawiedzie
  * (timeout, HTTP error, brak klucza), pozostałe pola są wypełnione. Pipeline
  * NIE traci całego alertu z powodu unavailability consensus API.
+ *
+ * Fix 25.11.2026 (GDRX): Finnhub uzupełnia `actual` z opóźnieniem (często >24h),
+ * więc „najnowszy period" bywa POPRZEDNIM kwartałem. Przed użyciem EPS sprawdzamy
+ * `assessReportedPeriod` — przy nieaktualnym okresie EPS z Finnhub jest pomijany
+ * (null), a szacunek przychodów bierzemy z Alpha Vantage dla kwartału faktycznie
+ * raportowanego. Dodatkowo bezpiecznik `isImplausibleRevenueBeat` odrzuca
+ * absurdalnie dodatnie zaskoczenie przychodów (regex złapał prognozę roczną).
  */
+
+/**
+ * Maksymalny odstęp (dni) między końcem kwartału a publikacją jego wyników.
+ * Raport w terminie: 20–60 dni po końcu kwartału, Q4 do ~90 (termin 10-K dla
+ * najmniejszych spółek). Poprzedni kwartał ma w dniu raportu co najmniej
+ * ~90 + 10 dni (kwartał trwa 90–92 dni), typowo 110+. Okres Finnhub starszy niż
+ * ten próg względem daty odniesienia = od tamtej pory skończył się już kolejny
+ * kwartał, czyli dane Finnhub NIE dotyczą kwartału właśnie raportowanego.
+ * Ten sam próg ogranicza wiek wiersza Alpha Vantage uznawanego za kwartał
+ * raportowany (starszy wiersz = AV też nie ma bieżącego kwartału).
+ */
+export const FINNHUB_PERIOD_MAX_AGE_DAYS = 100;
+
+/**
+ * Minimalny odstęp (dni), przy którym wiersz Alpha Vantage uznajemy za INNY,
+ * późniejszy kwartał niż `period` z Finnhub. Kolejne kwartały fiskalne dzieli
+ * ~91 dni (min. ~84 przy kalendarzach 52/53 tyg.), a rozjazd etykiet tego samego
+ * kwartału między źródłami (np. 27.09 vs 30.09) to najwyżej kilka–kilkanaście
+ * dni — połowa kwartału rozdziela oba przypadki z zapasem.
+ */
+export const MIN_QUARTER_GAP_DAYS = 45;
+
+/**
+ * Bezpiecznik zaskoczenia przychodów: `revenueActual / revenueEstimate` powyżej
+ * tego progu (zaskoczenie > +150%) traktujemy jako niezgodność okresu/jednostek,
+ * nie jako beat. Przypadki z produkcji: HIMS 09.11.2026 +329% (realnie +22%),
+ * UHS 28.07.2026 +304% — regex przychodów złapał prognozę całoroczną.
+ * TYLKO w górę: skrajnie ujemnych zaskoczeń nie zerujemy (zniosłoby to cap R1
+ * w consensus-gap-guard dla prawdziwych missów).
+ */
+export const REVENUE_SURPRISE_MAX_RATIO = 2.5;
+
+const DAY_MS = 86_400_000;
+
 @Injectable()
 export class ConsensusComparisonService {
   private readonly logger = new Logger(ConsensusComparisonService.name);
@@ -49,36 +90,91 @@ export class ConsensusComparisonService {
    * dla raportowanego Q (`matched`), fallback do forward proxy. Brak re-fetch
    * (Blef #3 critique: Alpha Vantage zwraca pełen archive jednym callem, period
    * filtering to local code).
+   *
+   * @param referenceDate data odniesienia do oceny aktualności okresu Finnhub —
+   *   pipeline przekazuje datę filingu 8-K; domyślnie „teraz". Niepoprawna data
+   *   (Invalid Date) → fallback do „teraz".
    */
-  async fetchAndCompare(symbol: string, reportText: string): Promise<ConsensusComparison> {
+  async fetchAndCompare(
+    symbol: string,
+    reportText: string,
+    referenceDate: Date = new Date(),
+  ): Promise<ConsensusComparison> {
     const fetchedAt = new Date();
+    const refDate = Number.isNaN(referenceDate.getTime()) ? fetchedAt : referenceDate;
 
     const [finnhubResult, alphaRawResult] = await Promise.allSettled([
       this.fetchFinnhubEarnings(symbol),
       this.fetchAlphaVantageEstimatesRaw(symbol),
     ]);
 
-    const finnhub = finnhubResult.status === 'fulfilled' ? finnhubResult.value : null;
+    const finnhubRaw = finnhubResult.status === 'fulfilled' ? finnhubResult.value : null;
     const alphaRaw = alphaRawResult.status === 'fulfilled' ? alphaRawResult.value : null;
+
+    // Fix 25.11.2026 (GDRX): czy „najnowszy period" Finnhub to kwartał właśnie
+    // raportowany? Jeśli nie — EPS actual/estimate z Finnhub dotyczą POPRZEDNIEGO
+    // kwartału i nie mogą zasilać guarda ani promptu. Celowo NIE dorabiamy EPS
+    // actual z regexa na tekście (ryzyko GAAP vs adjusted): brak pełnych danych
+    // kieruje byczy alert do DB-only (`bullish_no_consensus_data`) zamiast oceniać
+    // go na złym kwartale.
+    const assessment = assessReportedPeriod(finnhubRaw?.period ?? null, alphaRaw ?? [], refDate);
+    const finnhub = assessment.finnhubStale ? null : finnhubRaw;
+    const staleDiag: Pick<ConsensusComparison, 'finnhubStale' | 'finnhubStalePeriod'> =
+      assessment.finnhubStale
+        ? { finnhubStale: true, finnhubStalePeriod: finnhubRaw?.period ?? null }
+        : { finnhubStale: false };
+    if (assessment.finnhubStale) {
+      const reportedLabel = assessment.reportedRow?.date ?? 'brak wiersza (fallback forward proxy)';
+      this.logger.warn(
+        `Finnhub period nieaktualny ${symbol}: period=${finnhubRaw?.period ?? '?'} ` +
+          `(${assessment.finnhubAgeDays ?? '?'} dni przed datą odniesienia ${refDate.toISOString().slice(0, 10)}, ` +
+          `próg ${FINNHUB_PERIOD_MAX_AGE_DAYS}) — EPS z Finnhub pominięty; ` +
+          `kwartał raportowany wg AlphaVantage: ${reportedLabel}`,
+      );
+    }
 
     // FIX-13: selection logic na local data — bez 2nd HTTP call. Jeśli mamy
     // period z Finnhub i Alpha Vantage zawiera estimate dla tej daty → matched.
-    // Inaczej forward proxy (najbliższy fiscal quarter >= today).
+    // Inaczej forward proxy (najbliższy fiscal quarter >= data odniesienia).
+    // Przy nieaktualnym Finnhub dopasowujemy do kwartału faktycznie raportowanego
+    // (wiersz AV z `assessReportedPeriod`); gdy AV go nie ma → forward proxy.
+    // NIGDY nie dopasowujemy do nieaktualnego okresu (to był błąd GDRX: szacunek
+    // przychodów Q2 porównany z przychodem actual Q3).
+    const reportedPeriod = assessment.finnhubStale
+      ? (assessment.reportedRow?.date ?? null)
+      : (finnhubRaw?.period ?? null);
     const alpha = alphaRaw
-      ? selectAlphaEstimate(alphaRaw, finnhub?.period ?? null, this.logger, symbol)
+      ? selectAlphaEstimate(alphaRaw, reportedPeriod, this.logger, symbol, refDate)
       : null;
 
     if (!finnhub && !alpha) {
-      this.logger.warn(`Consensus fetch ${symbol}: oba źródła zawiodły (Finnhub + AlphaVantage)`);
-      return this.buildEmpty(fetchedAt);
+      if (!assessment.finnhubStale) {
+        this.logger.warn(`Consensus fetch ${symbol}: oba źródła zawiodły (Finnhub + AlphaVantage)`);
+      }
+      return { ...this.buildEmpty(fetchedAt), ...staleDiag };
     }
 
     const epsActual = finnhub?.epsActual ?? null;
     const epsEstimate = finnhub?.epsEstimate ?? null;
     const epsSurprisePct = computeSurprisePct(epsActual, epsEstimate);
 
-    const revenueActual = extractRevenue(reportText);
-    const revenueEstimate = alpha?.revenueEstimate ?? null;
+    const extractedRevenue = extractRevenue(reportText);
+    const alphaRevenueEstimate = alpha?.revenueEstimate ?? null;
+
+    // Bezpiecznik (HIMS +329%, UHS +304%): absurdalnie dodatnie zaskoczenie =
+    // niezgodność okresu/jednostek. Nie wiemy, która liczba jest błędna (actual
+    // z regexa czy estimate z AV), więc do wyniku — a przez to do promptu GPT
+    // i guardów — nie trafia żadna z nich; oryginały zostają w `revenueRejected`.
+    const revenueRejected = isImplausibleRevenueBeat(extractedRevenue, alphaRevenueEstimate);
+    if (revenueRejected && extractedRevenue !== null && alphaRevenueEstimate !== null) {
+      this.logger.warn(
+        `Revenue surprise odrzucony ${symbol}: actual=${extractedRevenue} vs estimate=${alphaRevenueEstimate} ` +
+          `(ratio ${(extractedRevenue / alphaRevenueEstimate).toFixed(2)} > ${REVENUE_SURPRISE_MAX_RATIO}) — ` +
+          `niezgodność okresu/jednostek, revenueSurprisePct=null`,
+      );
+    }
+    const revenueActual = revenueRejected ? null : extractedRevenue;
+    const revenueEstimate = revenueRejected ? null : alphaRevenueEstimate;
     const revenueSurprisePct = computeSurprisePct(revenueActual, revenueEstimate);
 
     const period = finnhub?.period ?? alpha?.period ?? null;
@@ -94,6 +190,8 @@ export class ConsensusComparisonService {
     // sample. Info ma 7d — wystarczy do dwu-tygodniowego okna gdy łączymy z DB query
     // pre-cleanup. Q2 earnings season (lipiec) prawdziwa walidacja decision Finnhub
     // vs AV primary EPS source — wtedy raise to warn jeśli decyzja będzie odłożona.
+    // Przy nieaktualnym Finnhub (`finnhub` = null) diff nie jest logowany — porównywałby
+    // szacunki dwóch różnych kwartałów.
     if (
       finnhub?.epsEstimate !== null &&
       finnhub?.epsEstimate !== undefined &&
@@ -124,6 +222,10 @@ export class ConsensusComparisonService {
       isEmpty: false,
       revenueSource: alpha?.source,
       epsEstimateAlphaVantage: alpha?.epsEstimate ?? null,
+      ...staleDiag,
+      ...(revenueRejected && extractedRevenue !== null && alphaRevenueEstimate !== null
+        ? { revenueRejected: { actual: extractedRevenue, estimate: alphaRevenueEstimate } }
+        : {}),
     };
   }
 
@@ -253,6 +355,7 @@ export function selectAlphaEstimate(
   reportedPeriod: string | null,
   logger: Logger,
   symbol: string,
+  referenceDate: Date = new Date(),
 ): {
   revenueEstimate: number | null;
   epsEstimate: number | null;
@@ -277,8 +380,8 @@ export function selectAlphaEstimate(
     }
   }
 
-  // Fallback forward proxy (najbliższy fiscal quarter >= today)
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // Fallback forward proxy (najbliższy fiscal quarter >= data odniesienia, domyślnie dziś)
+  const todayIso = referenceDate.toISOString().slice(0, 10);
   const forward = rows
     .filter(r => (r.date || '') >= todayIso)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -313,6 +416,94 @@ function maybeWarnAnomaly(row: AlphaVantageEstimateRow, logger: Logger, symbol: 
         `${row.epsEstimate} (likely one-time charge or data issue; passing through)`,
     );
   }
+}
+
+/** Wynik oceny, czy `period` z Finnhub to kwartał właśnie raportowany. */
+export interface ReportedPeriodAssessment {
+  /** true = okres Finnhub to NIE jest kwartał raportowany (dane z poprzedniego kwartału) */
+  finnhubStale: boolean;
+  /** Dni od końca okresu Finnhub do daty odniesienia; null gdy brak/niepoprawny period */
+  finnhubAgeDays: number | null;
+  /**
+   * Wiersz Alpha Vantage dla kwartału faktycznie raportowanego = najnowszy kwartał
+   * zakończony ≤ data odniesienia, nie starszy niż próg i późniejszy od okresu Finnhub.
+   * null gdy AV takiego wiersza nie ma (albo Finnhub jest aktualny).
+   */
+  reportedRow: AlphaVantageEstimateRow | null;
+}
+
+/**
+ * Fix 25.11.2026 (GDRX): ocenia, czy najnowszy `period` z Finnhub to kwartał właśnie
+ * raportowany. Pure function — testowalna w izolacji.
+ *
+ * Finnhub jest NIEAKTUALNY, gdy zachodzi którykolwiek warunek:
+ *   (a) od końca okresu Finnhub do daty odniesienia minęło > FINNHUB_PERIOD_MAX_AGE_DAYS
+ *       (GDRX 24.11.2026: period 30.06 → 147 dni) — działa także bez danych AV;
+ *   (b) Alpha Vantage ma wiersz PÓŹNIEJSZEGO kwartału (o > MIN_QUARTER_GAP_DAYS),
+ *       który skończył się już przed datą odniesienia. Łapie to, czego sam próg (a)
+ *       nie widzi: wstępne wyniki / pre-announcementy składane w pierwszych ~10 dniach
+ *       po końcu kwartału (ABBV 05.10.2026: Finnhub 30.06 = 97 dni; na produkcji
+ *       8 ze 129 8-K „earnings" wypadło w tym oknie, wszystkie o nowym kwartale).
+ *
+ * Znana luka: raport złożony PO końcu następnego kwartału (ponad ~90 dni po końcu
+ * raportowanego, np. Q4 w kwietniu) — warunek (b) uzna następny kwartał za raportowany.
+ * Z samych dat nie da się tego odróżnić od pre-announcementu; skutek jest konserwatywny
+ * po stronie EPS (null), ale szacunek przychodów pochodzi wtedy z sąsiedniego kwartału.
+ *
+ * Brak/niepoprawny `period` → nie orzekamy (finnhubStale=false, zachowanie jak dotąd).
+ */
+export function assessReportedPeriod(
+  finnhubPeriod: string | null,
+  rows: AlphaVantageEstimateRow[],
+  referenceDate: Date,
+): ReportedPeriodAssessment {
+  const periodDay = parseIsoDay(finnhubPeriod);
+  if (periodDay === null) return { finnhubStale: false, finnhubAgeDays: null, reportedRow: null };
+
+  const refDay = Date.UTC(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate(),
+  );
+  const finnhubAgeDays = Math.round((refDay - periodDay) / DAY_MS);
+
+  let reportedRow: AlphaVantageEstimateRow | null = null;
+  let reportedDay = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    const rowDay = parseIsoDay(row.date);
+    if (rowDay === null) continue;
+    const endedBeforeReference = rowDay < refDay;
+    const recentEnough = refDay - rowDay <= FINNHUB_PERIOD_MAX_AGE_DAYS * DAY_MS;
+    const laterQuarter = rowDay - periodDay > MIN_QUARTER_GAP_DAYS * DAY_MS;
+    if (endedBeforeReference && recentEnough && laterQuarter && rowDay > reportedDay) {
+      reportedRow = row;
+      reportedDay = rowDay;
+    }
+  }
+
+  return {
+    finnhubStale: finnhubAgeDays > FINNHUB_PERIOD_MAX_AGE_DAYS || reportedRow !== null,
+    finnhubAgeDays,
+    reportedRow,
+  };
+}
+
+/** 'YYYY-MM-DD' → ms północy UTC; null dla braku lub innego formatu. */
+function parseIsoDay(iso: string | null): number | null {
+  if (iso === null || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const ms = Date.parse(`${iso}T00:00:00Z`);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * Bezpiecznik przychodów: true gdy actual/estimate > REVENUE_SURPRISE_MAX_RATIO
+ * (zaskoczenie > +150%) — niezgodność okresu/jednostek, nie beat. Tylko w górę:
+ * ujemne zaskoczenia (także skrajne) przechodzą bez zmian.
+ */
+export function isImplausibleRevenueBeat(actual: number | null, estimate: number | null): boolean {
+  if (actual === null || estimate === null) return false;
+  if (estimate <= 0) return false;
+  return actual / estimate > REVENUE_SURPRISE_MAX_RATIO;
 }
 
 /**

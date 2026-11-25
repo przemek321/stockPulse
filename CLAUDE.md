@@ -37,8 +37,9 @@ Wykonane przeglądy (wszystkie bez zmiany reguł sygnałowych): APLS Faza 4 10.0
 (bez promocji), FIX-16 25.08 (1/6), werdykt #1 01.09, bullish-8K 07.09 (bez zawężenia), C-suite 23.09, audytor 29.09
 (werdykt (a)), **werdykt #2 + discovery #2 01.11 (BEZ EDGE → stop gry; discovery bez promocji)**, FIX-16 #2 + bullish-8K #2
 25.11 ([raport](doc/FIX-16-BULLISH-8K-REVIEW-2026-11-25.md): FIX-16 2/9 `would_uncap` — insufficient N; bullish N=30 hit 43% → bez
-zawężenia; sub-hip. `bullish_no_consensus_data` zamknięta; znalezione 2 błędy danych konsensusu — `extractRevenue` bierze prognozę
-całoroczną, Finnhub zwraca poprzedni kwartał przy opóźnionym raporcie — NIE naprawione, decyzja usera). Wiążące definicje metryk
+zawężenia; sub-hip. `bullish_no_consensus_data` zamknięta; znalezione 2 błędy danych konsensusu — `extractRevenue` brał prognozę
+całoroczną, a EPS z Finnhub pochodził często z poprzedniego kwartału (6 z 9 zapisów shadow) — **naprawione 25.11, decyzja usera;
+analizy 8-K Item 2.02 dziel na przed / od 26.11.2026**). Wiążące definicje metryk
 pre-zarejestrowane 02.07 w KALENDARZU. Narzędzie werdyktu: `scripts/analysis/werdykt-2026-11-01.py <katalog z CSV>`.
 
 ## Opis projektu
@@ -62,7 +63,7 @@ make shell-app / shell-db     # shell do kontenera / psql
 
 Dev (WSL): `wsl -d Ubuntu bash -c "cd /home/n1copl/stockPulse && docker compose up -d"`
 Prod (Pi 5 / Jetson, aarch64): `docker compose -f docker-compose.yml -f docker-compose.jetson.yml up -d`
-Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (849 w 46 suitach, stan 14.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych); backtest: `scripts/backtest/.venv/bin/pytest -q` (200). Na Pi brak `node_modules` na hoście — jest/tsc: `docker exec stockpulse-app npx jest test/unit`.
+Weryfikacja: `curl http://localhost:3000/api/health` (+`/health/stats`). Testy: `npx jest test/unit` (906 w 47 suitach, stan 25.11.2026), `npx tsc --noEmit`, `npm run lint` (0 nowych); backtest: `scripts/backtest/.venv/bin/pytest -q` (200). Na Pi brak `node_modules` na hoście — jest/tsc: `docker exec stockpulse-app npx jest test/unit`.
 
 ## Setup
 
@@ -112,7 +113,8 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   aggregation (TASK-03). `sell_no_edge` → SKIP storeSignal (correlation backdoor FIX-07).
 - **Form8kPipeline** — GPT per-Item (1.01/2.02/5.02/other). Item 1.03 Bankruptcy → CRITICAL bez GPT.
   Item 2.02: fetch Exhibit 99.1 (wybór pliku `selectExhibit991`: numer 99.1 → goły ex99 → fallback największy press-release-podobny .htm poza wrapperem; fix 05.11.2026) + doklejenie PO `extractItemText` (FIX-10b boundary), consensus
-  injection + gap guard (FIX-12), missing-data guard (FIX-01), FIX-16 shadow, **bullish gate**
+  injection + gap guard (FIX-12; **od 25.11.2026**: `assessReportedPeriod` — gdy okres Finnhub to nie kwartał raportowany, EPS = brak danych
+  i szacunek przychodów z kwartału raportowanego wg Alpha Vantage; zaskoczenie przychodów >+150% odrzucane; `extractRevenue` zwraca przychód kwartału albo `null`), missing-data guard (FIX-01), FIX-16 shadow, **bullish gate**
   (P1-02: bullish poza udokumentowanym beatem 2.02-R4 → observation), **material-event obs**
   (werdykt 01.09: reguła `8-K Material Event GPT` 1/7 hit → oba kierunki DB-only
   `material_event_obs`, bez pinga; 2.02/5.02/bankruptcy nietknięte). Limit tekstu `MAX_TEXT_LENGTH`=50k,
@@ -153,7 +155,7 @@ End-to-end w 6 kontenerach Docker (app, frontend, postgres+TimescaleDB, redis, p
   `system_logs` (5 kolumn Tier 1), `options_flow`, `agent_findings` (od 29.09). **Redis**: BullMQ + Sorted Sets (korelacje) +
   namespace `disc:` (discovery seen/sic-cache). TypeORM `synchronize: true`.
 - **Dashboard React** (MUI 5) na :3001 — Tabs: Dashboard / Signal Timeline / System Logs / Słownik.
-  PriceOutcomePanel z kolumnami +7d/α7d. Observation alerty przytłumione (`PriorityChip` outlined).
+  PriceOutcomePanel z kolumnami +7d/α7d. Signal Timeline: trafność 1D/3D/7D (pasek + znaczniki w wierszu), widok „wszystkie" bez ucinania (limit 500). Observation alerty przytłumione (`PriorityChip` outlined).
   **REST API ~31 endpointów** na :3000 (3 za `ApiTokenGuard`). Alerty Telegram po polsku.
 - **Raport tygodniowy** (SummaryScheduler, `@Cron` niedziela 18:00 PL, okno 7 dni; **od 14.11.2026 zamiast raportu 8h** —
   decyzja usera, 3 wiadomości dziennie z „0 alertów" działały jak healthcheck): breakdown alertów + `nonDeliveryReason` PL +

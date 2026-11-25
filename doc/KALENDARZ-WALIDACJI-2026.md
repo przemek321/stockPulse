@@ -191,6 +191,12 @@ agenci etap 2, Pi 5, API A/B.
   59 historycznych 2.02 (LLY, ELV, MOH, AMGN, UNH, VRTX, ISRG, HUM…) szło do GPT bez press release → `gpt_missing_data`/brak alertu.
   Skutek dla pomiaru: od 06.11 więcej 8-K Earnings z realną analizą GPT — przy przeglądach bullish-8K / FIX-16 (15.11) i ME8K
   porównywać alerty 2.02 sprzed/po fixie osobno (wcześniejsza cisza tych tickerów to artefakt, nie brak zdarzeń).
+- **Bugfix 25.11.2026 (odnotowany, nie zmienia progów; decyzja usera)**: dane konsensusu dla 8-K Item 2.02
+  ([raport](FIX-16-BULLISH-8K-REVIEW-2026-11-25.md) §3 i §4). Przed fixem (a) EPS z Finnhub pochodził często z POPRZEDNIEGO kwartału
+  (6 z 9 zapisów `fix16_shadow`; HCA/ENSG/TDOC dostały cap `consensus_miss` przy faktycznym beacie), (b) `extractRevenue` łapał
+  prognozę całoroczną (HIMS +329%, UHS +304%). Po fixie: przy nieaktualnym Finnhub EPS = brak danych → bycze 2.02 idą do
+  `bullish_no_consensus_data`, niedźwiedzie nie dostają capa z cudzego kwartału (mogą być dostarczone). **Alerty 2.02 raportować
+  osobno przed / od 26.11.2026**; etykiety `consensus_*` i `bullish_no_consensus_data` sprzed tej daty są częściowo artefaktem błędu.
 - **Instrumentacja WDROŻONA 01.11.2026**: linia `W3` w `logs/csuite-gate.log` (`scripts/sql/werdykt3-gates.sql`, jednorazowy ping
   przy N≥10); linia `ME8K` = 8-K Material Event GPT od 01.09 liczony po `ruleName` (stan 01.11: N=5/10 zdarzeń, hit 60%, med NET −1.05,
   wszystkie stłumione jako `bullish_8k_no_edge`/`gpt_missing_data`); capture **XLV** (`xlvAtAlert` + sloty 1d/3d/7d) od 01.11 —

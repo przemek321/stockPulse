@@ -241,7 +241,15 @@ export class Form8kPipeline {
       let consensusBlock: string | null = null;
       if (mainItem === '2.02' && this.consensusService) {
         try {
-          consensusComp = await this.consensusService.fetchAndCompare(payload.symbol, itemText);
+          // Data filingu = data odniesienia do oceny, czy okres Finnhub to kwartał
+          // właśnie raportowany (fix GDRX 25.11.2026). Kolumna `date` hydruje się
+          // jako string 'YYYY-MM-DD' — `new Date()` normalizuje; niepoprawną datę
+          // serwis zastępuje bieżącą.
+          consensusComp = await this.consensusService.fetchAndCompare(
+            payload.symbol,
+            itemText,
+            new Date(filing.filingDate),
+          );
           consensusBlock = formatConsensusBlock(consensusComp);
           if (consensusBlock) {
             this.logger.debug(

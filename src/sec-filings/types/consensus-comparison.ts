@@ -59,6 +59,28 @@ export interface ConsensusComparison {
    * jako primary (epsEstimate field).
    */
   epsEstimateAlphaVantage?: number | null;
+
+  /**
+   * Fix 25.11.2026 (GDRX) — pole diagnostyczne: true gdy najnowszy `period` z Finnhub
+   * NIE był kwartałem właśnie raportowanym (Finnhub uzupełnia actual z opóźnieniem).
+   * Wtedy `epsActual`/`epsEstimate`/`epsSurprisePct` są null (EPS poprzedniego
+   * kwartału pominięty), a `period` wskazuje kwartał faktycznie użyty (z Alpha
+   * Vantage), nie nieaktualny. undefined = wynik sprzed fixa / mock / pusty wynik
+   * bez oceny okresu.
+   */
+  finnhubStale?: boolean;
+
+  /** Odrzucony, nieaktualny `period` z Finnhub (tylko gdy `finnhubStale === true`). */
+  finnhubStalePeriod?: string | null;
+
+  /**
+   * Fix 25.11.2026 — pole diagnostyczne bezpiecznika przychodów: ustawione, gdy
+   * actual/estimate przekroczyło REVENUE_SURPRISE_MAX_RATIO (niezgodność
+   * okresu/jednostek, np. regex złapał prognozę roczną). Zawiera ODRZUCONE liczby;
+   * `revenueActual`/`revenueEstimate`/`revenueSurprisePct` są wtedy null, żeby żadna
+   * z nich nie trafiła do promptu GPT ani do guardów. NIE używać do decyzji.
+   */
+  revenueRejected?: { actual: number; estimate: number };
 }
 
 /**

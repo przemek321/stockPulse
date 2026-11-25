@@ -119,6 +119,17 @@ Faza pomiaru: żaden przegląd nie zmienił reguł sygnałowych. Przeglądy i we
   aktywnym filtrze liczony z widocznych wierszy; (3) `LAG` liczony po filtrze okresu — najstarszy wiersz bez odstępu, AVG GAP zależny od
   okna (ELV 7D „—" przy poprzedniku 27 dni wcześniej) → okno po całej historii tickera, filtr `days` na zewnątrz; (4) `fmtGap` „1d24h" → „2d".
   Bez zmian (do decyzji): pasek wlicza alerty stłumione do SIGNALS / HIT RATE 1D.
+- **25.11 — naprawa danych konsensusu dla 8-K Item 2.02** (decyzja usera; ZMIANA WARUNKÓW POMIARU, [raport](FIX-16-BULLISH-8K-REVIEW-2026-11-25.md) §3–§4):
+  (1) `extractRevenue` łapał prognozę całoroczną (HIMS: „For the full year 2026, we expect Revenue of $3.13 billion…" → teraz $890,4M; UHS:
+  $18,5 mld → $4,638 mld) — pomija kontekst prognozy, okresy inne niż kwartał, zakresy i porównania r/r, przy braku pewnej kwoty `null`;
+  (2) EPS z Finnhub pochodził często z POPRZEDNIEGO kwartału (6 z 9 zapisów `fix16_shadow`; HCA/ENSG/TDOC dostały cap `consensus_miss` przy
+  faktycznym beacie) — `assessReportedPeriod` (okres >100 dni przed datą filingu albo Alpha Vantage ma już późniejszy zakończony kwartał
+  → EPS `null`, szacunek przychodów z kwartału raportowanego); (3) bezpiecznik: zaskoczenie przychodów >+150% odrzucane. Skutek: przy
+  nieaktualnym Finnhub bycze 2.02 → `bullish_no_consensus_data`, niedźwiedzie bez capa z cudzego kwartału (mogą być dostarczone).
+  Analizy 2.02 dzielić na przed / od 26.11.2026.
+- **25.11 — Signal Timeline: trafność 1D / 3D / 7D** (prośba usera): API timeline zwraca `price7d`, `directionCorrect3d/7d`, a podsumowanie
+  `hitRate3d/7d` z liczbą ocenionych; w tabeli kolumna 7D i trzy znaczniki HIT (1·3·7), w pasku „HIT 1D / 3D / 7D" w formacie `67% (3)`.
+  Mianownik = tylko alerty z wypełnionym slotem. Słownik zaktualizowany.
 
 ## Czerwiec 2026 — Pakiet 1 + Pakiet 2 (edge fixes + discovery)
 
