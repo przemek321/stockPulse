@@ -18,9 +18,10 @@
  *   "id": 2446, "symbol": "ELV", "ruleName": "Form 4 Insider BUY", "priority": "HIGH",
  *   "alertDirection": "positive", "catalystType": null, "message": "… Conviction: 0\\.505 …",
  *   "priceAtAlert": "312.4500", "price1h": "313.0100", "price4h": null, "price1d": "318.9000", "price3d": null,
+ *   "price7d": null,
  *   "sentAt": "2026-07-17T14:05:12.345Z", "delivered": true, "nonDeliveryReason": null,
  *   "conviction": "0.505", "priceDeltaFromPrevPct": "-1.23", "hoursSincePrev": "72.5000000000000000",
- *   "sameDirectionAsPrev": true, "directionCorrect1d": true
+ *   "sameDirectionAsPrev": true, "directionCorrect1d": true, "directionCorrect3d": null, "directionCorrect7d": null
  * }
  * ```
  * (`sentAt` w JSON to serializacja obiektu Date — w kodzie to `Date`.)
@@ -32,7 +33,7 @@ export type PgNumeric = string;
 /**
  * Wiersz `getRecentTimeline` (widok domyślny Signal Timeline, bez window functions).
  * Kolumny 1:1 z tabeli `alerts` + `conviction` wyciągnięty regexpem z `message`
- * + `directionCorrect1d` liczone w SQL.
+ * + `directionCorrect1d/3d/7d` liczone w SQL (jeden wspólny fragment `directionCorrectSql`).
  */
 export interface RecentTimelineRow {
   id: number;
@@ -48,6 +49,8 @@ export interface RecentTimelineRow {
   price4h: PgNumeric | null;
   price1d: PgNumeric | null;
   price3d: PgNumeric | null;
+  /** Slot 7d — wiążący horyzont pomiaru; null dla świeżych alertów (slot jeszcze niewypełniony, NIE 0%). */
+  price7d: PgNumeric | null;
   sentAt: Date;
   delivered: boolean;
   nonDeliveryReason: string | null;
@@ -55,6 +58,10 @@ export interface RecentTimelineRow {
   conviction: PgNumeric | null;
   /** `CASE` → true/false, albo NULL gdy brak `price1d` / `priceAtAlert` / `alertDirection`. */
   directionCorrect1d: boolean | null;
+  /** Jak `directionCorrect1d`, ale na slocie `price3d` (alert z piątku: często ta sama cena co 1d). */
+  directionCorrect3d: boolean | null;
+  /** Jak `directionCorrect1d`, ale na slocie `price7d`. */
+  directionCorrect7d: boolean | null;
 }
 
 /**

@@ -53,6 +53,17 @@ const fmtGap = (hours: number | null): string => {
 };
 
 /**
+ * Hit rate jednego horyzontu z flag `directionCorrectXd` — ta sama definicja co `computeHitRate`
+ * w backendzie (alerts.controller.ts): mianownik = tylko alerty ocenione (slot ceny wypełniony
+ * i jest kierunek). Brak pola w odpowiedzi (backend sprzed 25.11.2026) = nieoceniony.
+ */
+const hitStats = (flags: (boolean | null | undefined)[]): { hitRate: number | null; evaluated: number } => {
+  const evaluated = flags.filter(f => f != null).length;
+  const correct = flags.filter(f => f === true).length;
+  return { hitRate: evaluated > 0 ? Math.round(correct / evaluated * 100) : null, evaluated };
+};
+
+/**
  * Podsumowanie liczone z wierszy widocznych w tabeli — używane, gdy aktywny jest filtr RULE
  * (podsumowanie z API obejmuje wszystkie reguły tickera). Definicje jak w backendzie
  * (alerts.controller.ts getTimeline); AVG GAP = średni odstęp między kolejnymi widocznymi wierszami.
@@ -60,7 +71,9 @@ const fmtGap = (hours: number | null): string => {
 const summarizeRows = (rows: TimelineAlert[]): TimelineSummary => {
   const pos = rows.filter(a => a.alertDirection === 'positive').length;
   const neg = rows.filter(a => a.alertDirection === 'negative').length;
-  const evaluated = rows.filter(a => a.directionCorrect1d != null);
+  const hit1d = hitStats(rows.map(a => a.directionCorrect1d));
+  const hit3d = hitStats(rows.map(a => a.directionCorrect3d));
+  const hit7d = hitStats(rows.map(a => a.directionCorrect7d));
   const times = rows.map(a => new Date(a.sentAt).getTime()).sort((a, b) => a - b);
   const gaps = times.slice(1).map((t, i) => (t - times[i]) / 3_600_000);
   return {
@@ -69,9 +82,12 @@ const summarizeRows = (rows: TimelineAlert[]): TimelineSummary => {
       ? Math.round(gaps.reduce((s, v) => s + v, 0) / gaps.length * 10) / 10
       : null,
     directionConsistency: pos + neg > 0 ? Math.round(Math.max(pos, neg) / (pos + neg) * 100) : null,
-    hitRate1d: evaluated.length > 0
-      ? Math.round(evaluated.filter(a => a.directionCorrect1d === true).length / evaluated.length * 100)
-      : null,
+    hitRate1d: hit1d.hitRate,
+    hitRate3d: hit3d.hitRate,
+    hitRate7d: hit7d.hitRate,
+    evaluated1d: hit1d.evaluated,
+    evaluated3d: hit3d.evaluated,
+    evaluated7d: hit7d.evaluated,
     dominantDirection: pos > neg ? 'positive' : neg > pos ? 'negative' : 'mixed',
   };
 };
@@ -120,9 +136,9 @@ const isCsuiteBuy = (a: TimelineAlert): boolean => {
 const CSUITE_FILTER = 'Form4 BUY C-suite';
 
 /**
- * Delta pct miedzy cena alertu a wynikiem (1h/4h/1d/3d)
+ * Delta pct miedzy cena alertu a wynikiem (1h/4h/1d/3d/7d); brak slotu (null lub brak pola) = null → „—"
  */
-const calcDelta = (base: number | null, v: number | null): number | null => {
+const calcDelta = (base: number | null, v: number | null | undefined): number | null => {
   if (base == null || v == null) return null;
   return ((v - base) / base) * 100;
 };
@@ -190,7 +206,9 @@ const COLUMNS: ColDef[] = [
   { key: 'd4h', label: '4H', width: 58, align: 'right' },
   { key: 'd1d', label: '1D', width: 58, align: 'right' },
   { key: 'd3d', label: '3D', width: 58, align: 'right' },
-  { key: 'hit', label: 'HIT', width: 62, align: 'center' },
+  { key: 'd7d', label: '7D', width: 58, align: 'right' },
+  // Trzy znaczniki trafienia obok siebie, w kolejnosci 1D · 3D · 7D (HitMark)
+  { key: 'hit', label: 'HIT 1·3·7', width: 82, align: 'center' },
 ];
 
 const TOTAL_WIDTH = COLUMNS.reduce((sum, c) => sum + c.width, 0);
@@ -247,9 +265,39 @@ const DeltaCell = ({ v }: { v: number | null }) => (
   </Box>
 );
 
+/**
+ * Znacznik trafienia kierunku na jednym horyzoncie (kolumna HIT: trzy obok siebie — 1D, 3D, 7D).
+ * ✓ = cena slotu poszla w kierunku alertu, ✗ = nie (remis tez), — = brak oceny: slot ceny jeszcze
+ * niewypelniony albo alert bez kierunku (to NIE jest pudlo). Stala szerokosc — znaczniki stoja w kolumnach.
+ */
+const HitMark = ({ label, hit }: { label: string; hit: boolean | null | undefined }) => {
+  const title =
+    hit == null ? `${label}: brak oceny (slot ceny niewypełniony lub brak kierunku)`
+    : hit ? `${label}: HIT — cena poszła w kierunku alertu`
+    : `${label}: MISS — cena nie poszła w kierunku alertu`;
+  return (
+    <Box component="span" title={title} sx={{
+      display: 'inline-block',
+      boxSizing: 'border-box',
+      width: 20,
+      textAlign: 'center',
+      lineHeight: 1.5,
+      fontFamily: TYPOGRAPHY.monoFamily,
+      fontSize: TYPOGRAPHY.size.xs,
+      fontWeight: 700,
+      borderRadius: '2px',
+      border: `1px solid ${hit == null ? 'transparent' : hit ? COLORS.upBorder : COLORS.downBorder}`,
+      bgcolor: hit == null ? 'transparent' : hit ? COLORS.upBg : COLORS.downBg,
+      color: hit == null ? COLORS.text.muted : hit ? COLORS.up : COLORS.down,
+    }}>
+      {hit == null ? '—' : hit ? '✓' : '✗'}
+    </Box>
+  );
+};
+
 /** Komorka summary bara (SummaryBar) */
-const SummaryCell = ({ label, value, color }: { label: string; value: string; color?: string }) => (
-  <Box sx={{
+const SummaryCell = ({ label, value, color, title }: { label: string; value: string; color?: string; title?: string }) => (
+  <Box title={title} sx={{
     px: 1.5, py: 0.8,
     borderRight: `1px solid ${COLORS.border}`,
     minWidth: 90,
@@ -284,6 +332,7 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
   const d4h = calcDelta(a.priceAtAlert, a.price4h);
   const d1d = calcDelta(a.priceAtAlert, a.price1d);
   const d3d = calcDelta(a.priceAtAlert, a.price3d);
+  const d7d = calcDelta(a.priceAtAlert, a.price7d);
 
   const altBg = index % 2 === 0 ? COLORS.bg.card : COLORS.bg.cardAlt;
   const gapH = a.hoursSincePrev;
@@ -442,47 +491,16 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
         <DeltaCell v={d4h} />
         <DeltaCell v={d1d} />
         <DeltaCell v={d3d} />
+        <DeltaCell v={d7d} />
 
-        {/* HIT */}
+        {/* HIT — trafienie kierunku na 1D / 3D / 7D (kolejnosc jak w naglowku kolumny) */}
         <Box sx={{
-          width: 62, minWidth: 62, px: 0.5, py: 0.6,
-          textAlign: 'center',
+          width: 82, minWidth: 82, px: 0.5, py: 0.6,
+          display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: '3px',
         }}>
-          {a.directionCorrect1d === true && (
-            <Box component="span" sx={{
-              display: 'inline-block', px: 0.6, py: 0.1,
-              bgcolor: COLORS.upBg,
-              border: `1px solid ${COLORS.upBorder}`,
-              borderRadius: '2px',
-              color: COLORS.up,
-              fontSize: TYPOGRAPHY.size.xs,
-              fontWeight: 700,
-              letterSpacing: '0.3px',
-            }}>
-              HIT
-            </Box>
-          )}
-          {a.directionCorrect1d === false && (
-            <Box component="span" sx={{
-              display: 'inline-block', px: 0.6, py: 0.1,
-              bgcolor: COLORS.downBg,
-              border: `1px solid ${COLORS.downBorder}`,
-              borderRadius: '2px',
-              color: COLORS.down,
-              fontSize: TYPOGRAPHY.size.xs,
-              fontWeight: 700,
-              letterSpacing: '0.3px',
-            }}>
-              MISS
-            </Box>
-          )}
-          {a.directionCorrect1d == null && (
-            <Box component="span" sx={{
-              fontSize: TYPOGRAPHY.size.base,
-              color: COLORS.text.muted,
-              fontFamily: TYPOGRAPHY.monoFamily,
-            }}>—</Box>
-          )}
+          <HitMark label="1D" hit={a.directionCorrect1d} />
+          <HitMark label="3D" hit={a.directionCorrect3d} />
+          <HitMark label="7D" hit={a.directionCorrect7d} />
         </Box>
       </Box>
 
@@ -606,6 +624,19 @@ const SignalRow = ({ a, index, expanded, onToggle, onShowMessage }: {
 
 /* ── Summary bar (Bloomberg status line) ──────────────── */
 
+/** Kolor hit rate: ≥60 zielony, ≤40 czerwony, pomiedzy amber; brak oceny = szary */
+const hitRateColor = (rate: number | null | undefined): string =>
+  rate == null ? COLORS.neutral
+  : rate >= 60 ? COLORS.up
+  : rate <= 40 ? COLORS.down
+  : COLORS.warning;
+
+/** „50% (4)" — trafnosc z liczba ocenionych; „—" gdy nic nie oceniono; bez nawiasu, gdy API nie podalo liczby */
+const fmtHitRate = (rate: number | null | undefined, n: number | undefined): string => {
+  if (rate == null) return '—';
+  return n != null ? `${rate}% (${n})` : `${rate}%`;
+};
+
 const SummaryBar = ({ selected, summary }: {
   selected: string; summary: TimelineSummary;
 }) => {
@@ -618,11 +649,13 @@ const SummaryBar = ({ selected, summary }: {
     : summary.dominantDirection === 'negative' ? 'BEAR'
     : 'MIX';
 
-  const hitRateColor =
-    summary.hitRate1d == null ? COLORS.neutral
-    : summary.hitRate1d >= 60 ? COLORS.up
-    : summary.hitRate1d <= 40 ? COLORS.down
-    : COLORS.warning;
+  // Trafnosc per horyzont; 7D = wiazacy horyzont pomiaru (3D zaniza). Mianowniki roznia sie miedzy
+  // horyzontami — swieze alerty nie maja jeszcze slotu 3D/7D, dlatego obok % stoi liczba ocenionych.
+  const hitCells: { label: string; rate: number | null | undefined; n: number | undefined }[] = [
+    { label: '1D', rate: summary.hitRate1d, n: summary.evaluated1d },
+    { label: '3D', rate: summary.hitRate3d, n: summary.evaluated3d },
+    { label: '7D', rate: summary.hitRate7d, n: summary.evaluated7d },
+  ];
 
   return (
     <Box sx={{
@@ -644,11 +677,15 @@ const SummaryBar = ({ selected, summary }: {
           : dominantLabel}
         color={dominantColor}
       />
-      <SummaryCell
-        label="HIT RATE 1D"
-        value={summary.hitRate1d != null ? `${summary.hitRate1d}%` : '—'}
-        color={hitRateColor}
-      />
+      {hitCells.map((h) => (
+        <SummaryCell
+          key={h.label}
+          label={`HIT ${h.label}`}
+          value={fmtHitRate(h.rate, h.n)}
+          color={hitRateColor(h.rate)}
+          title={`Trafność kierunku po ${h.label}: % alertów, w których surowa cena poszła w kierunku alertu; w nawiasie liczba ocenionych (z wypełnionym slotem ${h.label})`}
+        />
+      ))}
       <SummaryCell
         label="AVG GAP"
         value={summary.avgHoursBetween != null ? fmtGap(summary.avgHoursBetween) : '—'}

@@ -57,8 +57,13 @@ export default function GlossaryTab() {
             'Wartosc bliska 0 = brak sygnalu. |conv| < 0.3 = slaby (ignoruj), 0.3-0.7 = umiarkowany, 0.7-1.2 = silny, >1.2 = bardzo silny (rzadki). ' +
             'Na dashboardzie: zielony chip = bullish, czerwony = bearish. Pomaranczowy border przy |conv| >= 0.4, czerwony przy >= 0.7.',
             <PriorityChip p="KRYTYCZNY" />],
-          ['Hit Rate 1d', 'hit rate',
-            'Procent alertow na danym tickerze, gdzie przewidziany kierunek potwierdzil sie rzeczywista zmiana ceny po 1 dniu handlowym. ' +
+          ['Hit Rate 1D / 3D / 7D', 'hit 1d, hit 3d, hit 7d',
+            'Procent alertow na danym tickerze, gdzie przewidziany kierunek potwierdzil sie rzeczywista zmiana ceny (surowa cena vs cena przy alercie) ' +
+            'po 1, 3 i 7 dniach. Summary bar Signal Timeline pokazuje trzy komorki HIT 1D / HIT 3D / HIT 7D w formacie "67% (3)" — ' +
+            'w nawiasie liczba OCENIONYCH alertow (z wypelnionym slotem ceny dla danego horyzontu). Swiezy alert nie ma jeszcze ceny 7d, ' +
+            'wiec nie wchodzi do mianownika 7D (to nie jest pudlo); "—" = nic do oceny. ' +
+            'Wiazacy horyzont pomiaru w projekcie to 7D (3D zaniza). Alert z piatku ma czesto te sama cene 1D i 3D. ' +
+            'W tabeli kolumna "HIT 1·3·7" ma trzy znaczniki w kolejnosci 1D, 3D, 7D: ✓ = trafiony, ✗ = nietrafiony, — = brak oceny. ' +
             'Przyklad: 10 alertow bearish, w 7 przypadkach cena faktycznie spadla = hit rate 70%. ' +
             'Interpretacja: >70% = realny edge (system trafnie przewiduje), 50-60% = moneta (brak wartosci predykcyjnej), <40% = kontrarian sygnal (rynek robi odwrotnie). ' +
             'UWAGA: Hit rate ma sens dopiero od 5+ alertow — przy 3 alertach 67% moze byc przypadkiem.',
@@ -78,16 +83,17 @@ export default function GlossaryTab() {
             <PriorityChip p="WYSOKI" />],
           ['Price at Alert', 'priceAtAlert',
             'Cena akcji pobrana z Finnhub API (endpoint /quote, pole "c" = current/last close) w momencie tworzenia alertu. ' +
-            'To jest punkt referencyjny — od niego liczone sa wszystkie delty procentowe (1h, 4h, 1d, 3d). ' +
+            'To jest punkt referencyjny — od niego liczone sa wszystkie delty procentowe (1h, 4h, 1d, 3d, 7d). ' +
             'Dla alertow wysylanych poza sesja NYSE (Options Flow 22:15 UTC, SEC pre-market) jest to cena zamkniecia poprzedniej sesji.',
             <PriorityChip p="WYSOKI" />],
-          ['Delta 1h/4h/1d/3d', '+1h%, +4h%, +1d%, +3d%',
+          ['Delta 1h/4h/1d/3d/7d', '+1h%, +4h%, +1d%, +3d%, +7d%',
             'Procentowa zmiana ceny w stosunku do priceAtAlert po danym czasie. ' +
             'Przyklad: priceAtAlert = $100, price1d = $102 → delta 1d = +2.00%. ' +
             'Zielona wartosc = cena wzrosla, czerwona = spadla. ' +
             'WAZNE: Sloty 1h/4h sa liczone od otwarcia NYSE (9:30 ET) dla alertow pre-market, ' +
             'wiec delta 1h = cena godzine po otwarciu sesji, nie godzine po alercie. ' +
-            'Delta 1d i 3d to najwazniejsze — pokazuja czy sygnal mial racje w horyzoncie inwestycyjnym.',
+            'Delta 7d to wiazacy horyzont pomiaru (backtest pokazuje edge na 7d, 3d zaniza); 1d i 3d to obraz po drodze. ' +
+            '"—" = slot jeszcze niewypelniony (to nie jest 0%).',
             <PriorityChip p="WYSOKI" />],
           ['Gap', 'gap',
             'Czas w godzinach miedzy aktualnym alertem a poprzednim na tym samym tickerze. ' +
@@ -336,11 +342,11 @@ export default function GlossaryTab() {
         <Typography variant="subtitle2" fontWeight={700} gutterBottom>Jak czytac Signal Timeline — krok po kroku</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8 }}>
           1. Wybierz ticker z dropdown (posortowane po ilosci alertow — wiecej = wiecej danych do analizy).<br/>
-          2. Sprawdz <strong>summary bar</strong>: hit rate &gt;70% + consistency &gt;80% = ticker z edge'em. Hit rate ~50% = szum.<br/>
+          2. Sprawdz <strong>summary bar</strong>: hit rate (1D / 3D / 7D, w nawiasie liczba ocenionych; liczy sie glownie 7D) &gt;70% + consistency &gt;80% = ticker z edge'em. Hit rate ~50% = szum.<br/>
           3. Patrz na <strong>kolory separatorow</strong>: seria zielonych (zgodny kierunek) = rozwijajacy sie pattern. Czerwone = mixed.<br/>
           4. Sprawdz <strong>conviction</strong> na chipach: |conv| &gt; 0.7 z CRITICAL priority = silny sygnal. conv ~0.5 HIGH = umiarkowany.<br/>
           5. Patrz na <strong>rozne typy regul</strong>: jesli Form4 + Options + Correlated ida w te sama strone = multi-source confirmation.<br/>
-          6. Sprawdz <strong>delty cenowe</strong> (✓/✗): czy alert mial racje? Seria ✓ = system dobrze czyta ten ticker.<br/>
+          6. Sprawdz <strong>delty cenowe</strong> i kolumne <strong>HIT 1·3·7</strong> (✓/✗ dla 1D, 3D, 7D): czy alert mial racje? Seria ✓ = system dobrze czyta ten ticker.<br/>
           7. <strong>Nie handluj na pojedynczym alercie</strong> z conv 0.5 i hit rate 55%. Szukaj sekwencji 2-3 sygnalow z roznych zrodel.
         </Typography>
       </Box>

@@ -273,12 +273,20 @@ export interface TimelineAlert {
   price4h: number | null;
   price1d: number | null;
   price3d: number | null;
+  /**
+   * Slot 7d (wiążący horyzont pomiaru) i trafność 3d/7d — od 25.11.2026. Opcjonalne w typie, bo backend
+   * sprzed tej zmiany ich nie zwraca: brak pola traktujemy jak null („—"), nie jak błąd.
+   */
+  price7d?: number | null;
   conviction: number | null;
   sentAt: string;
   priceDeltaFromPrevPct: number | null;
   hoursSincePrev: number | null;
   sameDirectionAsPrev: boolean | null;
+  /** Kierunek surowej ceny slotu vs priceAtAlert (odwrotnie dla negative); null = slot niewypełniony / brak kierunku. */
   directionCorrect1d: boolean | null;
+  directionCorrect3d?: boolean | null;
+  directionCorrect7d?: boolean | null;
   delivered: boolean;
   nonDeliveryReason: string | null;
 }
@@ -288,6 +296,13 @@ export interface TimelineSummary {
   avgHoursBetween: number | null;
   directionConsistency: number | null;
   hitRate1d: number | null;
+  /** Trafność 3d/7d + liczby ocenionych alertów (mianowniki) — opcjonalne z tego samego powodu co price7d. */
+  hitRate3d?: number | null;
+  hitRate7d?: number | null;
+  /** Ile alertów ma wypełniony dany slot i kierunek — mianownik hit rate (świeże alerty nie mają jeszcze 7d). */
+  evaluated1d?: number;
+  evaluated3d?: number;
+  evaluated7d?: number;
   dominantDirection: 'positive' | 'negative' | 'mixed';
 }
 

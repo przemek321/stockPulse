@@ -107,6 +107,37 @@ export function mapAlertToOutcome(a: Alert) {
   };
 }
 
+/** Sloty cenowe, dla których Signal Timeline liczy trafność kierunku (kolumny tabeli `alerts`). */
+type HitSlot = 'price1d' | 'price3d' | 'price7d';
+
+/**
+ * Fragment SQL: trafność kierunku na danym slocie — JEDNA definicja dla 1d/3d/7d i dla obu zapytań timeline.
+ * Surowa cena slotu vs `priceAtAlert` (odwrotnie dla `negative`); NULL, gdy brak ceny slotu / ceny wejścia /
+ * kierunku (slot jeszcze niewypełniony to „brak oceny", NIE 0%); remis (cena bez zmian) = false.
+ * Argumenty to stałe z kodu (unia literałów), nigdy dane z requestu.
+ */
+const directionCorrectSql = (slot: HitSlot, alias: string): string => `
+        CASE
+          WHEN ${slot} IS NOT NULL AND "priceAtAlert" IS NOT NULL AND "alertDirection" IS NOT NULL
+          THEN CASE
+            WHEN "alertDirection" = 'positive' AND ${slot} > "priceAtAlert" THEN true
+            WHEN "alertDirection" = 'negative' AND ${slot} < "priceAtAlert" THEN true
+            ELSE false
+          END
+          ELSE NULL
+        END AS "${alias}"`;
+
+/**
+ * Hit rate dla jednego horyzontu z flag `directionCorrectXd` — czysta funkcja (testowalna bez NestJS).
+ * Mianownik = tylko alerty OCENIONE (flaga != null, czyli slot ceny wypełniony i jest kierunek);
+ * `hitRate` = % trafionych zaokrąglony do całości, null gdy nie ma czego oceniać.
+ */
+export function computeHitRate(flags: readonly (boolean | null)[]): { hitRate: number | null; evaluated: number } {
+  const evaluated = flags.filter((f) => f != null).length;
+  const correct = flags.filter((f) => f === true).length;
+  return { hitRate: evaluated > 0 ? Math.round(correct / evaluated * 100) : null, evaluated };
+}
+
 /**
  * GET /api/alerts — historia alertów, reguły, timeline sygnałów.
  */
@@ -270,7 +301,7 @@ export class AlertsController {
         "catalystType",
         message,
         "priceAtAlert",
-        price1h, price4h, price1d, price3d,
+        price1h, price4h, price1d, price3d, price7d,
         "sentAt",
         delivered,
         "nonDeliveryReason",
@@ -289,16 +320,7 @@ export class AlertsController {
           WHEN LAG("alertDirection") OVER w IS NOT NULL AND "alertDirection" IS NOT NULL
           THEN LAG("alertDirection") OVER w = "alertDirection"
           ELSE NULL
-        END AS "sameDirectionAsPrev",
-        CASE
-          WHEN price1d IS NOT NULL AND "priceAtAlert" IS NOT NULL AND "alertDirection" IS NOT NULL
-          THEN CASE
-            WHEN "alertDirection" = 'positive' AND price1d > "priceAtAlert" THEN true
-            WHEN "alertDirection" = 'negative' AND price1d < "priceAtAlert" THEN true
-            ELSE false
-          END
-          ELSE NULL
-        END AS "directionCorrect1d"
+        END AS "sameDirectionAsPrev",${directionCorrectSql('price1d', 'directionCorrect1d')},${directionCorrectSql('price3d', 'directionCorrect3d')},${directionCorrectSql('price7d', 'directionCorrect7d')}
       FROM alerts
       WHERE symbol = $1
         AND "priceAtAlert" IS NOT NULL
@@ -317,6 +339,7 @@ export class AlertsController {
       price4h: r.price4h != null ? Number(r.price4h) : null,
       price1d: r.price1d != null ? Number(r.price1d) : null,
       price3d: r.price3d != null ? Number(r.price3d) : null,
+      price7d: r.price7d != null ? Number(r.price7d) : null,
       conviction: r.conviction != null ? Number(r.conviction) : null,
       priceDeltaFromPrevPct: r.priceDeltaFromPrevPct != null ? Number(r.priceDeltaFromPrevPct) : null,
       hoursSincePrev: r.hoursSincePrev != null ? Math.round(Number(r.hoursSincePrev) * 10) / 10 : null,
@@ -333,9 +356,10 @@ export class AlertsController {
     const consistency = totalDir > 0 ? Math.round(Math.max(positive, negative) / totalDir * 100) : null;
     const dominant = positive > negative ? 'positive' : negative > positive ? 'negative' : 'mixed';
 
-    const correct = alerts.filter((a) => a.directionCorrect1d === true).length;
-    const evaluated = alerts.filter((a) => a.directionCorrect1d != null).length;
-    const hitRate = evaluated > 0 ? Math.round(correct / evaluated * 100) : null;
+    // Trafność per horyzont: mianownik = alerty z wypełnionym danym slotem (świeże alerty nie mają jeszcze 7d).
+    const hit1d = computeHitRate(alerts.map((a) => a.directionCorrect1d));
+    const hit3d = computeHitRate(alerts.map((a) => a.directionCorrect3d));
+    const hit7d = computeHitRate(alerts.map((a) => a.directionCorrect7d));
 
     // Ten sam zbiór co dawne filter(!=null).map(hoursSincePrev) — type guard zawęża do number[].
     const gaps = alerts.map((a) => a.hoursSincePrev).filter((v): v is number => v != null);
@@ -348,7 +372,12 @@ export class AlertsController {
         totalAlerts: alerts.length,
         avgHoursBetween: avgGap,
         directionConsistency: consistency,
-        hitRate1d: hitRate,
+        hitRate1d: hit1d.hitRate,
+        hitRate3d: hit3d.hitRate,
+        hitRate7d: hit7d.hitRate,
+        evaluated1d: hit1d.evaluated,
+        evaluated3d: hit3d.evaluated,
+        evaluated7d: hit7d.evaluated,
         dominantDirection: dominant,
       },
     };
@@ -388,21 +417,12 @@ export class AlertsController {
     const rows = await this.dataSource.query<RecentTimelineRow[]>(`
       SELECT
         id, symbol, "ruleName", priority, "alertDirection", "catalystType",
-        message, "priceAtAlert", price1h, price4h, price1d, price3d, "sentAt",
+        message, "priceAtAlert", price1h, price4h, price1d, price3d, price7d, "sentAt",
         delivered, "nonDeliveryReason",
         (regexp_match(
           replace(replace(message, E'\\\\.', '.'), E'\\\\-', '-'),
           'Conviction:\\s*([+-]?\\d+\\.?\\d*)', 'i'
-        ))[1]::numeric AS conviction,
-        CASE
-          WHEN price1d IS NOT NULL AND "priceAtAlert" IS NOT NULL AND "alertDirection" IS NOT NULL
-          THEN CASE
-            WHEN "alertDirection" = 'positive' AND price1d > "priceAtAlert" THEN true
-            WHEN "alertDirection" = 'negative' AND price1d < "priceAtAlert" THEN true
-            ELSE false
-          END
-          ELSE NULL
-        END AS "directionCorrect1d"
+        ))[1]::numeric AS conviction,${directionCorrectSql('price1d', 'directionCorrect1d')},${directionCorrectSql('price3d', 'directionCorrect3d')},${directionCorrectSql('price7d', 'directionCorrect7d')}
       FROM alerts
       WHERE "sentAt" > NOW() - INTERVAL '1 day' * $1
         AND archived = false
@@ -417,6 +437,7 @@ export class AlertsController {
       price4h: r.price4h != null ? Number(r.price4h) : null,
       price1d: r.price1d != null ? Number(r.price1d) : null,
       price3d: r.price3d != null ? Number(r.price3d) : null,
+      price7d: r.price7d != null ? Number(r.price7d) : null,
       conviction: r.conviction != null ? Number(r.conviction) : null,
       hoursSincePrev: null,
       priceDeltaFromPrevPct: null,
